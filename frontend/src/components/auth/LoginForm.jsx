@@ -20,6 +20,7 @@ export default function LoginForm({ onSubmit, loading, error }) {
 
   return (
     <div className="login-page">
+      <div className="login-page-bg" aria-hidden="true" />
       <div className="login-card">
         <header className="login-header">
           <img src="/logo.jpeg" alt="XVRYTHNG" className="login-logo" width="80" height="80" />
