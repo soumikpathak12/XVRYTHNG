@@ -8,58 +8,23 @@ import ForgotPassword from './components/auth/ForgotPassword.jsx';
 import ResetPassword from './components/auth/ResetPassword.jsx';
 import { requestPasswordReset as requestResetApi } from './services/api.js';
 
-function AdminPage() {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
+import AdminPage from './pages/admin/AdminPage.jsx'; // <-- dùng file mới
 
-  const handleLogout = async () => {
-    try {
-      await logout();              // clear token, user, etc.
-      navigate('/login', { replace: true });
-    } catch (e) {
-      console.error('Logout failed', e);
-    }
-  };
+import SettingsPage from './pages/admin/SettingsPage.jsx';
+import adminRoutes from './routes/adminRoutes.js';
+// ...
 
-  return (
-    <div style={{
-      padding: '2rem',
-      color: '#1A1A2E',
-      maxWidth: 960,
-      margin: '0 auto',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: '1rem'
-    }}>
-      <div>
-        <h1 style={{ color: '#1A7B7B', margin: 0 }}>Admin</h1>
-        <p style={{ marginTop: '.25rem' }}>
-          Welcome{user?.name ? `, ${user.name}` : ''}! This is the Super Admin area (Phase 2+).
-        </p>
-      </div>
 
-      <button
-        onClick={handleLogout}
-        style={{
-          padding: '0.7rem 1rem',
-          border: 'none',
-          borderRadius: 12,
-          fontWeight: 700,
-          color: '#fff',
-          background: '#1A7B7B',
-          boxShadow: '0 2px 8px rgba(26,123,123,.25)',
-          cursor: 'pointer'
-        }}
-        onMouseOver={(e) => (e.currentTarget.style.background = '#4DB8A8')}
-        onMouseOut={(e) => (e.currentTarget.style.background = '#1A7B7B')}
-        aria-label="Logout"
-      >
-        Logout
-      </button>
-    </div>
-  );
-}
+
+const AdminOverview = () => <PlaceholderPage title="Dashboard" message="Overview metrics & quick actions." />;
+const AdminLeads = () => <PlaceholderPage title="Lead Pipeline" message="Manage and track leads." />;
+const AdminProjects = () => <PlaceholderPage title="Projects" message="In-house & retailer projects." />;
+const AdminOnField = () => <PlaceholderPage title="On-Field" message="Field schedules & activities." />;
+const AdminOperations = () => <PlaceholderPage title="Operations" message="Approvals, payroll, billing." />;
+const AdminAttendance = () => <PlaceholderPage title="Attendance" message="Time & attendance overview." />;
+const AdminReferrals = () => <PlaceholderPage title="Referrals" message="Referral tracking & payouts." />;
+const AdminMessages = () => <PlaceholderPage title="Messages" message="Team & customer communications." />;
+const AdminSettings = () => <PlaceholderPage title="Settings" message="Organization & system settings." />;
 
 
 // Placeholder pages for role redirects (Phase 1 – auth only)
@@ -165,7 +130,21 @@ function App() {
                 <AdminPage />            
             </ProtectedRoute>
           }
-        />
+        >
+        
+          <Route index element={<Navigate to="overview" replace />} />
+          <Route path="overview" element={<AdminOverview />} />
+          <Route path="leads" element={<AdminLeads />} />
+          <Route path="projects" element={<AdminProjects />} />
+          <Route path="on-field" element={<AdminOnField />} />
+          <Route path="operations" element={<AdminOperations />} />
+          <Route path="attendance" element={<AdminAttendance />} />
+          <Route path="referrals" element={<AdminReferrals />} />
+          <Route path="messages" element={<AdminMessages />} />
+          <Route path="settings" element={<SettingsPage />} />
+
+        </Route>
+
         <Route
           path="/dashboard"
           element={

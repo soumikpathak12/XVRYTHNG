@@ -49,6 +49,17 @@ export async function authFetch(url, options = {}) {
   return res;
 }
 
+async function authFetchJSON(url, options = {}) {
+  const res = await authFetch(url, options);
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(body.message || 'Request failed');
+    err.status = res.status;
+    err.body = body;
+    throw err;
+  }
+  return body;
+}
 
 export async function requestPasswordReset(email) {
   const res = await fetch(`${BASE}/api/auth/request-reset`, {
@@ -99,3 +110,62 @@ export async function resetPassword(payload) {
   return data;
 }
 
+/* =======================================================================
+   ADMIN PROFILE (Settings → Company Profile)
+   -----------------------------------------------------------------------
+   Server endpoints:
+     - GET  /api/admin/me
+     - POST /api/admin/me  (multipart; fields + optional file "logo")
+   ======================================================================= */
+
+/**
+ * GET /api/admin/me
+ * @returns {Promise<{ success: boolean, data: {
+ *   id:number, company_id:number|null, role_id:number, email:string,
+ *   name:string, phone:string|null, abn:string|null, image_url:string|null,
+ *   status:string, last_login_at:string|null, created_at:string, updated_at:string
+ * } }>}
+ */
+export async function getAdminMe() {
+  return authFetchJSON('/api/admin/me', { method: 'GET' });
+}
+
+/**
+ * POST /api/admin/me
+ * @param {{
+ *   companyName: string,
+ *   abn?: string,
+ *   email: string,
+ *   phone: string,
+ *   logoFile?: File
+ * }} payload
+ * @returns {Promise<{ success: boolean, data: object }>}
+ */
+export async function updateAdminMe(payload) {
+  const fd = new FormData();
+  fd.append('companyName', payload.companyName || '');
+  fd.append('abn', payload.abn || '');
+  fd.append('email', payload.email || '');
+  fd.append('phone', payload.phone || '');
+  if (payload.logoFile) fd.append('logo', payload.logoFile);
+
+  // NOTE: do NOT set Content-Type; browser sets multipart boundary automatically.
+  const res = await authFetch('/api/admin/me', {
+    method: 'POST',
+    body: fd,
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  // Surface 422 validation errors to caller
+  if (res.status === 422) {
+    const err = new Error('Validation error');
+    err.status = 422;
+    err.body = data; // { success:false, errors:{...} }
+    throw err;
+  }
+  if (!res.ok) {
+    throw new Error(data.message || 'Failed to update profile');
+  }
+  return data; // { success:true, data:{...} }
+}
