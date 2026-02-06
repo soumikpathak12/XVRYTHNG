@@ -6,7 +6,14 @@ import express from 'express';
 import cors from 'cors';
 import authRoutes from './routes/authRoutes.js';
 
+import adminRoutes from './routes/adminRoutes.js'; 
+import { fileURLToPath } from 'url';
+import path from 'path';
 const app = express();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 
 app.use(cors({
   origin: process.env.CORS_ORIGIN || true,
@@ -18,6 +25,10 @@ app.use(express.json({ limit: '256kb' }));
 app.get('/health', (_, res) => res.status(200).json({ status: 'ok' }));
 
 app.use('/api/auth', authRoutes);
+
+
+app.use('/api/admin', adminRoutes);
+
 
 // 404
 app.use((_, res) => res.status(404).json({ success: false, message: 'Not found' }));

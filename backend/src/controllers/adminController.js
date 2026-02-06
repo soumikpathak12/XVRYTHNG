@@ -1,0 +1,111 @@
+// src/controllers/adminController.js
+import jwt from 'jsonwebtoken';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import db from '../config/db.js';
+
+const JWT_SECRET = process.env.JWT_SECRET;
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const UPLOAD_DIR = path.resolve(__dirname, '../uploads/logos');
+
+/** JWT guard: sets req.user = { id, role, companyId } */
+export function requireAuth(req, res, next) {
+  const auth = req.headers.authorization || '';
+  const [, token] = auth.split(' ');
+  if (!token) return res.status(401).json({ success: false, message: 'Missing token' });
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.user = { id: payload.userId, role: payload.role, companyId: payload.companyId ?? null };
+    next();
+  } catch {
+    return res.status(401).json({ success: false, message: 'Invalid or expired token' });
+  }
+}
+
+export function requireSuperAdmin(req, res, next) {
+  if (String(req.user?.role).toLowerCase() !== 'super_admin') {
+    return res.status(403).json({ success: false, message: 'Forbidden' });
+  }
+  next();
+}
+
+/** GET /api/admin/me */
+export async function getAdminProfile(req, res) {
+  try {
+    const [rows] = await db.execute(
+      `SELECT id, company_id, role_id, email, name, phone, abn, image_url,
+              status, last_login_at, created_at, updated_at
+         FROM users
+        WHERE id = ?
+        LIMIT 1`,
+      [req.user.id]
+    );
+    const row = rows[0];
+    if (!row) return res.status(404).json({ success: false, message: 'User not found' });
+    return res.json({ success: true, data: row });
+  } catch (err) {
+    console.error('getAdminProfile error', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}
+
+/** POST /api/admin/me (multipart/form-data) */
+export async function updateAdminProfile(req, res) {
+  try {
+    const { companyName, email, phone, abn } = req.body;
+
+    // Basic validation
+    const errors = {};
+    if (!companyName?.trim()) errors.companyName = 'Company name is required';
+    if (!email || !/^\S+@\S+\.\S+$/.test(email)) errors.email = 'Invalid email';
+    if (!phone?.trim()) errors.phone = 'Phone is required';
+    if (abn && !/^\d[\d\s]*$/.test(abn)) errors.abn = 'ABN must be digits/spaces';
+    if (Object.keys(errors).length) return res.status(422).json({ success: false, errors });
+
+    // Optional logo file
+    let imageUrl;
+    if (req.files?.logo) {
+      const file = req.files.logo;
+      if (!['image/png', 'image/jpeg'].includes(file.mimetype)) {
+        return res.status(422).json({ success: false, errors: { logo: 'Only PNG or JPG allowed' } });
+      }
+      fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+      const ext = file.mimetype === 'image/png' ? 'png' : 'jpg';
+      const filename = `logo_u${req.user.id}_${Date.now()}.${ext}`;
+      const savePath = path.join(UPLOAD_DIR, filename);
+      await file.mv(savePath);
+      imageUrl = `/uploads/logos/${filename}`; // public URL (served in app.js)
+    }
+
+    // Update only changed fields; image_url only if provided
+    const sql =
+      `UPDATE users
+          SET name = ?, email = ?, phone = ?, abn = ?` +
+      (imageUrl ? `, image_url = ?` : ``) +
+      `, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?`;
+
+    const params = imageUrl
+      ? [companyName.trim(), email.trim().toLowerCase(), phone.trim(), abn?.trim() || null, imageUrl, req.user.id]
+      : [companyName.trim(), email.trim().toLowerCase(), phone.trim(), abn?.trim() || null, req.user.id];
+
+    await db.execute(sql, params);
+
+    // Return fresh profile
+    const [rows] = await db.execute(
+      `SELECT id, company_id, role_id, email, name, phone, abn, image_url,
+              status, last_login_at, created_at, updated_at
+         FROM users
+        WHERE id = ?
+        LIMIT 1`,
+      [req.user.id]
+    );
+    return res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    console.error('updateAdminProfile error', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}
