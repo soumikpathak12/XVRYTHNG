@@ -90,7 +90,7 @@ export default function LoginForm({ onSubmit, loading, error }) {
               />
               <span>Remember me</span>
             </label>
-            <a href="#forgot-password" className="login-forgot">
+            <a href="/forgot-password" className="login-forgot">
               Forgot password?
             </a>
           </div>
