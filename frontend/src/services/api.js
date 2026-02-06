@@ -48,3 +48,54 @@ export async function authFetch(url, options = {}) {
   const res = await fetch(`${BASE}${url}`, { ...options, headers });
   return res;
 }
+
+
+export async function requestPasswordReset(email) {
+  const res = await fetch(`${BASE}/api/auth/request-reset`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.message || 'Unable to request reset. Please try again.');
+  }
+  return true;
+}
+
+/**
+ * GET /api/auth/validate-reset-token?token=...
+ * @param {string} token
+ * @returns {Promise<{ success: boolean, valid: boolean }>}
+ */
+export async function validateResetToken(token) {
+  const res = await fetch(
+    `${BASE}/api/auth/validate-reset-token?token=${encodeURIComponent(token)}`,
+    { method: 'GET' }
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    // API returns { success: true, valid: false } on bad tokens, but if something else fails:
+    throw new Error(data.message || 'Unable to validate reset link.');
+  }
+  return data; // { success, valid }
+}
+
+/**
+ * POST /api/auth/reset-password
+ * @param {{ token: string, password: string }} payload
+ * @returns {Promise<{ success: boolean, message?: string }>}
+ */
+export async function resetPassword(payload) {
+  const res = await fetch(`${BASE}/api/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: payload.token, password: payload.password }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.message || 'Unable to reset password.');
+  }
+  return data;
+}
+
