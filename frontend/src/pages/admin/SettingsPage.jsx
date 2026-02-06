@@ -1,5 +1,5 @@
 // src/pages/admin/SettingsPage.jsx
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Building2,
   Boxes,
@@ -11,7 +11,7 @@ import {
   ImagePlus,
 } from 'lucide-react';
 
-// ⬇️ Use a relative import (no alias) to your API client
+// Use a relative import (no alias) to your API client
 import { getAdminMe, updateAdminMe } from '../../services/api.js';
 
 const palette = {
@@ -151,7 +151,9 @@ function CompanyProfileForm() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const [errors, setErrors] = useState({});
+  const [serverErrors, setServerErrors] = useState({}); // { field: message }
+  const [serverMessage, setServerMessage] = useState(null); // success or general error
+
   const [logo, setLogo] = useState(null); // { url?:string, file?:File }
 
   const [form, setForm] = useState({
@@ -168,7 +170,7 @@ function CompanyProfileForm() {
       ? (logo.url.startsWith('http') ? logo.url : `${API_BASE}${logo.url}`)
       : null;
 
-  // Load current profile on mount
+  // Load current profile on mount (no frontend validation)
   useEffect(() => {
     (async () => {
       try {
@@ -182,55 +184,37 @@ function CompanyProfileForm() {
         if (data.image_url) setLogo({ url: data.image_url });
       } catch (e) {
         console.error(e);
-        alert('Failed to load profile.');
+        setServerMessage('Failed to load profile.');
       } finally {
         setLoading(false);
       }
     })();
   }, []);
 
-  // Simple validation
-  const computeErrors = (f) => {
-    const e = {};
-    if (!f.companyName?.trim()) e.companyName = 'Company name is required.';
-    if (f.abn && !/^\d[\d\s]*$/.test(f.abn)) e.abn = 'ABN should contain digits and spaces only.';
-    if (!/^\S+@\S+\.\S+$/.test(f.email || '')) e.email = 'Invalid email address.';
-    if (!f.phone?.trim()) e.phone = 'Phone number is required.';
-    return e;
-  };
-
-  // Recompute errors on form changes
-  useEffect(() => {
-    setErrors(computeErrors(form));
-  }, [form]);
-
-  const isValid = useMemo(() => Object.keys(errors).length === 0, [errors]);
-
   const onPickLogo = () => fileRef.current?.click();
 
   const onFileChange = (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
-
-    if (!/image\/(png|jpeg|jpg)/i.test(f.type)) {
-      alert('Please upload a PNG or JPG image.');
-      e.target.value = '';
-      return;
-    }
-
+    // No client-side validation; just preview and send to server
     const url = URL.createObjectURL(f);
     setLogo({ url, file: f });
   };
 
   const onChangeField = (key) => (e) => {
     setForm((prev) => ({ ...prev, [key]: e.target.value }));
+    // Clear server error for this field when user edits
+    setServerErrors((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
   };
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    const newErrors = computeErrors(form);
-    setErrors(newErrors);
-    if (Object.keys(newErrors).length > 0) return;
+    setServerErrors({});
+    setServerMessage(null);
 
     try {
       setSaving(true);
@@ -252,14 +236,15 @@ function CompanyProfileForm() {
       });
       if (data.image_url) setLogo({ url: data.image_url, file: undefined });
 
-      alert('Saved successfully!');
+      setServerMessage('Saved successfully!');
     } catch (err) {
-      // Validation from server (422)
+      // Show server-provided errors (422) or general error
       if (err?.status === 422 && err.body?.errors) {
-        setErrors((prev) => ({ ...prev, ...err.body.errors }));
+        setServerErrors(err.body.errors);
+        setServerMessage('Please fix the errors and try again.');
       } else {
         console.error(err);
-        alert(err.message || 'Failed to save.');
+        setServerMessage(err.message || 'Failed to save.');
       }
     } finally {
       setSaving(false);
@@ -283,6 +268,27 @@ function CompanyProfileForm() {
           Configure your organization’s company profile preferences.
         </div>
       </div>
+
+      {/* Global message (success or generic error) */}
+      {serverMessage && (
+        <div
+          role="status"
+          style={{
+            marginTop: 10,
+            marginBottom: 10,
+            padding: '10px 12px',
+            borderRadius: 10,
+            background: serverErrors && Object.keys(serverErrors).length ? '#FFF2F2' : '#E9F7F1',
+            color: serverErrors && Object.keys(serverErrors).length ? palette.danger : palette.success,
+            border: `1px solid ${
+              serverErrors && Object.keys(serverErrors).length ? '#FAD1D1' : '#CDEFD9'
+            }`,
+            fontWeight: 700,
+          }}
+        >
+          {serverMessage}
+        </div>
+      )}
 
       {/* Body */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 18, marginTop: 16 }}>
@@ -352,10 +358,15 @@ function CompanyProfileForm() {
             <input
               ref={fileRef}
               type="file"
-              accept="image/png, image/jpeg"
+              // no accept restriction; server will validate
               onChange={onFileChange}
               style={{ display: 'none' }}
             />
+            {serverErrors.logo && (
+              <div style={{ ...helpStyle, color: palette.danger, marginTop: 8 }}>
+                {serverErrors.logo}
+              </div>
+            )}
           </div>
         </div>
 
@@ -369,10 +380,10 @@ function CompanyProfileForm() {
               onChange={onChangeField('companyName')}
               style={inputStyle}
               placeholder="Your company name"
-              aria-invalid={!!errors.companyName}
+              aria-invalid={!!serverErrors.companyName}
             />
-            {errors.companyName && (
-              <div style={{ ...helpStyle, color: palette.danger }}>{errors.companyName}</div>
+            {serverErrors.companyName && (
+              <div style={{ ...helpStyle, color: palette.danger }}>{serverErrors.companyName}</div>
             )}
           </div>
 
@@ -384,10 +395,10 @@ function CompanyProfileForm() {
               onChange={onChangeField('abn')}
               style={inputStyle}
               placeholder="12 345 678 910"
-              aria-invalid={!!errors.abn}
+              aria-invalid={!!serverErrors.abn}
               inputMode="numeric"
             />
-            {errors.abn && <div style={{ ...helpStyle, color: palette.danger }}>{errors.abn}</div>}
+            {serverErrors.abn && <div style={{ ...helpStyle, color: palette.danger }}>{serverErrors.abn}</div>}
           </div>
 
           <div>
@@ -398,9 +409,9 @@ function CompanyProfileForm() {
               onChange={onChangeField('email')}
               style={inputStyle}
               placeholder="admin@company.com"
-              aria-invalid={!!errors.email}
+              aria-invalid={!!serverErrors.email}
             />
-            {errors.email && <div style={{ ...helpStyle, color: palette.danger }}>{errors.email}</div>}
+            {serverErrors.email && <div style={{ ...helpStyle, color: palette.danger }}>{serverErrors.email}</div>}
           </div>
 
           <div>
@@ -411,10 +422,10 @@ function CompanyProfileForm() {
               onChange={onChangeField('phone')}
               style={inputStyle}
               placeholder="1300 000 000"
-              aria-invalid={!!errors.phone}
+              aria-invalid={!!serverErrors.phone}
               inputMode="tel"
             />
-            {errors.phone && <div style={{ ...helpStyle, color: palette.danger }}>{errors.phone}</div>}
+            {serverErrors.phone && <div style={{ ...helpStyle, color: palette.danger }}>{serverErrors.phone}</div>}
           </div>
         </div>
       </div>
@@ -423,22 +434,22 @@ function CompanyProfileForm() {
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
         <button
           type="submit"
-          disabled={saving || !isValid}
+          disabled={saving} // only disabled while saving, not on validity
           style={{
-            background: !isValid || saving ? '#9EC9C9' : palette.brand,
+            background: saving ? '#9EC9C9' : palette.brand,
             border: 'none',
             color: '#fff',
             fontWeight: 800,
             padding: '10px 16px',
             borderRadius: 10,
-            cursor: saving || !isValid ? 'not-allowed' : 'pointer',
+            cursor: saving ? 'not-allowed' : 'pointer',
             boxShadow: '0 4px 12px rgba(20,107,107,.2)',
           }}
           onMouseOver={(e) => {
-            if (!saving && isValid) e.currentTarget.style.background = palette.brandHover;
+            if (!saving) e.currentTarget.style.background = palette.brandHover;
           }}
           onMouseOut={(e) => {
-            if (!saving && isValid) e.currentTarget.style.background = palette.brand;
+            if (!saving) e.currentTarget.style.background = palette.brand;
           }}
           aria-busy={saving}
         >

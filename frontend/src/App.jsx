@@ -8,10 +8,9 @@ import ForgotPassword from './components/auth/ForgotPassword.jsx';
 import ResetPassword from './components/auth/ResetPassword.jsx';
 import { requestPasswordReset as requestResetApi } from './services/api.js';
 
-import AdminPage from './pages/admin/AdminPage.jsx'; // <-- dùng file mới
+import AdminPage from './pages/admin/AdminPage.jsx'; 
 
 import SettingsPage from './pages/admin/SettingsPage.jsx';
-import adminRoutes from './routes/adminRoutes.js';
 // ...
 
 
