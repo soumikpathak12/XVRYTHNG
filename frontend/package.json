@@ -9,6 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "express-fileupload": "^1.5.2",
+    "jsonwebtoken": "^9.0.3",
+    "lucide-react": "^0.563.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.21.1"
