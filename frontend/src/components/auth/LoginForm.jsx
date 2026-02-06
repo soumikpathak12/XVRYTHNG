@@ -104,7 +104,7 @@ export default function LoginForm({ onSubmit, loading, error }) {
               '--primary-hover': theme.primaryHover,
             }}
           >
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? 'Signing in…' : 'Sign in '}
           </button>
         </form>
       </div>

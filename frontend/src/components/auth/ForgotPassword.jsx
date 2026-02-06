@@ -9,7 +9,7 @@ export default function ForgotPassword({ onRequestReset }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setStatus('loading');
-    setMessage('');
+    setMessage(' ');
 
     try {
       // If the parent passes a real handler, use that; otherwise run the local mock.
