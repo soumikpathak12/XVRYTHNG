@@ -43,17 +43,14 @@ export default function ResetPassword() {
       });
   }, []);
 
-  // --- password rules (live)
   const rules = useMemo(() => {
     const lengthOk = pw.length >= 8;
     const uppercaseOk = /[A-Z]/.test(pw);
-    // special chars: any non-alphanumeric (adjust to your policy if needed)
     const specialOk = /[^A-Za-z0-9]/.test(pw);
     const matchOk = pw.length > 0 && pw === pw2;
     return { lengthOk, uppercaseOk, specialOk, matchOk };
   }, [pw, pw2]);
 
-  // --- submit handler
   const onSubmit = async (e) => {
     e.preventDefault();
 
