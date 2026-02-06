@@ -1,4 +1,4 @@
-/* XVRYTHNG – Global styles. Brand colors from theme.js in components. */
+  /* XVRYTHNG – Global styles. Brand colors from theme.js in components. */
 *, *::before, *::after {
   box-sizing: border-box;
 }
@@ -45,6 +45,59 @@ a:focus-visible, button:focus-visible, input:focus-visible {
   outline-offset: 2px;
 }
 
+/* =========================
+   Alerts for auth screens
+   ========================= */
+
+/* Base alert container */
+.login-error,
+.login-success {
+  margin: 0 0 12px 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  border: 1px solid transparent;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Error (red family, accessible contrast) */
+.login-error {
+  background: #fdecea;      /* light red */
+  color: #611a15;           /* dark red text */
+  border-color: #f5c2c7;    /* soft red border */
+}
+
+/* Success (teal/green family, accessible contrast) */
+.login-success {
+  /* You can choose a green, but here's a teal‑friendly scheme
+     that fits your brand palette */
+  background: #e7f5f3;      /* very light teal/green */
+  color: #0f4d4d;           /* deep teal text for contrast */
+  border-color: #b6e2db;    /* soft teal border */
+}
+
+/* Optional: emphasize links inside alerts */
+.login-error a,
+.login-success a {
+  color: #1A7B7B;
+  text-decoration: underline;
+}
+.login-error a:hover,
+.login-success a:hover {
+  color: #4DB8A8;
+}
+
+/* Utility to keep a single, persistent banner in the DOM */
+.visually-hidden {
+  position: absolute !important;
+  height: 1px; width: 1px;
+  overflow: hidden;
+  clip: rect(1px, 1px, 1px, 1px);
+  white-space: nowrap;
+  border: 0; padding: 0; margin: -1px;
+}
 /* Reduced motion for accessibility */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
