@@ -10,6 +10,7 @@ import {
   Share2,
   MessageSquare,
   Settings,
+  Building2,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -21,6 +22,7 @@ export default function SuperAdminSidebar({ onLogout, user, logoSrc }) {
 
   const navItems = [
     { to: '/admin/overview', label: 'Dashboard', icon: LayoutDashboard },
+    { to: '/admin/companies', label: 'Companies', icon: Building2 },
     { to: '/admin/leads', label: 'Lead Pipeline', icon: UsersRound },
     { to: '/admin/projects', label: 'Projects', icon: Boxes },
     { to: '/admin/on-field', label: 'On-Field', icon: HardHat },

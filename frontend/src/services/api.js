@@ -186,3 +186,51 @@ export async function updateAdminMe(payload) {
   }
   return data; // { success:true, data:{...} }
 }
+
+/* =======================================================================
+   MULTI-TENANT COMPANIES (Super Admin)
+   -----------------------------------------------------------------------
+   GET  /api/admin/company-types  → company types with modules
+   GET  /api/admin/companies      → list companies
+   POST /api/admin/companies     → create company + company admin
+   ======================================================================= */
+
+/**
+ * GET /api/admin/company-types
+ * @returns {Promise<{ success: boolean, data: Array<{ id, name, description, modules: string[] }> }>}
+ */
+export async function getCompanyTypes() {
+  return authFetchJSON('/api/admin/company-types', { method: 'GET' });
+}
+
+/**
+ * GET /api/admin/companies
+ * @param {{ status?: string }} params - optional ?status=active|suspended|trial
+ * @returns {Promise<{ success: boolean, data: Array<object> }>}
+ */
+export async function listCompanies(params = {}) {
+  const q = new URLSearchParams(params).toString();
+  return authFetchJSON(`/api/admin/companies${q ? `?${q}` : ''}`, { method: 'GET' });
+}
+
+/**
+ * POST /api/admin/companies - create company and company admin
+ * @param {{ company: object, admin: { email, password, name } }} payload
+ * @returns {Promise<{ success: boolean, data: { company, adminUser } }>}
+ */
+export async function createCompany(payload) {
+  const res = await authFetch('/api/admin/companies', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 422) {
+    const err = new Error('Validation failed');
+    err.status = 422;
+    err.body = data;
+    throw err;
+  }
+  if (!res.ok) throw new Error(data.message || 'Failed to create company');
+  return data;
+}

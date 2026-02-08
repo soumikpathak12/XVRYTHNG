@@ -33,23 +33,6 @@ export default function AdminPage() {
           padding: '24px',
         }}
       >
-        {/* Header trong content (optional) */}
-        <div
-          style={{
-            background: '#fff',
-            border: '1px solid #E5E7EB',
-            borderRadius: 16,
-            padding: '16px 20px',
-            marginBottom: 16,
-          }}
-        >
-          <h1 style={{ margin: 0, color: '#146b6b' }}>Admin</h1>
-          <p style={{ margin: '6px 0 0 0', color: '#374151' }}>
-            Welcome{user?.name ? `, ${user.name}` : ''}! This is the Super Admin areaa (Phase 2+).
-          </p>
-        </div>
-
-        {/* Nested routes will render here */}
         <div
           style={{
             background: '#fff',
