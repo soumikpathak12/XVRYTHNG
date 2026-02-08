@@ -1,13 +1,15 @@
 /**
- * Auth service: credential validation, JWT generation.
+ * Auth service: credential validation, JWT generation, refresh token rotation.
  * Passwords hashed with bcrypt; no secrets in code.
  */
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import db from '../config/db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
+const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
 
 
 const LOCK_THRESHOLD = Number(process.env.AUTH_LOCK_THRESHOLD || 5);      // attempts
@@ -37,6 +39,20 @@ export async function findUserByEmail(email, companyId = null) {
   return rows[0] || null;
 }
 
+/**
+ * Find user by id (for refresh flow). Returns same shape as findUserByEmail for token creation.
+ */
+export async function findUserById(userId) {
+  const [rows] = await db.execute(
+    `SELECT u.id, u.company_id, u.role_id, u.email, u.password_hash, u.name, u.status, r.name AS role_name
+     FROM users u
+     INNER JOIN roles r ON u.role_id = r.id
+     WHERE u.id = ?
+     LIMIT 1`,
+    [userId]
+  );
+  return rows[0] || null;
+}
 
 /**
  * Internal: mark a failed attempt and set lock if threshold reached.
@@ -116,19 +132,111 @@ export async function validateCredentials(email, password, companyId = null) {
 
 
 /**
- * Generate JWT payload: userId, role, companyId (for RBAC and tenant context).
+ * Generate access JWT: userId, role, companyId (for RBAC and tenant context).
+ * Returns { accessToken, expiresIn }.
  */
-export function createToken(user) {
+export function createAccessToken(user) {
   const payload = {
     userId: user.id,
     role: user.role_name,
     companyId: user.company_id ?? null,
   };
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  return { accessToken, expiresIn: JWT_EXPIRES_IN };
+}
+
+/** @deprecated Use createAccessToken. Kept for backward compatibility. */
+export function createToken(user) {
+  return createAccessToken(user).accessToken;
 }
 
 /**
- * Login: validate credentials, update last_login_at, return token + safe user object.
+ * Hash a refresh token for storage (SHA-256 hex).
+ */
+function hashRefreshToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+/**
+ * Create a refresh token: store hash in DB, return raw token string.
+ * One-time use; consumed by refresh() which issues a new pair.
+ */
+export async function createRefreshToken(userId) {
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = hashRefreshToken(rawToken);
+  const expiresInSeconds = parseExpiryToSeconds(JWT_REFRESH_EXPIRES_IN);
+  const expiresAt = new Date(Date.now() + expiresInSeconds * 1000);
+
+  await db.execute(
+    `INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)`,
+    [userId, tokenHash, expiresAt]
+  );
+  return { refreshToken: rawToken, refreshExpiresIn: JWT_REFRESH_EXPIRES_IN };
+}
+
+function parseExpiryToSeconds(exp) {
+  const match = String(exp).trim().match(/^(\d+)(s|m|h|d)$/);
+  if (!match) return 7 * 24 * 3600; // default 7d in seconds
+  const n = parseInt(match[1], 10);
+  const u = match[2];
+  if (u === 's') return n;
+  if (u === 'm') return n * 60;
+  if (u === 'h') return n * 3600;
+  if (u === 'd') return n * 24 * 3600;
+  return 7 * 24 * 3600;
+}
+
+/**
+ * Refresh rotation: validate refresh token, delete it (one-time use), issue new access + refresh.
+ * Returns { accessToken, refreshToken, expiresIn, refreshExpiresIn, user } or throws.
+ */
+export async function refresh(refreshTokenRaw) {
+  if (!refreshTokenRaw || typeof refreshTokenRaw !== 'string') {
+    throw new Error('Invalid refresh token');
+  }
+  const tokenHash = hashRefreshToken(refreshTokenRaw.trim());
+
+  const [rows] = await db.execute(
+    `SELECT id, user_id, expires_at FROM refresh_tokens WHERE token_hash = ? LIMIT 1`,
+    [tokenHash]
+  );
+  const row = rows[0];
+  if (!row) {
+    throw new Error('Invalid or expired refresh token');
+  }
+  if (new Date(row.expires_at) <= new Date()) {
+    await db.execute('DELETE FROM refresh_tokens WHERE id = ?', [row.id]);
+    throw new Error('Invalid or expired refresh token');
+  }
+
+  const user = await findUserById(row.user_id);
+  if (!user || user.status !== 'active') {
+    await db.execute('DELETE FROM refresh_tokens WHERE id = ?', [row.id]);
+    throw new Error('Invalid or expired refresh token');
+  }
+
+  await db.execute('DELETE FROM refresh_tokens WHERE id = ?', [row.id]);
+
+  const { accessToken, expiresIn } = createAccessToken(user);
+  const { refreshToken, refreshExpiresIn } = await createRefreshToken(user.id);
+
+  return {
+    accessToken,
+    refreshToken,
+    expiresIn,
+    refreshExpiresIn,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role_name,
+      companyId: user.company_id,
+    },
+  };
+}
+
+/**
+ * Login: validate credentials, update last_login_at, return access + refresh tokens and user.
  */
 export async function login(email, password, companyId = null) {
   const user = await validateCredentials(email, password, companyId);
@@ -139,9 +247,14 @@ export async function login(email, password, companyId = null) {
     [user.id]
   );
 
-  const token = createToken(user);
+  const { accessToken, expiresIn } = createAccessToken(user);
+  const { refreshToken, refreshExpiresIn } = await createRefreshToken(user.id);
+
   return {
-    token,
+    accessToken,
+    refreshToken,
+    expiresIn,
+    refreshExpiresIn,
     user: {
       id: user.id,
       name: user.name,

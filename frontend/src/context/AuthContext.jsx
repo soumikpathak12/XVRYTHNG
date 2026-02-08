@@ -1,11 +1,22 @@
 /**
  * Auth context: holds user + token, login/logout, loading state.
- * Token stored in localStorage for now; ready for offline sync later.
+ * Session timeout: 8 hours; on 401 or token expiry we clear auth and show session-expired message.
  */
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import * as api from '../services/api.js';
 
 const AuthContext = createContext(null);
+
+/** Get JWT exp in ms (client-side decode only). */
+function getJwtExpMs(token) {
+  if (!token || typeof token !== 'string') return null;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.exp ? payload.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
@@ -19,10 +30,13 @@ export function AuthProvider({ children }) {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [sessionExpiredMessage, setSessionExpiredMessage] = useState(null);
+  const sessionCheckRef = useRef(null);
 
   const login = useCallback(async (credentials) => {
     setLoading(true);
     setError(null);
+    setSessionExpiredMessage(null);
     try {
       const data = await api.login(credentials);
       if (!data.success || !data.token || !data.user) {
@@ -46,12 +60,46 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('xvrythng_user');
     setUser(null);
     setError(null);
+    setSessionExpiredMessage(null);
   }, []);
+
+  useEffect(() => {
+    const onSessionExpired = (e) => {
+      const message = e.detail?.message || 'Session expired after 8 hours. Please sign in again.';
+      setSessionExpiredMessage(message);
+      setUser(null);
+    };
+    window.addEventListener('session-expired', onSessionExpired);
+    return () => window.removeEventListener('session-expired', onSessionExpired);
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    const token = localStorage.getItem('xvrythng_token');
+    const expMs = getJwtExpMs(token);
+    if (!expMs) return;
+
+    sessionCheckRef.current = setInterval(() => {
+      if (Date.now() >= expMs) {
+        window.dispatchEvent(
+          new CustomEvent('session-expired', {
+            detail: { message: 'Session expired after 8 hours. Please sign in again.' },
+          })
+        );
+      }
+    }, 60 * 1000);
+
+    return () => {
+      if (sessionCheckRef.current) clearInterval(sessionCheckRef.current);
+    };
+  }, [user]);
 
   const value = {
     user,
     loading,
     error,
+    sessionExpiredMessage,
+    clearSessionExpiredMessage: useCallback(() => setSessionExpiredMessage(null), []),
     login,
     logout,
     isAuthenticated: !!user,

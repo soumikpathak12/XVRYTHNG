@@ -37,9 +37,10 @@ function PlaceholderPage({ title, message }) {
 }
 
 function LoginPage() {
-  const { login, loading, error, isAuthenticated } = useAuth();
+  const { login, loading, error, sessionExpiredMessage, clearSessionExpiredMessage, isAuthenticated } = useAuth();
 
   const handleSubmit = async (credentials) => {
+    clearSessionExpiredMessage?.();
     try {
       await login(credentials);
       // Redirect is handled by RequireAuth / role route
@@ -57,6 +58,8 @@ function LoginPage() {
       onSubmit={handleSubmit}
       loading={loading}
       error={error ?? undefined}
+      sessionExpiredMessage={sessionExpiredMessage ?? undefined}
+      onDismissSessionMessage={clearSessionExpiredMessage}
     />
   );
 }

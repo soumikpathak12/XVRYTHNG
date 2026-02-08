@@ -10,7 +10,7 @@ import { postRequestReset,getValidateToken,postResetPassword,
 const router = express.Router();
 
 router.post('/login', authController.login);
-
+router.post('/refresh', authController.refresh);
 
 router.post('/request-reset', postRequestReset);
 router.get('/validate-reset-token', getValidateToken);

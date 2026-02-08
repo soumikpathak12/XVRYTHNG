@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { theme } from '../../styles/theme';
 import './LoginForm.css';
 
-export default function LoginForm({ onSubmit, loading, error }) {
+export default function LoginForm({ onSubmit, loading, error, sessionExpiredMessage, onDismissSessionMessage }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -29,6 +29,14 @@ export default function LoginForm({ onSubmit, loading, error }) {
         </header>
 
         <form className="login-form" onSubmit={handleSubmit} noValidate>
+          {sessionExpiredMessage && (
+            <div className="login-session-expired" role="alert">
+              {sessionExpiredMessage}
+              {onDismissSessionMessage && (
+                <button type="button" className="login-session-expired-dismiss" onClick={onDismissSessionMessage} aria-label="Dismiss">×</button>
+              )}
+            </div>
+          )}
           {error && (
             <div id="login-error-msg" className="login-error" role="alert">
               {error}

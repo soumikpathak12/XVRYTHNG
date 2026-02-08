@@ -103,6 +103,26 @@ async function seed() {
       console.log('    users.password_changed_at already exists');
     }
 
+    // 5) refresh_tokens (for JWT refresh rotation)
+    if (!(await tableExists(schema, 'refresh_tokens'))) {
+      console.log('  + Creating table refresh_tokens');
+      await db.execute(`
+        CREATE TABLE refresh_tokens (
+          id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+          user_id INT UNSIGNED NOT NULL,
+          token_hash CHAR(64) NOT NULL,
+          expires_at DATETIME NOT NULL,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT fk_rt_user
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          INDEX idx_rt_token (token_hash),
+          INDEX idx_rt_exp (expires_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+    } else {
+      console.log('    refresh_tokens already exists');
+    }
+
     console.log('[auth-schema] ✅ Done');
     process.exit(0);
   } catch (err) {

@@ -14,6 +14,17 @@ export function setAuthToken(token) {
   else localStorage.removeItem('xvrythng_token');
 }
 
+/** Clear auth storage and notify app that session timed out (8h). */
+function clearSessionAndNotify(data = {}) {
+  localStorage.removeItem('xvrythng_token');
+  localStorage.removeItem('xvrythng_user');
+  window.dispatchEvent(
+    new CustomEvent('session-expired', {
+      detail: { code: data.code, message: data.message || 'Session expired' },
+    })
+  );
+}
+
 /**
  * POST /api/auth/login
  * @param {{ email: string, password: string, companyId?: number }} payload
@@ -37,7 +48,8 @@ export async function login(payload) {
 }
 
 /**
- * Optional: future protected request helper (adds Authorization header).
+ * Protected request helper (adds Authorization header).
+ * On 401, clears auth storage and dispatches 'session-expired' for the app to handle.
  */
 export async function authFetch(url, options = {}) {
   const token = getToken();
@@ -46,6 +58,10 @@ export async function authFetch(url, options = {}) {
     ...(token && { Authorization: `Bearer ${token}` }),
   };
   const res = await fetch(`${BASE}${url}`, { ...options, headers });
+  if (res.status === 401) {
+    const data = await res.clone().json().catch(() => ({}));
+    clearSessionAndNotify(data);
+  }
   return res;
 }
 
@@ -56,6 +72,7 @@ async function authFetchJSON(url, options = {}) {
     const err = new Error(body.message || 'Request failed');
     err.status = res.status;
     err.body = body;
+    err.code = body.code;
     throw err;
   }
   return body;

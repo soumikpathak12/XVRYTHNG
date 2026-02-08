@@ -20,7 +20,14 @@ export function requireAuth(req, res, next) {
     const payload = jwt.verify(token, JWT_SECRET);
     req.user = { id: payload.userId, role: payload.role, companyId: payload.companyId ?? null };
     next();
-  } catch {
+  } catch (err) {
+    if (err?.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Session expired',
+        code: 'SESSION_EXPIRED',
+      });
+    }
     return res.status(401).json({ success: false, message: 'Invalid or expired token' });
   }
 }

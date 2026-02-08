@@ -34,6 +34,7 @@ export async function login(req, res) {
 
     return res.status(200).json({
       success: true,
+      token: result.accessToken,
       ...result,
     });
   } catch (err) {
@@ -70,6 +71,44 @@ export async function login(req, res) {
     return res.status(500).json({
       success: false,
       message: 'An error occurred during login.',
+    });
+  }
+}
+
+/**
+ * POST /api/auth/refresh
+ * Body: { refreshToken }
+ * Returns: { success, token, accessToken, refreshToken, expiresIn, refreshExpiresIn, user }
+ */
+export async function refresh(req, res) {
+  try {
+    const { refreshToken } = req.body || {};
+    if (!refreshToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'Refresh token is required.',
+      });
+    }
+
+    const result = await authService.refresh(refreshToken);
+
+    return res.status(200).json({
+      success: true,
+      token: result.accessToken,
+      ...result,
+    });
+  } catch (err) {
+    const msg = String(err?.message || '').toLowerCase();
+    if (msg.includes('invalid') || msg.includes('expired')) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired refresh token.',
+      });
+    }
+    console.error('Refresh error:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'An error occurred during token refresh.',
     });
   }
 }
