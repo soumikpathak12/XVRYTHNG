@@ -12,8 +12,7 @@ const STEPS = [
   { id: 3, title: 'Review & create', fields: [] },
 ];
 
-const inputClass =
-  'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1A7B7B] focus:border-[#1A7B7B] outline-none';
+const inputClass = 'form-input';
 
 export default function CompanyOnboardingWizard() {
   const navigate = useNavigate();
@@ -181,7 +180,7 @@ export default function CompanyOnboardingWizard() {
                 <option value="">Select type</option>
                 {companyTypes.map((t) => (
                   <option key={t.id} value={t.id}>
-                    {t.name.replace(/_/g, ' ')}
+                    {t.name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                   </option>
                 ))}
               </select>
@@ -339,7 +338,7 @@ export default function CompanyOnboardingWizard() {
             {company.contact_email && <p style={{ margin: 4 }}>Contact: {company.contact_email}</p>}
             {company.company_type_id && (
               <p style={{ margin: 4 }}>
-                Type: {companyTypes.find((t) => t.id === parseInt(company.company_type_id, 10))?.name?.replace(/_/g, ' ') || company.company_type_id}
+                Type: {companyTypes.find((t) => t.id === parseInt(company.company_type_id, 10))?.name?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || company.company_type_id}
               </p>
             )}
           </div>

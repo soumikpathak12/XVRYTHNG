@@ -138,7 +138,6 @@ export default function SuperAdminSidebar({ onLogout, user, logoSrc }) {
         })}
       </nav>
 
-      {/* Footer: collapse + user + logout */}
       <div style={{ borderTop: '1px solid #F3F4F6', paddingTop: 12 }}>
         <button
           onClick={() => setCollapsed((c) => !c)}
@@ -157,66 +156,6 @@ export default function SuperAdminSidebar({ onLogout, user, logoSrc }) {
         >
           {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
           <span style={textHide}>{collapsed ? 'Expand' : 'Collapse'}</span>
-        </button>
-
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            marginTop: 10,
-            padding: '8px 10px',
-            borderRadius: 12,
-            background: collapsed ? 'transparent' : '#F9FAFB',
-          }}
-        >
-          <div
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: '50%',
-              background: '#E5F3F1',
-              color: '#146b6b',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 700,
-            }}
-            title={user?.name || 'User'}
-          >
-            {(user?.name || 'A').slice(0, 1).toUpperCase()}
-          </div>
-          {!collapsed && (
-            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-              <div style={{ fontWeight: 700, color: '#0f1a2b', lineHeight: 1 }}>
-                {user?.name || 'Admin'}
-              </div>
-              <div style={{ fontSize: 12, color: '#6B7280' }}>Super Admin</div>
-            </div>
-          )}
-        </div>
-
-        <button
-          onClick={onLogout}
-          style={{
-            marginTop: 8,
-            width: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            justifyContent: collapsed ? 'center' : 'flex-start',
-            background: '#146b6b',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 12,
-            padding: '10px 12px',
-            cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(20,107,107,.25)',
-          }}
-          aria-label="Logout"
-        >
-          <LogOut size={18} />
-          <span style={textHide}>Logout</span>
         </button>
       </div>
     </aside>

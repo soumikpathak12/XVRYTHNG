@@ -106,3 +106,34 @@ a:focus-visible, button:focus-visible, input:focus-visible {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Form Inputs */
+.form-input {
+  /* w-full */
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+
+  /* px-3 py-2 */
+  padding: 0.5rem 0.75rem;
+
+  /* border border-gray-300 */
+  border: 1px solid #D1D5DB;
+
+  /* rounded-lg */
+  border-radius: 0.5rem;
+
+  /* text size */
+  font-size: 1rem;
+  line-height: 1.5;
+
+  /* smooth transition */
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  outline: none;
+}
+
+.form-input:focus {
+  /* focus:ring-2 focus:ring-[#1A7B7B] focus:border-[#1A7B7B] */
+  border-color: #1A7B7B;
+  box-shadow: 0 0 0 3px rgba(26, 123, 123, 0.25); /* #1A7B7B with opacity */
+}
