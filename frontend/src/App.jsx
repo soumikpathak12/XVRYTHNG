@@ -1,10 +1,10 @@
 /**
  * App root: Router + AuthProvider. Role-based redirect after login.
  */
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import LoginForm from './components/auth/LoginForm.jsx';
-import ForgotPassword from './components/auth/ForgotPassword.jsx'; 
+import ForgotPassword from './components/auth/ForgotPassword.jsx';
 import ResetPassword from './components/auth/ResetPassword.jsx';
 import { requestPasswordReset as requestResetApi } from './services/api.js';
 
@@ -12,41 +12,45 @@ import AdminPage from './pages/admin/AdminPage.jsx';
 import SettingsPage from './pages/admin/SettingsPage.jsx';
 import CompaniesPage from './pages/admin/CompaniesPage.jsx';
 import CompanyOnboardingWizard from './pages/admin/CompanyOnboardingWizard.jsx';
-// ...
+import CompanySettingsPage from './pages/company/CompanySettingPage.jsx';
+import CompanyPage from './pages/company/CompanyPage.jsx';
 
-
-
-const AdminOverview = () => <PlaceholderPage title="Dashboard" message="Overview metrics & quick actions." />;
-const AdminLeads = () => <PlaceholderPage title="Lead Pipeline" message="Manage and track leads." />;
-const AdminProjects = () => <PlaceholderPage title="Projects" message="In-house & retailer projects." />;
-const AdminOnField = () => <PlaceholderPage title="On-Field" message="Field schedules & activities." />;
-const AdminOperations = () => <PlaceholderPage title="Operations" message="Approvals, payroll, billing." />;
-const AdminAttendance = () => <PlaceholderPage title="Attendance" message="Time & attendance overview." />;
-const AdminReferrals = () => <PlaceholderPage title="Referrals" message="Referral tracking & payouts." />;
-const AdminMessages = () => <PlaceholderPage title="Messages" message="Team & customer communications." />;
-const AdminSettings = () => <PlaceholderPage title="Settings" message="Organization & system settings." />;
-
-
-// Placeholder pages for role redirects (Phase 1 – auth only)
-function PlaceholderPage({ title, message }) {
+function PlaceholderPage({ title, message, children }) {
   return (
     <div style={{ padding: '2rem', textAlign: 'center', color: '#1A1A2E' }}>
       <h1 style={{ color: '#1A7B7B' }}>{title}</h1>
       <p>{message}</p>
+      {children}
     </div>
   );
 }
 
+const AdminOverview   = () => <PlaceholderPage title="Dashboard"   message="Overview metrics & quick actions." />;
+const AdminLeads      = () => <PlaceholderPage title="Lead Pipeline" message="Manage and track leads." />;
+const AdminProjects   = () => <PlaceholderPage title="Projects"    message="In-house & retailer projects." />;
+const AdminOnField    = () => <PlaceholderPage title="On-Field"    message="Field schedules & activities." />;
+const AdminOperations = () => <PlaceholderPage title="Operations"  message="Approvals, payroll, billing." />;
+const AdminAttendance = () => <PlaceholderPage title="Attendance"  message="Time & attendance overview." />;
+const AdminReferrals  = () => <PlaceholderPage title="Referrals"   message="Referral tracking & payouts." />;
+const AdminMessages   = () => <PlaceholderPage title="Messages"    message="Team & customer communications." />;
+const AdminSettings   = () => <PlaceholderPage title="Settings"    message="Organization & system settings." />;
+
+// ---------- Login Page ----------
 function LoginPage() {
-  const { login, loading, error, sessionExpiredMessage, clearSessionExpiredMessage, isAuthenticated } = useAuth();
+  const {
+    login,
+    loading,
+    error,
+    sessionExpiredMessage,
+    clearSessionExpiredMessage,
+    isAuthenticated,
+  } = useAuth();
 
   const handleSubmit = async (credentials) => {
     clearSessionExpiredMessage?.();
     try {
       await login(credentials);
-      // Redirect is handled by RequireAuth / role route
     } catch {
-      // Error already set in context
     }
   };
 
@@ -77,7 +81,7 @@ function getDefaultRoute(role) {
   return '/dashboard';
 }
 
-/** Redirects unauthenticated users to login; redirects "/" to role default. */
+/** Redirects unauthenticated users to login; "/" → role default. */
 function RequireAuth({ children }) {
   const { isAuthenticated, user } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
@@ -93,13 +97,6 @@ function ProtectedRoute({ children }) {
 }
 
 function App() {
-  // Optional: centralize handlers here and pass to pages/components
-  const { login, loading, error } = useAuth();
-
-  const handleLogin = async (credentials) => {
-    await login(credentials);
-  };
-
   const requestPasswordReset = async ({ email }) => {
     await new Promise((r) => setTimeout(r, 600));
   };
@@ -109,12 +106,9 @@ function App() {
       <Routes>
         {/* PUBLIC routes */}
         <Route path="/login" element={<LoginPage />} />
-        
-        <Route
-          path="/forgot-password" element={<ForgotPassword onRequestReset={requestResetApi} />}
-        />
-
+        <Route path="/forgot-password" element={<ForgotPassword onRequestReset={requestResetApi} />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+
         {/* AUTH redirect entry point */}
         <Route
           path="/"
@@ -125,38 +119,51 @@ function App() {
           }
         />
 
-        {/* PROTECTED routes */}
+        {/* PROTECTED: Super Admin area (layout AdminPage + nested) */}
         <Route
           path="/admin"
           element={
             <ProtectedRoute>
-                <AdminPage />            
+              <AdminPage />
             </ProtectedRoute>
           }
         >
-        
           <Route index element={<Navigate to="overview" replace />} />
-          <Route path="overview" element={<AdminOverview />} />
-          <Route path="leads" element={<AdminLeads />} />
-          <Route path="projects" element={<AdminProjects />} />
-          <Route path="on-field" element={<AdminOnField />} />
+          <Route path="overview"   element={<AdminOverview />} />
+          <Route path="leads"      element={<AdminLeads />} />
+          <Route path="projects"   element={<AdminProjects />} />
+          <Route path="on-field"   element={<AdminOnField />} />
           <Route path="operations" element={<AdminOperations />} />
           <Route path="attendance" element={<AdminAttendance />} />
-          <Route path="referrals" element={<AdminReferrals />} />
-          <Route path="messages" element={<AdminMessages />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="companies" element={<CompaniesPage />} />
+          <Route path="referrals"  element={<AdminReferrals />} />
+          <Route path="messages"   element={<AdminMessages />} />
+          <Route path="settings"   element={<SettingsPage />} />
+          <Route path="companies"  element={<CompaniesPage />} />
           <Route path="companies/new" element={<CompanyOnboardingWizard />} />
         </Route>
 
+        {/* PROTECTED: Company area (layout CompanyPage + nested) */}
         <Route
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <PlaceholderPage title="Dashboard" message="Company Admin / Manager (Phase 2+)." />
+              <CompanyPage />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route index element={<PlaceholderPage title="Dashboard" message="Company Admin / Manager (Phase 2+)." />} />
+
+          <Route path="projects"   element={<PlaceholderPage title="Projects"   message="In-house & retailer projects." />} />
+          <Route path="leads"      element={<PlaceholderPage title="Lead Pipeline" message="Manage and track leads." />} />
+          <Route path="on-field"   element={<PlaceholderPage title="On-Field"   message="Field schedules & activities." />} />
+          <Route path="operations" element={<PlaceholderPage title="Operations" message="Approvals, payroll, billing." />} />
+          <Route path="attendance" element={<PlaceholderPage title="Attendance" message="Time & attendance overview." />} />
+          <Route path="referrals"  element={<PlaceholderPage title="Referrals"  message="Referral tracking & payouts." />} />
+          <Route path="messages"   element={<PlaceholderPage title="Messages"   message="Team & customer communications." />} />
+          <Route path="settings" element={<CompanySettingsPage />} />
+        </Route>
+
+        {/* PROTECTED: Field agent area */}
         <Route
           path="/mobile"
           element={
