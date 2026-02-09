@@ -8,6 +8,10 @@ import authRoutes from './routes/authRoutes.js';
 
 import adminRoutes from './routes/adminRoutes.js';
 import userRoutes from './routes/userRoutes.js';
+import meController from './controllers/meController.js';
+
+import companyRoutes from './routes/companyRoutes.js';
+
 import { fileURLToPath } from 'url';
 import path from 'path';
 
@@ -31,7 +35,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/users', userRoutes);
 
+app.use('/api/company', companyRoutes);
 
+app.use('/api', meController);
 // 404
 app.use((_, res) => res.status(404).json({ success: false, message: 'Not found' }));
 

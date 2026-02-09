@@ -9,7 +9,6 @@ export default function AdminPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  // Chỉ super_admin mới vào được layout này
   if (user?.role?.toLowerCase() !== 'super_admin') {
     return <Navigate to="/dashboard" replace />;
   }

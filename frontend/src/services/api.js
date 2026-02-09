@@ -316,3 +316,41 @@ export async function changePasswordMe(payload) {
   if (!res.ok) throw new Error(data.message || 'Failed to change password');
   return data;
 }
+
+export async function getCompanySidebar() {
+  const res = await fetch('/api/company/sidebar', { headers: { ...authHeaders() } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Failed to load sidebar');
+  return data; // { role, companyTypeId, modules }
+}
+
+
+export async function getCompanyProfile() {
+  return authFetchJSON('/api/company/me', { method: 'GET' });
+}
+
+
+export async function updateCompanyProfile(payload) {
+  const res = await authFetch('/api/company/me', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      companyName: payload.companyName ?? '',
+      abn: payload.abn ?? '',
+      email: payload.email ?? '',
+      phone: payload.phone ?? '',
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 422) {
+    const err = new Error('Validation error');
+    err.status = 422;
+    err.body = data; // { success:false, errors:{...} }
+    throw err;
+  }
+  if (!res.ok) throw new Error(data.message ?? 'Failed to update company profile');
+  return data; // { success:true, data:{...} }
+}
+
+
