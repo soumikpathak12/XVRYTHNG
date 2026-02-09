@@ -353,4 +353,21 @@ export async function updateCompanyProfile(payload) {
   return data; // { success:true, data:{...} }
 }
 
+// src/services/api.js
 
+export async function changePassword({ currentPassword, newPassword }) {
+  const res = await authFetch('/api/admin/change-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 422) {
+    const err = new Error('Validation error');
+    err.status = 422;
+    err.body = data; // { success:false, errors:{...} }
+    throw err;
+  }
+  if (!res.ok) throw new Error(data.message ?? 'Failed to change password');
+  return data; // { success:true, message }
+}
