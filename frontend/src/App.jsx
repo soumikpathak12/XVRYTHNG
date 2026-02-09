@@ -153,7 +153,19 @@ function App() {
               <CompanyPage />
             </ProtectedRoute>
           }
-        />
+         >
+          <Route index element={<PlaceholderPage title="Dashboard" message="Company Admin / Manager (Phase 2+)." />} />
+
+          <Route path="projects"   element={<PlaceholderPage title="Projects"   message="In-house & retailer projects." />} />
+          <Route path="leads"      element={<PlaceholderPage title="Lead Pipeline" message="Manage and track leads." />} />
+          <Route path="on-field"   element={<PlaceholderPage title="On-Field"   message="Field schedules & activities." />} />
+          <Route path="operations" element={<PlaceholderPage title="Operations" message="Approvals, payroll, billing." />} />
+          <Route path="attendance" element={<PlaceholderPage title="Attendance" message="Time & attendance overview." />} />
+          <Route path="referrals"  element={<PlaceholderPage title="Referrals"  message="Referral tracking & payouts." />} />
+          <Route path="messages"   element={<PlaceholderPage title="Messages"   message="Team & customer communications." />} />
+          <Route path="settings" element={<CompanySettingsPage />} />
+        </Route>
+
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
         <Route
           path="/mobile"
