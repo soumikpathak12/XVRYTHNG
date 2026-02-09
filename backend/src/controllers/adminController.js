@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import db from '../config/db.js';
+import bcrypt from 'bcryptjs'
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -12,6 +13,57 @@ const __dirname = path.dirname(__filename);
 const UPLOAD_DIR = path.resolve(__dirname, '../uploads/logos');
 
 /** JWT guard: sets req.user = { id, role, companyId } */
+
+export async function changeAdminPassword(req, res) {
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+
+    // Basic validations
+    const errors = {};
+    if (!currentPassword) errors.currentPassword = 'Current password is required';
+    if (!newPassword || String(newPassword).length < 8)
+      errors.newPassword = 'New password must be at least 8 characters';
+    if (Object.keys(errors).length) {
+      return res.status(422).json({ success: false, errors });
+    }
+
+    const [[user]] = await db.execute(
+      `SELECT id, password_hash FROM users WHERE id = ? LIMIT 1`,
+      [req.user.id]
+    );
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const ok = await bcrypt.compare(String(currentPassword), user.password_hash || '');
+    if (!ok) {
+      return res.status(422).json({
+        success: false,
+        errors: { currentPassword: 'Current password is incorrect' },
+      });
+    }
+
+    // 3) Hash new password
+    const salt = await bcrypt.genSalt(12);
+    const newHash = await bcrypt.hash(String(newPassword), salt);
+
+    await db.execute(
+      `UPDATE users
+         SET password_hash = ?, password_changed_at = NOW(), updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [newHash, req.user.id]
+    );
+
+    // 4) (Tuỳ chọn) Revoke refresh tokens của user này
+    await db.execute(`DELETE FROM refresh_tokens WHERE user_id = ?`, [req.user.id]);
+
+    return res.json({ success: true, message: 'Password updated successfully' });
+  } catch (err) {
+    console.error('changeAdminPassword error', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}
+
 export function requireAuth(req, res, next) {
   const auth = req.headers.authorization || '';
   const [, token] = auth.split(' ');
@@ -115,4 +167,6 @@ export async function updateAdminProfile(req, res) {
     console.error('updateAdminProfile error', err);
     return res.status(500).json({ success: false, message: 'Internal server error' });
   }
+
+  
 }

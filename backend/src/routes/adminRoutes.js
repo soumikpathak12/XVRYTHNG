@@ -1,7 +1,7 @@
 // src/routes/adminRoutes.js
 import { Router } from 'express';
 import fileUpload from 'express-fileupload';
-import { requireAuth, requireSuperAdmin, getAdminProfile, updateAdminProfile } from '../controllers/adminController.js';
+import { requireAuth, requireSuperAdmin, getAdminProfile, updateAdminProfile,changeAdminPassword } from '../controllers/adminController.js';
 import { getCompanyTypes, registerCompany, listCompanies } from '../controllers/companyController.js';
 import { tenantContext } from '../middleware/tenantContext.js';
 
@@ -23,7 +23,7 @@ router.get('/me', getAdminProfile);
 
 // Update current admin profile (multipart)
 router.post('/me', updateAdminProfile);
-
+router.post('/change-password', requireAuth, changeAdminPassword);
 // Company types with modules (for onboarding wizard; any authenticated admin)
 router.get('/company-types', getCompanyTypes);
 
