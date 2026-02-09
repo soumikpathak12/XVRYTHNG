@@ -317,12 +317,11 @@ export async function changePasswordMe(payload) {
   return data;
 }
 
+
 export async function getCompanySidebar() {
-  const res = await fetch('/api/company/sidebar', { headers: { ...authHeaders() } });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || 'Failed to load sidebar');
-  return data; // { role, companyTypeId, modules }
+  return authFetchJSON('/api/me/sidebar', { method: 'GET' });
 }
+
 
 
 export async function getCompanyProfile() {
