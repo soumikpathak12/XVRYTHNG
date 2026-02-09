@@ -12,6 +12,7 @@ import AdminPage from './pages/admin/AdminPage.jsx';
 import SettingsPage from './pages/admin/SettingsPage.jsx';
 import CompaniesPage from './pages/admin/CompaniesPage.jsx';
 import CompanyOnboardingWizard from './pages/admin/CompanyOnboardingWizard.jsx';
+import ProfilePage from './pages/ProfilePage.jsx';
 // ...
 
 
@@ -145,6 +146,7 @@ function App() {
           <Route path="referrals" element={<AdminReferrals />} />
           <Route path="messages" element={<AdminMessages />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="profile" element={<ProfilePage />} />
           <Route path="companies" element={<CompaniesPage />} />
           <Route path="companies/new" element={<CompanyOnboardingWizard />} />
         </Route>
@@ -157,6 +159,7 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
         <Route
           path="/mobile"
           element={

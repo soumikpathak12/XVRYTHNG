@@ -234,3 +234,85 @@ export async function createCompany(payload) {
   if (!res.ok) throw new Error(data.message || 'Failed to create company');
   return data;
 }
+
+/* =======================================================================
+   USER PROFILE (any authenticated user)
+   -----------------------------------------------------------------------
+   GET  /api/users/me        → profile
+   PUT  /api/users/me        → update profile (JSON or multipart with photo)
+   PUT  /api/users/me/password → change password
+   ======================================================================= */
+
+/**
+ * GET /api/users/me
+ * @returns {Promise<{ success: boolean, data: object }>}
+ */
+export async function getProfileMe() {
+  return authFetchJSON('/api/users/me', { method: 'GET' });
+}
+
+/**
+ * PUT /api/users/me - update profile (and optional photo)
+ * @param {{ name?: string, email?: string, phone?: string, department?: string, notify_email?: boolean, notify_sms?: boolean, photoFile?: File }} payload
+ */
+export async function updateProfileMe(payload) {
+  const hasFile = payload.photoFile && payload.photoFile instanceof File;
+  if (hasFile) {
+    const fd = new FormData();
+    if (payload.name !== undefined) fd.append('name', payload.name);
+    if (payload.email !== undefined) fd.append('email', payload.email);
+    if (payload.phone !== undefined) fd.append('phone', payload.phone);
+    if (payload.department !== undefined) fd.append('department', payload.department);
+    if (payload.notify_email !== undefined) fd.append('notify_email', payload.notify_email ? '1' : '0');
+    if (payload.notify_sms !== undefined) fd.append('notify_sms', payload.notify_sms ? '1' : '0');
+    fd.append('photo', payload.photoFile);
+    const res = await authFetch('/api/users/me', { method: 'PUT', body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(data.message || 'Failed to update profile');
+      err.status = res.status;
+      err.body = data;
+      throw err;
+    }
+    return data;
+  }
+  const res = await authFetch('/api/users/me', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: payload.name,
+      email: payload.email,
+      phone: payload.phone,
+      department: payload.department,
+      notify_email: payload.notify_email,
+      notify_sms: payload.notify_sms,
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 422) {
+    const err = new Error('Validation failed');
+    err.status = 422;
+    err.body = data;
+    throw err;
+  }
+  if (!res.ok) throw new Error(data.message || 'Failed to update profile');
+  return data;
+}
+
+/**
+ * PUT /api/users/me/password
+ * @param {{ currentPassword: string, newPassword: string }} payload
+ */
+export async function changePasswordMe(payload) {
+  const res = await authFetch('/api/users/me/password', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      currentPassword: payload.currentPassword,
+      newPassword: payload.newPassword,
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Failed to change password');
+  return data;
+}

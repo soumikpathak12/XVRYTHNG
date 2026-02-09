@@ -66,6 +66,14 @@ export async function login(req, res) {
       });
     }
 
+    // Multiple accounts for same email (no companyId sent)
+    if (msg.includes('multiple accounts')) {
+      return res.status(400).json({
+        success: false,
+        message: err.message || 'Multiple accounts found for this email. Please contact support or use your company portal.',
+      });
+    }
+
     // Fallback: internal error
     console.error('Login error:', err);
     return res.status(500).json({

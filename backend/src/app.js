@@ -6,14 +6,16 @@ import express from 'express';
 import cors from 'cors';
 import authRoutes from './routes/authRoutes.js';
 
-import adminRoutes from './routes/adminRoutes.js'; 
+import adminRoutes from './routes/adminRoutes.js';
+import userRoutes from './routes/userRoutes.js';
 import { fileURLToPath } from 'url';
 import path from 'path';
-const app = express();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const uploadsDir = path.join(__dirname, 'uploads');
 
+const app = express();
 
 app.use(cors({
   origin: process.env.CORS_ORIGIN || true,
@@ -21,13 +23,13 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '256kb' }));
 
-// Health check (for load balancers / monitoring)
+app.use('/uploads', express.static(uploadsDir));
+
 app.get('/health', (_, res) => res.status(200).json({ status: 'ok' }));
 
 app.use('/api/auth', authRoutes);
-
-
 app.use('/api/admin', adminRoutes);
+app.use('/api/users', userRoutes);
 
 
 // 404

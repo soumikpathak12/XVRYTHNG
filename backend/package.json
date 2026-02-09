@@ -8,7 +8,8 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "seed": "node database/seed.js",
-    "migrate:tenants": "node database/migrate-multi-tenant.js"
+    "migrate:tenants": "node database/migrate-multi-tenant.js",
+    "migrate:profile": "node database/migrate-user-profile.js"
   },
   "engines": {
     "node": ">=18"

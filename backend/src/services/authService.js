@@ -40,6 +40,21 @@ export async function findUserByEmail(email, companyId = null) {
 }
 
 /**
+ * Find all users with this email (any company). Used when login has no companyId and no user found for company_id IS NULL.
+ */
+async function findUsersByEmailOnly(email) {
+  const [rows] = await db.execute(
+    `SELECT u.id, u.company_id, u.role_id, u.email, u.password_hash, u.name, u.status, r.name AS role_name
+     FROM users u
+     INNER JOIN roles r ON u.role_id = r.id
+     WHERE u.email = ?
+     ORDER BY u.company_id IS NULL DESC`,
+    [email]
+  );
+  return rows;
+}
+
+/**
  * Find user by id (for refresh flow). Returns same shape as findUserByEmail for token creation.
  */
 export async function findUserById(userId) {
@@ -94,12 +109,21 @@ async function resetAttempts(userId) {
 
 /**
  * Validate credentials and return user (without password) or null.
+ * When companyId is null and no user found for company_id IS NULL, tries by email only (so company admins can log in without sending companyId).
  */
-
 export async function validateCredentials(email, password, companyId = null) {
-  const user = await findUserByEmail(email, companyId);
+  let user = await findUserByEmail(email, companyId);
 
-  // If user doesn't exist, normalize timing via dummy compare, then generic error
+  if (!user && companyId === null) {
+    const byEmail = await findUsersByEmailOnly(email);
+    if (byEmail.length === 1) {
+      user = byEmail[0];
+    } else if (byEmail.length > 1) {
+      await bcrypt.compare(password || '', DUMMY_BCRYPT_HASH);
+      throw new Error('Multiple accounts found for this email. Please contact support or use your company portal.');
+    }
+  }
+
   if (!user) {
     await bcrypt.compare(password || '', DUMMY_BCRYPT_HASH); // timing equalization
     throw new Error('Invalid email or password');
