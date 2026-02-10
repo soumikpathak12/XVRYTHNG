@@ -17,6 +17,8 @@ import ProfilePage from './pages/ProfilePage.jsx';
 import CompanySettingsPage from './pages/company/CompanySettingPage.jsx';
 import CompanyPage from './pages/company/CompanyPage.jsx';
 
+import AddUserPage from './pages/admin/AddUserPage.jsx';
+
 function PlaceholderPage({ title, message, children }) {
   return (
     <div style={{ padding: '2rem', textAlign: 'center', color: '#1A1A2E' }}>
@@ -143,6 +145,8 @@ function App() {
           <Route path="profile" element={<ProfilePage />} />
           <Route path="companies" element={<CompaniesPage />} />
           <Route path="companies/new" element={<CompanyOnboardingWizard />} />
+          <Route path="users/new" element={<AddUserPage />} />
+
         </Route>
 
         {/* PROTECTED: Company area (layout CompanyPage + nested) */}
