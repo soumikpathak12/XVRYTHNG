@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import db from '../config/db.js';
+import bcrypt from 'bcryptjs';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -32,12 +33,8 @@ export function requireAuth(req, res, next) {
   }
 }
 
-export function requireSuperAdmin(req, res, next) {
-  if (String(req.user?.role).toLowerCase() !== 'super_admin') {
-    return res.status(403).json({ success: false, message: 'Forbidden' });
-  }
-  next();
-}
+
+
 
 /** GET /api/admin/me */
 export async function getAdminProfile(req, res) {
@@ -115,4 +112,94 @@ export async function updateAdminProfile(req, res) {
     console.error('updateAdminProfile error', err);
     return res.status(500).json({ success: false, message: 'Internal server error' });
   }
+
+  
+}
+
+/**
+ * POST /api/admin/users
+ * Body: { name, email, password, role, companyId, phone?, status? }
+ * - super_admin only (enforced in routes)
+ */
+export async function createUser(req, res) {
+  try {
+    const { name, email, password, role, companyId, phone, status } = req.body || {};
+
+    // Basic validation
+    const errors = {};
+    if (!name?.trim()) errors.name = 'Name is required';
+    if (!email || !/^\S+@\S+\.\S+$/.test(email)) errors.email = 'Valid email is required';
+    if (!password || String(password).length < 8) errors.password = 'Password must be at least 8 characters';
+    if (!role?.trim()) errors.role = 'Role is required';
+    // super_admin can create:
+    // - super_admin (optional), company_admin, manager, field_agent
+    // If role is not super_admin, require a companyId
+    const roleLc = String(role).toLowerCase();
+    const rolesAllowed = ['super_admin', 'company_admin', 'manager', 'field_agent'];
+    if (!rolesAllowed.includes(roleLc)) errors.role = 'Unsupported role';
+    if (roleLc !== 'super_admin' && (companyId == null || Number.isNaN(Number(companyId)))) {
+      errors.companyId = 'companyId is required for non-super_admin users';
+    }
+
+    if (Object.keys(errors).length) {
+      return res.status(422).json({ success: false, errors });
+    }
+
+    // Check email uniqueness
+    const [existing] = await db.execute(
+      `SELECT id FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1`,
+      [email.trim()]
+    );
+    if (existing?.length) {
+      return res.status(422).json({ success: false, errors: { email: 'Email already in use' } });
+    }
+
+    // Lookup role_id from roles table (assuming your schema uses role_id)
+    const [roleRows] = await db.execute(
+      `SELECT id FROM roles WHERE LOWER(name) = LOWER(?) LIMIT 1`,
+      [roleLc]
+    );
+    const roleId = roleRows?.[0]?.id;
+    if (!roleId) {
+      return res.status(422).json({ success: false, errors: { role: 'Role not found in roles table' } });
+    }
+
+    // Hash password
+    const hash = await bcrypt.hash(String(password), 10);
+
+    // Insert user
+    const insertSql = `
+      INSERT INTO users (company_id, role_id, email, name, phone, status, password_hash, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `;
+    const insertParams = [
+      roleLc === 'super_admin' ? null : Number(companyId),
+      roleId,
+      email.trim().toLowerCase(),
+      name.trim(),
+      phone?.trim() ?? null,
+      status?.trim() ?? 'active',
+      hash,
+    ];
+    const [result] = await db.execute(insertSql, insertParams);
+
+    // Return created user (safe subset)
+    const [rows] = await db.execute(
+      `SELECT id, company_id, role_id, email, name, phone, status, created_at
+       FROM users WHERE id = ? LIMIT 1`,
+      [result.insertId]
+    );
+
+    return res.status(201).json({ success: true, data: rows[0] });
+  } catch (err) {
+    console.error('createUser error', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}
+
+export function requireSuperAdmin(req, res, next) {
+  if (String(req.user?.role).toLowerCase() !== 'super_admin') {
+    return res.status(403).json({ success: false, message: 'Forbidden' });
+  }
+  next();
 }
