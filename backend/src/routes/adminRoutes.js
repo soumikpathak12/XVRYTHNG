@@ -1,9 +1,10 @@
 // src/routes/adminRoutes.js
 import { Router } from 'express';
 import fileUpload from 'express-fileupload';
-import { requireAuth, requireSuperAdmin, getAdminProfile, updateAdminProfile } from '../controllers/adminController.js';
+import { requireAuth, requireSuperAdmin, getAdminProfile, updateAdminProfile,createUser } from '../controllers/adminController.js';
 import { getCompanyTypes, registerCompany, listCompanies } from '../controllers/companyController.js';
 import { tenantContext } from '../middleware/tenantContext.js';
+
 
 const router = Router();
 
@@ -30,5 +31,7 @@ router.get('/company-types', getCompanyTypes);
 // Multi-tenant company management (super_admin only)
 router.get('/companies', requireSuperAdmin, listCompanies);
 router.post('/companies', requireSuperAdmin, registerCompany);
+
+router.post('/users', requireSuperAdmin, createUser);
 
 export default router;
