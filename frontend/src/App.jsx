@@ -13,7 +13,9 @@ import SettingsPage from './pages/admin/SettingsPage.jsx';
 import CompaniesPage from './pages/admin/CompaniesPage.jsx';
 import CompanyOnboardingWizard from './pages/admin/CompanyOnboardingWizard.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
-// ...
+import AccessDeniedPage from './pages/AccessDeniedPage.jsx';
+import RequirePermission from './components/RequirePermission.jsx';
+import RolesPage from './pages/admin/RolesPage.jsx';
 import CompanySettingsPage from './pages/company/CompanySettingPage.jsx';
 import CompanyPage from './pages/company/CompanyPage.jsx';
 
@@ -131,18 +133,19 @@ function App() {
           }
         >
           <Route index element={<Navigate to="overview" replace />} />
-          <Route path="overview" element={<AdminOverview />} />
-          <Route path="leads" element={<AdminLeads />} />
-          <Route path="projects" element={<AdminProjects />} />
-          <Route path="on-field" element={<AdminOnField />} />
-          <Route path="operations" element={<AdminOperations />} />
-          <Route path="attendance" element={<AdminAttendance />} />
-          <Route path="referrals" element={<AdminReferrals />} />
-          <Route path="messages" element={<AdminMessages />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="profile" element={<ProfilePage />} />
-          <Route path="companies" element={<CompaniesPage />} />
-          <Route path="companies/new" element={<CompanyOnboardingWizard />} />
+          <Route path="overview" element={<RequirePermission resource="overview" action="view"><AdminOverview /></RequirePermission>} />
+          <Route path="leads" element={<RequirePermission resource="leads" action="view"><AdminLeads /></RequirePermission>} />
+          <Route path="projects" element={<RequirePermission resource="projects" action="view"><AdminProjects /></RequirePermission>} />
+          <Route path="on-field" element={<RequirePermission resource="on_field" action="view"><AdminOnField /></RequirePermission>} />
+          <Route path="operations" element={<RequirePermission resource="operations" action="view"><AdminOperations /></RequirePermission>} />
+          <Route path="attendance" element={<RequirePermission resource="attendance" action="view"><AdminAttendance /></RequirePermission>} />
+          <Route path="referrals" element={<RequirePermission resource="referrals" action="view"><AdminReferrals /></RequirePermission>} />
+          <Route path="messages" element={<RequirePermission resource="messages" action="view"><AdminMessages /></RequirePermission>} />
+          <Route path="settings" element={<RequirePermission resource="settings" action="view"><SettingsPage /></RequirePermission>} />
+          <Route path="profile" element={<RequirePermission resource="profile" action="view"><ProfilePage /></RequirePermission>} />
+          <Route path="companies" element={<RequirePermission resource="companies" action="view"><CompaniesPage /></RequirePermission>} />
+          <Route path="companies/new" element={<RequirePermission resource="companies" action="create"><CompanyOnboardingWizard /></RequirePermission>} />
+          <Route path="roles" element={<Navigate to="/admin/settings" replace />} />
         </Route>
 
         {/* PROTECTED: Company area (layout CompanyPage + nested) */}
@@ -154,6 +157,7 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="/access-denied" element={<ProtectedRoute><AccessDeniedPage /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
         <Route
           path="/mobile"

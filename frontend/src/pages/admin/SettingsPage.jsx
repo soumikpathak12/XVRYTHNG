@@ -1,5 +1,5 @@
 // src/pages/admin/SettingsPage.jsx
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import {
   Building2,
   Boxes,
@@ -9,9 +9,11 @@ import {
   PlugZap,
   Bell,
   ImagePlus,
+  Shield,
 } from 'lucide-react';
-
-// Use a relative import (no alias) to your API client
+import { useAuth } from '../../context/AuthContext.jsx';
+import RequirePermission from '../../components/RequirePermission.jsx';
+import RolesPage from './RolesPage.jsx';
 import { getAdminMe, updateAdminMe } from '../../services/api.js';
 
 const palette = {
@@ -57,11 +59,11 @@ const helpStyle = {
   marginTop: 6,
 };
 
-const sections = [
+const ALL_SECTIONS = [
   { key: 'company', label: 'Company Profile', icon: Building2 },
   { key: 'modules', label: 'Module Management', icon: Boxes },
   { key: 'workflow', label: 'Workflow Configuration', icon: Workflow },
-  { key: 'roles', label: 'Employee Roles', icon: UsersRound },
+  { key: 'roles', label: 'Roles & Permissions', icon: Shield, permission: { resource: 'roles', action: 'view' } },
   { key: 'referrals', label: 'Referral Program', icon: Share2 },
   { key: 'integrations', label: 'Integrations', icon: PlugZap },
   { key: 'notifications', label: 'Notifications', icon: Bell },
@@ -69,20 +71,27 @@ const sections = [
 
 export default function SettingsPage() {
   const [active, setActive] = useState('company');
+  const { can } = useAuth();
+  const sections = useMemo(() => {
+    return ALL_SECTIONS.filter((s) => !s.permission || can(s.permission.resource, s.permission.action));
+  }, [can]);
 
   return (
     <div style={{ padding: 16 }}>
       <div style={{ ...card, padding: 12 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 16 }}>
-          {/* Left nav */}
-          <SettingsNav active={active} onChange={setActive} />
+          <SettingsNav active={active} onChange={setActive} sections={sections} />
 
-          {/* Right content */}
           <div style={{ padding: 12 }}>
             {active === 'company' && <CompanyProfileForm />}
-            {active !== 'company' && (
+            {active === 'roles' && (
+              <RequirePermission resource="roles" action="view">
+                <RolesPage />
+              </RequirePermission>
+            )}
+            {active !== 'company' && active !== 'roles' && (
               <PlaceholderSection
-                title={sections.find((s) => s.key === active)?.label || 'Settings'}
+                title={ALL_SECTIONS.find((s) => s.key === active)?.label || 'Settings'}
                 message="This section will be available in the next phase."
               />
             )}
@@ -93,7 +102,8 @@ export default function SettingsPage() {
   );
 }
 
-function SettingsNav({ active, onChange }) {
+function SettingsNav({ active, onChange, sections }) {
+  const navSections = sections || ALL_SECTIONS;
   return (
     <aside
       style={{
@@ -114,7 +124,7 @@ function SettingsNav({ active, onChange }) {
       </div>
 
       <nav style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {sections.map((s) => {
+        {navSections.map((s) => {
           const Icon = s.icon;
           const isActive = s.key === active;
           return (

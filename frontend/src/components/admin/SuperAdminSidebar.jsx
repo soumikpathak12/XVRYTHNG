@@ -16,24 +16,29 @@ import {
   ChevronRight,
   LogOut,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useAuth } from '../../context/AuthContext.jsx';
+
+const ALL_NAV_ITEMS = [
+  { to: '/admin/overview', label: 'Dashboard', icon: LayoutDashboard, permission: { resource: 'overview', action: 'view' } },
+  { to: '/admin/profile', label: 'My Profile', icon: UserCircle, permission: { resource: 'profile', action: 'view' } },
+  { to: '/admin/companies', label: 'Companies', icon: Building2, permission: { resource: 'companies', action: 'view' } },
+  { to: '/admin/leads', label: 'Lead Pipeline', icon: UsersRound, permission: { resource: 'leads', action: 'view' } },
+  { to: '/admin/projects', label: 'Projects', icon: Boxes, permission: { resource: 'projects', action: 'view' } },
+  { to: '/admin/on-field', label: 'On-Field', icon: HardHat, permission: { resource: 'on_field', action: 'view' } },
+  { to: '/admin/operations', label: 'Operations', icon: Factory, permission: { resource: 'operations', action: 'view' } },
+  { to: '/admin/attendance', label: 'Attendance', icon: Clock3, permission: { resource: 'attendance', action: 'view' } },
+  { to: '/admin/referrals', label: 'Referrals', icon: Share2, permission: { resource: 'referrals', action: 'view' } },
+  { to: '/admin/messages', label: 'Messages', icon: MessageSquare, permission: { resource: 'messages', action: 'view' } },
+  { to: '/admin/settings', label: 'Settings', icon: Settings, permission: { resource: 'settings', action: 'view' } },
+];
 
 export default function SuperAdminSidebar({ onLogout, user, logoSrc }) {
   const [collapsed, setCollapsed] = useState(false);
-
-  const navItems = [
-    { to: '/admin/overview', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/admin/profile', label: 'My Profile', icon: UserCircle },
-    { to: '/admin/companies', label: 'Companies', icon: Building2 },
-    { to: '/admin/leads', label: 'Lead Pipeline', icon: UsersRound },
-    { to: '/admin/projects', label: 'Projects', icon: Boxes },
-    { to: '/admin/on-field', label: 'On-Field', icon: HardHat },
-    { to: '/admin/operations', label: 'Operations', icon: Factory },
-    { to: '/admin/attendance', label: 'Attendance', icon: Clock3 },
-    { to: '/admin/referrals', label: 'Referrals', icon: Share2 },
-    { to: '/admin/messages', label: 'Messages', icon: MessageSquare },
-    { to: '/admin/settings', label: 'Settings', icon: Settings },
-  ];
+  const { can } = useAuth();
+  const navItems = useMemo(() => {
+    return ALL_NAV_ITEMS.filter((item) => can(item.permission.resource, item.permission.action));
+  }, [can]);
 
   const rootStyle = {
     width: collapsed ? 80 : 280,

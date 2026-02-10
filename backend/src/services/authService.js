@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import db from '../config/db.js';
+import * as permissionService from './permissionService.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
@@ -243,6 +244,7 @@ export async function refresh(refreshTokenRaw) {
 
   const { accessToken, expiresIn } = createAccessToken(user);
   const { refreshToken, refreshExpiresIn } = await createRefreshToken(user.id);
+  const permissions = await permissionService.getPermissionsForUser(user.id);
 
   return {
     accessToken,
@@ -254,8 +256,10 @@ export async function refresh(refreshTokenRaw) {
       name: user.name,
       email: user.email,
       role: user.role_name,
+      roleId: user.role_id,
       companyId: user.company_id,
     },
+    permissions,
   };
 }
 
@@ -273,6 +277,7 @@ export async function login(email, password, companyId = null) {
 
   const { accessToken, expiresIn } = createAccessToken(user);
   const { refreshToken, refreshExpiresIn } = await createRefreshToken(user.id);
+  const permissions = await permissionService.getPermissionsForUser(user.id);
 
   return {
     accessToken,
@@ -284,7 +289,9 @@ export async function login(email, password, companyId = null) {
       name: user.name,
       email: user.email,
       role: user.role_name,
+      roleId: user.role_id,
       companyId: user.company_id,
     },
+    permissions,
   };
 }

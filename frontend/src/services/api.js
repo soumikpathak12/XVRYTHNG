@@ -236,6 +236,46 @@ export async function createCompany(payload) {
 }
 
 /* =======================================================================
+   ROLES & PERMISSIONS (RBAC)
+   -----------------------------------------------------------------------
+   GET  /api/admin/roles                    → { system, custom }
+   GET  /api/admin/permissions             → permissions[]
+   GET  /api/admin/roles/:id/permissions    → permissionIds[] (?type=custom for custom role)
+   POST /api/admin/roles                    → create custom role
+   PUT  /api/admin/roles/custom/:id/permissions → set permissionIds
+   ======================================================================= */
+export async function getRoles() {
+  return authFetchJSON('/api/admin/roles', { method: 'GET' });
+}
+export async function getPermissions() {
+  return authFetchJSON('/api/admin/permissions', { method: 'GET' });
+}
+export async function getRolePermissions(roleId, isCustom = false) {
+  const q = isCustom ? '?type=custom' : '';
+  return authFetchJSON(`/api/admin/roles/${roleId}/permissions${q}`, { method: 'GET' });
+}
+export async function createCustomRole(payload) {
+  const res = await authFetch('/api/admin/roles', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Failed to create role');
+  return data;
+}
+export async function setCustomRolePermissions(customRoleId, permissionIds) {
+  const res = await authFetch(`/api/admin/roles/custom/${customRoleId}/permissions`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ permissionIds }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Failed to update permissions');
+  return data;
+}
+
+/* =======================================================================
    USER PROFILE (any authenticated user)
    -----------------------------------------------------------------------
    GET  /api/users/me        → profile
@@ -249,6 +289,14 @@ export async function createCompany(payload) {
  */
 export async function getProfileMe() {
   return authFetchJSON('/api/users/me', { method: 'GET' });
+}
+
+/**
+ * GET /api/users/me/permissions
+ * @returns {Promise<{ success: boolean, data: string[] }>} permission slugs e.g. ['leads:view', 'projects:edit']
+ */
+export async function getPermissionsMe() {
+  return authFetchJSON('/api/users/me/permissions', { method: 'GET' });
 }
 
 /**

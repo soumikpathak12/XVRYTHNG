@@ -6,6 +6,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import * as profileService from '../services/profileService.js';
+import * as permissionService from '../services/permissionService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,6 +23,17 @@ export async function getProfile(req, res) {
     return res.json({ success: true, data: profile });
   } catch (err) {
     console.error('getProfile error', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}
+
+/** GET /api/users/me/permissions */
+export async function getMyPermissions(req, res) {
+  try {
+    const permissions = await permissionService.getPermissionsForUser(req.user.id);
+    return res.json({ success: true, data: permissions });
+  } catch (err) {
+    console.error('getMyPermissions error', err);
     return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 }
