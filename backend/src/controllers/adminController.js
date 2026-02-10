@@ -43,8 +43,8 @@ export function requireSuperAdmin(req, res, next) {
 export async function getAdminProfile(req, res) {
   try {
     const [rows] = await db.execute(
-      `SELECT id, company_id, role_id, email, name, phone, abn, image_url,
-              status, last_login_at, created_at, updated_at
+      `SELECT id, company_id, role_id, email, name, phone, image_url,
+              status, created_at, updated_at
          FROM users
         WHERE id = ?
         LIMIT 1`,
@@ -52,7 +52,8 @@ export async function getAdminProfile(req, res) {
     );
     const row = rows[0];
     if (!row) return res.status(404).json({ success: false, message: 'User not found' });
-    return res.json({ success: true, data: row });
+    const data = { ...row, abn: row.abn ?? null, last_login_at: row.last_login_at ?? null };
+    return res.json({ success: true, data });
   } catch (err) {
     console.error('getAdminProfile error', err);
     return res.status(500).json({ success: false, message: 'Internal server error' });
@@ -87,30 +88,40 @@ export async function updateAdminProfile(req, res) {
       imageUrl = `/uploads/logos/${filename}`; // public URL (served in app.js)
     }
 
-    // Update only changed fields; image_url only if provided
+    // Update users table (name, email, phone, image_url). abn only if column exists (see migrate-admin-profile.js).
     const sql =
       `UPDATE users
-          SET name = ?, email = ?, phone = ?, abn = ?` +
+          SET name = ?, email = ?, phone = ?` +
       (imageUrl ? `, image_url = ?` : ``) +
       `, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?`;
 
     const params = imageUrl
-      ? [companyName.trim(), email.trim().toLowerCase(), phone.trim(), abn?.trim() || null, imageUrl, req.user.id]
-      : [companyName.trim(), email.trim().toLowerCase(), phone.trim(), abn?.trim() || null, req.user.id];
+      ? [companyName.trim(), email.trim().toLowerCase(), phone.trim(), imageUrl, req.user.id]
+      : [companyName.trim(), email.trim().toLowerCase(), phone.trim(), req.user.id];
 
     await db.execute(sql, params);
 
-    // Return fresh profile
+    // Optionally update abn if column exists (no-op if column missing)
+    const abnVal = abn?.trim() || null;
+    try {
+      await db.execute('UPDATE users SET abn = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [abnVal, req.user.id]);
+    } catch (_) {
+      // ignore if users.abn column does not exist
+    }
+
+    // Return fresh profile (same shape as GET)
     const [rows] = await db.execute(
-      `SELECT id, company_id, role_id, email, name, phone, abn, image_url,
-              status, last_login_at, created_at, updated_at
+      `SELECT id, company_id, role_id, email, name, phone, image_url,
+              status, created_at, updated_at
          FROM users
         WHERE id = ?
         LIMIT 1`,
       [req.user.id]
     );
-    return res.json({ success: true, data: rows[0] });
+    const row = rows[0];
+    const data = { ...row, abn: row?.abn ?? abnVal };
+    return res.json({ success: true, data });
   } catch (err) {
     console.error('updateAdminProfile error', err);
     return res.status(500).json({ success: false, message: 'Internal server error' });
