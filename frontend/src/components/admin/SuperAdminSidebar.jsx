@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  UserPlus
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -25,6 +26,7 @@ export default function SuperAdminSidebar({ onLogout, user, logoSrc }) {
     { to: '/admin/overview', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/admin/profile', label: 'My Profile', icon: UserCircle },
     { to: '/admin/companies', label: 'Companies', icon: Building2 },
+    { to: '/admin/users/new', label: 'Add New User', icon: UserPlus },
     { to: '/admin/leads', label: 'Lead Pipeline', icon: UsersRound },
     { to: '/admin/projects', label: 'Projects', icon: Boxes },
     { to: '/admin/on-field', label: 'On-Field', icon: HardHat },
