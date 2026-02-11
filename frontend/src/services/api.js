@@ -402,3 +402,77 @@ export async function updateCompanyProfile(payload) {
 }
 
 
+export async function createLead(payload) {
+  const res = await authFetch('/api/leads', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (res.status === 422) {
+    const err = new Error('Validation error');
+    err.status = 422;
+    err.body = data; // { success:false, errors:{...} }
+    throw err;
+  }
+  if (!res.ok) {
+    throw new Error(data.message || 'Failed to create lead');
+  }
+  return data; // { success:true, data:{...} }
+}
+
+
+// api.js (append to the bottom with other helpers)
+
+/**
+ * GET /api/leads
+ * @param {{ grouped?: boolean, stage?: string, search?: string, assigned_user?: string, limit?: number, offset?: number }} params
+ * @returns {Promise<{ success: boolean, data: any }>}
+ */
+export async function getLeads(params = {}) {
+  const q = new URLSearchParams();
+  if (params.grouped) q.set('grouped', '1');
+  if (params.stage) q.set('stage', params.stage);
+  if (params.search) q.set('search', params.search);
+  if (params.assigned_user) q.set('assigned_user', params.assigned_user);
+  if (typeof params.limit === 'number') q.set('limit', String(params.limit));
+  if (typeof params.offset === 'number') q.set('offset', String(params.offset));
+
+  const url = `/api/leads${q.toString() ? `?${q.toString()}` : ''}`;
+  const res = await authFetch(url, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to load leads');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+
+  return data; // { success:true, data:[...] } OR grouped object
+}
+
+
+export async function updateLeadStage(id, stage) {
+  const res = await authFetch(`/api/leads/${encodeURIComponent(id)}/stage`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stage }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 422) {
+    const err = new Error('Validation error');
+    err.status = 422;
+    err.body = data;
+    throw err;
+  }
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to update lead stage');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data; // { success:true, data:{...updatedLead} }
+}
