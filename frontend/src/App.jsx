@@ -18,6 +18,7 @@ import RequirePermission from './components/RequirePermission.jsx';
 import RolesPage from './pages/admin/RolesPage.jsx';
 import CompanySettingsPage from './pages/company/CompanySettingPage.jsx';
 import CompanyPage from './pages/company/CompanyPage.jsx';
+import LeadsPage from './pages/LeadsPAge.jsx';
 
 function PlaceholderPage({ title, message, children }) {
   return (
@@ -134,7 +135,7 @@ function App() {
         >
           <Route index element={<Navigate to="overview" replace />} />
           <Route path="overview" element={<RequirePermission resource="overview" action="view"><AdminOverview /></RequirePermission>} />
-          <Route path="leads" element={<RequirePermission resource="leads" action="view"><AdminLeads /></RequirePermission>} />
+          <Route path="leads" element={<RequirePermission resource="leads" action="view"><LeadsPage /></RequirePermission>} />
           <Route path="projects" element={<RequirePermission resource="projects" action="view"><AdminProjects /></RequirePermission>} />
           <Route path="on-field" element={<RequirePermission resource="on_field" action="view"><AdminOnField /></RequirePermission>} />
           <Route path="operations" element={<RequirePermission resource="operations" action="view"><AdminOperations /></RequirePermission>} />
