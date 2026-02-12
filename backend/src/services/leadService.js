@@ -30,7 +30,7 @@ export async function createLead(payload) {
     suburb,
     system_size_kw,
     value_amount,
-    source,
+    source,site_inspection_date
   } = payload;
 
   if (!STAGES.has(stage)) {
@@ -44,9 +44,9 @@ export async function createLead(payload) {
   const sql = `
     INSERT INTO leads
       (stage, customer_name, suburb, system_size_kw, value_amount,
-       source, is_closed, is_won, won_lost_at, last_activity_at)
+       source, is_closed, is_won, won_lost_at, last_activity_at,site_inspection_date)
     VALUES
-      (?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? = 1 THEN NOW() ELSE NULL END, NOW())
+      (?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? = 1 THEN NOW() ELSE NULL END, NOW(),?)
   `;
 
   //            stage
@@ -68,6 +68,7 @@ export async function createLead(payload) {
     is_closed ? 1 : 0,
     is_won ? 1 : 0,
     is_closed ? 1 : 0,
+    site_inspection_date ?? null,
   ];
 
   const [result] = await db.execute(sql, params);
