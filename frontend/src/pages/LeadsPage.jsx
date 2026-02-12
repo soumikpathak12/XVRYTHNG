@@ -1,18 +1,29 @@
 // LeadsPage.jsx
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom'; 
+import { useNavigate } from 'react-router-dom';
 import KanbanBoard from '../components/leads/KanbanBoard.jsx';
 import Modal from '../components/common/Modal.jsx';
 import AddLeadForm from '../components/leads/NewLeadForm.jsx';
 import { getLeads, updateLeadStage as apiUpdateLeadStage } from '../services/api.js';
 
 export default function LeadsPage() {
-  const navigate = useNavigate(); 
+  const navigate = useNavigate();
+
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [openAdd, setOpenAdd] = useState(false);
   const [toast, setToast] = useState('');
+
+  // 🔎 Search state (raw input) + debounced value for smoother UX
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Simple debounce (250ms)
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(search.trim()), 250);
+    return () => clearTimeout(id);
+  }, [search]);
 
   const transformLead = useCallback((row) => {
     const systemSizeKw = row.system_size_kw != null ? Number(row.system_size_kw) : null;
@@ -36,6 +47,8 @@ export default function LeadsPage() {
       setLoading(true);
       setError('');
       try {
+        // If you want SERVER-SIDE search later, pass params: getLeads({ search: debouncedSearch })
+        // For now we always fetch all, then filter client-side.
         const res = await getLeads();
         const arr = Array.isArray(res?.data) ? res.data : [];
         const mapped = arr.map(transformLead);
@@ -47,9 +60,11 @@ export default function LeadsPage() {
       }
     })();
     return () => { alive = false; };
+    // We do NOT re-fetch on debouncedSearch (client-side filter).
   }, [transformLead]);
 
   const handleStageChange = useCallback(async (leadId, nextStage) => {
+    // Optimistic UI
     setLeads((prev) =>
       prev.map((l) => (String(l.id) === String(leadId) ? { ...l, stage: nextStage } : l))
     );
@@ -71,6 +86,7 @@ export default function LeadsPage() {
         );
       }
     } catch (err) {
+      // Rollback
       setLeads((prev) =>
         prev.map((l) =>
           String(l.id) === String(leadId) ? { ...l, stage: l._raw?.stage || l.stage } : l
@@ -88,8 +104,30 @@ export default function LeadsPage() {
     setOpenAdd(false);
   }, [transformLead]);
 
-  const boardLeads = useMemo(() => leads, [leads]);
+  // 🔎 Client-side filter — search over key fields
+  const filteredLeads = useMemo(() => {
+    const q = debouncedSearch.toLowerCase();
+    if (!q) return leads;
 
+    return leads.filter((l) => {
+      // Check meaningful fields; stringify numbers safely
+      const haystacks = [
+        l.customerName,
+        l.suburb,
+        l.source,
+        l.stage,
+        l.systemSize,
+        l.value != null ? String(l.value) : '',
+      ];
+
+      return haystacks.some((h) => (h || '').toLowerCase().includes(q));
+    });
+  }, [leads, debouncedSearch]);
+
+  // ⛳ Kanban takes the filtered list
+  const boardLeads = useMemo(() => filteredLeads, [filteredLeads]);
+
+  // Simple styles reused across buttons
   const tabBtnStyle = (active) => ({
     padding: '8px 12px',
     borderRadius: 8,
@@ -102,7 +140,8 @@ export default function LeadsPage() {
 
   return (
     <div style={{ padding: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#0f1a2b' }}>
             Sales Pipeline – Kanban
@@ -111,14 +150,67 @@ export default function LeadsPage() {
             Drag and drop leads to update status.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* 🔎 Search box */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: '#FFFFFF',
+              border: '1px solid #E5E7EB',
+              borderRadius: 8,
+              padding: '8px 10px',
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path d="M21 21l-3.8-3.8M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"
+                stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search leads… (name, suburb, stage, source)"
+              style={{
+                border: 'none',
+                outline: 'none',
+                width: 240,
+                fontSize: 14,
+                color: '#111827',
+              }}
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                title="Clear"
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  color: '#6B7280',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  padding: 2,
+                }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Results count */}
+          <span style={{ color: '#6B7280', fontSize: 12 }}>
+            {debouncedSearch ? `${boardLeads.length} result${boardLeads.length === 1 ? '' : 's'}` : `${leads.length} total`}
+          </span>
+
           {/* View switch buttons */}
           <button style={tabBtnStyle(true)} onClick={() => { /* already on Kanban */ }}>
             Kanban
           </button>
           <button
             style={tabBtnStyle(false)}
-              onClick={() => navigate('/admin/leads/calendar')}          >
+            onClick={() => navigate('/admin/leads/calendar')}
+          >
             Calendar
           </button>
 
@@ -140,6 +232,7 @@ export default function LeadsPage() {
         </div>
       </div>
 
+      {/* Toast */}
       {toast && (
         <div
           style={{
@@ -155,6 +248,7 @@ export default function LeadsPage() {
         </div>
       )}
 
+      {/* Content */}
       {loading ? (
         <div style={{ marginTop: 20, color: '#6B7280' }}>Loading leads…</div>
       ) : error ? (
@@ -174,6 +268,7 @@ export default function LeadsPage() {
         <KanbanBoard leads={boardLeads} onStageChange={handleStageChange} />
       )}
 
+      {/* Add Lead */}
       <Modal open={openAdd} onClose={() => setOpenAdd(false)} title="Add New Lead">
         <AddLeadForm onCancel={() => setOpenAdd(false)} onCreate={handleCreated} />
       </Modal>
