@@ -1,4 +1,4 @@
-// components/leads/AddLeadForm.jsx
+// components/leads/NewLeadForm.jsx
 import React, { useState } from 'react';
 
 const STAGES = [
@@ -21,6 +21,7 @@ export default function AddLeadForm({ onCreate, onCancel }) {
     value_amount: '',
     source: '',
     stage: 'new',
+    site_inspection_date: '', // <-- NEW FIELD
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -39,12 +40,25 @@ export default function AddLeadForm({ onCreate, onCancel }) {
     }
   };
 
+  // Convert datetime-local → MySQL DATETIME
+  const toMySQLDateTime = (value) => {
+    if (!value) return null;
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mi = String(d.getMinutes()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd} ${hh}:${mi}:00`;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setFieldErrors({});
 
-    // Client-side validation
+    // Validation
     if (!form.customer_name.trim()) {
       setError('Customer name is required.');
       return;
@@ -62,6 +76,8 @@ export default function AddLeadForm({ onCreate, onCancel }) {
       return;
     }
 
+    const inspectionDate = toMySQLDateTime(form.site_inspection_date);
+
     setSubmitting(true);
     try {
       const res = await fetch('/api/leads', {
@@ -74,12 +90,12 @@ export default function AddLeadForm({ onCreate, onCancel }) {
           system_size_kw: form.system_size_kw ? Number(form.system_size_kw) : null,
           value_amount: form.value_amount ? Number(form.value_amount) : null,
           source: form.source || null,
+          site_inspection_date: inspectionDate, // <-- SEND TO BACKEND
         }),
       });
 
       const payload = await res.json().catch(() => ({}));
 
-      // Handle 422 validation
       if (res.status === 422) {
         setFieldErrors(payload?.errors || {});
         throw new Error('Please fix the highlighted errors.');
@@ -91,10 +107,9 @@ export default function AddLeadForm({ onCreate, onCancel }) {
 
       const created = payload?.data ?? payload;
 
-      if (typeof onCreate === 'function') {
-        onCreate(created);
-      }
+      if (typeof onCreate === 'function') onCreate(created);
 
+      // Reset form
       setForm({
         customer_name: '',
         suburb: '',
@@ -102,6 +117,7 @@ export default function AddLeadForm({ onCreate, onCancel }) {
         value_amount: '',
         source: '',
         stage: 'new',
+        site_inspection_date: '',
       });
     } catch (err) {
       setError(err.message || 'Failed to create lead.');
@@ -160,58 +176,34 @@ export default function AddLeadForm({ onCreate, onCancel }) {
         )}
 
         <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 12 }}>
-
           {/* CUSTOMER NAME */}
-          <div style={{ display: 'grid', gap: 6 }}>
-            <label style={{ fontWeight: 600 }}>
-              Customer name *
-              {fieldErrors.customer_name && (
-                <span style={{ color: '#B91C1C', marginLeft: 8, fontWeight: 400 }}>
-                  {fieldErrors.customer_name}
-                </span>
-              )}
-            </label>
+          <Field
+            label="Customer name *"
+            error={fieldErrors.customer_name}
+          >
             <input
               type="text"
               value={form.customer_name}
               onChange={(e) => update('customer_name', e.target.value)}
               placeholder="e.g. Jane Doe"
               style={inputStyle}
-              aria-invalid={!!fieldErrors.customer_name}
             />
-          </div>
+          </Field>
 
           {/* SUBURB */}
-          <div style={{ display: 'grid', gap: 6 }}>
-            <label style={{ fontWeight: 600 }}>
-              Suburb
-              {fieldErrors.suburb && (
-                <span style={{ color: '#B91C1C', marginLeft: 8, fontWeight: 400 }}>
-                  {fieldErrors.suburb}
-                </span>
-              )}
-            </label>
+          <Field label="Suburb" error={fieldErrors.suburb}>
             <input
               type="text"
               value={form.suburb}
               onChange={(e) => update('suburb', e.target.value)}
               placeholder="e.g. Parramatta, NSW"
               style={inputStyle}
-              aria-invalid={!!fieldErrors.suburb}
             />
-          </div>
+          </Field>
 
-          {/* SYSTEM SIZE & VALUE */}
+          {/* SYSTEM SIZE + VALUE */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div style={{ display: 'grid', gap: 6 }}>
-              <label style={{ fontWeight: 600 }}>
-                System size (kW)
-                {fieldErrors.system_size_kw && (
-                  <span style={{ color: '#B91C1C', marginLeft: 8, fontWeight: 400 }}>
-                    {fieldErrors.system_size_kw}
-                  </span>
-                )}
-              </label>
+            <Field label="System size (kW)" error={fieldErrors.system_size_kw}>
               <input
                 type="number"
                 step="0.01"
@@ -219,19 +211,10 @@ export default function AddLeadForm({ onCreate, onCancel }) {
                 onChange={(e) => update('system_size_kw', e.target.value)}
                 placeholder="e.g. 6.60"
                 style={inputStyle}
-                aria-invalid={!!fieldErrors.system_size_kw}
               />
-            </div>
+            </Field>
 
-            <div style={{ display: 'grid', gap: 6 }}>
-              <label style={{ fontWeight: 600 }}>
-                Value amount
-                {fieldErrors.value_amount && (
-                  <span style={{ color: '#B91C1C', marginLeft: 8, fontWeight: 400 }}>
-                    {fieldErrors.value_amount}
-                  </span>
-                )}
-              </label>
+            <Field label="Value amount" error={fieldErrors.value_amount}>
               <input
                 type="number"
                 step="0.01"
@@ -239,57 +222,49 @@ export default function AddLeadForm({ onCreate, onCancel }) {
                 onChange={(e) => update('value_amount', e.target.value)}
                 placeholder="e.g. 9000"
                 style={inputStyle}
-                aria-invalid={!!fieldErrors.value_amount}
               />
-            </div>
+            </Field>
           </div>
 
           {/* SOURCE */}
-          <div style={{ display: 'grid', gap: 6 }}>
-            <label style={{ fontWeight: 600 }}>
-              Source
-              {fieldErrors.source && (
-                <span style={{ color: '#B91C1C', marginLeft: 8, fontWeight: 400 }}>
-                  {fieldErrors.source}
-                </span>
-              )}
-            </label>
+          <Field label="Source" error={fieldErrors.source}>
             <input
               type="text"
               value={form.source}
               onChange={(e) => update('source', e.target.value)}
               placeholder="e.g. Web, Google Ads"
               style={inputStyle}
-              aria-invalid={!!fieldErrors.source}
             />
-          </div>
+          </Field>
 
           {/* STAGE */}
-          <div style={{ display: 'grid', gap: 6 }}>
-            <label style={{ fontWeight: 600 }}>
-              Stage *
-              {fieldErrors.stage && (
-                <span style={{ color: '#B91C1C', marginLeft: 8, fontWeight: 400 }}>
-                  {fieldErrors.stage}
-                </span>
-              )}
-            </label>
+          <Field label="Stage *" error={fieldErrors.stage}>
             <select
               value={form.stage}
               onChange={(e) => update('stage', e.target.value)}
               style={inputStyle}
-              aria-invalid={!!fieldErrors.stage}
             >
               {STAGES.map((s) => (
-                <option value={s} key={s}>
-                  {s}
-                </option>
+                <option key={s} value={s}>{s}</option>
               ))}
             </select>
-          </div>
+          </Field>
+
+          {/* SITE INSPECTION DATE */}
+          <Field label="Site inspection date (optional)" error={fieldErrors.site_inspection_date}>
+            <input
+              type="datetime-local"
+              value={form.site_inspection_date}
+              onChange={(e) => update('site_inspection_date', e.target.value)}
+              style={inputStyle}
+            />
+            <small style={{ color: '#6B7280' }}>
+              Leave empty if not scheduled yet.
+            </small>
+          </Field>
 
           {/* ACTION BUTTONS */}
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 6 }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 6 }}>
             <button
               type="button"
               onClick={onCancel}
@@ -324,6 +299,22 @@ export default function AddLeadForm({ onCreate, onCancel }) {
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+function Field({ label, error, children }) {
+  return (
+    <div style={{ display: 'grid', gap: 6 }}>
+      <label style={{ fontWeight: 600 }}>
+        {label}
+        {error && (
+          <span style={{ color: '#B91C1C', marginLeft: 8, fontWeight: 400 }}>
+            {error}
+          </span>
+        )}
+      </label>
+      {children}
     </div>
   );
 }
