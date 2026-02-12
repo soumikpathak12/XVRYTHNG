@@ -476,3 +476,25 @@ export async function updateLeadStage(id, stage) {
   }
   return data; // { success:true, data:{...updatedLead} }
 }
+/**
+ * GET /api/calendar/leads?start=YYYY-MM-DD&end=YYYY-MM-DD&tz=Australia/Melbourne
+ * @param {{ start: string, end: string, tz?: string }} params
+ * @returns {Promise<{ success: boolean, data: Array }>}
+ */
+export async function getCalendarLeads(params) {
+  const q = new URLSearchParams();
+  if (params?.start) q.set('start', params.start);
+  if (params?.end) q.set('end', params.end);
+  q.set('tz', params?.tz || 'Australia/Melbourne');
+
+  const res = await authFetch(`/api/calendar/leads?${q.toString()}`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to load calendar leads');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data; // { success:true, data:[...] }
+}
