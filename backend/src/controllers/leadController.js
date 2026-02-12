@@ -14,6 +14,19 @@ const STAGES = [
 
 const STAGES_SET = new Set(STAGES);
 
+function toMySQLDateTime(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  const ss = '00';
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+}
+
 // -------------------- CREATE --------------------
 export async function createLead(req, res) {
   try {
@@ -24,6 +37,7 @@ export async function createLead(req, res) {
       system_size_kw = null,
       value_amount = null,
       source = null,
+      site_inspection_date = null,
     } = req.body || {};
 
     const errors = {};
@@ -46,6 +60,11 @@ export async function createLead(req, res) {
       errors.value_amount = 'Value amount must be a number.';
     }
 
+    
+    const normalizedInspection = toMySQLDateTime(site_inspection_date);
+    if (site_inspection_date && !normalizedInspection) {
+      errors.site_inspection_date = 'Invalid date format.';
+    }
 
     if (Object.keys(errors).length > 0) {
       return res.status(422).json({ success: false, errors });
@@ -58,6 +77,7 @@ export async function createLead(req, res) {
       system_size_kw: system_size_kw != null ? Number(system_size_kw) : null,
       value_amount: value_amount != null ? Number(value_amount) : null,
       source: source ? String(source).trim() : null,
+      site_inspection_date: normalizedInspection,
     };
 
     const lead = await leadsService.createLead(payload);
