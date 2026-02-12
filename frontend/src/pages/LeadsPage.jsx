@@ -1,10 +1,13 @@
+// LeadsPage.jsx
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom'; 
 import KanbanBoard from '../components/leads/KanbanBoard.jsx';
 import Modal from '../components/common/Modal.jsx';
 import AddLeadForm from '../components/leads/NewLeadForm.jsx';
 import { getLeads, updateLeadStage as apiUpdateLeadStage } from '../services/api.js';
 
 export default function LeadsPage() {
+  const navigate = useNavigate(); 
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -14,7 +17,6 @@ export default function LeadsPage() {
   const transformLead = useCallback((row) => {
     const systemSizeKw = row.system_size_kw != null ? Number(row.system_size_kw) : null;
     const valueNum = row.value_amount != null ? Number(row.value_amount) : null;
-
     return {
       id: row.id,
       customerName: row.customer_name,
@@ -48,16 +50,13 @@ export default function LeadsPage() {
   }, [transformLead]);
 
   const handleStageChange = useCallback(async (leadId, nextStage) => {
-    // Optimistic UI
     setLeads((prev) =>
       prev.map((l) => (String(l.id) === String(leadId) ? { ...l, stage: nextStage } : l))
     );
-
     try {
       const res = await apiUpdateLeadStage(leadId, nextStage);
       const updated = res?.data;
       if (updated) {
-        // merge any server-side computed changes back (e.g., timestamps)
         setLeads((prev) =>
           prev.map((l) =>
             String(l.id) === String(leadId)
@@ -72,14 +71,12 @@ export default function LeadsPage() {
         );
       }
     } catch (err) {
-      // Rollback on error
       setLeads((prev) =>
         prev.map((l) =>
           String(l.id) === String(leadId) ? { ...l, stage: l._raw?.stage || l.stage } : l
         )
       );
       setToast(err.message || 'Failed to update stage');
-      // Clear the toast after a few seconds (optional)
       setTimeout(() => setToast(''), 3000);
     }
   }, []);
@@ -93,6 +90,16 @@ export default function LeadsPage() {
 
   const boardLeads = useMemo(() => leads, [leads]);
 
+  const tabBtnStyle = (active) => ({
+    padding: '8px 12px',
+    borderRadius: 8,
+    background: active ? '#111827' : '#F3F4F6',
+    color: active ? 'white' : '#111827',
+    border: '1px solid #E5E7EB',
+    fontWeight: 700,
+    cursor: 'pointer',
+  });
+
   return (
     <div style={{ padding: 20 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
@@ -100,9 +107,21 @@ export default function LeadsPage() {
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#0f1a2b' }}>
             Sales Pipeline – Kanban
           </h1>
-          <p style={{ marginTop: 6, color: '#6B7280' }}>Drag and drop leads to update status.</p>
+          <p style={{ marginTop: 6, color: '#6B7280' }}>
+            Drag and drop leads to update status.
+          </p>
         </div>
-        <div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {/* View switch buttons */}
+          <button style={tabBtnStyle(true)} onClick={() => { /* already on Kanban */ }}>
+            Kanban
+          </button>
+          <button
+            style={tabBtnStyle(false)}
+              onClick={() => navigate('/admin/leads/calendar')}          >
+            Calendar
+          </button>
+
           <button
             onClick={() => setOpenAdd(true)}
             style={{
