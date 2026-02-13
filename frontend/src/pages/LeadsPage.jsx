@@ -1,13 +1,15 @@
 // LeadsPage.jsx
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import KanbanBoard from '../components/leads/KanbanBoard.jsx';
+// import LeadsTable from '../components/leads/LeadsTable.jsx'; // 👈 Keep commented until you create it
 import Modal from '../components/common/Modal.jsx';
 import AddLeadForm from '../components/leads/NewLeadForm.jsx';
 import { getLeads, updateLeadStage as apiUpdateLeadStage } from '../services/api.js';
 
 export default function LeadsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -18,6 +20,35 @@ export default function LeadsPage() {
   // 🔎 Search state (raw input) + debounced value for smoother UX
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // ✅ View state synced with URL (?view=kanban|table|calendar)
+  const getInitialView = () => {
+    const params = new URLSearchParams(location.search);
+    const v = (params.get('view') || '').toLowerCase();
+    return ['kanban', 'table', 'calendar'].includes(v) ? v : 'kanban';
+  };
+  const [view, setView] = useState(getInitialView);
+
+  // Keep view in sync with URL when the URL changes (e.g., history nav)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const v = (params.get('view') || '').toLowerCase();
+    if (['kanban', 'table', 'calendar'].includes(v) && v !== view) {
+      setView(v);
+    }
+  }, [location.search]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When user changes view, push it to the URL
+  const switchView = useCallback(
+    (next) => {
+      if (next === view) return;
+      const params = new URLSearchParams(location.search);
+      params.set('view', next);
+      navigate({ pathname: location.pathname, search: params.toString() }, { replace: false });
+      setView(next);
+    },
+    [view, navigate, location.pathname, location.search]
+  );
 
   // Simple debounce (250ms)
   useEffect(() => {
@@ -47,8 +78,7 @@ export default function LeadsPage() {
       setLoading(true);
       setError('');
       try {
-        // If you want SERVER-SIDE search later, pass params: getLeads({ search: debouncedSearch })
-        // For now we always fetch all, then filter client-side.
+        // If you want server-side search later: getLeads({ search: debouncedSearch })
         const res = await getLeads();
         const arr = Array.isArray(res?.data) ? res.data : [];
         const mapped = arr.map(transformLead);
@@ -59,7 +89,9 @@ export default function LeadsPage() {
         if (alive) setLoading(false);
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
     // We do NOT re-fetch on debouncedSearch (client-side filter).
   }, [transformLead]);
 
@@ -97,12 +129,15 @@ export default function LeadsPage() {
     }
   }, []);
 
-  const handleCreated = useCallback((createdFromForm) => {
-    const row = createdFromForm?.data ?? createdFromForm;
-    const card = transformLead(row);
-    setLeads((prev) => [card, ...prev]);
-    setOpenAdd(false);
-  }, [transformLead]);
+  const handleCreated = useCallback(
+    (createdFromForm) => {
+      const row = createdFromForm?.data ?? createdFromForm;
+      const card = transformLead(row);
+      setLeads((prev) => [card, ...prev]);
+      setOpenAdd(false);
+    },
+    [transformLead]
+  );
 
   // 🔎 Client-side filter — search over key fields
   const filteredLeads = useMemo(() => {
@@ -119,7 +154,6 @@ export default function LeadsPage() {
         l.systemSize,
         l.value != null ? String(l.value) : '',
       ];
-
       return haystacks.some((h) => (h || '').toLowerCase().includes(q));
     });
   }, [leads, debouncedSearch]);
@@ -141,13 +175,21 @@ export default function LeadsPage() {
   return (
     <div style={{ padding: 20 }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: 12,
+          flexWrap: 'wrap',
+        }}
+      >
         <div>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#0f1a2b' }}>
-            Sales Pipeline – Kanban
+            Sales Pipeline
           </h1>
           <p style={{ marginTop: 6, color: '#6B7280' }}>
-            Drag and drop leads to update status.
+            Switch between Kanban, Table, and Calendar. Drag &amp; drop or edit stage inline.
           </p>
         </div>
 
@@ -165,8 +207,13 @@ export default function LeadsPage() {
             }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path d="M21 21l-3.8-3.8M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"
-                stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path
+                d="M21 21l-3.8-3.8M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"
+                stroke="#6B7280"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
             <input
               value={search}
@@ -200,16 +247,28 @@ export default function LeadsPage() {
 
           {/* Results count */}
           <span style={{ color: '#6B7280', fontSize: 12 }}>
-            {debouncedSearch ? `${boardLeads.length} result${boardLeads.length === 1 ? '' : 's'}` : `${leads.length} total`}
+            {debouncedSearch
+              ? `${boardLeads.length} result${boardLeads.length === 1 ? '' : 's'}`
+              : `${leads.length} total`}
           </span>
 
           {/* View switch buttons */}
-          <button style={tabBtnStyle(true)} onClick={() => { /* already on Kanban */ }}>
+          <button style={tabBtnStyle(view === 'kanban')} onClick={() => switchView('kanban')}>
             Kanban
           </button>
+
+          {/* Table – active styling handled; does nothing (no render) until you add the component */}
+          <button style={tabBtnStyle(view === 'table')} onClick={() => switchView('table')}>
+            Table
+          </button>
+
+          {/* Calendar – keeps your existing route */}
           <button
-            style={tabBtnStyle(false)}
-            onClick={() => navigate('/admin/leads/calendar')}
+            style={tabBtnStyle(view === 'calendar')}
+            onClick={() => {
+              switchView('calendar'); // set URL ?view=calendar for consistency
+              navigate('/admin/leads/calendar');
+            }}
           >
             Calendar
           </button>
@@ -264,7 +323,15 @@ export default function LeadsPage() {
         >
           {error}
         </div>
+      ) : view === 'table' ? (
+        // 👇 Placeholder while table component is not yet created
+        <div style={{ marginTop: 20, color: '#6B7280' }}>
+          Table view coming soon. (Create <code>LeadsTable.jsx</code> and import it to enable.)
+        </div>
+        // Once created, replace with:
+        // <LeadsTable leads={boardLeads} onStageChange={handleStageChange} />
       ) : (
+        // Default = Kanban (local page). Calendar is navigated to a different route.
         <KanbanBoard leads={boardLeads} onStageChange={handleStageChange} />
       )}
 
@@ -275,3 +342,4 @@ export default function LeadsPage() {
     </div>
   );
 }
+``
