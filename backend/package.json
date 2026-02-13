@@ -9,7 +9,8 @@
     "dev": "node --watch server.js",
     "seed": "node database/seed.js",
     "migrate:tenants": "node database/migrate-multi-tenant.js",
-    "migrate:profile": "node database/migrate-user-profile.js"
+    "migrate:profile": "node database/migrate-user-profile.js",
+    "migrate:rbac": "node database/migrate-rbac.js"
   },
   "engines": {
     "node": ">=18"

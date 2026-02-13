@@ -21,7 +21,7 @@ function clearSessionAndNotify(data = {}) {
   window.dispatchEvent(
     new CustomEvent('session-expired', {
       detail: { code: data.code, message: data.message || 'Session expired' },
-    })
+    }),
   );
 }
 
@@ -78,6 +78,9 @@ async function authFetchJSON(url, options = {}) {
   return body;
 }
 
+/**
+ * POST /api/auth/request-reset
+ */
 export async function requestPasswordReset(email) {
   const res = await fetch(`${BASE}/api/auth/request-reset`, {
     method: 'POST',
@@ -99,7 +102,7 @@ export async function requestPasswordReset(email) {
 export async function validateResetToken(token) {
   const res = await fetch(
     `${BASE}/api/auth/validate-reset-token?token=${encodeURIComponent(token)}`,
-    { method: 'GET' }
+    { method: 'GET' },
   );
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -192,7 +195,7 @@ export async function updateAdminMe(payload) {
    -----------------------------------------------------------------------
    GET  /api/admin/company-types  → company types with modules
    GET  /api/admin/companies      → list companies
-   POST /api/admin/companies     → create company + company admin
+   POST /api/admin/companies      → create company + company admin
    ======================================================================= */
 
 /**
@@ -215,8 +218,8 @@ export async function listCompanies(params = {}) {
 
 /**
  * POST /api/admin/companies - create company and company admin
- * @param {{ company: object, admin: { email, password, name } }} payload
- * @returns {Promise<{ success: boolean, data: { company, adminUser } }>}
+ * @param {{ company: object, admin: { email: string, password: string, name: string } }} payload
+ * @returns {Promise<{ success: boolean, data: { company: object, adminUser: object } }>}
  */
 export async function createCompany(payload) {
   const res = await authFetch('/api/admin/companies', {
@@ -236,11 +239,52 @@ export async function createCompany(payload) {
 }
 
 /* =======================================================================
+   ROLES & PERMISSIONS (RBAC)
+   -----------------------------------------------------------------------
+   GET  /api/admin/roles                       → { system, custom }
+   GET  /api/admin/permissions                 → permissions[]
+   GET  /api/admin/roles/:id/permissions      → permissionIds[] (?type=custom for custom role)
+   POST /api/admin/roles                      → create custom role
+   PUT  /api/admin/roles/custom/:id/permissions→ set permissionIds
+   ======================================================================= */
+
+export async function getRoles() {
+  return authFetchJSON('/api/admin/roles', { method: 'GET' });
+}
+export async function getPermissions() {
+  return authFetchJSON('/api/admin/permissions', { method: 'GET' });
+}
+export async function getRolePermissions(roleId, isCustom = false) {
+  const q = isCustom ? '?type=custom' : '';
+  return authFetchJSON(`/api/admin/roles/${roleId}/permissions${q}`, { method: 'GET' });
+}
+export async function createCustomRole(payload) {
+  const res = await authFetch('/api/admin/roles', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Failed to create role');
+  return data;
+}
+export async function setCustomRolePermissions(customRoleId, permissionIds) {
+  const res = await authFetch(`/api/admin/roles/custom/${customRoleId}/permissions`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ permissionIds }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Failed to update permissions');
+  return data;
+}
+
+/* =======================================================================
    USER PROFILE (any authenticated user)
    -----------------------------------------------------------------------
-   GET  /api/users/me        → profile
-   PUT  /api/users/me        → update profile (JSON or multipart with photo)
-   PUT  /api/users/me/password → change password
+   GET  /api/users/me         → profile
+   PUT  /api/users/me         → update profile (JSON or multipart with photo)
+   PUT  /api/users/me/password→ change password
    ======================================================================= */
 
 /**
@@ -249,6 +293,14 @@ export async function createCompany(payload) {
  */
 export async function getProfileMe() {
   return authFetchJSON('/api/users/me', { method: 'GET' });
+}
+
+/**
+ * GET /api/users/me/permissions
+ * @returns {Promise<{ success: boolean, data: string[] }>} permission slugs e.g. ['leads:view', 'projects:edit']
+ */
+export async function getPermissionsMe() {
+  return authFetchJSON('/api/users/me/permissions', { method: 'GET' });
 }
 
 /**
@@ -317,17 +369,35 @@ export async function changePasswordMe(payload) {
   return data;
 }
 
+/**
+ * ADMIN: POST /api/admin/change-password
+ * @param {{ currentPassword: string, newPassword: string }} param0
+ * @returns {Promise<{ success: boolean, message?: string }>}
+ */
+export async function changePassword({ currentPassword, newPassword }) {
+  const res = await authFetch('/api/admin/change-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.message || 'Failed to change password');
+  }
+  return data; // { success:true, message }
+}
+
+/* =======================================================================
+   COMPANY (current company)
+   ======================================================================= */
 
 export async function getCompanySidebar() {
   return authFetchJSON('/api/me/sidebar', { method: 'GET' });
 }
 
-
-
 export async function getCompanyProfile() {
   return authFetchJSON('/api/company/me', { method: 'GET' });
 }
-
 
 export async function updateCompanyProfile(payload) {
   const res = await authFetch('/api/company/me', {
@@ -352,21 +422,106 @@ export async function updateCompanyProfile(payload) {
   return data; // { success:true, data:{...} }
 }
 
-// src/services/api.js
+/* =======================================================================
+   LEADS
+   ======================================================================= */
 
-export async function changePassword({ currentPassword, newPassword }) {
-  const res = await authFetch('/api/admin/change-password', {
+/**
+ * POST /api/leads
+ * @param {object} payload
+ * @returns {Promise<{ success: boolean, data?: object, message?: string }>}
+ */
+export async function createLead(payload) {
+  const res = await authFetch('/api/leads', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ currentPassword, newPassword }),
+    body: JSON.stringify(payload),
   });
+
   const data = await res.json().catch(() => ({}));
+
   if (res.status === 422) {
     const err = new Error('Validation error');
     err.status = 422;
     err.body = data; // { success:false, errors:{...} }
     throw err;
   }
-  if (!res.ok) throw new Error(data.message ?? 'Failed to change password');
-  return data; // { success:true, message }
+  if (!res.ok) throw new Error(data.message || 'Failed to create lead');
+  return data; // { success:true, data:{...} }
+}
+
+/**
+ * GET /api/leads
+ * @param {{ grouped?: boolean, stage?: string, search?: string, assigned_user?: string, limit?: number, offset?: number }} params
+ * @returns {Promise<{ success: boolean, data: any }>}
+ */
+export async function getLeads(params = {}) {
+  const q = new URLSearchParams();
+  if (params.grouped) q.set('grouped', '1');
+  if (params.stage) q.set('stage', params.stage);
+  if (params.search) q.set('search', params.search);
+  if (params.assigned_user) q.set('assigned_user', params.assigned_user);
+  if (typeof params.limit === 'number') q.set('limit', String(params.limit));
+  if (typeof params.offset === 'number') q.set('offset', String(params.offset));
+
+  const url = `/api/leads${q.toString() ? `?${q.toString()}` : ''}`;
+  const res = await authFetch(url, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to load leads');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+
+  return data; // { success:true, data:[...] } OR grouped object
+}
+
+/**
+ * PATCH /api/leads/:id/stage
+ */
+export async function updateLeadStage(id, stage) {
+  const res = await authFetch(`/api/leads/${encodeURIComponent(id)}/stage`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stage }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 422) {
+    const err = new Error('Validation error');
+    err.status = 422;
+    err.body = data;
+    throw err;
+  }
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to update lead stage');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data; // { success:true, data:{...updatedLead} }
+}
+
+/**
+ * GET /api/calendar/leads?start=YYYY-MM-DD&end=YYYY-MM-DD&tz=Australia/Melbourne
+ * @param {{ start: string, end: string, tz?: string }} params
+ * @returns {Promise<{ success: boolean, data: Array }>}
+ */
+export async function getCalendarLeads(params) {
+  const q = new URLSearchParams();
+  if (params?.start) q.set('start', params.start);
+  if (params?.end) q.set('end', params.end);
+  q.set('tz', params?.tz || 'Australia/Melbourne');
+
+  const res = await authFetch(`/api/calendar/leads?${q.toString()}`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to load calendar leads');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data; // { success:true, data:[...] }
 }

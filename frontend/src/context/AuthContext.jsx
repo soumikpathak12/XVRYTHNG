@@ -18,6 +18,19 @@ function getJwtExpMs(token) {
   }
 }
 
+const PERMISSIONS_KEY = 'xvrythng_permissions';
+
+function loadStoredPermissions() {
+  try {
+    const raw = localStorage.getItem(PERMISSIONS_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     const raw = localStorage.getItem('xvrythng_user');
@@ -28,6 +41,7 @@ export function AuthProvider({ children }) {
       return null;
     }
   });
+  const [permissions, setPermissions] = useState(loadStoredPermissions);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [sessionExpiredMessage, setSessionExpiredMessage] = useState(null);
@@ -45,6 +59,9 @@ export function AuthProvider({ children }) {
       api.setAuthToken(data.token);
       localStorage.setItem('xvrythng_user', JSON.stringify(data.user));
       setUser(data.user);
+      const perms = Array.isArray(data.permissions) ? data.permissions : [];
+      setPermissions(perms);
+      localStorage.setItem(PERMISSIONS_KEY, JSON.stringify(perms));
       return data;
     } catch (err) {
       const message = err.message || 'Sign in failed';
@@ -58,9 +75,28 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     api.setAuthToken(null);
     localStorage.removeItem('xvrythng_user');
+    localStorage.removeItem(PERMISSIONS_KEY);
     setUser(null);
+    setPermissions([]);
     setError(null);
     setSessionExpiredMessage(null);
+  }, []);
+
+  const can = useCallback((resource, action) => {
+    const slug = `${resource}:${action}`;
+    return permissions.includes('*:*') || permissions.includes(slug);
+  }, [permissions]);
+
+  const refreshPermissions = useCallback(async () => {
+    try {
+      const data = await api.getPermissionsMe();
+      if (data?.data && Array.isArray(data.data)) {
+        setPermissions(data.data);
+        localStorage.setItem(PERMISSIONS_KEY, JSON.stringify(data.data));
+      }
+    } catch {
+      // keep current
+    }
   }, []);
 
   useEffect(() => {
@@ -94,8 +130,22 @@ export function AuthProvider({ children }) {
     };
   }, [user]);
 
+  useEffect(() => {
+    if (user && permissions.length === 0) {
+      api.getPermissionsMe().then((data) => {
+        if (data?.data && Array.isArray(data.data)) {
+          setPermissions(data.data);
+          localStorage.setItem(PERMISSIONS_KEY, JSON.stringify(data.data));
+        }
+      }).catch(() => {});
+    }
+  }, [user]);
+
   const value = {
     user,
+    permissions,
+    can,
+    refreshPermissions,
     loading,
     error,
     sessionExpiredMessage,
