@@ -1,4 +1,4 @@
-import * as leadsService from '../services/leadService.js';
+import * as leadService from '../services/leadService.js';
 
 const STAGES = [
   'new',
@@ -80,7 +80,7 @@ export async function createLead(req, res) {
       site_inspection_date: normalizedInspection,
     };
 
-    const lead = await leadsService.createLead(payload);
+    const lead = await leadService.createLead(payload);
 
     return res.status(201).json({
       success: true,
@@ -109,7 +109,7 @@ export async function listLeads(req, res) {
       offset: req.query.offset ? Number(req.query.offset) : undefined,
     };
 
-    const rows = await leadsService.getLeads(filters);
+    const rows = await leadService.getLeads(filters);
 
     if (!grouped) {
       return res.status(200).json({ success: true, data: rows });
@@ -138,6 +138,56 @@ export async function listLeads(req, res) {
   }
 }
 
+// -------------------- GET BY ID (with relations) --------------------
+export async function getLeadById(req, res) {
+  try {
+    const leadId = req.params.id;
+    const result = await leadService.getLeadById(leadId);
+    return res.status(200).json({ success: true, ...result });
+  } catch (err) {
+    console.error('Get lead error:', err);
+    const status = err.statusCode || err.status || 500;
+    return res.status(status).json({
+      success: false,
+      message: err.message || 'Lead not found.',
+    });
+  }
+}
+
+// -------------------- UPDATE (full) --------------------
+export async function updateLead(req, res) {
+  try {
+    const leadId = req.params.id;
+    const body = req.body || {};
+    const payload = {};
+    if (body.stage !== undefined) payload.stage = body.stage;
+    if (body.customer_name !== undefined) payload.customer_name = body.customer_name;
+    if (body.suburb !== undefined) payload.suburb = body.suburb;
+    if (body.system_size_kw !== undefined) payload.system_size_kw = body.system_size_kw;
+    if (body.value_amount !== undefined) payload.value_amount = body.value_amount;
+    if (body.source !== undefined) payload.source = body.source;
+    if (body.site_inspection_date !== undefined) payload.site_inspection_date = toMySQLDateTime(body.site_inspection_date);
+
+    if (Object.keys(payload).length === 0) {
+      const result = await leadService.getLeadById(leadId);
+      return res.status(200).json({ success: true, data: result.lead });
+    }
+
+    if (payload.stage && !STAGES_SET.has(payload.stage)) {
+      return res.status(422).json({ success: false, errors: { stage: 'Invalid stage.' } });
+    }
+    const updated = await leadService.updateLead(leadId, payload);
+    return res.status(200).json({ success: true, data: updated });
+  } catch (err) {
+    console.error('Update lead error:', err);
+    const status = err.statusCode || err.status || 500;
+    return res.status(status).json({
+      success: false,
+      message: err.message || 'Failed to update lead.',
+    });
+  }
+}
+
 // -------------------- UPDATE STAGE --------------------
 export async function updateLeadStage(req, res) {
   try {
@@ -151,7 +201,7 @@ export async function updateLeadStage(req, res) {
       });
     }
 
-    const updated = await leadsService.updateLeadStage(leadId, stage);
+    const updated = await leadService.updateLeadStage(leadId, stage);
     return res.status(200).json({ success: true, data: updated });
   } catch (err) {
     console.error('Update stage error:', err);

@@ -2,7 +2,9 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import KanbanBoard from '../components/leads/KanbanBoard.jsx';
+import { STAGES } from '../components/leads/KanbanBoard.jsx';
 import LeadsTable from '../components/leads/LeadsTable.jsx';
+import LeadDetailModal from '../components/leads/LeadDetailModal.jsx';
 import Modal from '../components/common/Modal.jsx';
 import AddLeadForm from '../components/leads/LeadForm.jsx';
 import { getLeads, updateLeadStage as apiUpdateLeadStage } from '../services/api.js';
@@ -16,6 +18,8 @@ export default function LeadsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [openAdd, setOpenAdd] = useState(false);
+  const [selectedLeadId, setSelectedLeadId] = useState(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [toast, setToast] = useState('');
 
   const [search, setSearch] = useState('');
@@ -88,7 +92,7 @@ export default function LeadsPage() {
       }
     })();
     return () => { alive = false; };
-  }, [transformLead]);
+  }, [transformLead, refreshTrigger]);
 
   const handleStageChange = useCallback(async (leadId, nextStage) => {
     setLeads((prev) =>
@@ -135,6 +139,42 @@ export default function LeadsPage() {
     const s = new Set(leads.map((l) => l.source).filter(Boolean));
     return Array.from(s).sort();
   }, [leads]);
+
+  function exportLeadsCsv() {
+    const stageLabelByKey = Object.fromEntries(STAGES.map((s) => [s.key, s.label]));
+    const escape = (v) => {
+      const s = (v ?? '').toString();
+      if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    };
+    const headers = ['Name', 'Suburb', 'Stage', 'Value', 'System', 'Source', 'Last activity'];
+    const rows = boardLeads.map((lead) => {
+      const lastActivity = lead.lastActivity
+        ? (() => {
+            const d = new Date(lead.lastActivity);
+            return isNaN(d.getTime()) ? lead.lastActivity : d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+          })()
+        : '';
+      const value = lead.value != null ? String(lead.value) : '';
+      return [
+        escape(lead.customerName),
+        escape(lead.suburb),
+        escape(stageLabelByKey[lead.stage] || lead.stage),
+        escape(value),
+        escape(lead.systemSize),
+        escape(lead.source),
+        escape(lastActivity),
+      ];
+    });
+    const csvContent = [headers.map(escape).join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `leads-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   const [searchStage, setSearchStage] = useState(null);
 
@@ -285,6 +325,18 @@ export default function LeadsPage() {
           <span className="leads-result-count">
             {boardLeads.length} lead{boardLeads.length !== 1 ? 's' : ''}
           </span>
+          {view === 'table' && (
+            <div className="leads-filter-bar-right">
+              <button
+                type="button"
+                className="leads-export-csv-btn"
+                onClick={exportLeadsCsv}
+                disabled={boardLeads.length === 0}
+              >
+                Export CSV
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -296,11 +348,25 @@ export default function LeadsPage() {
         ) : error ? (
           <div className="leads-error-box">{error}</div>
         ) : view === 'table' ? (
-          <LeadsTable leads={boardLeads} onStageChange={handleStageChange} />
+          <LeadsTable leads={boardLeads} onStageChange={handleStageChange} onSelectLead={setSelectedLeadId} />
         ) : (
-          <KanbanBoard leads={boardLeads} onStageChange={handleStageChange} onFocusSearch={focusSearch} />
+          <KanbanBoard leads={boardLeads} onStageChange={handleStageChange} onFocusSearch={focusSearch} onSelectLead={setSelectedLeadId} />
         )}
       </div>
+
+      {selectedLeadId != null && (
+        <LeadDetailModal
+          leadId={selectedLeadId}
+          onClose={() => setSelectedLeadId(null)}
+          onLeadUpdated={(id, newStage) => {
+            if (newStage) {
+              setLeads((prev) => prev.map((l) => (String(l.id) === String(id) ? { ...l, stage: newStage } : l)));
+            } else {
+              setRefreshTrigger((t) => t + 1);
+            }
+          }}
+        />
+      )}
 
       <Modal open={openAdd} onClose={() => setOpenAdd(false)} title="Add New Lead">
         <AddLeadForm onCancel={() => setOpenAdd(false)} onSubmit={handleCreated} />

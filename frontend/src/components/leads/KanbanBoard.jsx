@@ -24,7 +24,7 @@ const BOARD_PADDING = 28;
  *   onStageChange?: (leadId: string|number, nextStage: string) => void,
  * }} props
  */
-export default function KanbanBoard({ leads = [], onStageChange, onFocusSearch }) {
+export default function KanbanBoard({ leads = [], onStageChange, onFocusSearch, onSelectLead }) {
   const [dragLead, setDragLead] = useState(null);
   const scrollRef = useRef(null);
   const [scrollState, setScrollState] = useState({ canScrollLeft: false, canScrollRight: false });
@@ -163,13 +163,13 @@ export default function KanbanBoard({ leads = [], onStageChange, onFocusSearch }
 
     if (x < zone) {
       // Scroll left
-      // Speed increases closer to edge, max 10px per frame
+      // Speed increases closer to edge, max ~20px per frame
       const intensity = 1 - x / zone;
-      dragScrollSpeed.current = -5 * intensity - 2;
+      dragScrollSpeed.current = -15 * intensity - 5;
     } else if (x > width - zone) {
       // Scroll right
       const intensity = 1 - (width - x) / zone;
-      dragScrollSpeed.current = 5 * intensity + 2;
+      dragScrollSpeed.current = 15 * intensity + 5;
     } else {
       dragScrollSpeed.current = 0;
     }
@@ -212,6 +212,7 @@ export default function KanbanBoard({ leads = [], onStageChange, onFocusSearch }
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}
                 onFocusSearch={onFocusSearch}
+                onSelectLead={onSelectLead}
               />
             ))}
           </div>

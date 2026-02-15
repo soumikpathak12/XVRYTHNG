@@ -11,6 +11,7 @@ export default function KanbanColumn({
   onDragStart,
   onDragEnd,
   onFocusSearch,
+  onSelectLead,
   isHighlighted,
 }) {
   const headerColor = colorForStage(stageKey);
@@ -138,6 +139,7 @@ export default function KanbanColumn({
               lead={l}
               onDragStart={onDragStart}
               onDragEnd={onDragEnd}
+              onSelect={onSelectLead ? () => onSelectLead(l.id) : undefined}
             />
           ))
         )}

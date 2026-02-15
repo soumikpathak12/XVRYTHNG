@@ -13,7 +13,19 @@ const STAGES = [
   'closed_lost',
 ];
 
-export default function LeadForm({ initialValues, onSubmit, onCancel, title = 'Add New Lead', submitLabel = 'Create Lead' }) {
+const STAGE_LABELS = {
+  new: 'New',
+  contacted: 'Contacted',
+  qualified: 'Qualified',
+  inspection_booked: 'Site Inspection Booked',
+  inspection_completed: 'Site Inspection Completed',
+  proposal_sent: 'Proposal Sent',
+  negotiation: 'Negotiation',
+  closed_won: 'Closed Won',
+  closed_lost: 'Closed Lost',
+};
+
+export default function LeadForm({ initialValues, onSubmit, onCancel, title = 'Add New Lead', submitLabel = 'Create Lead', embedded = false }) {
   const [form, setForm] = useState({
     customer_name: '',
     suburb: '',
@@ -138,39 +150,8 @@ export default function LeadForm({ initialValues, onSubmit, onCancel, title = 'A
     }
   };
 
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.35)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 20,
-        zIndex: 50,
-      }}
-    >
-      <div
-        style={{
-          background: 'white',
-          borderRadius: 12,
-          width: '100%',
-          maxWidth: 560,
-          padding: 20,
-          boxShadow:
-            '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)',
-        }}
-      >
-        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#0f1a2b' }}>
-          {title}
-        </h2>
-        <p style={{ margin: '6px 0 16px', color: '#6B7280' }}>
-          {initialValues ? 'Update the details below.' : 'Enter the details below and click Create.'}
-        </p>
-
+  const content = (
+    <>
         {error && (
           <div
             style={{
@@ -257,7 +238,7 @@ export default function LeadForm({ initialValues, onSubmit, onCancel, title = 'A
               style={inputStyle}
             >
               {STAGES.map((s) => (
-                <option key={s} value={s}>{s}</option>
+                <option key={s} value={s}>{STAGE_LABELS[s] || s}</option>
               ))}
             </select>
           </Field>
@@ -310,6 +291,50 @@ export default function LeadForm({ initialValues, onSubmit, onCancel, title = 'A
             </button>
           </div>
         </form>
+    </>
+  );
+
+  if (embedded) {
+    return <div style={{ maxWidth: 560 }}>{content}</div>;
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.35)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20,
+        zIndex: 50,
+      }}
+    >
+      <div
+        style={{
+          background: 'white',
+          borderRadius: 12,
+          width: '100%',
+          maxWidth: 560,
+          padding: 20,
+          boxShadow:
+            '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)',
+        }}
+      >
+        {title ? (
+          <>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#0f1a2b' }}>
+              {title}
+            </h2>
+            <p style={{ margin: '6px 0 16px', color: '#6B7280' }}>
+              {initialValues ? 'Update the details below.' : 'Enter the details below and click Create.'}
+            </p>
+          </>
+        ) : null}
+        {content}
       </div>
     </div>
   );

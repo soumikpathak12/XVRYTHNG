@@ -16,7 +16,7 @@ import React from 'react';
  *   onDragStart?: (e: DragEvent, lead: any) => void,
  * }} props
  */
-export default function LeadCard({ lead, onDragStart, onDragEnd }) {
+export default function LeadCard({ lead, onDragStart, onDragEnd, onSelect }) {
   const isWon = lead.stage === 'closed_won';
   const isLost = lead.stage === 'closed_lost';
   const cardVariant = isWon ? 'won' : isLost ? 'lost' : 'default';
@@ -25,25 +25,13 @@ export default function LeadCard({ lead, onDragStart, onDragEnd }) {
     ? new Intl.NumberFormat(undefined, { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(lead.value)
     : null;
 
-  function timeAgo(dateString) {
-    if (!dateString) return 'No activity';
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return dateString;
-    const now = new Date();
-    const diff = (now - date) / 1000;
-    if (diff < 60) return 'Just now';
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
-    return date.toLocaleDateString();
-  }
-
   return (
     <article
       className={`leads-card ${cardVariant}`}
       draggable
       onDragStart={(e) => onDragStart?.(e, lead)}
       onDragEnd={(e) => onDragEnd?.(e)}
+      onClick={() => onSelect?.()}
       aria-label={`${lead.customerName} – ${lead.suburb}`}
     >
       <div className="leads-card-name">{lead.customerName}</div>
@@ -51,13 +39,15 @@ export default function LeadCard({ lead, onDragStart, onDragEnd }) {
 
       <div className="leads-card-tags">
         {lead.systemSize && <span className="leads-card-tag">{lead.systemSize}</span>}
-        {lead.source && <span className="leads-card-tag source">{lead.source}</span>}
         {formattedValue && <span className="leads-card-tag value">{formattedValue}</span>}
       </div>
 
       <div className="leads-card-meta">
-        <span>Last activity</span>
-        <span>{timeAgo(lead.lastActivity)}</span>
+        {lead.source ? (
+          <span className="leads-card-meta-source">{lead.source}</span>
+        ) : (
+          <span className="leads-card-meta-muted">—</span>
+        )}
       </div>
     </article>
   );

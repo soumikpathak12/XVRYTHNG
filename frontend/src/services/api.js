@@ -479,6 +479,17 @@ export async function getLeads(params = {}) {
 }
 
 /**
+ * GET /api/leads/:id (with relations: activities, documents, communications)
+ * @returns {Promise<{ success: boolean, data?: object, lead?: object, activities?: [], documents?: [], communications?: [] }>}
+ */
+export async function getLead(id) {
+  const res = await authFetch(`/api/leads/${encodeURIComponent(id)}`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Lead not found');
+  return data; // { success: true, lead, activities, documents, communications }
+}
+
+/**
  * PATCH /api/leads/:id/stage
  */
 export async function updateLeadStage(id, stage) {

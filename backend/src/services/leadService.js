@@ -132,6 +132,98 @@ export async function getLeads(filters = {}) {
   return rows;
 }
 
+/**
+ * Get a single lead by id (with relations placeholder).
+ * Returns { lead, activities: [], documents: [], communications: [] } for future relations.
+ */
+export async function getLeadById(leadId) {
+  if (!leadId || Number.isNaN(Number(leadId))) {
+    const err = new Error('Invalid lead id');
+    err.statusCode = 400;
+    throw err;
+  }
+  const [rows] = await db.execute('SELECT * FROM leads WHERE id = ? LIMIT 1', [leadId]);
+  const lead = rows[0];
+  if (!lead) {
+    const err = new Error('Lead not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  return {
+    lead,
+    activities: [],
+    documents: [],
+    communications: [],
+  };
+}
+
+export async function updateLead(leadId, payload) {
+  if (!leadId || Number.isNaN(Number(leadId))) {
+    const err = new Error('Invalid lead id');
+    err.statusCode = 400;
+    throw err;
+  }
+  const [rows] = await db.execute('SELECT id FROM leads WHERE id = ? LIMIT 1', [leadId]);
+  if (!rows[0]) {
+    const err = new Error('Lead not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  const {
+    stage,
+    customer_name,
+    suburb,
+    system_size_kw,
+    value_amount,
+    source,
+    site_inspection_date,
+  } = payload;
+
+  const updates = [];
+  const params = [];
+
+  if (stage !== undefined && STAGES.has(stage)) {
+    const { is_closed, is_won } = deriveFlags(stage);
+    updates.push('stage = ?', 'is_closed = ?', 'is_won = ?');
+    params.push(stage, is_closed ? 1 : 0, is_won ? 1 : 0);
+  }
+  if (customer_name !== undefined) {
+    updates.push('customer_name = ?');
+    params.push(String(customer_name).trim());
+  }
+  if (suburb !== undefined) {
+    updates.push('suburb = ?');
+    params.push(suburb ? String(suburb).trim() : null);
+  }
+  if (system_size_kw !== undefined) {
+    updates.push('system_size_kw = ?');
+    params.push(system_size_kw == null ? null : Number(system_size_kw));
+  }
+  if (value_amount !== undefined) {
+    updates.push('value_amount = ?');
+    params.push(value_amount == null ? null : Number(value_amount));
+  }
+  if (source !== undefined) {
+    updates.push('source = ?');
+    params.push(source ? String(source).trim() : null);
+  }
+  if (site_inspection_date !== undefined) {
+    updates.push('site_inspection_date = ?');
+    params.push(site_inspection_date);
+  }
+
+  if (updates.length === 0) {
+    const [updated] = await db.execute('SELECT * FROM leads WHERE id = ? LIMIT 1', [leadId]);
+    return updated[0];
+  }
+
+  updates.push('last_activity_at = NOW()');
+  params.push(leadId);
+  const sql = `UPDATE leads SET ${updates.join(', ')} WHERE id = ?`;
+  await db.execute(sql, params);
+  const [updated] = await db.execute('SELECT * FROM leads WHERE id = ? LIMIT 1', [leadId]);
+  return updated[0];
+}
 
 export async function updateLeadStage(leadId, nextStage) {
   if (!leadId || Number.isNaN(Number(leadId))) {

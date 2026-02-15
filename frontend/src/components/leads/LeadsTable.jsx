@@ -36,7 +36,7 @@ function formatDate(dateString) {
  *   onStageChange?: (leadId: string|number, nextStage: string) => void,
  * }} props
  */
-export default function LeadsTable({ leads = [], onStageChange }) {
+export default function LeadsTable({ leads = [], onStageChange, onSelectLead }) {
   const [sortKey, setSortKey] = useState('customerName');
   const [sortDir, setSortDir] = useState(SORT_ASC);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -146,7 +146,14 @@ export default function LeadsTable({ leads = [], onStageChange }) {
               </tr>
             ) : (
               paginatedLeads.map((lead) => (
-                <tr key={lead.id} className="leads-table-tr">
+                <tr
+                  key={lead.id}
+                  className="leads-table-tr"
+                  onClick={(e) => { if (!e.target.closest('select')) onSelectLead?.(lead.id); }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectLead?.(lead.id); } }}
+                >
                   <td className="leads-table-td leads-table-td-name">
                     <span className="leads-table-name">{lead.customerName || '—'}</span>
                   </td>

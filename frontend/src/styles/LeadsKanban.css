@@ -254,6 +254,32 @@
     font-weight: 500;
 }
 
+.leads-filter-bar-right {
+    margin-left: auto;
+}
+
+.leads-export-csv-btn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #0d9488;
+    background: #fff;
+    border: 1px solid #0d9488;
+    cursor: pointer;
+}
+
+.leads-export-csv-btn:hover:not(:disabled) {
+    background: #f0fdfa;
+    border-color: #0f766e;
+    color: #0f766e;
+}
+
+.leads-export-csv-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 /* ---- Toast / error ---- */
 .leads-toast,
 .leads-error-box {
@@ -591,6 +617,20 @@
     color: #94a3b8;
 }
 
+.leads-card-meta-source {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    background: #e0f2fe;
+    color: #0d9488;
+}
+
+.leads-card-meta-muted {
+    color: #94a3b8;
+}
+
 /* Highlight animation for column jump */
 .leads-column.highlighted {
     animation: columnHighlight 1s ease-out;
@@ -720,6 +760,10 @@
 .leads-table-td-name .leads-table-name {
     font-weight: 600;
     color: #0f172a;
+}
+
+.leads-table-tr {
+  cursor: pointer;
 }
 
 .leads-table-tr:hover {
