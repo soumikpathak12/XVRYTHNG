@@ -19,7 +19,6 @@ export default function LeadsPage() {
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [searchExpanded, setSearchExpanded] = useState(false);
   const searchInputRef = useRef(null);
   const [sourceFilter, setSourceFilter] = useState('');
   const [daysFilter, setDaysFilter] = useState('');
@@ -180,7 +179,6 @@ export default function LeadsPage() {
 
   const focusSearch = useCallback((stageKey = null) => {
     setSearchStage(stageKey);
-    setSearchExpanded(true);
     setTimeout(() => searchInputRef.current?.focus(), 50);
   }, []);
 
@@ -228,8 +226,8 @@ export default function LeadsPage() {
           </div>
         </div>
 
-        <div className={`leads-filter-bar ${searchExpanded ? 'search-expanded' : ''}`}>
-          <div className={`leads-search-wrap ${searchExpanded ? 'expanded' : ''}`}>
+        <div className="leads-filter-bar">
+          <div className="leads-search-wrap">
             <svg className="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
@@ -238,11 +236,9 @@ export default function LeadsPage() {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              onFocus={() => setSearchExpanded(true)}
               onBlur={() => {
                 // If empty, collapse on blur
                 if (!search) {
-                  setSearchExpanded(false);
                   setSearchStage(null);
                 }
               }}

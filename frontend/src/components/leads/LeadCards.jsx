@@ -16,7 +16,7 @@ import React from 'react';
  *   onDragStart?: (e: DragEvent, lead: any) => void,
  * }} props
  */
-export default function LeadCard({ lead, onDragStart }) {
+export default function LeadCard({ lead, onDragStart, onDragEnd }) {
   const isWon = lead.stage === 'closed_won';
   const isLost = lead.stage === 'closed_lost';
   const cardVariant = isWon ? 'won' : isLost ? 'lost' : 'default';
@@ -43,6 +43,7 @@ export default function LeadCard({ lead, onDragStart }) {
       className={`leads-card ${cardVariant}`}
       draggable
       onDragStart={(e) => onDragStart?.(e, lead)}
+      onDragEnd={(e) => onDragEnd?.(e)}
       aria-label={`${lead.customerName} – ${lead.suburb}`}
     >
       <div className="leads-card-name">{lead.customerName}</div>

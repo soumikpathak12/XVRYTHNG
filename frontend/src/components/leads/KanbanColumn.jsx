@@ -9,6 +9,7 @@ export default function KanbanColumn({
   onDragOver,
   onDrop,
   onDragStart,
+  onDragEnd,
   onFocusSearch,
   isHighlighted,
 }) {
@@ -136,6 +137,7 @@ export default function KanbanColumn({
               key={l.id}
               lead={l}
               onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
             />
           ))
         )}

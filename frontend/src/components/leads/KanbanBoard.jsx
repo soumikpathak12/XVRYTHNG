@@ -123,6 +123,58 @@ export default function KanbanBoard({ leads = [], onStageChange, onFocusSearch }
     }, 1000);
   }
 
+  function handleDragEnd() {
+    setDragLead(null);
+    dragScrollSpeed.current = 0;
+  }
+
+  /* Auto-scroll during drag */
+  const dragScrollSpeed = useRef(0);
+
+  useEffect(() => {
+    if (!dragLead) {
+      dragScrollSpeed.current = 0;
+      return;
+    }
+
+    let animId;
+    const scrollStep = () => {
+      const el = scrollRef.current;
+      if (el && dragScrollSpeed.current !== 0) {
+        el.scrollLeft += dragScrollSpeed.current;
+      }
+      animId = requestAnimationFrame(scrollStep);
+    };
+    animId = requestAnimationFrame(scrollStep);
+
+    return () => cancelAnimationFrame(animId);
+  }, [dragLead]);
+
+  function handleContainerDragOver(e) {
+    e.preventDefault();
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const { left, width } = el.getBoundingClientRect();
+    const x = e.clientX - left;
+
+    // Scroll zone width (e.g. 100px from edge)
+    const zone = 100;
+
+    if (x < zone) {
+      // Scroll left
+      // Speed increases closer to edge, max 10px per frame
+      const intensity = 1 - x / zone;
+      dragScrollSpeed.current = -5 * intensity - 2;
+    } else if (x > width - zone) {
+      // Scroll right
+      const intensity = 1 - (width - x) / zone;
+      dragScrollSpeed.current = 5 * intensity + 2;
+    } else {
+      dragScrollSpeed.current = 0;
+    }
+  }
+
   return (
     <div className="leads-board-root">
       <div className="leads-column-jump" role="navigation" aria-label="Jump to pipeline stage">
@@ -145,6 +197,7 @@ export default function KanbanBoard({ leads = [], onStageChange, onFocusSearch }
           className="leads-board-scroll"
           role="region"
           aria-label="Pipeline columns – scroll horizontally to see all stages"
+          onDragOver={handleContainerDragOver}
         >
           <div className="leads-board" role="list" aria-label="Sales pipeline kanban">
             {STAGES.map((s) => (
@@ -155,6 +208,7 @@ export default function KanbanBoard({ leads = [], onStageChange, onFocusSearch }
                 leads={byStage[s.key]}
                 isHighlighted={s.key === highlightedStage}
                 onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}
                 onFocusSearch={onFocusSearch}
