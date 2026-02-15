@@ -575,3 +575,27 @@
     font-size: 0.6875rem;
     color: #94a3b8;
 }
+
+/* Highlight animation for column jump */
+.leads-column.highlighted {
+    animation: columnHighlight 1s ease-out;
+    border-color: #0d9488 !important;
+    position: relative;
+    z-index: 5;
+}
+
+@keyframes columnHighlight {
+    0% {
+        box-shadow: 0 0 0 0 rgba(13, 148, 136, 0.6);
+        transform: scale(1.02);
+    }
+
+    40% {
+        transform: scale(1.02);
+    }
+
+    100% {
+        box-shadow: 0 0 0 8px rgba(13, 148, 136, 0);
+        transform: scale(1);
+    }
+}

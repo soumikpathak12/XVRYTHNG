@@ -60,7 +60,12 @@ export default function KanbanBoard({ leads = [], onStageChange, onFocusSearch }
     setDragLead(null);
   }
 
+  /* Manual override lock */
+  const ignoreScrollRef = useRef(false);
+
   function updateScrollState() {
+    if (ignoreScrollRef.current) return;
+
     const el = scrollRef.current;
     if (!el) return;
     const { scrollLeft, scrollWidth, clientWidth } = el;
@@ -68,8 +73,14 @@ export default function KanbanBoard({ leads = [], onStageChange, onFocusSearch }
       canScrollLeft: scrollLeft > 8,
       canScrollRight: scrollLeft < scrollWidth - clientWidth - 8,
     });
-    const center = scrollLeft + clientWidth / 2;
-    let index = Math.floor((center - BOARD_PADDING) / (COL_WIDTH + COL_GAP));
+
+    // Check if we're at the very end of the scroll container
+    // Removed logic forcing last column to be active
+
+    // Determine index based on the left side of the viewport + offset
+    // (using center of viewport was causing issues for the first column on wide screens)
+    const adjustedLeft = scrollLeft - BOARD_PADDING + (COL_WIDTH + COL_GAP) / 2;
+    let index = Math.floor(adjustedLeft / (COL_WIDTH + COL_GAP));
     index = Math.max(0, Math.min(STAGES.length - 1, index));
     setActiveColumnIndex(index);
   }
@@ -87,11 +98,29 @@ export default function KanbanBoard({ leads = [], onStageChange, onFocusSearch }
     };
   }, [leads]);
 
+  const [highlightedStage, setHighlightedStage] = useState(null);
+
   function scrollToColumn(index) {
     const el = scrollRef.current;
     if (!el) return;
+
+    // Lock scroll updates
+    ignoreScrollRef.current = true;
+    setActiveColumnIndex(index);
+
+    const s = STAGES[index];
+    if (s) {
+      setHighlightedStage(s.key);
+      setTimeout(() => setHighlightedStage(null), 1000);
+    }
+
     const left = BOARD_PADDING + index * (COL_WIDTH + COL_GAP);
     el.scrollTo({ left, behavior: 'smooth' });
+
+    // Unlock after animation
+    setTimeout(() => {
+      ignoreScrollRef.current = false;
+    }, 1000);
   }
 
   return (
@@ -124,6 +153,7 @@ export default function KanbanBoard({ leads = [], onStageChange, onFocusSearch }
                 title={s.label}
                 stageKey={s.key}
                 leads={byStage[s.key]}
+                isHighlighted={s.key === highlightedStage}
                 onDragStart={handleDragStart}
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}

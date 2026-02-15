@@ -137,9 +137,15 @@ export default function LeadsPage() {
     return Array.from(s).sort();
   }, [leads]);
 
+  const [searchStage, setSearchStage] = useState(null);
+
   const filteredLeads = useMemo(() => {
     const q = debouncedSearch.toLowerCase();
     let list = leads;
+
+    if (searchStage) {
+      list = list.filter((l) => l.stage === searchStage);
+    }
 
     if (sourceFilter) {
       list = list.filter((l) => l.source === sourceFilter);
@@ -168,11 +174,12 @@ export default function LeadsPage() {
       });
     }
     return list;
-  }, [leads, debouncedSearch, sourceFilter, daysFilter]);
+  }, [leads, debouncedSearch, sourceFilter, daysFilter, searchStage]);
 
   const boardLeads = filteredLeads;
 
-  const focusSearch = useCallback(() => {
+  const focusSearch = useCallback((stageKey = null) => {
+    setSearchStage(stageKey);
     setSearchExpanded(true);
     setTimeout(() => searchInputRef.current?.focus(), 50);
   }, []);
@@ -183,7 +190,7 @@ export default function LeadsPage() {
         <div className="leads-kanban-header-top">
           <div className="leads-kanban-title">
             <h1>Sales Pipeline</h1>
-            {/* <p>Manage leads across stages. Search, filter, and drag cards between columns.</p> */}
+            <p>Manage leads across stages. Search, filter, and drag cards between columns.</p>
           </div>
           <div className="leads-kanban-actions">
             <div className="leads-view-tabs">
@@ -231,15 +238,25 @@ export default function LeadsPage() {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              onBlur={() => setTimeout(() => setSearchExpanded(false), 200)}
-              placeholder="Search by name, suburb, source, stage..."
+              onFocus={() => setSearchExpanded(true)}
+              onBlur={() => {
+                // If empty, collapse on blur
+                if (!search) {
+                  setSearchExpanded(false);
+                  setSearchStage(null);
+                }
+              }}
+              placeholder={searchStage ? `Search in ${searchStage.replace('_', ' ')}...` : "Search by name, suburb, source, stage..."}
               aria-label="Search leads"
             />
             {search && (
               <button
                 type="button"
                 className="leads-search-clear"
-                onClick={() => setSearch('')}
+                onClick={() => {
+                  setSearch('');
+                  setSearchStage(null);
+                }}
                 title="Clear search"
                 aria-label="Clear search"
               >

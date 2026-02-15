@@ -34,7 +34,7 @@ export default function AdminPage() {
           style={{
             flex: 1,
             overflowY: 'auto',
-            padding: '24px',
+            padding: '20px',
           }}
         >
           <div
