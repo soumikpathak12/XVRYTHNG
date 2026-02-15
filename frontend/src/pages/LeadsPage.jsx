@@ -2,6 +2,7 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import KanbanBoard from '../components/leads/KanbanBoard.jsx';
+import LeadsTable from '../components/leads/LeadsTable.jsx';
 import Modal from '../components/common/Modal.jsx';
 import AddLeadForm from '../components/leads/LeadForm.jsx';
 import { getLeads, updateLeadStage as apiUpdateLeadStage } from '../services/api.js';
@@ -98,16 +99,15 @@ export default function LeadsPage() {
       const updated = res?.data;
       if (updated) {
         setLeads((prev) =>
-          prev.map((l) =>
-            String(l.id) === String(leadId)
-              ? {
-                ...l,
-                stage: updated.stage,
-                lastActivity: updated.last_activity_at || l.lastActivity,
-                _raw: updated,
-              }
-              : l
-          )
+          prev.map((l) => {
+            if (String(l.id) !== String(leadId)) return l;
+            return {
+              ...l,
+              stage: updated.stage,
+              lastActivity: view === 'table' ? l.lastActivity : (updated.last_activity_at || l.lastActivity),
+              _raw: updated,
+            };
+          })
         );
       }
     } catch (err) {
@@ -119,7 +119,7 @@ export default function LeadsPage() {
       setToast(err.message || 'Failed to update stage');
       setTimeout(() => setToast(''), 3000);
     }
-  }, []);
+  }, [view]);
 
   const handleCreated = useCallback(
     (createdFromForm) => {
@@ -290,13 +290,13 @@ export default function LeadsPage() {
 
       {toast && <div className="leads-toast">{toast}</div>}
 
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div className="leads-page-content">
         {loading ? (
           <div className="leads-loading">Loading leads…</div>
         ) : error ? (
           <div className="leads-error-box">{error}</div>
         ) : view === 'table' ? (
-          <div className="leads-loading">Table view coming soon.</div>
+          <LeadsTable leads={boardLeads} onStageChange={handleStageChange} />
         ) : (
           <KanbanBoard leads={boardLeads} onStageChange={handleStageChange} onFocusSearch={focusSearch} />
         )}
