@@ -1,11 +1,11 @@
 // pages/LeadsCalendarPage.jsx
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';               
+import { useNavigate } from 'react-router-dom';
 import LeadsCalendar from '../../components/leads/LeadsCalendar.jsx';
 import { getLeads } from '../../services/api.js';
 
 export default function LeadsCalendarPage() {
-  const navigate = useNavigate();                              
+  const navigate = useNavigate();
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -23,7 +23,7 @@ export default function LeadsCalendarPage() {
       source: row.source || '',
       lastActivity: row.last_activity_at || '',
       stage: row.stage,
-      _raw: row, 
+      _raw: row,
     };
   }, []);
 
@@ -37,7 +37,7 @@ export default function LeadsCalendarPage() {
         const arr = Array.isArray(res?.data) ? res.data : [];
 
         const mapped = arr
-          .filter(r => !!r.site_inspection_date)
+          .filter((r) => !!r.site_inspection_date)
           .map(transformLead);
 
         if (alive) setLeads(mapped);
@@ -47,14 +47,27 @@ export default function LeadsCalendarPage() {
         if (alive) setLoading(false);
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [transformLead]);
 
   const getDate = useCallback((l) => l._raw?.site_inspection_date || null, []);
 
+  // Simple shared button style
+  const tabBtnStyle = (active) => ({
+    padding: '8px 12px',
+    borderRadius: 8,
+    background: active ? '#111827' : '#F3F4F6',
+    color: active ? 'white' : '#111827',
+    border: '1px solid #E5E7EB',
+    fontWeight: 700,
+    cursor: 'pointer',
+  });
+
   return (
     <div style={{ padding: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#0f1a2b' }}>
             Site Visits – Calendar
@@ -64,20 +77,29 @@ export default function LeadsCalendarPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => navigate('/admin/leads')}
-          style={{
-            padding: '8px 12px',
-            borderRadius: 8,
-            background: '#F3F4F6',
-            color: '#111827',
-            border: '1px solid #E5E7EB',
-            fontWeight: 700,
-            cursor: 'pointer',
-          }}
-        >
-          ← Back to Kanban
-        </button>
+        {/* View toggle: Kanban / Table / Calendar */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            style={tabBtnStyle(false)}
+            onClick={() => navigate('/admin/leads?view=kanban')}
+          >
+            Kanban
+          </button>
+          <button
+            style={tabBtnStyle(false)}
+            onClick={() => navigate('/admin/leads?view=table')}
+          >
+            Table
+          </button>
+          <button
+            style={tabBtnStyle(true)} // This page is the active "Calendar" view
+            onClick={() => {
+              /* Already here; no-op to keep consistent UI behavior */
+            }}
+          >
+            Calendar
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -102,6 +124,8 @@ export default function LeadsCalendarPage() {
           titleForLead={(l) => l.customerName}
           subtitleForLead={(l) => `${l.suburb || ''} • ${l.stage || ''}`}
           onLeadClick={(lead) => {
+            // Optional: navigate to a lead detail page if you have one
+            // navigate(`/admin/leads/${lead.id}`);
           }}
           weekStartsOn={1}
           locale="vi-VN"
