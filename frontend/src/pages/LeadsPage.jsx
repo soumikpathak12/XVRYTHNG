@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import KanbanBoard from '../components/leads/KanbanBoard.jsx';
 import { STAGES } from '../components/leads/KanbanBoard.jsx';
 import LeadsTable from '../components/leads/LeadsTable.jsx';
+import LeadsCalendar from '../components/leads/LeadsCalendar.jsx';
 import LeadDetailModal from '../components/leads/LeadDetailModal.jsx';
 import Modal from '../components/common/Modal.jsx';
 import AddLeadForm from '../components/leads/LeadForm.jsx';
@@ -217,6 +218,11 @@ export default function LeadsPage() {
 
   const boardLeads = filteredLeads;
 
+  const calendarLeads = useMemo(
+    () => boardLeads.filter((l) => l._raw?.site_inspection_date),
+    [boardLeads]
+  );
+
   const focusSearch = useCallback((stageKey = null) => {
     setSearchStage(stageKey);
     setTimeout(() => searchInputRef.current?.focus(), 50);
@@ -249,10 +255,7 @@ export default function LeadsPage() {
               <button
                 type="button"
                 className={`leads-view-tab ${view === 'calendar' ? 'active' : ''}`}
-                onClick={() => {
-                  switchView('calendar');
-                  navigate('/admin/leads/calendar');
-                }}
+                onClick={() => switchView('calendar')}
               >
                 Calendar
               </button>
@@ -349,6 +352,17 @@ export default function LeadsPage() {
           <div className="leads-error-box">{error}</div>
         ) : view === 'table' ? (
           <LeadsTable leads={boardLeads} onStageChange={handleStageChange} onSelectLead={setSelectedLeadId} />
+        ) : view === 'calendar' ? (
+          <div className="leads-calendar-wrap">
+            <LeadsCalendar
+              leads={calendarLeads}
+              getDate={(l) => l._raw?.site_inspection_date ?? null}
+              titleForLead={(l) => l.customerName || `Lead #${l.id}`}
+              subtitleForLead={(l) => [l.suburb, l.stage].filter(Boolean).join(' • ') || ''}
+              onLeadClick={(lead) => setSelectedLeadId(lead.id)}
+              weekStartsOn={1}
+            />
+          </div>
         ) : (
           <KanbanBoard leads={boardLeads} onStageChange={handleStageChange} onFocusSearch={focusSearch} onSelectLead={setSelectedLeadId} />
         )}

@@ -133,6 +133,31 @@ export async function getLeads(filters = {}) {
 }
 
 /**
+ * Get leads with site_inspection_date in the given date range (inclusive of start/end).
+ * @param {string} startDate - YYYY-MM-DD
+ * @param {string} endDate - YYYY-MM-DD
+ * @returns {Promise<Array>}
+ */
+export async function getLeadsByDateRange(startDate, endDate) {
+  if (!startDate || !endDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+    return [];
+  }
+  const startDt = `${startDate} 00:00:00`;
+  const endNext = new Date(endDate + 'T12:00:00Z');
+  endNext.setUTCDate(endNext.getUTCDate() + 1);
+  const endNextStr = endNext.toISOString().slice(0, 10);
+  const endDt = `${endNextStr} 00:00:00`;
+
+  const [rows] = await db.execute(
+    `SELECT * FROM leads
+     WHERE site_inspection_date IS NOT NULL AND site_inspection_date >= ? AND site_inspection_date < ?
+     ORDER BY site_inspection_date ASC, last_activity_at DESC`,
+    [startDt, endDt]
+  );
+  return rows;
+}
+
+/**
  * Get a single lead by id (with relations placeholder).
  * Returns { lead, activities: [], documents: [], communications: [] } for future relations.
  */

@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useCallback } from 'react';
+import CalendarLeadEntry from './CalendarLeadEntry.jsx';
 
 /**
  * LeadsCalendar (read-only month view) — “table” style
@@ -348,20 +349,13 @@ export default function LeadsCalendar({
                 <div className="lc2-dateNum">{d.date.getDate()}</div>
 
                 {visible.map((lead, i) => (
-                  <div
-                    key={i}
-                    className="lc2-chip"
-                    onClick={() => onLeadClick?.(lead)}
-                    role={onLeadClick ? 'button' : 'group'}
+                  <CalendarLeadEntry
+                    key={lead.id ?? i}
+                    lead={lead}
                     title={titleForLead(lead)}
-                    style={{ cursor: onLeadClick ? 'pointer' : 'default' }}
-                  >
-                    <span className="lc2-dot" />
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <div className="lc2-chipTitle">{titleForLead(lead)}</div>
-                      {subtitleForLead(lead) && <div className="lc2-chipSub">{subtitleForLead(lead)}</div>}
-                    </div>
-                  </div>
+                    subtitle={subtitleForLead(lead) || undefined}
+                    onClick={onLeadClick}
+                  />
                 ))}
 
                 {overflow > 0 && <div className="lc2-more">+{overflow} more</div>}

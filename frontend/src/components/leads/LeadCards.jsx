@@ -25,6 +25,14 @@ export default function LeadCard({ lead, onDragStart, onDragEnd, onSelect }) {
     ? new Intl.NumberFormat(undefined, { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(lead.value)
     : null;
 
+  const dateLabel = (() => {
+    const raw = lead.lastActivity || lead._raw?.last_activity_at || lead._raw?.created_at;
+    if (!raw) return null;
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  })();
+
   return (
     <article
       className={`leads-card ${cardVariant}`}
@@ -48,6 +56,7 @@ export default function LeadCard({ lead, onDragStart, onDragEnd, onSelect }) {
         ) : (
           <span className="leads-card-meta-muted">—</span>
         )}
+        {dateLabel && <span className="leads-card-date">{dateLabel}</span>}
       </div>
     </article>
   );

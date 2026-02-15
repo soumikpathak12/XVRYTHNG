@@ -12,6 +12,7 @@ import meController from './controllers/meController.js';
 
 import companyRoutes from './routes/companyRoutes.js';
 import leadsRoutes from './routes/leadRoutes.js';
+import calendarRoutes from './routes/calendarRoutes.js';
 import { fileURLToPath } from 'url';
 import path from 'path';
 
@@ -37,6 +38,7 @@ app.use('/api/users', userRoutes);
 
 app.use('/api/company', companyRoutes);
 app.use('/api/leads', leadsRoutes);
+app.use('/api/calendar', calendarRoutes);
 
 app.use('/api', meController);
 // 404

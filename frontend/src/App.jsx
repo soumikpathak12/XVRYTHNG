@@ -138,7 +138,7 @@ function App() {
           <Route path="overview" element={<RequirePermission resource="overview" action="view"><AdminOverview /></RequirePermission>} />
           <Route path="leads" element={<RequirePermission resource="leads" action="view"><LeadsPage /></RequirePermission>} />
           <Route path="leads/:id" element={<RequirePermission resource="leads" action="view"><LeadDetailPage /></RequirePermission>} />
-          <Route path="leads/calendar" element={<LeadsCalendarPage />} />
+          <Route path="leads/calendar" element={<RequirePermission resource="leads" action="view"><LeadsCalendarPage /></RequirePermission>} />
           <Route path="projects" element={<RequirePermission resource="projects" action="view"><AdminProjects /></RequirePermission>} />
           <Route path="on-field" element={<RequirePermission resource="on_field" action="view"><AdminOnField /></RequirePermission>} />
           <Route path="operations" element={<RequirePermission resource="operations" action="view"><AdminOperations /></RequirePermission>} />

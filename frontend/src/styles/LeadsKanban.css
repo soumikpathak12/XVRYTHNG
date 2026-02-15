@@ -575,6 +575,13 @@
     line-height: 1.3;
 }
 
+.leads-card-date {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: #94a3b8;
+    margin-left: auto;
+}
+
 .leads-card-suburb {
     font-size: 0.8125rem;
     color: #64748b;
@@ -949,4 +956,43 @@
     padding: 0 4px;
     color: #94a3b8;
     font-weight: 500;
+}
+
+/* =============================================
+   Leads Calendar View (T-081, T-084)
+   ============================================= */
+.leads-calendar-wrap {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 16px 28px 24px;
+    background: #f1f5f9;
+}
+
+.leads-calendar-wrap .lc2-root {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    padding: 16px;
+    max-width: 100%;
+}
+
+.leads-calendar-wrap .lc2-todayLink {
+    color: #0d9488;
+}
+
+.leads-calendar-wrap .lc2-todayLink:hover {
+    color: #0f766e;
+    text-decoration: underline;
+}
+
+.leads-calendar-wrap .lc2-chevron:hover:not(:disabled) {
+    border-color: #0d9488;
+    color: #0d9488;
+}
+
+.leads-calendar-wrap .lc2-chip:hover {
+    background: #f0fdfa;
+    border-color: #99f6e4;
 }
