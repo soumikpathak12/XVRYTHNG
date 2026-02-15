@@ -37,11 +37,10 @@ export default function CompanySidebar({ apiBase = '/api', logoSrc }) {
     (async () => {
       try {
         setLoading(true);
-        const res = await fetch(`${apiBase}/me/sidebar`, {
-          headers: { 'x-dev-user-id': '3' }, 
-        });
-        if (!res.ok) { setRole(null); setModules([]); return; }
-        const data = await res.json();
+        //const res = await fetch(`${apiBase}/me/sidebar`);
+        //if (!res.ok) { setRole(null); setModules([]); return; }
+        //const data = await res.json();
+        const data = await getCompanySidebar();
         if (!alive) return;
         setRole(data?.role ?? null);
         setModules(Array.isArray(data?.modules) ? data.modules : []);

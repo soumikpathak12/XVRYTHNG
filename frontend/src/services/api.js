@@ -21,7 +21,7 @@ function clearSessionAndNotify(data = {}) {
   window.dispatchEvent(
     new CustomEvent('session-expired', {
       detail: { code: data.code, message: data.message || 'Session expired' },
-    })
+    }),
   );
 }
 
@@ -78,6 +78,9 @@ async function authFetchJSON(url, options = {}) {
   return body;
 }
 
+/**
+ * POST /api/auth/request-reset
+ */
 export async function requestPasswordReset(email) {
   const res = await fetch(`${BASE}/api/auth/request-reset`, {
     method: 'POST',
@@ -99,7 +102,7 @@ export async function requestPasswordReset(email) {
 export async function validateResetToken(token) {
   const res = await fetch(
     `${BASE}/api/auth/validate-reset-token?token=${encodeURIComponent(token)}`,
-    { method: 'GET' }
+    { method: 'GET' },
   );
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -192,7 +195,7 @@ export async function updateAdminMe(payload) {
    -----------------------------------------------------------------------
    GET  /api/admin/company-types  → company types with modules
    GET  /api/admin/companies      → list companies
-   POST /api/admin/companies     → create company + company admin
+   POST /api/admin/companies      → create company + company admin
    ======================================================================= */
 
 /**
@@ -215,8 +218,8 @@ export async function listCompanies(params = {}) {
 
 /**
  * POST /api/admin/companies - create company and company admin
- * @param {{ company: object, admin: { email, password, name } }} payload
- * @returns {Promise<{ success: boolean, data: { company, adminUser } }>}
+ * @param {{ company: object, admin: { email: string, password: string, name: string } }} payload
+ * @returns {Promise<{ success: boolean, data: { company: object, adminUser: object } }>}
  */
 export async function createCompany(payload) {
   const res = await authFetch('/api/admin/companies', {
@@ -238,12 +241,13 @@ export async function createCompany(payload) {
 /* =======================================================================
    ROLES & PERMISSIONS (RBAC)
    -----------------------------------------------------------------------
-   GET  /api/admin/roles                    → { system, custom }
-   GET  /api/admin/permissions             → permissions[]
-   GET  /api/admin/roles/:id/permissions    → permissionIds[] (?type=custom for custom role)
-   POST /api/admin/roles                    → create custom role
-   PUT  /api/admin/roles/custom/:id/permissions → set permissionIds
+   GET  /api/admin/roles                       → { system, custom }
+   GET  /api/admin/permissions                 → permissions[]
+   GET  /api/admin/roles/:id/permissions      → permissionIds[] (?type=custom for custom role)
+   POST /api/admin/roles                      → create custom role
+   PUT  /api/admin/roles/custom/:id/permissions→ set permissionIds
    ======================================================================= */
+
 export async function getRoles() {
   return authFetchJSON('/api/admin/roles', { method: 'GET' });
 }
@@ -278,9 +282,9 @@ export async function setCustomRolePermissions(customRoleId, permissionIds) {
 /* =======================================================================
    USER PROFILE (any authenticated user)
    -----------------------------------------------------------------------
-   GET  /api/users/me        → profile
-   PUT  /api/users/me        → update profile (JSON or multipart with photo)
-   PUT  /api/users/me/password → change password
+   GET  /api/users/me         → profile
+   PUT  /api/users/me         → update profile (JSON or multipart with photo)
+   PUT  /api/users/me/password→ change password
    ======================================================================= */
 
 /**
@@ -365,18 +369,35 @@ export async function changePasswordMe(payload) {
   return data;
 }
 
-export async function getCompanySidebar() {
-  const res = await fetch('/api/company/sidebar', { headers: { ...authHeaders() } });
+/**
+ * ADMIN: POST /api/admin/change-password
+ * @param {{ currentPassword: string, newPassword: string }} param0
+ * @returns {Promise<{ success: boolean, message?: string }>}
+ */
+export async function changePassword({ currentPassword, newPassword }) {
+  const res = await authFetch('/api/admin/change-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || 'Failed to load sidebar');
-  return data; // { role, companyTypeId, modules }
+  if (!res.ok) {
+    throw new Error(data.message || 'Failed to change password');
+  }
+  return data; // { success:true, message }
 }
 
+/* =======================================================================
+   COMPANY (current company)
+   ======================================================================= */
+
+export async function getCompanySidebar() {
+  return authFetchJSON('/api/me/sidebar', { method: 'GET' });
+}
 
 export async function getCompanyProfile() {
   return authFetchJSON('/api/company/me', { method: 'GET' });
 }
-
 
 export async function updateCompanyProfile(payload) {
   const res = await authFetch('/api/company/me', {
@@ -401,7 +422,15 @@ export async function updateCompanyProfile(payload) {
   return data; // { success:true, data:{...} }
 }
 
+/* =======================================================================
+   LEADS
+   ======================================================================= */
 
+/**
+ * POST /api/leads
+ * @param {object} payload
+ * @returns {Promise<{ success: boolean, data?: object, message?: string }>}
+ */
 export async function createLead(payload) {
   const res = await authFetch('/api/leads', {
     method: 'POST',
@@ -417,14 +446,9 @@ export async function createLead(payload) {
     err.body = data; // { success:false, errors:{...} }
     throw err;
   }
-  if (!res.ok) {
-    throw new Error(data.message || 'Failed to create lead');
-  }
+  if (!res.ok) throw new Error(data.message || 'Failed to create lead');
   return data; // { success:true, data:{...} }
 }
-
-
-// api.js (append to the bottom with other helpers)
 
 /**
  * GET /api/leads
@@ -454,7 +478,9 @@ export async function getLeads(params = {}) {
   return data; // { success:true, data:[...] } OR grouped object
 }
 
-
+/**
+ * PATCH /api/leads/:id/stage
+ */
 export async function updateLeadStage(id, stage) {
   const res = await authFetch(`/api/leads/${encodeURIComponent(id)}/stage`, {
     method: 'PATCH',
@@ -476,6 +502,7 @@ export async function updateLeadStage(id, stage) {
   }
   return data; // { success:true, data:{...updatedLead} }
 }
+
 /**
  * GET /api/calendar/leads?start=YYYY-MM-DD&end=YYYY-MM-DD&tz=Australia/Melbourne
  * @param {{ start: string, end: string, tz?: string }} params

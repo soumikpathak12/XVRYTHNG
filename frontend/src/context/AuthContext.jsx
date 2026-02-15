@@ -163,3 +163,15 @@ export function useAuth() {
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
 }
+
+const SidebarContext = createContext();
+export function SidebarProvider({ children }) {
+  const [sidebarVersion, setSidebarVersion] = useState(0);
+  const bumpSidebar = () => setSidebarVersion(v => v + 1);
+  return (
+    <SidebarContext.Provider value={{ sidebarVersion, bumpSidebar }}>
+      {children}
+    </SidebarContext.Provider>
+  );
+}
+export function useSidebar() { return useContext(SidebarContext); }

@@ -9,7 +9,7 @@ const router = express.Router();
 router.get('/me/sidebar', requireAuth, async (req, res, next) => {
   try {
     const data = await getSidebarForUser(req.user.id);
-    res.json(data);
+    res.json({ ...data, _who: { req_user: req.user } });
   } catch (err) {
     next(err);
   }
