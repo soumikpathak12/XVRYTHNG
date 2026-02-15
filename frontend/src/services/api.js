@@ -525,3 +525,26 @@ export async function getCalendarLeads(params) {
   }
   return data; // { success:true, data:[...] }
 }
+
+/**
+ * PUT /api/leads/:id
+ * @param {string|number} id
+ * @param {object} payload
+ * @returns {Promise<{ success: boolean, data?: object }>}
+ */
+export async function updateLead(id, payload) {
+  const res = await authFetch(`/api/leads/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 422) {
+    const err = new Error('Validation error');
+    err.status = 422;
+    err.body = data;
+    throw err;
+  }
+  if (!res.ok) throw new Error(data.message || 'Failed to update lead');
+  return data;
+}

@@ -1,11 +1,11 @@
 // LeadsPage.jsx
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import KanbanBoard from '../components/leads/KanbanBoard.jsx';
-// import LeadsTable from '../components/leads/LeadsTable.jsx'; // 👈 Keep commented until you create it
 import Modal from '../components/common/Modal.jsx';
-import AddLeadForm from '../components/leads/NewLeadForm.jsx';
+import AddLeadForm from '../components/leads/LeadForm.jsx';
 import { getLeads, updateLeadStage as apiUpdateLeadStage } from '../services/api.js';
+import '../styles/LeadsKanban.css';
 
 export default function LeadsPage() {
   const navigate = useNavigate();
@@ -17,11 +17,13 @@ export default function LeadsPage() {
   const [openAdd, setOpenAdd] = useState(false);
   const [toast, setToast] = useState('');
 
-  // 🔎 Search state (raw input) + debounced value for smoother UX
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const searchInputRef = useRef(null);
+  const [sourceFilter, setSourceFilter] = useState('');
+  const [daysFilter, setDaysFilter] = useState('');
 
-  // ✅ View state synced with URL (?view=kanban|table|calendar)
   const getInitialView = () => {
     const params = new URLSearchParams(location.search);
     const v = (params.get('view') || '').toLowerCase();
@@ -29,7 +31,6 @@ export default function LeadsPage() {
   };
   const [view, setView] = useState(getInitialView);
 
-  // Keep view in sync with URL when the URL changes (e.g., history nav)
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const v = (params.get('view') || '').toLowerCase();
@@ -38,7 +39,6 @@ export default function LeadsPage() {
     }
   }, [location.search]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When user changes view, push it to the URL
   const switchView = useCallback(
     (next) => {
       if (next === view) return;
@@ -50,7 +50,6 @@ export default function LeadsPage() {
     [view, navigate, location.pathname, location.search]
   );
 
-  // Simple debounce (250ms)
   useEffect(() => {
     const id = setTimeout(() => setDebouncedSearch(search.trim()), 250);
     return () => clearTimeout(id);
@@ -78,7 +77,6 @@ export default function LeadsPage() {
       setLoading(true);
       setError('');
       try {
-        // If you want server-side search later: getLeads({ search: debouncedSearch })
         const res = await getLeads();
         const arr = Array.isArray(res?.data) ? res.data : [];
         const mapped = arr.map(transformLead);
@@ -89,14 +87,10 @@ export default function LeadsPage() {
         if (alive) setLoading(false);
       }
     })();
-    return () => {
-      alive = false;
-    };
-    // We do NOT re-fetch on debouncedSearch (client-side filter).
+    return () => { alive = false; };
   }, [transformLead]);
 
   const handleStageChange = useCallback(async (leadId, nextStage) => {
-    // Optimistic UI
     setLeads((prev) =>
       prev.map((l) => (String(l.id) === String(leadId) ? { ...l, stage: nextStage } : l))
     );
@@ -108,17 +102,16 @@ export default function LeadsPage() {
           prev.map((l) =>
             String(l.id) === String(leadId)
               ? {
-                  ...l,
-                  stage: updated.stage,
-                  lastActivity: updated.last_activity_at || l.lastActivity,
-                  _raw: updated,
-                }
+                ...l,
+                stage: updated.stage,
+                lastActivity: updated.last_activity_at || l.lastActivity,
+                _raw: updated,
+              }
               : l
           )
         );
       }
     } catch (err) {
-      // Rollback
       setLeads((prev) =>
         prev.map((l) =>
           String(l.id) === String(leadId) ? { ...l, stage: l._raw?.stage || l.stage } : l
@@ -139,207 +132,166 @@ export default function LeadsPage() {
     [transformLead]
   );
 
-  // 🔎 Client-side filter — search over key fields
+  const distinctSources = useMemo(() => {
+    const s = new Set(leads.map((l) => l.source).filter(Boolean));
+    return Array.from(s).sort();
+  }, [leads]);
+
   const filteredLeads = useMemo(() => {
     const q = debouncedSearch.toLowerCase();
-    if (!q) return leads;
+    let list = leads;
 
-    return leads.filter((l) => {
-      // Check meaningful fields; stringify numbers safely
-      const haystacks = [
-        l.customerName,
-        l.suburb,
-        l.source,
-        l.stage,
-        l.systemSize,
-        l.value != null ? String(l.value) : '',
-      ];
-      return haystacks.some((h) => (h || '').toLowerCase().includes(q));
-    });
-  }, [leads, debouncedSearch]);
+    if (sourceFilter) {
+      list = list.filter((l) => l.source === sourceFilter);
+    }
+    if (daysFilter) {
+      const maxDays = Number(daysFilter);
+      const now = new Date();
+      list = list.filter((l) => {
+        if (!l.lastActivity) return false;
+        const d = new Date(l.lastActivity);
+        const diff = (now - d) / (1000 * 3600 * 24);
+        return diff <= maxDays;
+      });
+    }
+    if (q) {
+      list = list.filter((l) => {
+        const haystacks = [
+          l.customerName,
+          l.suburb,
+          l.source,
+          l.stage,
+          l.systemSize,
+          l.value != null ? String(l.value) : '',
+        ];
+        return haystacks.some((h) => (h || '').toLowerCase().includes(q));
+      });
+    }
+    return list;
+  }, [leads, debouncedSearch, sourceFilter, daysFilter]);
 
-  // ⛳ Kanban takes the filtered list
-  const boardLeads = useMemo(() => filteredLeads, [filteredLeads]);
+  const boardLeads = filteredLeads;
 
-  // Simple styles reused across buttons
-  const tabBtnStyle = (active) => ({
-    padding: '8px 12px',
-    borderRadius: 8,
-    background: active ? '#111827' : '#F3F4F6',
-    color: active ? 'white' : '#111827',
-    border: '1px solid #E5E7EB',
-    fontWeight: 700,
-    cursor: 'pointer',
-  });
+  const focusSearch = useCallback(() => {
+    setSearchExpanded(true);
+    setTimeout(() => searchInputRef.current?.focus(), 50);
+  }, []);
 
   return (
-    <div style={{ padding: 20 }}>
-      {/* Header */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'baseline',
-          justifyContent: 'space-between',
-          gap: 12,
-          flexWrap: 'wrap',
-        }}
-      >
-        <div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#0f1a2b' }}>
-            Sales Pipeline
-          </h1>
-          <p style={{ marginTop: 6, color: '#6B7280' }}>
-            Switch between Kanban, Table, and Calendar. Drag &amp; drop or edit stage inline.
-          </p>
+    <div className="leads-kanban-page">
+      <header className="leads-kanban-header">
+        <div className="leads-kanban-header-top">
+          <div className="leads-kanban-title">
+            <h1>Sales Pipeline</h1>
+            {/* <p>Manage leads across stages. Search, filter, and drag cards between columns.</p> */}
+          </div>
+          <div className="leads-kanban-actions">
+            <div className="leads-view-tabs">
+              <button
+                type="button"
+                className={`leads-view-tab ${view === 'kanban' ? 'active' : ''}`}
+                onClick={() => switchView('kanban')}
+              >
+                Kanban
+              </button>
+              <button
+                type="button"
+                className={`leads-view-tab ${view === 'table' ? 'active' : ''}`}
+                onClick={() => switchView('table')}
+              >
+                Table
+              </button>
+              <button
+                type="button"
+                className={`leads-view-tab ${view === 'calendar' ? 'active' : ''}`}
+                onClick={() => {
+                  switchView('calendar');
+                  navigate('/admin/leads/calendar');
+                }}
+              >
+                Calendar
+              </button>
+            </div>
+            <button type="button" className="leads-add-btn" onClick={() => setOpenAdd(true)}>
+              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Add Lead
+            </button>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* 🔎 Search box */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              background: '#FFFFFF',
-              border: '1px solid #E5E7EB',
-              borderRadius: 8,
-              padding: '8px 10px',
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M21 21l-3.8-3.8M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"
-                stroke="#6B7280"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
+        <div className={`leads-filter-bar ${searchExpanded ? 'search-expanded' : ''}`}>
+          <div className={`leads-search-wrap ${searchExpanded ? 'expanded' : ''}`}>
+            <svg className="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
+              ref={searchInputRef}
+              type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search leads… (name, suburb, stage, source)"
-              style={{
-                border: 'none',
-                outline: 'none',
-                width: 240,
-                fontSize: 14,
-                color: '#111827',
-              }}
+              onBlur={() => setTimeout(() => setSearchExpanded(false), 200)}
+              placeholder="Search by name, suburb, source, stage..."
+              aria-label="Search leads"
             />
             {search && (
               <button
+                type="button"
+                className="leads-search-clear"
                 onClick={() => setSearch('')}
-                title="Clear"
-                style={{
-                  border: 'none',
-                  background: 'transparent',
-                  color: '#6B7280',
-                  cursor: 'pointer',
-                  fontWeight: 700,
-                  padding: 2,
-                }}
+                title="Clear search"
+                aria-label="Clear search"
               >
                 ✕
               </button>
             )}
           </div>
-
-          {/* Results count */}
-          <span style={{ color: '#6B7280', fontSize: 12 }}>
-            {debouncedSearch
-              ? `${boardLeads.length} result${boardLeads.length === 1 ? '' : 's'}`
-              : `${leads.length} total`}
+          <select
+            className="leads-filter-select"
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value)}
+            aria-label="Filter by source"
+          >
+            <option value="">All sources</option>
+            {distinctSources.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          <select
+            className="leads-filter-select"
+            value={daysFilter}
+            onChange={(e) => setDaysFilter(e.target.value)}
+            aria-label="Filter by last activity"
+          >
+            <option value="">Any time</option>
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+          </select>
+          <span className="leads-result-count">
+            {boardLeads.length} lead{boardLeads.length !== 1 ? 's' : ''}
           </span>
-
-          {/* View switch buttons */}
-          <button style={tabBtnStyle(view === 'kanban')} onClick={() => switchView('kanban')}>
-            Kanban
-          </button>
-
-          {/* Table – active styling handled; does nothing (no render) until you add the component */}
-          <button style={tabBtnStyle(view === 'table')} onClick={() => switchView('table')}>
-            Table
-          </button>
-
-          {/* Calendar – keeps your existing route */}
-          <button
-            style={tabBtnStyle(view === 'calendar')}
-            onClick={() => {
-              switchView('calendar'); // set URL ?view=calendar for consistency
-              navigate('/admin/leads/calendar');
-            }}
-          >
-            Calendar
-          </button>
-
-          <button
-            onClick={() => setOpenAdd(true)}
-            style={{
-              padding: '10px 14px',
-              borderRadius: 8,
-              background: '#10B981',
-              color: 'white',
-              border: 'none',
-              fontWeight: 700,
-              boxShadow: '0 2px 10px rgba(16,185,129,0.3)',
-              cursor: 'pointer',
-            }}
-          >
-            + Add New Lead
-          </button>
         </div>
+      </header>
+
+      {toast && <div className="leads-toast">{toast}</div>}
+
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        {loading ? (
+          <div className="leads-loading">Loading leads…</div>
+        ) : error ? (
+          <div className="leads-error-box">{error}</div>
+        ) : view === 'table' ? (
+          <div className="leads-loading">Table view coming soon.</div>
+        ) : (
+          <KanbanBoard leads={boardLeads} onStageChange={handleStageChange} onFocusSearch={focusSearch} />
+        )}
       </div>
 
-      {/* Toast */}
-      {toast && (
-        <div
-          style={{
-            marginTop: 12,
-            background: '#FEF2F2',
-            color: '#991B1B',
-            border: '1px solid #FECACA',
-            padding: '8px 10px',
-            borderRadius: 8,
-          }}
-        >
-          {toast}
-        </div>
-      )}
-
-      {/* Content */}
-      {loading ? (
-        <div style={{ marginTop: 20, color: '#6B7280' }}>Loading leads…</div>
-      ) : error ? (
-        <div
-          style={{
-            marginTop: 20,
-            background: '#FEF2F2',
-            color: '#991B1B',
-            border: '1px solid #FECACA',
-            padding: '8px 10px',
-            borderRadius: 8,
-          }}
-        >
-          {error}
-        </div>
-      ) : view === 'table' ? (
-        // 👇 Placeholder while table component is not yet created
-        <div style={{ marginTop: 20, color: '#6B7280' }}>
-          Table view coming soon. (Create <code>LeadsTable.jsx</code> and import it to enable.)
-        </div>
-        // Once created, replace with:
-        // <LeadsTable leads={boardLeads} onStageChange={handleStageChange} />
-      ) : (
-        // Default = Kanban (local page). Calendar is navigated to a different route.
-        <KanbanBoard leads={boardLeads} onStageChange={handleStageChange} />
-      )}
-
-      {/* Add Lead */}
       <Modal open={openAdd} onClose={() => setOpenAdd(false)} title="Add New Lead">
-        <AddLeadForm onCancel={() => setOpenAdd(false)} onCreate={handleCreated} />
+        <AddLeadForm onCancel={() => setOpenAdd(false)} onSubmit={handleCreated} />
       </Modal>
     </div>
   );
 }
-``

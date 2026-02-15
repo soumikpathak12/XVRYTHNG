@@ -1,4 +1,4 @@
-// components/leads/LeadCard.jsx
+// components/leads/LeadCards.jsx
 import React from 'react';
 
 /**
@@ -10,82 +10,53 @@ import React from 'react';
  *     systemSize: string,
  *     value: number,
  *     source: string,
- *     assignedUser: string,
  *     lastActivity: string,
  *     stage: string
  *   },
  *   onDragStart?: (e: DragEvent, lead: any) => void,
- *   colors?: {
- *     won?: string;     // default '#16a34a'
- *     lost?: string;    // default '#dc2626'
- *     default?: string; // default '#146b6b' (your teal)
- *   }
  * }} props
  */
-export default function LeadCard({ lead, onDragStart, colors }) {
-  const palette = {
-    won: colors?.won ?? '#16a34a',       // green
-    lost: colors?.lost ?? '#dc2626',     // red
-    default: colors?.default ?? '#146b6b', // teal (brand)
-  };
-
+export default function LeadCard({ lead, onDragStart }) {
   const isWon = lead.stage === 'closed_won';
   const isLost = lead.stage === 'closed_lost';
-  const borderColor = isWon ? palette.won : isLost ? palette.lost : palette.default;
+  const cardVariant = isWon ? 'won' : isLost ? 'lost' : 'default';
 
-  const rootStyle = {
-    background: '#fff',
-    border: `2px solid ${borderColor}`,
-    borderRadius: 12,
-    padding: 12,
-    display: 'grid',
-    gap: 8,
-    cursor: 'grab',
-    userSelect: 'none',
-  };
+  const formattedValue = lead.value != null
+    ? new Intl.NumberFormat(undefined, { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(lead.value)
+    : null;
 
-  const tag = {
-    display: 'inline-block',
-    fontSize: 12,
-    fontWeight: 700,
-    padding: '4px 8px',
-    borderRadius: 8,
-    background: '#F3F4F6',
-    color: '#374151',
-  };
-
-  const metaRow = {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    fontSize: 12,
-    color: '#6B7280',
-  };
+  function timeAgo(dateString) {
+    if (!dateString) return 'No activity';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    const now = new Date();
+    const diff = (now - date) / 1000;
+    if (diff < 60) return 'Just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+    return date.toLocaleDateString();
+  }
 
   return (
     <article
-      style={rootStyle}
+      className={`leads-card ${cardVariant}`}
       draggable
       onDragStart={(e) => onDragStart?.(e, lead)}
       aria-label={`${lead.customerName} – ${lead.suburb}`}
     >
-      <div style={{ fontWeight: 800, color: '#111827' }}>{lead.customerName}</div>
-      <div style={{ fontSize: 12, color: '#6B7280' }}>{lead.suburb}</div>
+      <div className="leads-card-name">{lead.customerName}</div>
+      <div className="leads-card-suburb">{lead.suburb || '—'}</div>
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <span style={tag}>{lead.systemSize}</span>
-        <span style={tag}>
-          {Intl.NumberFormat(undefined, { style: 'currency', currency: 'AUD' }).format(lead.value)}
-        </span>
+      <div className="leads-card-tags">
+        {lead.systemSize && <span className="leads-card-tag">{lead.systemSize}</span>}
+        {lead.source && <span className="leads-card-tag source">{lead.source}</span>}
+        {formattedValue && <span className="leads-card-tag value">{formattedValue}</span>}
       </div>
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <span style={tag}>{lead.source}</span>
-      </div>
-
-      <div style={metaRow}>
+      <div className="leads-card-meta">
         <span>Last activity</span>
-        <span>{lead.lastActivity}</span>
+        <span>{timeAgo(lead.lastActivity)}</span>
       </div>
     </article>
   );

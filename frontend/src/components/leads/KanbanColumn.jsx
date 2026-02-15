@@ -9,65 +9,61 @@ export default function KanbanColumn({
   onDragOver,
   onDrop,
   onDragStart,
+  onFocusSearch,
 }) {
   const headerColor = colorForStage(stageKey);
 
-  const headerStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '8px 12px',
-    fontSize: 13,
-    fontWeight: 800,
-    color: '#fff',
-    background: headerColor,          
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-  };
+  function handleDragOver(e) {
+    e.preventDefault();
+    const content = e.currentTarget.querySelector('.leads-column-cards');
+    if (content) content.classList.add('drag-over');
+    onDragOver?.(e, stageKey);
+  }
 
-  const countStyle = {
-    background: 'rgba(0,0,0,.25)',
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 800,
-    padding: '2px 8px',
-    borderRadius: 999,
-  };
+  function handleDragLeave(e) {
+    const content = e.currentTarget.querySelector('.leads-column-cards');
+    if (content) content.classList.remove('drag-over');
+  }
 
-  const colStyle = {
-    minWidth: 300,
-    maxWidth: 320,
-    display: 'flex',
-    flexDirection: 'column',
-    background: '#E5E7EB',
-    borderRadius: 12,
-    border: '1px solid #D1D5DB',
-  };
-
-  const listStyle = {
-    padding: 12,
-    display: 'grid',
-    gap: 12,
-    minHeight: 120,
-  };
+  function handleDrop(e) {
+    const content = e.currentTarget.querySelector('.leads-column-cards');
+    if (content) content.classList.remove('drag-over');
+    onDrop?.(e, stageKey);
+  }
 
   return (
     <section
-      style={colStyle}
-      onDragOver={(e) => onDragOver?.(e, stageKey)}
-      onDrop={(e) => onDrop?.(e, stageKey)}
+      className="leads-column"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       aria-label={`${title} column`}
     >
-      <div style={headerStyle}>
+      <div
+        className="leads-column-header"
+        style={{ backgroundColor: headerColor }}
+      >
         <span>{title}</span>
-        <span style={countStyle}>{leads.length}</span>
+        <div className="leads-column-header-right">
+          <button
+            type="button"
+            className="leads-column-search-btn"
+            onClick={() => onFocusSearch?.()}
+            title="Search leads"
+            aria-label="Search leads"
+          >
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+          </button>
+          <span className="leads-column-count">{leads.length}</span>
+        </div>
       </div>
 
-      <div style={listStyle}>
+      <div className="leads-column-cards">
         {leads.length === 0 ? (
-          <div style={{ color: '#9CA3AF', fontSize: 14, textAlign: 'center', padding: 12 }}>
-            No leads in this stage
-          </div>
+          <div className="leads-column-empty">No leads in this stage</div>
         ) : (
           leads.map((l) => (
             <LeadCard

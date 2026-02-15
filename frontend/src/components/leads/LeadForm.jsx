@@ -1,5 +1,5 @@
-// components/leads/NewLeadForm.jsx
-import React, { useState } from 'react';
+// components/leads/LeadForm.jsx
+import React, { useState, useEffect } from 'react';
 
 const STAGES = [
   'new',
@@ -13,7 +13,7 @@ const STAGES = [
   'closed_lost',
 ];
 
-export default function AddLeadForm({ onCreate, onCancel }) {
+export default function LeadForm({ initialValues, onSubmit, onCancel, title = 'Add New Lead', submitLabel = 'Create Lead' }) {
   const [form, setForm] = useState({
     customer_name: '',
     suburb: '',
@@ -21,8 +21,22 @@ export default function AddLeadForm({ onCreate, onCancel }) {
     value_amount: '',
     source: '',
     stage: 'new',
-    site_inspection_date: '', // <-- NEW FIELD
+    site_inspection_date: '',
   });
+
+  useEffect(() => {
+    if (initialValues) {
+      setForm({
+        customer_name: initialValues.customerName || initialValues.customer_name || '',
+        suburb: initialValues.suburb || '',
+        system_size_kw: initialValues.systemSize ? parseFloat(initialValues.systemSize) : (initialValues.system_size_kw || ''),
+        value_amount: initialValues.value || initialValues.value_amount || '',
+        source: initialValues.source || '',
+        stage: initialValues.stage || 'new',
+        site_inspection_date: formatDateTimeLocal(initialValues.site_inspection_date || initialValues.siteInspectionDate),
+      });
+    }
+  }, [initialValues]);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -40,7 +54,19 @@ export default function AddLeadForm({ onCreate, onCancel }) {
     }
   };
 
-  // Convert datetime-local → MySQL DATETIME
+  // Convert MySQL DATETIME or ISO -> datetime-local string
+  const formatDateTimeLocal = (isoString) => {
+    if (!isoString) return '';
+    const d = new Date(isoString);
+    if (Number.isNaN(d.getTime())) return '';
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mi = String(d.getMinutes()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+  };
+
   const toMySQLDateTime = (value) => {
     if (!value) return null;
     const d = new Date(value);
@@ -77,50 +103,36 @@ export default function AddLeadForm({ onCreate, onCancel }) {
     }
 
     const inspectionDate = toMySQLDateTime(form.site_inspection_date);
+    const payload = {
+      stage: form.stage,
+      customer_name: form.customer_name,
+      suburb: form.suburb || null,
+      system_size_kw: form.system_size_kw ? Number(form.system_size_kw) : null,
+      value_amount: form.value_amount ? Number(form.value_amount) : null,
+      source: form.source || null,
+      site_inspection_date: inspectionDate,
+    };
 
     setSubmitting(true);
     try {
-      const res = await fetch('/api/leads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          stage: form.stage,
-          customer_name: form.customer_name,
-          suburb: form.suburb || null,
-          system_size_kw: form.system_size_kw ? Number(form.system_size_kw) : null,
-          value_amount: form.value_amount ? Number(form.value_amount) : null,
-          source: form.source || null,
-          site_inspection_date: inspectionDate, // <-- SEND TO BACKEND
-        }),
-      });
-
-      const payload = await res.json().catch(() => ({}));
-
-      if (res.status === 422) {
-        setFieldErrors(payload?.errors || {});
-        throw new Error('Please fix the highlighted errors.');
+      await onSubmit(payload);
+      // Reset only if not editing (optional, but handled by parent closing modal usually)
+      if (!initialValues) {
+        setForm({
+          customer_name: '',
+          suburb: '',
+          system_size_kw: '',
+          value_amount: '',
+          source: '',
+          stage: 'new',
+          site_inspection_date: '',
+        });
       }
-
-      if (!res.ok) {
-        throw new Error(payload?.message || payload?.error || `Request failed: ${res.status}`);
-      }
-
-      const created = payload?.data ?? payload;
-
-      if (typeof onCreate === 'function') onCreate(created);
-
-      // Reset form
-      setForm({
-        customer_name: '',
-        suburb: '',
-        system_size_kw: '',
-        value_amount: '',
-        source: '',
-        stage: 'new',
-        site_inspection_date: '',
-      });
     } catch (err) {
-      setError(err.message || 'Failed to create lead.');
+      setError(err.message || 'Failed to save lead.');
+      if (err.body && err.body.errors) {
+        setFieldErrors(err.body.errors);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -153,10 +165,10 @@ export default function AddLeadForm({ onCreate, onCancel }) {
         }}
       >
         <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#0f1a2b' }}>
-          Add New Lead
+          {title}
         </h2>
         <p style={{ margin: '6px 0 16px', color: '#6B7280' }}>
-          Enter the details below and click Create.
+          {initialValues ? 'Update the details below.' : 'Enter the details below and click Create.'}
         </p>
 
         {error && (
@@ -294,7 +306,7 @@ export default function AddLeadForm({ onCreate, onCancel }) {
                 cursor: submitting ? 'not-allowed' : 'pointer',
               }}
             >
-              {submitting ? 'Creating...' : 'Create Lead'}
+              {submitting ? 'Saving...' : submitLabel}
             </button>
           </div>
         </form>
