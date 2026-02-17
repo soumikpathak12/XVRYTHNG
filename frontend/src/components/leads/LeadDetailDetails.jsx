@@ -15,15 +15,44 @@ function formatDateTimeLocal(isoString) {
 }
 
 export default function LeadDetailDetails({ lead, onSubmit }) {
-  const initialValues = lead ? {
-    customer_name: lead.customer_name,
-    suburb: lead.suburb || '',
-    system_size_kw: lead.system_size_kw != null ? String(lead.system_size_kw) : '',
-    value_amount: lead.value_amount != null ? lead.value_amount : '',
-    source: lead.source || '',
-    stage: lead.stage || 'new',
-    site_inspection_date: formatDateTimeLocal(lead.site_inspection_date),
-  } : null;
+  // Be flexible with the data shape (snake_case, camelCase, or nested in _raw)
+  const email =
+    lead?.email ?? lead?._raw?.email ?? '';
+  const phone =
+    lead?.phone ?? lead?._raw?.phone ?? '';
+  const suburb =
+    lead?.suburb ?? lead?._raw?.suburb ?? '';
+  const stage =
+    lead?.stage ?? lead?._raw?.stage ?? 'new';
+  const systemSizeKw =
+    lead?.system_size_kw != null
+      ? String(lead.system_size_kw)
+      : lead?._raw?.system_size_kw != null
+      ? String(lead._raw.system_size_kw)
+      : '';
+  const valueAmount =
+    lead?.value_amount != null
+      ? lead.value_amount
+      : lead?._raw?.value_amount != null
+      ? lead._raw.value_amount
+      : '';
+  const siteInspectionDateIso =
+    lead?.site_inspection_date ?? lead?._raw?.site_inspection_date ?? '';
+
+  const initialValues = lead
+    ? {
+        customer_name:
+          lead.customer_name ?? lead.customerName ?? '',
+        email,
+        phone,
+        suburb,
+        system_size_kw: systemSizeKw,
+        value_amount: valueAmount,
+        source: lead?.source ?? lead?._raw?.source ?? '',
+        stage,
+        site_inspection_date: formatDateTimeLocal(siteInspectionDateIso),
+      }
+    : null;
 
   return (
     <div className="lead-detail-details">
