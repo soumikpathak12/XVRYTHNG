@@ -28,39 +28,74 @@ function toMySQLDateTime(value) {
 }
 
 // -------------------- CREATE --------------------
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_RE = /^[0-9()+\-\s]*[0-9][0-9()+\-\s]*$/;
+
+
 export async function createLead(req, res) {
   try {
     const {
       stage,
       customer_name,
-      suburb = null,
-      system_size_kw = null,
-      value_amount = null,
+      email,
+      phone,
+      suburb,
+      system_size_kw,
+      value_amount,
       source = null,
       site_inspection_date = null,
     } = req.body || {};
 
     const errors = {};
 
+    // Required text
     if (!customer_name || !String(customer_name).trim()) {
       errors.customer_name = 'Customer name is required.';
     } else if (String(customer_name).trim().length > 150) {
       errors.customer_name = 'Customer name must be at most 150 characters.';
     }
 
-    if (!STAGES_SET.has(stage)) {
+    if (!suburb || !String(suburb).trim()) {
+      errors.suburb = 'Suburb is required.';
+    }
+
+    if (!stage || !STAGES_SET.has(stage)) {
       errors.stage = 'Invalid stage selected.';
     }
 
-    if (system_size_kw != null && Number.isNaN(Number(system_size_kw))) {
+    // Required email
+    if (!email || !String(email).trim()) {
+      errors.email = 'Email is required.';
+    } else if (!EMAIL_RE.test(String(email).trim())) {
+      errors.email = 'Invalid email format.';
+    }
+
+    // Required phone
+    if (!phone || !String(phone).trim()) {
+      errors.phone = 'Phone is required.';
+    } else if (!PHONE_RE.test(String(phone).trim())) {
+      errors.phone = 'Invalid phone format.';
+    }
+
+    // Required number + non-negative
+    if (system_size_kw === undefined || system_size_kw === null || String(system_size_kw) === '') {
+      errors.system_size_kw = 'System size (kW) is required.';
+    } else if (Number.isNaN(Number(system_size_kw))) {
       errors.system_size_kw = 'System size must be a number (kW).';
+    } else if (Number(system_size_kw) < 0) {
+      errors.system_size_kw = 'System size cannot be negative.';
     }
 
-    if (value_amount != null && Number.isNaN(Number(value_amount))) {
+    if (value_amount === undefined || value_amount === null || String(value_amount) === '') {
+      errors.value_amount = 'Value amount is required.';
+    } else if (Number.isNaN(Number(value_amount))) {
       errors.value_amount = 'Value amount must be a number.';
+    } else if (Number(value_amount) < 0) {
+      errors.value_amount = 'Value amount cannot be negative.';
     }
 
-    
+    // Optional date validation
     const normalizedInspection = toMySQLDateTime(site_inspection_date);
     if (site_inspection_date && !normalizedInspection) {
       errors.site_inspection_date = 'Invalid date format.';
@@ -73,19 +108,25 @@ export async function createLead(req, res) {
     const payload = {
       stage,
       customer_name: String(customer_name).trim(),
-      suburb: suburb ? String(suburb).trim() : null,
-      system_size_kw: system_size_kw != null ? Number(system_size_kw) : null,
-      value_amount: value_amount != null ? Number(value_amount) : null,
+      email: String(email).trim(),
+      phone: String(phone).trim(),
+      suburb: String(suburb).trim(),
+      system_size_kw: Number(system_size_kw),
+      value_amount: Number(value_amount),
       source: source ? String(source).trim() : null,
       site_inspection_date: normalizedInspection,
     };
 
     const lead = await leadService.createLead(payload);
 
-    return res.status(201).json({
-      success: true,
-      data: lead,
-    });
+    if (!lead || typeof lead.id !== 'number') {
+      return res.status(500).json({
+        success: false,
+        message: 'Insert failed (no row/id returned)',
+      });
+    }
+
+    return res.status(201).json({ success: true, data: lead });
   } catch (err) {
     console.error('Create lead error:', err);
     const status = err.statusCode || err.status || 500;
@@ -95,6 +136,7 @@ export async function createLead(req, res) {
     });
   }
 }
+
 
 // -------------------- LIST --------------------
 export async function listLeads(req, res) {
