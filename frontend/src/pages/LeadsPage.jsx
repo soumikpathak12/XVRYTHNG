@@ -422,6 +422,7 @@ export default function LeadsPage() {
 
       <Modal open={openAdd} onClose={() => setOpenAdd(false)} title="Add New Lead">
         <AddLeadForm
+          embedded
           onCancel={() => setOpenAdd(false)}
           onSubmit={handleCreateLead}
         />
