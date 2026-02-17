@@ -33,8 +33,12 @@ const ALL_NAV_ITEMS = [
   { to: '/admin/settings', label: 'Settings', icon: Settings, permission: { resource: 'settings', action: 'view' } },
 ];
 
-export default function SuperAdminSidebar({ onLogout, user, logoSrc }) {
-  const [collapsed, setCollapsed] = useState(false);
+export default function SuperAdminSidebar({ onLogout, user, logoSrc, collapsed: controlledCollapsed, onCollapsedChange }) {
+  const [internalCollapsed, setInternalCollapsed] = useState(false);
+  const collapsed = onCollapsedChange != null ? controlledCollapsed : internalCollapsed;
+  const setCollapsed = onCollapsedChange != null
+    ? (v) => onCollapsedChange(typeof v === 'function' ? v(controlledCollapsed) : v)
+    : setInternalCollapsed;
   const { can } = useAuth();
   const navItems = useMemo(() => {
     return ALL_NAV_ITEMS.filter((item) => can(item.permission.resource, item.permission.action));
@@ -46,8 +50,10 @@ export default function SuperAdminSidebar({ onLogout, user, logoSrc }) {
     background: '#ffffff',
     borderRight: '1px solid #E5E7EB',
     height: '100vh',
-    position: 'sticky',
+    position: 'fixed',
+    left: 0,
     top: 0,
+    zIndex: 40,
     display: 'flex',
     flexDirection: 'column',
     padding: '16px 12px',
