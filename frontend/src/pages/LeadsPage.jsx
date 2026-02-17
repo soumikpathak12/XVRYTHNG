@@ -8,7 +8,11 @@ import LeadsCalendar from '../components/leads/LeadsCalendar.jsx';
 import LeadDetailModal from '../components/leads/LeadDetailModal.jsx';
 import Modal from '../components/common/Modal.jsx';
 import AddLeadForm from '../components/leads/LeadForm.jsx';
-import { getLeads, updateLeadStage as apiUpdateLeadStage } from '../services/api.js';
+import {
+  getLeads,
+  updateLeadStage as apiUpdateLeadStage,
+  createLead as apiCreateLead,
+} from '../services/api.js';
 import '../styles/LeadsKanban.css';
 
 export default function LeadsPage() {
@@ -60,17 +64,27 @@ export default function LeadsPage() {
     return () => clearTimeout(id);
   }, [search]);
 
+  // Accept both snake_case (GET) and camelCase (create API)
   const transformLead = useCallback((row) => {
-    const systemSizeKw = row.system_size_kw != null ? Number(row.system_size_kw) : null;
-    const valueNum = row.value_amount != null ? Number(row.value_amount) : null;
+    if (!row) return null;
+    const systemSizeKw =
+      row.system_size_kw != null ? Number(row.system_size_kw)
+      : row.systemSize != null ? Number(row.systemSize)
+      : null;
+
+    const valueNum =
+      row.value_amount != null ? Number(row.value_amount)
+      : row.value != null ? Number(row.value)
+      : null;
+
     return {
       id: row.id,
-      customerName: row.customer_name,
-      suburb: row.suburb || '',
+      customerName: row.customer_name ?? row.customerName ?? '',
+      suburb: row.suburb ?? '',
       systemSize: systemSizeKw != null ? `${systemSizeKw}kW` : '',
       value: valueNum != null ? valueNum : null,
-      source: row.source || '',
-      lastActivity: row.last_activity_at || '',
+      source: row.source ?? '',
+      lastActivity: row.last_activity_at ?? row.lastActivity ?? '',
       stage: row.stage,
       _raw: row,
     };
@@ -84,7 +98,7 @@ export default function LeadsPage() {
       try {
         const res = await getLeads();
         const arr = Array.isArray(res?.data) ? res.data : [];
-        const mapped = arr.map(transformLead);
+        const mapped = arr.map(transformLead).filter(Boolean);
         if (alive) setLeads(mapped);
       } catch (err) {
         if (alive) setError(err.message || 'Failed to load leads');
@@ -95,43 +109,55 @@ export default function LeadsPage() {
     return () => { alive = false; };
   }, [transformLead, refreshTrigger]);
 
-  const handleStageChange = useCallback(async (leadId, nextStage) => {
-    setLeads((prev) =>
-      prev.map((l) => (String(l.id) === String(leadId) ? { ...l, stage: nextStage } : l))
-    );
-    try {
-      const res = await apiUpdateLeadStage(leadId, nextStage);
-      const updated = res?.data;
-      if (updated) {
-        setLeads((prev) =>
-          prev.map((l) => {
-            if (String(l.id) !== String(leadId)) return l;
-            return {
-              ...l,
-              stage: updated.stage,
-              lastActivity: view === 'table' ? l.lastActivity : (updated.last_activity_at || l.lastActivity),
-              _raw: updated,
-            };
-          })
-        );
-      }
-    } catch (err) {
+  const handleStageChange = useCallback(
+    async (leadId, nextStage) => {
+      // Update UI first
       setLeads((prev) =>
-        prev.map((l) =>
-          String(l.id) === String(leadId) ? { ...l, stage: l._raw?.stage || l.stage } : l
-        )
+        prev.map((l) => (String(l.id) === String(leadId) ? { ...l, stage: nextStage } : l))
       );
-      setToast(err.message || 'Failed to update stage');
-      setTimeout(() => setToast(''), 3000);
-    }
-  }, [view]);
+      try {
+        const res = await apiUpdateLeadStage(leadId, nextStage);
+        const updated = res?.data;
+        if (updated) {
+          setLeads((prev) =>
+            prev.map((l) => {
+              if (String(l.id) !== String(leadId)) return l;
+              return {
+                ...l,
+                stage: updated.stage,
+                lastActivity:
+                  view === 'table' ? l.lastActivity : (updated.last_activity_at || l.lastActivity),
+                _raw: updated,
+              };
+            })
+          );
+        }
+      } catch (err) {
+        // Rollback if API fails
+        setLeads((prev) =>
+          prev.map((l) =>
+            String(l.id) === String(leadId) ? { ...l, stage: l._raw?.stage || l.stage } : l
+          )
+        );
+        setToast(err.message || 'Failed to update stage');
+        setTimeout(() => setToast(''), 3000);
+      }
+    },
+    [view]
+  );
 
-  const handleCreated = useCallback(
-    (createdFromForm) => {
-      const row = createdFromForm?.data ?? createdFromForm;
-      const card = transformLead(row);
-      setLeads((prev) => [card, ...prev]);
-      setOpenAdd(false);
+  // Call real API to create a lead and add to list
+  const handleCreateLead = useCallback(
+    async (payload) => {
+      try {
+        const created = await apiCreateLead(payload); // returns camelCase with numeric id
+        const card = transformLead(created);
+        if (card) setLeads((prev) => [card, ...prev]);
+        setOpenAdd(false);
+        return created;
+      } catch (err) {
+        throw err;
+      }
     },
     [transformLead]
   );
@@ -153,7 +179,9 @@ export default function LeadsPage() {
       const lastActivity = lead.lastActivity
         ? (() => {
             const d = new Date(lead.lastActivity);
-            return isNaN(d.getTime()) ? lead.lastActivity : d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+            return isNaN(d.getTime())
+              ? lead.lastActivity
+              : d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
           })()
         : '';
       const value = lead.value != null ? String(lead.value) : '';
@@ -280,7 +308,6 @@ export default function LeadsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onBlur={() => {
-                // If empty, collapse on blur
                 if (!search) {
                   setSearchStage(null);
                 }
@@ -351,7 +378,11 @@ export default function LeadsPage() {
         ) : error ? (
           <div className="leads-error-box">{error}</div>
         ) : view === 'table' ? (
-          <LeadsTable leads={boardLeads} onStageChange={handleStageChange} onSelectLead={setSelectedLeadId} />
+          <LeadsTable
+            leads={boardLeads}
+            onStageChange={handleStageChange}
+            onSelectLead={setSelectedLeadId}
+          />
         ) : view === 'calendar' ? (
           <div className="leads-calendar-wrap">
             <LeadsCalendar
@@ -364,7 +395,12 @@ export default function LeadsPage() {
             />
           </div>
         ) : (
-          <KanbanBoard leads={boardLeads} onStageChange={handleStageChange} onFocusSearch={focusSearch} onSelectLead={setSelectedLeadId} />
+          <KanbanBoard
+            leads={boardLeads}
+            onStageChange={handleStageChange}
+            onFocusSearch={focusSearch}
+            onSelectLead={setSelectedLeadId}
+          />
         )}
       </div>
 
@@ -374,7 +410,9 @@ export default function LeadsPage() {
           onClose={() => setSelectedLeadId(null)}
           onLeadUpdated={(id, newStage) => {
             if (newStage) {
-              setLeads((prev) => prev.map((l) => (String(l.id) === String(id) ? { ...l, stage: newStage } : l)));
+              setLeads((prev) =>
+                prev.map((l) => (String(l.id) === String(id) ? { ...l, stage: newStage } : l))
+              );
             } else {
               setRefreshTrigger((t) => t + 1);
             }
@@ -383,7 +421,10 @@ export default function LeadsPage() {
       )}
 
       <Modal open={openAdd} onClose={() => setOpenAdd(false)} title="Add New Lead">
-        <AddLeadForm onCancel={() => setOpenAdd(false)} onSubmit={handleCreated} />
+        <AddLeadForm
+          onCancel={() => setOpenAdd(false)}
+          onSubmit={handleCreateLead}
+        />
       </Modal>
     </div>
   );
