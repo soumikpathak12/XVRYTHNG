@@ -412,7 +412,7 @@ export default function LeadForm({
   );
 
   if (embedded) {
-    return <div style={{ maxWidth: 640 }}>{content}</div>;
+    return <div style={{ width: '100%' }}>{content}</div>;
   }
 
   return (
@@ -530,6 +530,8 @@ const styles = {
     gap: 12,
   },
   input: {
+    width: '100%',
+    boxSizing: 'border-box',
     border: `1px solid ${COLORS.border}`,
     borderRadius: 10,
     padding: '10px 12px',
