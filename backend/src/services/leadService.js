@@ -23,14 +23,18 @@ function deriveFlags(stage) {
  * Insert a new lead and return the created row.
  */
 
+
 export async function createLead(payload) {
   const {
     stage,
     customer_name,
+    email,
+    phone,
     suburb,
     system_size_kw,
     value_amount,
-    source,site_inspection_date
+    source,
+    site_inspection_date,
   } = payload;
 
   if (!STAGES.has(stage)) {
@@ -40,41 +44,46 @@ export async function createLead(payload) {
   }
 
   const { is_closed, is_won } = deriveFlags(stage);
+  const won_lost_at = is_closed ? new Date() : null;
 
   const sql = `
     INSERT INTO leads
-      (stage, customer_name, suburb, system_size_kw, value_amount,
-       source, is_closed, is_won, won_lost_at, last_activity_at,site_inspection_date)
+    (stage, customer_name, email, phone, suburb, system_size_kw, value_amount,
+     source, is_closed, is_won, won_lost_at, last_activity_at, site_inspection_date)
     VALUES
-      (?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ? = 1 THEN NOW() ELSE NULL END, NOW(),?)
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)
   `;
 
-  //            stage
-  //            customer_name
-  //            suburb
-  //            system_size_kw
-  //            value_amount
-  //            source
-  //            is_closed
-  //            is_won
-  //            [CASE flag: is_closed ? 1 : 0]
   const params = [
     stage,
     customer_name,
-    suburb,
-    system_size_kw,
-    value_amount,
-    source,
+    email,
+    phone,
+    suburb ?? null,
+    system_size_kw == null ? null : Number(system_size_kw),
+    value_amount == null ? null : Number(value_amount),
+    source ?? null,
     is_closed ? 1 : 0,
     is_won ? 1 : 0,
-    is_closed ? 1 : 0,
+    won_lost_at,
     site_inspection_date ?? null,
   ];
 
   const [result] = await db.execute(sql, params);
-  const insertedId = result.insertId;
+  if (!result?.affectedRows) {
+    const err = new Error('Insert returned 0 affected rows');
+    err.statusCode = 500;
+    throw err;
+  }
 
-  const [rows] = await db.execute('SELECT * FROM leads WHERE id = ?', [insertedId]);
+  const insertedId = result.insertId;
+  const [rows] = await db.execute('SELECT * FROM leads WHERE id = ? LIMIT 1', [insertedId]);
+  if (!rows?.[0]) {
+    const err = new Error('Insert succeeded but row not found when re-querying');
+    err.statusCode = 500;
+    throw err;
+  }
+
   return rows[0];
 }
 
