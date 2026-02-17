@@ -431,23 +431,77 @@ export async function updateCompanyProfile(payload) {
  * @param {object} payload
  * @returns {Promise<{ success: boolean, data?: object, message?: string }>}
  */
-export async function createLead(payload) {
-  const res = await authFetch('/api/leads', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
+// api/leads.js (or wherever your API helpers live)
 
-  const data = await res.json().catch(() => ({}));
+const normalizeLead = (row) => {
+  if (!row || typeof row !== 'object') return row;
+  return {
+    id: row.id,
+    stage: row.stage,
+    customerName: row.customer_name ?? '',
+    suburb: row.suburb ?? '',
+    systemSize: row.system_size_kw ?? null,
+    value: row.value_amount ?? null,
+    source: row.source ?? '',
+    siteInspectionDate: row.site_inspection_date ?? null,
+    // include any extra columns you return from the DB if the UI needs them
+    createdAt: row.created_at ?? undefined,
+    updatedAt: row.updated_at ?? undefined,
+  };
+};
 
+
+export async function createLead(payload, { normalize = true } = {}) {
+  let res;
+  try {
+    res = await authFetch('/api/leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } catch (networkErr) {
+    const err = new Error('Network error while creating lead');
+    err.cause = networkErr;
+    throw err;
+  }
+
+  // Try to parse JSON safely (some proxies return empty body on errors)
+  let data = {};
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    try {
+      data = await res.json();
+    } catch {
+      // keep data={}
+    }
+  }
+
+  // Field validation error from controller: { success:false, errors:{...} }
   if (res.status === 422) {
     const err = new Error('Validation error');
     err.status = 422;
-    err.body = data; // { success:false, errors:{...} }
+    err.body = data; // expect { success:false, errors:{...} }
     throw err;
   }
-  if (!res.ok) throw new Error(data.message || 'Failed to create lead');
-  return data; // { success:true, data:{...} }
+
+  // Any other failure: bubble up server message if present
+  if (!res.ok) {
+    const err = new Error(data?.message || `Failed to create lead (HTTP ${res.status})`);
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+
+  // Expect controller to return: { success:true, data:<row> }
+  const row = data?.data ?? data; // be tolerant if envelope differs
+  if (!row || (typeof row !== 'object')) {
+    const err = new Error('Create succeeded but response was not in expected format');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+
+  return normalize ? normalizeLead(row) : row;
 }
 
 /**
