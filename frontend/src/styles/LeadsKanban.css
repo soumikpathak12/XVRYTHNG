@@ -205,7 +205,7 @@
     padding: 0;
     border: none;
     background: #e2e8f0;
-    color: #64748b;
+    color: #0f172a;
     border-radius: 6px;
     font-size: 0.75rem;
     cursor: pointer;
@@ -218,6 +218,22 @@
 .leads-search-clear:hover {
     background: #cbd5e1;
     color: #0f172a;
+}
+
+.leads-column-search-close {
+    background: transparent;
+    border: none;
+    color: #0f172a;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+}
+
+.leads-column-search-close:hover {
+    background: rgba(0, 0, 0, 0.08);
 }
 
 .leads-filter-select {

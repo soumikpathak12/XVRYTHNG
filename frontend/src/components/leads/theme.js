@@ -3,17 +3,17 @@ export const BRAND_TEAL = '#146b6b';
 export const GREEN_WON = '#16a34a';
 export const RED_LOST  = '#dc2626';
 
-/** Pastel header colors for each pipeline stage */
+/** Light, soothing header colors for each pipeline stage */
 const STAGE_PASTELS = {
-  new: '#bae6fd',                 // pastel blue
-  contacted: '#e0e7ff',           // pastel indigo
-  qualified: '#ccfbf1',           // pastel teal
-  inspection_booked: '#ddd6fe',   // pastel violet
-  inspection_completed: '#c4b5fd', // pastel purple
-  proposal_sent: '#fef3c7',      // pastel amber
-  negotiation: '#fed7aa',       // pastel orange
-  closed_won: '#bbf7d0',         // pastel green
-  closed_lost: '#fecaca',        // pastel red
+  new: '#e8f6fc',                 // very light blue
+  contacted: '#eef2ff',           // very light indigo
+  qualified: '#ecfdf9',           // very light teal
+  inspection_booked: '#f5f3ff',   // very light violet
+  inspection_completed: '#f3f0ff', // very light purple
+  proposal_sent: '#fffbeb',       // very light amber
+  negotiation: '#fff7ed',         // very light peach
+  closed_won: '#f0fdf4',          // very light green
+  closed_lost: '#fef2f2',         // very light rose
 };
 
 /** Returns the pastel header background color for a given stage */

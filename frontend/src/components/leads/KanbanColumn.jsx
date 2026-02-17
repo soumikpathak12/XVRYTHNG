@@ -83,20 +83,10 @@ export default function KanbanColumn({
             />
             <button
               type="button"
+              className="leads-column-search-close"
               onClick={() => {
                 setSearchQuery('');
                 setIsSearchOpen(false);
-              }}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#fff',
-                cursor: 'pointer',
-                padding: '4px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: '4px',
               }}
               aria-label="Close search"
             >
