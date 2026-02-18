@@ -21,6 +21,8 @@ import CompanyPage from './pages/company/CompanyPage.jsx';
 import LeadsPage from './pages/LeadsPage.jsx';
 import LeadDetailPage from './pages/LeadDetailPage.jsx';
 import LeadsCalendarPage from './pages/admin/LeadsCalendarPage.jsx';
+import MessagesPage from './pages/MessagesPage.jsx';
+
 function PlaceholderPage({ title, message, children }) {
   return (
     <div style={{ padding: '2rem', textAlign: 'center', color: '#1A1A2E' }}>
@@ -38,7 +40,6 @@ const AdminOnField = () => <PlaceholderPage title="On-Field" message="Field sche
 const AdminOperations = () => <PlaceholderPage title="Operations" message="Approvals, payroll, billing." />;
 const AdminAttendance = () => <PlaceholderPage title="Attendance" message="Time & attendance overview." />;
 const AdminReferrals = () => <PlaceholderPage title="Referrals" message="Referral tracking & payouts." />;
-const AdminMessages = () => <PlaceholderPage title="Messages" message="Team & customer communications." />;
 const AdminSettings = () => <PlaceholderPage title="Settings" message="Organization & system settings." />;
 
 // ---------- Login Page ----------
@@ -144,11 +145,12 @@ function App() {
           <Route path="operations" element={<RequirePermission resource="operations" action="view"><AdminOperations /></RequirePermission>} />
           <Route path="attendance" element={<RequirePermission resource="attendance" action="view"><AdminAttendance /></RequirePermission>} />
           <Route path="referrals" element={<RequirePermission resource="referrals" action="view"><AdminReferrals /></RequirePermission>} />
-          <Route path="messages" element={<RequirePermission resource="messages" action="view"><AdminMessages /></RequirePermission>} />
+          <Route path="messages" element={<RequirePermission resource="messages" action="view"><MessagesPage /></RequirePermission>} />
           <Route path="settings" element={<RequirePermission resource="settings" action="view"><SettingsPage /></RequirePermission>} />
           <Route path="profile" element={<RequirePermission resource="profile" action="view"><ProfilePage /></RequirePermission>} />
           <Route path="companies" element={<RequirePermission resource="companies" action="view"><CompaniesPage /></RequirePermission>} />
           <Route path="companies/new" element={<RequirePermission resource="companies" action="create"><CompanyOnboardingWizard /></RequirePermission>} />
+          <Route path="companies/:id/edit" element={<RequirePermission resource="companies" action="update"><CompanyOnboardingWizard /></RequirePermission>} />
           <Route path="roles" element={<Navigate to="/admin/settings" replace />} />
         </Route>
 
@@ -160,20 +162,20 @@ function App() {
               <CompanyPage />
             </ProtectedRoute>
           }
-         >
+        >
           <Route index element={<PlaceholderPage title="Dashboard" message="Company Admin / Manager (Phase 2+)." />} />
 
-          <Route path="projects"   element={<PlaceholderPage title="Projects"   message="In-house & retailer projects." />} />
-          <Route path="leads"      element={<PlaceholderPage title="Lead Pipeline" message="Manage and track leads." />} />
-          <Route path="on-field"   element={<PlaceholderPage title="On-Field"   message="Field schedules & activities." />} />
+          <Route path="projects" element={<PlaceholderPage title="Projects" message="In-house & retailer projects." />} />
+          <Route path="leads" element={<PlaceholderPage title="Lead Pipeline" message="Manage and track leads." />} />
+          <Route path="on-field" element={<PlaceholderPage title="On-Field" message="Field schedules & activities." />} />
           <Route path="operations" element={<PlaceholderPage title="Operations" message="Approvals, payroll, billing." />} />
           <Route path="attendance" element={<PlaceholderPage title="Attendance" message="Time & attendance overview." />} />
-          <Route path="referrals"  element={<PlaceholderPage title="Referrals"  message="Referral tracking & payouts." />} />
-          <Route path="messages"   element={<PlaceholderPage title="Messages"   message="Team & customer communications." />} />
+          <Route path="referrals" element={<PlaceholderPage title="Referrals" message="Referral tracking & payouts." />} />
+          <Route path="messages" element={<MessagesPage />} />
           <Route path="settings" element={<CompanySettingsPage />} />
         </Route>
 
-        
+
         <Route path="/access-denied" element={<ProtectedRoute><AccessDeniedPage /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
         <Route

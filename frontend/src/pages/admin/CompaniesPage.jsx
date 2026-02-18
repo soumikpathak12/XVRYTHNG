@@ -3,21 +3,41 @@
  * Add company → Company onboarding wizard.
  */
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import * as api from '../../services/api.js';
 
 export default function CompaniesPage() {
+  const navigate = useNavigate();
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
+  const loadCompanies = () => {
+    setLoading(true);
     api
       .listCompanies()
       .then((r) => setCompanies(r.data || []))
       .catch((e) => setError(e.message || 'Failed to load companies'))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadCompanies();
   }, []);
+
+  const handleEditClick = (company) => {
+    navigate(`/admin/companies/${company.id}/edit`);
+  };
+
+  const handleDeleteClick = async (company) => {
+    if (!window.confirm(`Are you sure you want to delete "${company.name}"? This action cannot be undone.`)) return;
+    try {
+      await api.deleteCompanyAdmin(company.id);
+      loadCompanies();
+    } catch (err) {
+      alert(err.message || 'Failed to delete company');
+    }
+  };
 
   if (loading) return <p style={{ color: '#555' }}>Loading companies…</p>;
   if (error) return <p style={{ color: '#c82333' }}>{error}</p>;
@@ -54,6 +74,7 @@ export default function CompaniesPage() {
               <th style={{ padding: 12 }}>Type</th>
               <th style={{ padding: 12 }}>Status</th>
               <th style={{ padding: 12 }}>Contact</th>
+              <th style={{ padding: 12 }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -62,8 +83,53 @@ export default function CompaniesPage() {
                 <td style={{ padding: 12, fontWeight: 600 }}>{c.name}</td>
                 <td style={{ padding: 12, fontFamily: 'monospace', fontSize: 13 }}>{c.slug}</td>
                 <td style={{ padding: 12 }}>{(c.company_type_name || '-').replace(/_/g, ' ')}</td>
-                <td style={{ padding: 12 }}>{c.status}</td>
+                <td style={{ padding: 12 }}>
+                  <span
+                    style={{
+                      padding: '4px 8px',
+                      borderRadius: 4,
+                      fontSize: 12,
+                      background: c.status === 'active' ? '#d1fae5' : '#fee2e2',
+                      color: c.status === 'active' ? '#065f46' : '#991b1b',
+                    }}
+                  >
+                    {c.status}
+                  </span>
+                </td>
                 <td style={{ padding: 12 }}>{c.contact_email || '-'}</td>
+                <td style={{ padding: 12 }}>
+                  <button
+                    onClick={() => handleEditClick(c)}
+                    style={{
+                      marginRight: 8,
+                      padding: '6px 12px',
+                      background: '#1A7B7B',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: 13
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDeleteClick(c)}
+                    style={{
+                      padding: '6px 12px',
+                      background: '#fee2e2',
+                      color: '#991b1b',
+                      border: 'none',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: 13
+                    }}
+                  >
+                    Delete
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

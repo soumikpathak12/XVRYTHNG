@@ -3,19 +3,28 @@
  * Steps: 1) Company details, 2) Company admin account, 3) Review & submit.
  */
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import * as api from '../../services/api.js';
 
-const STEPS = [
+const CREATE_STEPS = [
   { id: 1, title: 'Company details', fields: ['name', 'abn', 'contact', 'type', 'address'] },
   { id: 2, title: 'Company admin account', fields: ['admin'] },
   { id: 3, title: 'Review & create', fields: [] },
+];
+
+const EDIT_STEPS = [
+  { id: 1, title: 'Company details', fields: ['name', 'abn', 'contact', 'type', 'address'] },
+  { id: 2, title: 'Company admin account', fields: ['admin'] },
+  { id: 3, title: 'Review & update', fields: [] },
 ];
 
 const inputClass = 'form-input';
 
 export default function CompanyOnboardingWizard() {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEditMode = Boolean(id);
+  const STEPS = isEditMode ? EDIT_STEPS : CREATE_STEPS;
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -41,7 +50,40 @@ export default function CompanyOnboardingWizard() {
       .getCompanyTypes()
       .then((r) => setCompanyTypes(r.data || []))
       .catch(() => setCompanyTypes([]));
-  }, []);
+
+    if (isEditMode) {
+      setLoading(true);
+      api.getCompanyAdmin(id)
+        .then((r) => {
+          const { company: currentCompany, admin: currentAdmin } = r.data || {};
+          if (currentCompany) {
+            setCompany({
+              name: currentCompany.name || '',
+              abn: currentCompany.abn || '',
+              contact_email: currentCompany.contact_email || '',
+              contact_phone: currentCompany.contact_phone || '',
+              company_type_id: currentCompany.company_type_id || '',
+              address_line1: currentCompany.address_line1 || '',
+              address_line2: currentCompany.address_line2 || '',
+              city: currentCompany.city || '',
+              state: currentCompany.state || '',
+              postcode: currentCompany.postcode || '',
+              country: currentCompany.country || 'Australia',
+              status: currentCompany.status || 'active'
+            });
+          }
+          if (currentAdmin) {
+            setAdmin({
+              name: currentAdmin.name || '',
+              email: currentAdmin.email || '',
+              password: '', // Don't prefill password
+            });
+          }
+        })
+        .catch((err) => setError(err.message || 'Failed to load company'))
+        .finally(() => setLoading(false));
+    }
+  }, [id, isEditMode]);
 
   const validateStep1 = () => {
     const err = {};
@@ -54,8 +96,15 @@ export default function CompanyOnboardingWizard() {
     const err = {};
     if (!admin.email?.trim()) err.adminEmail = 'Admin email is required';
     else if (!/^\S+@\S+\.\S+$/.test(admin.email)) err.adminEmail = 'Invalid email';
-    if (!admin.password) err.adminPassword = 'Password is required (min 8 characters)';
-    else if (admin.password.length < 8) err.adminPassword = 'Password must be at least 8 characters';
+
+    // In edit mode, password is optional (only if changing)
+    if (isEditMode) {
+      if (admin.password && admin.password.length < 8) err.adminPassword = 'Password must be at least 8 characters';
+    } else {
+      if (!admin.password) err.adminPassword = 'Password is required (min 8 characters)';
+      else if (admin.password.length < 8) err.adminPassword = 'Password must be at least 8 characters';
+    }
+
     if (!admin.name?.trim()) err.adminName = 'Admin name is required';
     setValidation(err);
     return Object.keys(err).length === 0;
@@ -66,6 +115,7 @@ export default function CompanyOnboardingWizard() {
     setValidation({});
     if (step === 1 && !validateStep1()) return;
     if (step === 2 && !validateStep2()) return;
+
     if (step < 3) setStep(step + 1);
   };
 
@@ -79,20 +129,31 @@ export default function CompanyOnboardingWizard() {
     setError(null);
     setLoading(true);
     try {
-      const payload = {
-        company: {
+      if (isEditMode) {
+        // Update
+        const payload = {
           ...company,
           company_type_id: company.company_type_id ? parseInt(company.company_type_id, 10) : null,
-        },
-        admin: { ...admin },
-      };
-      await api.createCompany(payload);
+          admin: { ...admin },
+        };
+        await api.updateCompanyAdmin(id, payload);
+      } else {
+        // Create
+        const payload = {
+          company: {
+            ...company,
+            company_type_id: company.company_type_id ? parseInt(company.company_type_id, 10) : null,
+          },
+          admin: { ...admin },
+        };
+        await api.createCompany(payload);
+      }
       navigate('/admin/companies', { replace: true });
     } catch (err) {
       if (err.status === 422 && err.body?.errors) {
         setValidation(err.body.errors);
       } else {
-        setError(err.message || 'Failed to create company');
+        setError(err.message || `Failed to ${isEditMode ? 'update' : 'create'} company`);
       }
     } finally {
       setLoading(false);
@@ -103,8 +164,8 @@ export default function CompanyOnboardingWizard() {
 
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', width: '100%' }}>
-      <h2 style={{ color: '#1A7B7B', marginBottom: 8 }}>Add new company</h2>
-      <p style={{ color: '#555', marginBottom: 24 }}>Create a new tenant and company admin account.</p>
+      <h2 style={{ color: '#1A7B7B', marginBottom: 8 }}>{isEditMode ? 'Edit company' : 'Add new company'}</h2>
+      <p style={{ color: '#555', marginBottom: 24 }}>{isEditMode ? 'Update company details.' : 'Create a new tenant and company admin account.'}</p>
 
       {/* Step indicator */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
@@ -157,6 +218,21 @@ export default function CompanyOnboardingWizard() {
               <p style={{ color: '#c82333', fontSize: 12, marginTop: 4 }}>{validation.companyName}</p>
             )}
           </div>
+          {isEditMode && (
+            <div style={{ width: '100%', minWidth: 0 }}>
+              <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Status</label>
+              <select
+                className={inputClass}
+                value={company.status || 'active'}
+                onChange={(e) => setCompany(c => ({ ...c, status: e.target.value }))}
+                style={{ width: '100%', boxSizing: 'border-box' }}
+              >
+                <option value="active">Active</option>
+                <option value="suspended">Suspended</option>
+                <option value="trial">Trial</option>
+              </select>
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, width: '100%', minWidth: 0 }}>
             <div style={{ minWidth: 0 }}>
               <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 6 }}>ABN</label>
@@ -308,7 +384,9 @@ export default function CompanyOnboardingWizard() {
             )}
           </div>
           <div style={{ width: '100%', minWidth: 0 }}>
-            <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Password * (min 8 characters)</label>
+            <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+              {isEditMode ? 'New Password (leave blank to keep current)' : 'Password * (min 8 characters)'}
+            </label>
             <input
               type="password"
               className={inputClass}
@@ -317,7 +395,7 @@ export default function CompanyOnboardingWizard() {
                 setAdmin((a) => ({ ...a, password: e.target.value }));
                 clearFieldError('adminPassword');
               }}
-              placeholder="••••••••"
+              placeholder={isEditMode ? '••••••••' : '••••••••'}
               autoComplete="new-password"
               style={{ width: '100%', boxSizing: 'border-box' }}
             />
@@ -344,7 +422,7 @@ export default function CompanyOnboardingWizard() {
           </div>
           <div style={{ padding: 16, background: '#F9FAFB', borderRadius: 12 }}>
             <h4 style={{ margin: '0 0 8px 0', color: '#1A7B7B' }}>Company admin</h4>
-            <p style={{ margin: 0 }}>{admin.name} &lt;{admin.email}&gt;</p>
+            <p style={{ margin: 0 }}>{admin.name} &lt;{admin.email}&gt; {isEditMode && admin.password ? '(Password updated)' : ''}</p>
           </div>
         </div>
       )}
@@ -401,7 +479,7 @@ export default function CompanyOnboardingWizard() {
                 fontWeight: 600,
               }}
             >
-              {loading ? 'Creating…' : 'Create company'}
+              {loading ? (isEditMode ? 'Updating...' : 'Creating…') : (isEditMode ? 'Update company' : 'Create company')}
             </button>
           )}
         </div>

@@ -5,7 +5,7 @@
 
 const BASE = import.meta.env.VITE_API_URL || '';
 
-function getToken() {
+export function getToken() {
   return localStorage.getItem('xvrythng_token');
 }
 
@@ -235,6 +235,42 @@ export async function createCompany(payload) {
     throw err;
   }
   if (!res.ok) throw new Error(data.message || 'Failed to create company');
+  return data;
+}
+
+/**
+ * PUT /api/admin/companies/:id
+ * @param {number|string} id
+ * @param {object} payload - { name, status, ... }
+ */
+export async function updateCompanyAdmin(id, payload) {
+  const res = await authFetch(`/api/admin/companies/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Failed to update company');
+  return data;
+}
+
+/**
+ * GET /api/admin/companies/:id
+ * @param {number|string} id
+ * @returns {Promise<{ success: boolean, data: { company: object, admin: object } }>}
+ */
+export async function getCompanyAdmin(id) {
+  return authFetchJSON(`/api/admin/companies/${id}`, { method: 'GET' });
+}
+
+/**
+ * DELETE /api/admin/companies/:id
+ * @param {number|string} id
+ */
+export async function deleteCompanyAdmin(id) {
+  const res = await authFetch(`/api/admin/companies/${id}`, { method: 'DELETE' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Failed to delete company');
   return data;
 }
 
@@ -665,4 +701,112 @@ export async function addLeadNote(leadId, { body, followUpAt }) {
     throw err;
   }
   return data.data; // activity item
+}
+
+/* =======================================================================
+   CHAT / MESSAGES (internal employee messaging)
+   -----------------------------------------------------------------------
+   GET  /api/chats/company-users   → list users in same company
+   GET  /api/chats                  → list conversations
+   POST /api/chats                  → create DM (otherUserId) or group (name, userIds)
+   GET  /api/chats/:id              → get conversation
+   GET  /api/chats/:id/messages     → paginated messages (?before=&limit=)
+   POST /api/chats/:id/messages     → send message (body)
+   PATCH /api/chats/:id/read        → mark as read
+   ======================================================================= */
+
+/** Build query string for chat API (e.g. ?companyId=1 for Super Admin). */
+function chatQuery(companyId) {
+  if (companyId == null) return '';
+  const q = new URLSearchParams();
+  q.set('companyId', String(companyId));
+  return q.toString();
+}
+
+export async function getChatCompanyUsers(companyId) {
+  const q = chatQuery(companyId);
+  const url = `/api/chats/company-users${q ? `?${q}` : ''}`;
+  const data = await authFetchJSON(url, { method: 'GET' });
+  return data.data ?? [];
+}
+
+/** GET /api/chats/platform-users – all employees (all companies). Super Admin only. */
+export async function getChatPlatformUsers() {
+  const data = await authFetchJSON('/api/chats/platform-users', { method: 'GET' });
+  return data.data ?? [];
+}
+
+export async function getChatConversations(companyId) {
+  const q = chatQuery(companyId);
+  const url = `/api/chats${q ? `?${q}` : ''}`;
+  const data = await authFetchJSON(url, { method: 'GET' });
+  return data.data ?? [];
+}
+
+export async function createChatConversation(payload, companyId, options = {}) {
+  const q = chatQuery(companyId);
+  const url = `/api/chats${q ? `?${q}` : ''}`;
+  const body = { ...payload };
+  if (options.platform) body.platform = true;
+  const res = await authFetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message ?? 'Failed to create conversation');
+  return data.data;
+}
+
+export async function getChatConversation(id, companyId) {
+  const q = chatQuery(companyId);
+  const url = `/api/chats/${encodeURIComponent(id)}${q ? `?${q}` : ''}`;
+  const data = await authFetchJSON(url, { method: 'GET' });
+  return data.data;
+}
+
+export async function getChatMessages(conversationId, params = {}, companyId) {
+  const q = new URLSearchParams();
+  if (params.before) q.set('before', params.before);
+  if (params.limit) q.set('limit', String(params.limit));
+  if (companyId != null) q.set('companyId', String(companyId));
+  const url = `/api/chats/${encodeURIComponent(conversationId)}/messages${q.toString() ? `?${q.toString()}` : ''}`;
+  const data = await authFetchJSON(url, { method: 'GET' });
+  return { messages: data.data ?? [], hasMore: data.hasMore ?? false };
+}
+
+export async function sendChatMessage(conversationId, body, companyId) {
+  const q = chatQuery(companyId);
+  const url = `/api/chats/${encodeURIComponent(conversationId)}/messages${q ? `?${q}` : ''}`;
+  const data = await authFetchJSON(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body }),
+  });
+  return data.data;
+}
+
+export async function markChatRead(conversationId, companyId) {
+  const q = chatQuery(companyId);
+  const url = `/api/chats/${encodeURIComponent(conversationId)}/read${q ? `?${q}` : ''}`;
+  await authFetch(url, { method: 'PATCH' });
+}
+
+/** POST /api/chats/:id/participants - add members to group. Body: { userIds: number[] } */
+export async function addGroupParticipants(conversationId, userIds, companyId) {
+  const q = chatQuery(companyId);
+  const url = `/api/chats/${encodeURIComponent(conversationId)}/participants${q ? `?${q}` : ''}`;
+  const data = await authFetchJSON(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userIds }),
+  });
+  return data.data;
+}
+
+/** DELETE /api/chats/:id/participants/:userId - remove member from group */
+export async function removeGroupParticipant(conversationId, userId, companyId) {
+  const q = chatQuery(companyId);
+  const url = `/api/chats/${encodeURIComponent(conversationId)}/participants/${encodeURIComponent(userId)}${q ? `?${q}` : ''}`;
+  await authFetch(url, { method: 'DELETE' });
 }

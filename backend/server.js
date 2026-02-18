@@ -1,12 +1,19 @@
 /**
  * XVRYTHNG Backend - Entry point.
- * Load env first; start HTTP server.
+ * HTTP server + WebSocket on /ws for instant chat.
  */
 import 'dotenv/config';
+import http from 'http';
+import { WebSocketServer } from 'ws';
 import app from './src/app.js';
+import { attach as attachChatSocket } from './src/chatSocket.js';
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
+const server = http.createServer(app);
 
-app.listen(PORT, () => {
-  console.log(`XVRYTHNG API listening on port ${PORT}`);
+const wss = new WebSocketServer({ server, path: '/ws' });
+attachChatSocket(wss);
+
+server.listen(PORT, () => {
+  console.log(`XVRYTHNG API listening on port ${PORT} (HTTP + WS /ws)`);
 });

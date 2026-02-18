@@ -1,8 +1,15 @@
 // src/routes/adminRoutes.js
 import { Router } from 'express';
 import fileUpload from 'express-fileupload';
-import { requireAuth, requireSuperAdmin, getAdminProfile, updateAdminProfile,changeAdminPassword } from '../controllers/adminController.js';
-import { getCompanyTypes, registerCompany, listCompanies } from '../controllers/companyController.js';
+import { requireAuth, requireSuperAdmin, getAdminProfile, updateAdminProfile, changeAdminPassword } from '../controllers/adminController.js';
+import {
+  getCompanyTypes,
+  registerCompany,
+  listCompanies,
+  updateCompany,
+  deleteCompany,
+  getCompany
+} from '../controllers/companyController.js';
 import {
   listRoles,
   listPermissions,
@@ -37,6 +44,9 @@ router.get('/company-types', getCompanyTypes);
 // Multi-tenant company management (super_admin only)
 router.get('/companies', requireSuperAdmin, listCompanies);
 router.post('/companies', requireSuperAdmin, registerCompany);
+router.get('/companies/:id', requireSuperAdmin, getCompany);
+router.put('/companies/:id', requireSuperAdmin, updateCompany);
+router.delete('/companies/:id', requireSuperAdmin, deleteCompany);
 
 // Roles & permissions (RBAC)
 router.get('/roles', listRoles);
