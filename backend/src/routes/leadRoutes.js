@@ -1,6 +1,14 @@
-// src/routes/leadsRoutes.js
+// src/routes/leadRoutes.js
 import { Router } from 'express';
-import { createLead, listLeads, getLeadById, updateLead, updateLeadStage } from '../controllers/leadController.js';
+import {
+  createLead,
+  listLeads,
+  getLeadById,
+  updateLead,
+  updateLeadStage,
+  addLeadNote,
+  listLeadNotes,
+} from '../controllers/leadController.js';
 import { tenantContext } from '../middleware/tenantContext.js';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -13,5 +21,8 @@ router.get('/', listLeads);
 router.get('/:id', getLeadById);
 router.put('/:id', updateLead);
 router.patch('/:id/stage', updateLeadStage);
+
+router.get('/:id/notes', listLeadNotes);
+router.post('/:id/notes', addLeadNote);
 
 export default router;
