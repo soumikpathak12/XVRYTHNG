@@ -35,6 +35,8 @@ export async function createLead(payload) {
     value_amount,
     source,
     site_inspection_date,
+    external_id = null,
+    marketing_payload_json = null,
   } = payload;
 
   if (!STAGES.has(stage)) {
@@ -49,9 +51,10 @@ export async function createLead(payload) {
   const sql = `
     INSERT INTO leads
     (stage, customer_name, email, phone, suburb, system_size_kw, value_amount,
-     source, is_closed, is_won, won_lost_at, last_activity_at, site_inspection_date)
+     source, is_closed, is_won, won_lost_at, last_activity_at, site_inspection_date, 
+     external_id, marketing_payload_json)
     VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?)
   `;
 
   const params = [
@@ -67,6 +70,8 @@ export async function createLead(payload) {
     is_won ? 1 : 0,
     won_lost_at,
     site_inspection_date ?? null,
+    external_id,
+    marketing_payload_json ? (typeof marketing_payload_json === 'string' ? marketing_payload_json : JSON.stringify(marketing_payload_json)) : null,
   ];
 
   const [result] = await db.execute(sql, params);
@@ -280,7 +285,7 @@ export async function updateLeadStage(leadId, nextStage) {
     throw err;
   }
 
-const { is_closed, is_won } = deriveFlags(nextStage);
+  const { is_closed, is_won } = deriveFlags(nextStage);
   const enteringClosed = !current.is_closed && is_closed;
   const leavingClosed = current.is_closed && !is_closed;
 

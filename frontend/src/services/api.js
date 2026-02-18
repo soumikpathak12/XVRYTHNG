@@ -613,3 +613,21 @@ export async function updateLead(id, payload) {
   if (!res.ok) throw new Error(data.message || 'Failed to update lead');
   return data;
 }
+
+/**
+ * POST /api/integrations/solarquotes/fetch
+ * @param {{ startDate?: string, endDate?: string }} payload
+ * @returns {Promise<{ success: boolean, count: number, results: Array }>}
+ */
+export async function importSolarQuotesLeads(payload = {}) {
+  const res = await authFetch('/api/integrations/solarquotes/fetch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.message || 'Failed to import SolarQuotes leads');
+  }
+  return data;
+}

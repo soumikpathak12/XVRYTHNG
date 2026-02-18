@@ -13,6 +13,9 @@ import meController from './controllers/meController.js';
 import companyRoutes from './routes/companyRoutes.js';
 import leadsRoutes from './routes/leadRoutes.js';
 import calendarRoutes from './routes/calendarRoutes.js';
+import solarQuotesRoutes from './routes/solarQuotesRoutes.js';
+import cron from 'node-cron';
+import { syncSolarQuotesLeads } from './services/solarQuotesService.js';
 import { fileURLToPath } from 'url';
 import path from 'path';
 
@@ -39,8 +42,23 @@ app.use('/api/users', userRoutes);
 app.use('/api/company', companyRoutes);
 app.use('/api/leads', leadsRoutes);
 app.use('/api/calendar', calendarRoutes);
+app.use('/api/integrations/solarquotes', solarQuotesRoutes);
 
 app.use('/api', meController);
+
+// ---------------------------------------------------------------------------
+// Cron Jobs
+// ---------------------------------------------------------------------------
+// Fetch SolarQuotes leads every hour
+cron.schedule('0 * * * *', async () => {
+  console.log('[Cron] Fetching SolarQuotes leads...');
+  try {
+    const { count } = await syncSolarQuotesLeads();
+    console.log(`[Cron] SolarQuotes sync complete. Found ${count} leads.`);
+  } catch (err) {
+    console.error('[Cron] SolarQuotes sync failed:', err);
+  }
+});
 // 404
 app.use((_, res) => res.status(404).json({ success: false, message: 'Not found' }));
 

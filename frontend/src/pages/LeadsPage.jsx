@@ -12,6 +12,7 @@ import {
   getLeads,
   updateLeadStage as apiUpdateLeadStage,
   createLead as apiCreateLead,
+  importSolarQuotesLeads,
 } from '../services/api.js';
 import '../styles/LeadsKanban.css';
 
@@ -26,6 +27,8 @@ export default function LeadsPage() {
   const [selectedLeadId, setSelectedLeadId] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [toast, setToast] = useState('');
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -69,13 +72,13 @@ export default function LeadsPage() {
     if (!row) return null;
     const systemSizeKw =
       row.system_size_kw != null ? Number(row.system_size_kw)
-      : row.systemSize != null ? Number(row.systemSize)
-      : null;
+        : row.systemSize != null ? Number(row.systemSize)
+          : null;
 
     const valueNum =
       row.value_amount != null ? Number(row.value_amount)
-      : row.value != null ? Number(row.value)
-      : null;
+        : row.value != null ? Number(row.value)
+          : null;
 
     return {
       id: row.id,
@@ -162,6 +165,22 @@ export default function LeadsPage() {
     [transformLead]
   );
 
+  const handleImportSolarQuotes = useCallback(async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await importSolarQuotesLeads();
+      const count = res.count || 0;
+      setSyncResult({ success: true, count });
+      setRefreshTrigger(t => t + 1);
+    } catch (err) {
+      console.error('Import failed', err);
+      setSyncResult({ success: false, error: err.message || 'SolarQuotes import failed' });
+    } finally {
+      setSyncing(false);
+    }
+  }, []);
+
   const distinctSources = useMemo(() => {
     const s = new Set(leads.map((l) => l.source).filter(Boolean));
     return Array.from(s).sort();
@@ -178,11 +197,11 @@ export default function LeadsPage() {
     const rows = boardLeads.map((lead) => {
       const lastActivity = lead.lastActivity
         ? (() => {
-            const d = new Date(lead.lastActivity);
-            return isNaN(d.getTime())
-              ? lead.lastActivity
-              : d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
-          })()
+          const d = new Date(lead.lastActivity);
+          return isNaN(d.getTime())
+            ? lead.lastActivity
+            : d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+        })()
         : '';
       const value = lead.value != null ? String(lead.value) : '';
       return [
@@ -367,6 +386,17 @@ export default function LeadsPage() {
               </button>
             </div>
           )}
+          <div className="leads-filter-bar-right" style={{ marginLeft: view === 'table' ? '8px' : 'auto' }}>
+            <button
+              type="button"
+              className="leads-add-btn"
+              style={{ backgroundColor: '#f59e0b', borderColor: '#f59e0b' }}
+              onClick={handleImportSolarQuotes}
+              title="Fetch latest leads from SolarQuotes"
+            >
+              Sync SolarQuotes
+            </button>
+          </div>
         </div>
       </header>
 
@@ -426,6 +456,75 @@ export default function LeadsPage() {
           onCancel={() => setOpenAdd(false)}
           onSubmit={handleCreateLead}
         />
+      </Modal>
+
+      {/* Sync Modal */}
+      <Modal
+        open={syncing || !!syncResult}
+        onClose={() => !syncing && setSyncResult(null)}
+        title="Sync SolarQuotes"
+        width={400}
+      >
+        <div style={{ padding: '20px', textAlign: 'center' }}>
+          {syncing ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+              <div className="leads-loading" style={{ margin: 0 }}></div>
+              <p style={{ marginTop: '10px', color: '#6b7280' }}>Fetching leads from SolarQuotes...</p>
+            </div>
+          ) : syncResult?.success ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+              <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="#059669" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#111827' }}>Sync Complete</h3>
+              <p style={{ color: '#6b7280' }}>
+                Successfully synced.
+              </p>
+              <button
+                onClick={() => setSyncResult(null)}
+                style={{
+                  marginTop: '16px',
+                  padding: '8px 16px',
+                  backgroundColor: '#3b82f6',
+                  color: 'white',
+                  borderRadius: '6px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Close
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+              <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="#dc2626" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </div>
+              <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#111827' }}>Sync Failed</h3>
+              <p style={{ color: '#ef4444' }}>{syncResult?.error || 'Unknown error occurred'}</p>
+              <button
+                onClick={() => setSyncResult(null)}
+                style={{
+                  marginTop: '16px',
+                  padding: '8px 16px',
+                  backgroundColor: '#e5e7eb',
+                  color: '#374151',
+                  borderRadius: '6px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Close
+              </button>
+            </div>
+          )}
+        </div>
       </Modal>
     </div>
   );
