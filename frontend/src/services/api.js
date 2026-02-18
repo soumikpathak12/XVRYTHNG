@@ -613,3 +613,39 @@ export async function updateLead(id, payload) {
   if (!res.ok) throw new Error(data.message || 'Failed to update lead');
   return data;
 }
+
+
+export async function getLeadNotes(leadId) {
+  const res = await authFetch(`/api/leads/${encodeURIComponent(leadId)}/notes`, {
+    method: 'GET',
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.message ?? 'Failed to load notes');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data; // { success:true, data: activities[] }
+}
+
+/**
+ * POST /api/leads/:id/notes
+ * Body: { body: string, followUpAt?: ISO string }
+ * Returns { success:true, data: activityItem } (same shape LeadDetailActivity uses).
+ */
+export async function addLeadNote(leadId, { body, followUpAt }) {
+  const res = await authFetch(`/api/leads/${encodeURIComponent(leadId)}/notes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body, followUpAt }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.message ?? 'Failed to add note');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data.data; // activity item
+}
