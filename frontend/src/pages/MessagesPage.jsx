@@ -172,6 +172,7 @@ export default function MessagesPage() {
   const groupInfoAnchorRef = useRef(null);
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
+  const loadConversationsRef = useRef(null);
 
   const handleIncomingMessage = useCallback((conversationId, message) => {
     if (conversationId !== selectedIdRef.current) return;
@@ -179,8 +180,8 @@ export default function MessagesPage() {
       if (prev.some((m) => m.id === message.id)) return prev;
       return [...prev, { ...message, isOwn: message.senderId === user?.id }];
     });
-    loadConversations();
-  }, [user?.id, loadConversations]);
+    loadConversationsRef.current?.();
+  }, [user?.id]);
 
   const { connected: wsConnected } = useChatSocket(getToken, handleIncomingMessage);
 
@@ -232,6 +233,7 @@ export default function MessagesPage() {
       setLoading(false);
     }
   }, [isSuperAdmin, effectiveCompanyId, usePlatformDm]);
+  loadConversationsRef.current = loadConversations;
 
   useEffect(() => {
     loadCompanies();
