@@ -25,6 +25,7 @@ export default function LeadsPage() {
   const [error, setError] = useState('');
   const [openAdd, setOpenAdd] = useState(false);
   const [selectedLeadId, setSelectedLeadId] = useState(null);
+  // const [selectedLeadId, setSelectedLeadId] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [toast, setToast] = useState('');
   const [syncing, setSyncing] = useState(false);
@@ -411,7 +412,7 @@ export default function LeadsPage() {
           <LeadsTable
             leads={boardLeads}
             onStageChange={handleStageChange}
-            onSelectLead={setSelectedLeadId}
+            onSelectLead={(id) => navigate(`${id}`)}
           />
         ) : view === 'calendar' ? (
           <div className="leads-calendar-wrap">
@@ -420,7 +421,7 @@ export default function LeadsPage() {
               getDate={(l) => l._raw?.site_inspection_date ?? null}
               titleForLead={(l) => l.customerName || `Lead #${l.id}`}
               subtitleForLead={(l) => [l.suburb, l.stage].filter(Boolean).join(' • ') || ''}
-              onLeadClick={(lead) => setSelectedLeadId(lead.id)}
+              onLeadClick={(lead) => navigate(`${lead.id}`)}
               weekStartsOn={1}
             />
           </div>
@@ -429,26 +430,11 @@ export default function LeadsPage() {
             leads={boardLeads}
             onStageChange={handleStageChange}
             onFocusSearch={focusSearch}
-            onSelectLead={setSelectedLeadId}
+            onSelectLead={(id) => navigate(`${id}`)}
           />
         )}
       </div>
 
-      {selectedLeadId != null && (
-        <LeadDetailModal
-          leadId={selectedLeadId}
-          onClose={() => setSelectedLeadId(null)}
-          onLeadUpdated={(id, newStage) => {
-            if (newStage) {
-              setLeads((prev) =>
-                prev.map((l) => (String(l.id) === String(id) ? { ...l, stage: newStage } : l))
-              );
-            } else {
-              setRefreshTrigger((t) => t + 1);
-            }
-          }}
-        />
-      )}
 
       <Modal open={openAdd} onClose={() => setOpenAdd(false)} title="Add New Lead" width={720}>
         <AddLeadForm

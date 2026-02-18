@@ -1,11 +1,6 @@
 /* Lead Detail – full page (and legacy modal overlay) – brand theme (teal #0d9488, #146b6b) */
 
-/* Full-page wrapper: used by LeadDetailPage – full width, minimal side spacing */
-.lead-detail-page-wrap {
-  min-height: 100%;
-  background: #f1f5f9;
-  padding: 20px 20px 48px;
-}
+
 
 .lead-detail-page {
   width: 100%;
@@ -581,7 +576,7 @@
   flex-shrink: 0;
 }
 
-.lead-detail-contact-card > div {
+.lead-detail-contact-card>div {
   display: flex;
   flex-direction: column;
   gap: 2px;

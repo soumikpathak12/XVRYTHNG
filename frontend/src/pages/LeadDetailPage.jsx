@@ -7,6 +7,7 @@ import LeadDetailDetails from '../components/leads/LeadDetailDetails.jsx';
 import LeadDetailActivity from '../components/leads/LeadDetailActivity.jsx';
 import LeadDetailDocuments from '../components/leads/LeadDetailDocuments.jsx';
 import LeadDetailCommunications from '../components/leads/LeadDetailCommunications.jsx';
+import LeadDetailSolarQuotes from '../components/leads/LeadDetailSolarQuotes.jsx';
 import '../styles/LeadDetailModal.css';
 
 const STAGE_LABELS = {
@@ -98,19 +99,23 @@ export default function LeadDetailPage() {
           <button type="button" className="lead-detail-back" onClick={handleBack} aria-label="Back to pipeline">
             ← Back to Pipeline
           </button>
+
           {loading ? (
             <div className="lead-detail-loading">Loading…</div>
           ) : error ? (
             <div className="lead-detail-error">{error}</div>
           ) : lead ? (
-            <>
-              <h1 id="lead-detail-title" className="lead-detail-name">{lead.customer_name}</h1>
-              <div className="lead-detail-tags">
-                <span className="lead-detail-tag lead-detail-tag-stage" style={{ backgroundColor: colorForStage(lead.stage) }}>
-                  {stageLabel}
-                </span>
-                <span className="lead-detail-tag lead-detail-tag-source">{sourceLabel}</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <h1 id="lead-detail-title" className="lead-detail-name" style={{ marginBottom: '8px' }}>{lead.customer_name}</h1>
+                <div className="lead-detail-tags" style={{ marginBottom: 0 }}>
+                  <span className="lead-detail-tag lead-detail-tag-stage" style={{ backgroundColor: '#0d9488' }}>
+                    {stageLabel}
+                  </span>
+                  <span className="lead-detail-tag lead-detail-tag-source">{sourceLabel}</span>
+                </div>
               </div>
+
               <div className="lead-detail-actions">
                 <button type="button" className="lead-detail-btn primary">Schedule Inspection</button>
                 <button type="button" className="lead-detail-btn secondary">Create Proposal</button>
@@ -120,7 +125,7 @@ export default function LeadDetailPage() {
                   </button>
                 )}
               </div>
-            </>
+            </div>
           ) : null}
         </header>
 
@@ -144,7 +149,7 @@ export default function LeadDetailPage() {
             </div>
 
             <div className="lead-detail-tabs">
-              {['details', 'activity', 'documents', 'communications'].map((tab) => (
+              {['details', 'notes', 'activity', 'documents', 'communications'].map((tab) => (
                 <button
                   key={tab}
                   type="button"
@@ -152,6 +157,7 @@ export default function LeadDetailPage() {
                   onClick={() => setActiveTab(tab)}
                 >
                   {tab === 'details' && 'Details'}
+                  {tab === 'notes' && 'SolarQuotes Notes'}
                   {tab === 'activity' && 'Activity Log'}
                   {tab === 'documents' && 'Documents'}
                   {tab === 'communications' && 'Communications'}
@@ -162,6 +168,9 @@ export default function LeadDetailPage() {
             <div className="lead-detail-panel">
               {activeTab === 'details' && (
                 <LeadDetailDetails lead={lead} onSubmit={handleDetailsSubmit} />
+              )}
+              {activeTab === 'notes' && (
+                <LeadDetailSolarQuotes lead={lead} />
               )}
               {activeTab === 'activity' && <LeadDetailActivity activities={data?.activities || []} leadId={leadId} />}
               {activeTab === 'documents' && <LeadDetailDocuments documents={data?.documents || []} leadId={leadId} onUpload={() => loadLead()} />}
