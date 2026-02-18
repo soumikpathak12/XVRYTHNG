@@ -34,11 +34,14 @@ const COLORS = {
   inputBg: '#FFFFFF',
   inputHover: '#F9FAFB',
   inputFocusRing: 'rgba(26, 123, 123, 0.25)',
+
   dangerBg: '#FEF2F2',
   dangerText: '#B91C1C',
   dangerBorder: '#FECACA',
+
   neutralBg: '#F3F4F6',
   neutralBorder: '#E5E7EB',
+
   overlay: 'rgba(0,0,0,0.35)',
   shadow:
     '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)',
@@ -57,10 +60,14 @@ const PHONE_RE = /^[0-9()+\-\s]*[0-9][0-9()+\-\s]*$/;
 export default function LeadForm({
   initialValues,
   onSubmit,
-  onCancel,
+  onCancel,                      // chỉ gọi callback, KHÔNG điều hướng history
   title = 'Add New Lead',
   submitLabel = 'Create Lead',
   embedded = false,
+
+  cancelLabel = 'Cancel',        
+  formId,                      
+  hideActions = false,           
 }) {
   const [form, setForm] = useState({
     customer_name: '',
@@ -177,11 +184,20 @@ export default function LeadForm({
       nextFieldErrors.value_amount = 'Value amount cannot be negative.';
     }
 
+    if (!form.source) {
+      nextFieldErrors.source = 'Please select a source.';
+    } else if (form.source === 'Others' && !form.sourceOther?.trim()) {
+      nextFieldErrors.sourceOther = 'Please specify the source.';
+    }
+
     if (Object.keys(nextFieldErrors).length > 0) {
       setFieldErrors(nextFieldErrors);
       setError('Please correct the errors and try again.');
       return;
     }
+
+    const sourceFinal =
+      form.source === 'Others' ? form.sourceOther.trim() : form.source.trim();
 
     const inspectionDate = toMySQLDateTime(form.site_inspection_date);
     const payload = {
@@ -192,7 +208,7 @@ export default function LeadForm({
       suburb: form.suburb.trim(),
       system_size_kw: Number(form.system_size_kw),
       value_amount: Number(form.value_amount),
-      source: form.source ? form.source.trim() : null,
+      source: sourceFinal || null,
       site_inspection_date: inspectionDate,
     };
 
@@ -201,6 +217,7 @@ export default function LeadForm({
       await onSubmit(payload);
       setSuccess(true);
       if (!initialValues) {
+        // Reset form for new record
         setForm({
           customer_name: '',
           email: '',
@@ -209,13 +226,14 @@ export default function LeadForm({
           system_size_kw: '',
           value_amount: '',
           source: '',
+          sourceOther: '',
           stage: 'new',
           site_inspection_date: '',
         });
       }
     } catch (err) {
-      setError(err.message || 'Failed to save lead.');
-      if (err.body && err.body.errors) {
+      setError(err?.message || 'Failed to save lead.');
+      if (err?.body?.errors) {
         setFieldErrors(err.body.errors);
       }
     } finally {
@@ -245,13 +263,12 @@ export default function LeadForm({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} style={styles.formGrid}>
+      <form id={formId} onSubmit={handleSubmit} style={styles.formGrid}>
         <Field label="Customer name *" error={fieldErrors.customer_name}>
           <input
             type="text"
             value={form.customer_name}
             onChange={(e) => update('customer_name', e.target.value)}
-            placeholder="e.g. Jane Doe"
             style={{
               ...styles.input,
               borderColor: fieldErrors.customer_name ? COLORS.dangerText : COLORS.border,
@@ -266,7 +283,6 @@ export default function LeadForm({
               type="email"
               value={form.email}
               onChange={(e) => update('email', e.target.value)}
-              placeholder="e.g. jane@example.com"
               style={{
                 ...styles.input,
                 borderColor: fieldErrors.email ? COLORS.dangerText : COLORS.border,
@@ -280,7 +296,6 @@ export default function LeadForm({
               type="tel"
               value={form.phone}
               onChange={(e) => update('phone', e.target.value)}
-              placeholder="e.g. +61 4xx xxx xxx"
               style={{
                 ...styles.input,
                 borderColor: fieldErrors.phone ? COLORS.dangerText : COLORS.border,
@@ -311,7 +326,6 @@ export default function LeadForm({
               min="0"
               value={form.system_size_kw}
               onChange={(e) => update('system_size_kw', e.target.value)}
-              placeholder="e.g. 6.60"
               style={{
                 ...styles.input,
                 borderColor: fieldErrors.system_size_kw ? COLORS.dangerText : COLORS.border,
@@ -327,7 +341,6 @@ export default function LeadForm({
               min="0"
               value={form.value_amount}
               onChange={(e) => update('value_amount', e.target.value)}
-              placeholder="e.g. 9000"
               style={{
                 ...styles.input,
                 borderColor: fieldErrors.value_amount ? COLORS.dangerText : COLORS.border,
@@ -338,13 +351,44 @@ export default function LeadForm({
         </div>
 
         <Field label="Source" error={fieldErrors.source}>
-          <input
-            type="text"
+          <select
             value={form.source}
-            onChange={(e) => update('source', e.target.value)}
-            placeholder="e.g. Web, Google Ads"
+            onChange={(e) => {
+              const value = e.target.value;
+              update('source', value);
+              if (value !== 'Others') update('sourceOther', '');
+            }}
             style={styles.input}
-          />
+            aria-describedby={fieldErrors.source ? 'source-error' : undefined}
+          >
+            <option value="" disabled>Select a source</option>
+            <option value="Website">Website</option>
+            <option value="Solar Quote">Solar Quote</option>
+            <option value="Facebook">Facebook</option>
+            <option value="Others">Others</option>
+          </select>
+
+          {form.source === 'Others' && (
+            <div style={{ marginTop: 8 }}>
+              <label htmlFor="source-other" style={{ display: 'block', marginBottom: 4 }}>
+                Source type:
+              </label>
+              <input
+                id="source-other"
+                type="text"
+                value={form.sourceOther || ''}
+                onChange={(e) => update('sourceOther', e.target.value)}
+                style={styles.input}
+                placeholder="Type the source"
+                aria-label="Other source"
+              />
+              {fieldErrors.sourceOther && (
+                <div id="source-other-error" role="alert" style={{ color: 'crimson', marginTop: 4 }}>
+                  {fieldErrors.sourceOther}
+                </div>
+              )}
+            </div>
+          )}
         </Field>
 
         <Field label="Stage *" error={fieldErrors.stage}>
@@ -384,29 +428,31 @@ export default function LeadForm({
           <small style={{ color: COLORS.subtext }}>Leave empty if not scheduled yet.</small>
         </Field>
 
-        <div style={styles.actions}>
-          <button type="button" onClick={onCancel} style={styles.btnSecondary}>
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={submitting}
-            style={{
-              ...styles.btnPrimary,
-              backgroundColor: submitting ? '#7FB9B9' : COLORS.primary,
-              cursor: submitting ? 'not-allowed' : 'pointer',
-              opacity: submitting ? 0.9 : 1,
-            }}
-            onMouseEnter={(e) => {
-              if (!submitting) e.currentTarget.style.backgroundColor = COLORS.primaryHover;
-            }}
-            onMouseLeave={(e) => {
-              if (!submitting) e.currentTarget.style.backgroundColor = COLORS.primary;
-            }}
-          >
-            {submitting ? 'Saving...' : submitLabel}
-          </button>
-        </div>
+        {!hideActions && (
+          <div style={styles.actions}>
+            <button type="button" onClick={onCancel} style={styles.btnSecondary}>
+              {cancelLabel}
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              style={{
+                ...styles.btnPrimary,
+                backgroundColor: submitting ? '#7FB9B9' : COLORS.primary,
+                cursor: submitting ? 'not-allowed' : 'pointer',
+                opacity: submitting ? 0.9 : 1,
+              }}
+              onMouseEnter={(e) => {
+                if (!submitting) e.currentTarget.style.backgroundColor = COLORS.primaryHover;
+              }}
+              onMouseLeave={(e) => {
+                if (!submitting) e.currentTarget.style.backgroundColor = COLORS.primary;
+              }}
+            >
+              {submitting ? 'Saving...' : submitLabel}
+            </button>
+          </div>
+        )}
       </form>
     </>
   );

@@ -175,7 +175,7 @@ export async function getLeadsByDateRange(startDate, endDate) {
  * Get a single lead by id (with relations placeholder).
  * Returns { lead, activities: [], documents: [], communications: [] } for future relations.
  */
-export async function getLeadById(leadId) {
+/*export async function getLeadById(leadId) {
   if (!leadId || Number.isNaN(Number(leadId))) {
     const err = new Error('Invalid lead id');
     err.statusCode = 400;
@@ -194,7 +194,7 @@ export async function getLeadById(leadId) {
     documents: [],
     communications: [],
   };
-}
+}*/
 
 export async function updateLead(leadId, payload) {
   if (!leadId || Number.isNaN(Number(leadId))) {
@@ -202,12 +202,14 @@ export async function updateLead(leadId, payload) {
     err.statusCode = 400;
     throw err;
   }
+
   const [rows] = await db.execute('SELECT id FROM leads WHERE id = ? LIMIT 1', [leadId]);
   if (!rows[0]) {
     const err = new Error('Lead not found');
     err.statusCode = 404;
     throw err;
   }
+
   const {
     stage,
     customer_name,
@@ -221,11 +223,14 @@ export async function updateLead(leadId, payload) {
   const updates = [];
   const params = [];
 
+  // Stage (nếu hợp lệ)
   if (stage !== undefined && STAGES.has(stage)) {
     const { is_closed, is_won } = deriveFlags(stage);
     updates.push('stage = ?', 'is_closed = ?', 'is_won = ?');
     params.push(stage, is_closed ? 1 : 0, is_won ? 1 : 0);
   }
+
+  // Core fields
   if (customer_name !== undefined) {
     updates.push('customer_name = ?');
     params.push(String(customer_name).trim());
@@ -251,15 +256,75 @@ export async function updateLead(leadId, payload) {
     params.push(site_inspection_date);
   }
 
+  // NEW: System / Property / Utility
+  if (payload.system_type !== undefined) {
+    updates.push('system_type = ?');
+    params.push(payload.system_type ?? null);
+  }
+  if (payload.house_storey !== undefined) {
+    updates.push('house_storey = ?');
+    params.push(payload.house_storey ?? null);
+  }
+  if (payload.roof_type !== undefined) {
+    updates.push('roof_type = ?');
+    params.push(payload.roof_type ?? null);
+  }
+  if (payload.meter_phase !== undefined) {
+    updates.push('meter_phase = ?');
+    params.push(payload.meter_phase ?? null);
+  }
+  if (payload.access_to_second_storey !== undefined) {
+    updates.push('access_to_second_storey = ?');
+    params.push(
+      payload.access_to_second_storey == null ? null : (payload.access_to_second_storey ? 1 : 0),
+    );
+  }
+  if (payload.access_to_inverter !== undefined) {
+    updates.push('access_to_inverter = ?');
+    params.push(
+      payload.access_to_inverter == null ? null : (payload.access_to_inverter ? 1 : 0),
+    );
+  }
+  if (payload.pre_approval_reference_no !== undefined) {
+    updates.push('pre_approval_reference_no = ?');
+    params.push(payload.pre_approval_reference_no ?? null);
+  }
+  if (payload.energy_retailer !== undefined) {
+    updates.push('energy_retailer = ?');
+    params.push(payload.energy_retailer ?? null);
+  }
+  if (payload.energy_distributor !== undefined) {
+    updates.push('energy_distributor = ?');
+    params.push(payload.energy_distributor ?? null);
+  }
+  if (payload.solar_vic_eligibility !== undefined) {
+    updates.push('solar_vic_eligibility = ?');
+    params.push(
+      payload.solar_vic_eligibility == null ? null : (payload.solar_vic_eligibility ? 1 : 0),
+    );
+  }
+  if (payload.nmi_number !== undefined) {
+    updates.push('nmi_number = ?');
+    params.push(payload.nmi_number ?? null);
+  }
+  if (payload.meter_number !== undefined) {
+    updates.push('meter_number = ?');
+    params.push(payload.meter_number ?? null);
+  }
+
+  // Không có gì để cập nhật -> trả về hiện trạng
   if (updates.length === 0) {
     const [updated] = await db.execute('SELECT * FROM leads WHERE id = ? LIMIT 1', [leadId]);
     return updated[0];
   }
 
+  // Touch last_activity_at
   updates.push('last_activity_at = NOW()');
   params.push(leadId);
+
   const sql = `UPDATE leads SET ${updates.join(', ')} WHERE id = ?`;
   await db.execute(sql, params);
+
   const [updated] = await db.execute('SELECT * FROM leads WHERE id = ? LIMIT 1', [leadId]);
   return updated[0];
 }
@@ -318,4 +383,90 @@ export async function updateLeadStage(leadId, nextStage) {
 
   const [updated] = await db.execute('SELECT * FROM leads WHERE id = ? LIMIT 1', [leadId]);
   return updated[0];
+}
+
+
+export async function addLeadNote(leadId, { body, followUpAt = null, createdBy = null }) {
+  if (!leadId || Number.isNaN(Number(leadId))) {
+    const err = new Error('Invalid lead id');
+    err.statusCode = 400;
+    throw err;
+  }
+  // Ensure lead exists
+  const [rows] = await db.execute('SELECT id FROM leads WHERE id = ? LIMIT 1', [leadId]);
+  if (!rows?.[0]) {
+    const err = new Error('Lead not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const sql = `
+    INSERT INTO lead_notes (lead_id, body, follow_up_at, created_by)
+    VALUES (?, ?, ?, ?)
+  `;
+  const params = [Number(leadId), String(body), followUpAt ?? null, createdBy ?? null];
+
+  const [ins] = await db.execute(sql, params);
+  if (!ins?.affectedRows) {
+    const err = new Error('Insert note returned 0 affected rows');
+    err.statusCode = 500;
+    throw err;
+  }
+
+  // Touch last_activity_at on the lead
+  await db.execute('UPDATE leads SET last_activity_at = NOW() WHERE id = ?', [leadId]);
+
+  const insertedId = ins.insertId;
+  const [noteRows] = await db.execute(
+    'SELECT id, lead_id, body, follow_up_at, created_by, created_at FROM lead_notes WHERE id = ? LIMIT 1',
+    [insertedId],
+  );
+  return noteRows[0];
+}
+
+/** -------------------- NOTES: LIST -------------------- */
+export async function getLeadNotes(leadId) {
+  if (!leadId || Number.isNaN(Number(leadId))) {
+    const err = new Error('Invalid lead id');
+    err.statusCode = 400;
+    throw err;
+  }
+  const [rows] = await db.execute(
+    'SELECT id, lead_id, body, follow_up_at, created_by, created_at FROM lead_notes WHERE lead_id = ? ORDER BY created_at DESC',
+    [leadId],
+  );
+  return rows;
+}
+
+/** -------------------- GET BY ID (with real activities from notes) -------------------- */
+export async function getLeadById(leadId) {
+  if (!leadId || Number.isNaN(Number(leadId))) {
+    const err = new Error('Invalid lead id');
+    err.statusCode = 400;
+    throw err;
+  }
+  const [rows] = await db.execute('SELECT * FROM leads WHERE id = ? LIMIT 1', [leadId]);
+  const lead = rows[0];
+  if (!lead) {
+    const err = new Error('Lead not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  // Pull notes as activities for the timeline
+  const notes = await getLeadNotes(leadId);
+  const activities = notes.map((n) => ({
+    id: `note-${n.id}`,
+    type: 'note',
+    title: 'Comment added',
+    created_at: n.created_at,
+    body: n.body + (n.follow_up_at ? `\n\nNext follow-up: ${String(n.follow_up_at).slice(0, 10)}` : ''),
+  }));
+
+  return {
+    lead,
+    activities,
+    documents: [],
+    communications: [],
+  };
 }

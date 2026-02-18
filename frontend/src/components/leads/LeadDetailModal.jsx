@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { getLead, updateLead, updateLeadStage } from '../../services/api.js';
 import { colorForStage } from './theme.js';
-import LeadDetailOverview from './LeadDetailOverview.jsx';
+import LeadDetailOverview from './LeadDetailOverview.jsx'; // ⬅️ Overview trước, Edit sẽ vào Details
 import LeadDetailActivity from './LeadDetailActivity.jsx';
 import LeadDetailDocuments from './LeadDetailDocuments.jsx';
 import LeadDetailCommunications from './LeadDetailCommunications.jsx';
@@ -24,7 +24,7 @@ export default function LeadDetailModal({ leadId, onClose, onLeadUpdated }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState('details');
+  const [activeTab, setActiveTab] = useState('details'); // mở Overview trong tab Details trước
 
   const loadLead = useCallback(async () => {
     if (!leadId) return;
@@ -51,18 +51,12 @@ export default function LeadDetailModal({ leadId, onClose, onLeadUpdated }) {
   }, [leadId, loadLead]);
 
   const handleDetailsSubmit = async (payload) => {
-    const dbPayload = {
-      stage: payload.stage,
-      customer_name: payload.customer_name,
-      suburb: payload.suburb || null,
-      system_size_kw: payload.system_size_kw != null ? Number(payload.system_size_kw) : null,
-      value_amount: payload.value_amount != null ? Number(payload.value_amount) : null,
-      source: payload.source || null,
-      site_inspection_date: payload.site_inspection_date || null,
-    };
-    await updateLead(leadId, dbPayload);
-    onLeadUpdated?.(leadId);
-    loadLead();
+    try {
+      await updateLead(leadId, payload);       onLeadUpdated?.(leadId);
+      await loadLead(); //
+    } catch (err) {
+      setError(err?.message || 'Failed to save changes');
+    }
   };
 
   const handleMarkLost = async () => {
@@ -77,7 +71,6 @@ export default function LeadDetailModal({ leadId, onClose, onLeadUpdated }) {
 
   const lead = data?.lead;
   const stageLabel = lead ? (STAGE_LABELS[lead.stage] || lead.stage) : '';
-  const sourceLabel = lead?.source || '—';
 
   if (!leadId) return null;
 
@@ -94,7 +87,12 @@ export default function LeadDetailModal({ leadId, onClose, onLeadUpdated }) {
             <>
               <div className="lead-detail-popup-title-row">
                 <h1 id="lead-detail-title" className="lead-detail-name">{lead.customer_name}</h1>
-                <span className="lead-detail-tag lead-detail-tag-pill" style={{ backgroundColor: colorForStage(lead.stage), color: '#fff' }}>{stageLabel}</span>
+                <span
+                  className="lead-detail-tag lead-detail-tag-pill"
+                  style={{ backgroundColor: colorForStage(lead.stage), color: '#fff' }}
+                >
+                  {stageLabel}
+                </span>
               </div>
               <div className="lead-detail-popup-header-actions">
                 <button type="button" className="lead-detail-icon-btn" aria-label="More options">⋮</button>
@@ -126,9 +124,19 @@ export default function LeadDetailModal({ leadId, onClose, onLeadUpdated }) {
               {activeTab === 'details' && (
                 <LeadDetailOverview lead={lead} onEdit={handleDetailsSubmit} />
               )}
-              {activeTab === 'activity' && <LeadDetailActivity activities={data?.activities || []} leadId={leadId} />}
-              {activeTab === 'documents' && <LeadDetailDocuments documents={data?.documents || []} leadId={leadId} onUpload={() => loadLead()} />}
-              {activeTab === 'communications' && <LeadDetailCommunications communications={data?.communications || []} leadId={leadId} />}
+              {activeTab === 'activity' && (
+                <LeadDetailActivity activities={data?.activities || []} leadId={leadId} />
+              )}
+              {activeTab === 'documents' && (
+                <LeadDetailDocuments
+                  documents={data?.documents || []}
+                  leadId={leadId}
+                  onUpload={() => loadLead()}
+                />
+              )}
+              {activeTab === 'communications' && (
+                <LeadDetailCommunications communications={data?.communications || []} leadId={leadId} />
+              )}
             </div>
 
             <footer className="lead-detail-popup-footer">

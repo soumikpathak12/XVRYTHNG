@@ -26,6 +26,20 @@ function toMySQLDateTime(value) {
   const ss = '00';
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
 }
+function toBoolOrNull(v) {
+  if (v === null || v === undefined || v === '') return null;
+  if (typeof v === 'boolean') return v;
+  const s = String(v).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'y', 'on'].includes(s)) return true;
+  if (['0', 'false', 'no', 'n', 'off'].includes(s)) return false;
+  return null;
+}
+function trimOrNull(v, max = 255) {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  if (!s) return null;
+  return s.slice(0, max);
+}
 
 // -------------------- CREATE --------------------
 
@@ -209,6 +223,29 @@ export async function updateLead(req, res) {
     if (body.value_amount !== undefined) payload.value_amount = body.value_amount;
     if (body.source !== undefined) payload.source = body.source;
     if (body.site_inspection_date !== undefined) payload.site_inspection_date = toMySQLDateTime(body.site_inspection_date);
+    
+    if (body.system_type !== undefined) payload.system_type = trimOrNull(body.system_type, 100);
+    if (body.house_storey !== undefined) payload.house_storey = trimOrNull(body.house_storey, 50);
+    if (body.roof_type !== undefined) payload.roof_type = trimOrNull(body.roof_type, 100);
+    if (body.meter_phase !== undefined) payload.meter_phase = trimOrNull(body.meter_phase, 20);
+
+    if (body.access_to_second_storey !== undefined)
+      payload.access_to_second_storey = toBoolOrNull(body.access_to_second_storey);
+    if (body.access_to_inverter !== undefined)
+      payload.access_to_inverter = toBoolOrNull(body.access_to_inverter);
+
+    if (body.pre_approval_reference_no !== undefined)
+      payload.pre_approval_reference_no = trimOrNull(body.pre_approval_reference_no, 100);
+    if (body.energy_retailer !== undefined)
+      payload.energy_retailer = trimOrNull(body.energy_retailer, 120);
+    if (body.energy_distributor !== undefined)
+      payload.energy_distributor = trimOrNull(body.energy_distributor, 120);
+
+    if (body.solar_vic_eligibility !== undefined)
+      payload.solar_vic_eligibility = toBoolOrNull(body.solar_vic_eligibility);
+
+    if (body.nmi_number !== undefined) payload.nmi_number = trimOrNull(body.nmi_number, 50);
+    if (body.meter_number !== undefined) payload.meter_number = trimOrNull(body.meter_number, 50);
 
     if (Object.keys(payload).length === 0) {
       const result = await leadService.getLeadById(leadId);
@@ -251,6 +288,89 @@ export async function updateLeadStage(req, res) {
     return res.status(status).json({
       success: false,
       message: err.message || 'Failed to update lead stage.',
+    });
+  }
+}
+
+
+export async function addLeadNote(req, res) {
+  try {
+    const leadId = req.params.id;
+    const { body, followUpAt } = req.body ?? {};
+    const errors = {};
+
+    if (!body || !String(body).trim()) {
+      errors.body = 'Comment is required.';
+    } else if (String(body).trim().length > 4000) {
+      errors.body = 'Comment must be at most 4000 characters.';
+    }
+    let followUp = null;
+    if (followUpAt) {
+      const d = new Date(followUpAt);
+      if (Number.isNaN(d.getTime())) {
+        errors.followUpAt = 'Invalid follow up date.';
+      } else {
+        // Store as MySQL DATETIME "YYYY-MM-DD HH:mm:00"
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mi = String(d.getMinutes()).padStart(2, '0');
+        followUp = `${yyyy}-${mm}-${dd} ${hh}:${mi}:00`;
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      return res.status(422).json({ success: false, errors });
+    }
+
+    const createdBy = req.user?.id ?? null; // requireAuth sets req.user
+    const note = await leadService.addLeadNote(leadId, {
+      body: String(body).trim(),
+      followUpAt: followUp,
+      createdBy,
+    });
+
+    // Return an activity-shaped item so your UI can swap the optimistic item.
+    const activity = {
+      id: `note-${note.id}`,
+      type: 'note',
+      title: 'Comment added',
+      created_at: note.created_at,
+      body: note.body + (note.follow_up_at ? `\n\nNext follow-up: ${String(note.follow_up_at).slice(0, 10)}` : ''),
+    };
+
+    return res.status(201).json({ success: true, data: activity });
+  } catch (err) {
+    console.error('Add lead note error:', err);
+    const status = err.statusCode ?? err.status ?? 500;
+    return res.status(status).json({
+      success: false,
+      message: err.message ?? 'Failed to add note.',
+    });
+  }
+}
+
+/** -------------------- NOTES: LIST -------------------- */
+export async function listLeadNotes(req, res) {
+  try {
+    const leadId = req.params.id;
+    const rows = await leadService.getLeadNotes(leadId);
+
+    const activities = rows.map((n) => ({
+      id: `note-${n.id}`,
+      type: 'note',
+      title: 'Comment added',
+      created_at: n.created_at,
+      body: n.body + (n.follow_up_at ? `\n\nNext follow-up: ${String(n.follow_up_at).slice(0, 10)}` : ''),
+    }));
+    return res.status(200).json({ success: true, data: activities });
+  } catch (err) {
+    console.error('List lead notes error:', err);
+    const status = err.statusCode ?? err.status ?? 500;
+    return res.status(status).json({
+      success: false,
+      message: err.message ?? 'Failed to load notes.',
     });
   }
 }
