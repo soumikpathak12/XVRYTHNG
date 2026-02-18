@@ -6,6 +6,7 @@ import LeadDetailOverview from './LeadDetailOverview.jsx'; // ⬅️ Overview tr
 import LeadDetailActivity from './LeadDetailActivity.jsx';
 import LeadDetailDocuments from './LeadDetailDocuments.jsx';
 import LeadDetailCommunications from './LeadDetailCommunications.jsx';
+import LeadDetailSolarQuotes from './LeadDetailSolarQuotes.jsx';
 import '../../styles/LeadDetailModal.css';
 
 const STAGE_LABELS = {
@@ -52,7 +53,7 @@ export default function LeadDetailModal({ leadId, onClose, onLeadUpdated }) {
 
   const handleDetailsSubmit = async (payload) => {
     try {
-      await updateLead(leadId, payload);       onLeadUpdated?.(leadId);
+      await updateLead(leadId, payload); onLeadUpdated?.(leadId);
       await loadLead(); //
     } catch (err) {
       setError(err?.message || 'Failed to save changes');
@@ -89,7 +90,7 @@ export default function LeadDetailModal({ leadId, onClose, onLeadUpdated }) {
                 <h1 id="lead-detail-title" className="lead-detail-name">{lead.customer_name}</h1>
                 <span
                   className="lead-detail-tag lead-detail-tag-pill"
-                  style={{ backgroundColor: colorForStage(lead.stage), color: '#fff' }}
+                  style={{ backgroundColor: '#0d9488', color: '#fff' }}
                 >
                   {stageLabel}
                 </span>
@@ -105,7 +106,7 @@ export default function LeadDetailModal({ leadId, onClose, onLeadUpdated }) {
         {lead && (
           <>
             <div className="lead-detail-tabs lead-detail-popup-tabs">
-              {['details', 'activity', 'documents', 'communications'].map((tab) => (
+              {['details', 'notes', 'activity', 'documents', 'communications'].map((tab) => (
                 <button
                   key={tab}
                   type="button"
@@ -113,6 +114,7 @@ export default function LeadDetailModal({ leadId, onClose, onLeadUpdated }) {
                   onClick={() => setActiveTab(tab)}
                 >
                   {tab === 'details' && 'Details'}
+                  {tab === 'notes' && 'SolarQuotes Notes'}
                   {tab === 'activity' && 'Activity Log'}
                   {tab === 'documents' && 'Documents'}
                   {tab === 'communications' && 'Communication'}
@@ -133,6 +135,9 @@ export default function LeadDetailModal({ leadId, onClose, onLeadUpdated }) {
                   leadId={leadId}
                   onUpload={() => loadLead()}
                 />
+              )}
+              {activeTab === 'notes' && (
+                <LeadDetailSolarQuotes lead={lead} />
               )}
               {activeTab === 'communications' && (
                 <LeadDetailCommunications communications={data?.communications || []} leadId={leadId} />
