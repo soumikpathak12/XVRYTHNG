@@ -9,12 +9,13 @@ import authRoutes from './routes/authRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import meController from './controllers/meController.js';
-
+import documentRoutes from './routes/documentRoutes.js'
 import companyRoutes from './routes/companyRoutes.js';
 import leadsRoutes from './routes/leadRoutes.js';
 import calendarRoutes from './routes/calendarRoutes.js';
 import solarQuotesRoutes from './routes/solarQuotesRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';
+import emailRoutes from './routes/emailRoutes.js';
 import cron from 'node-cron';
 import { syncSolarQuotesLeads } from './services/solarQuotesService.js';
 import { fileURLToPath } from 'url';
@@ -48,6 +49,8 @@ app.use('/api/chats', chatRoutes);
 
 app.use('/api', meController);
 
+app.use('/api/webhooks/email', express.json({ limit: '1mb' }), emailRoutes);
+app.use('/api/leads/:leadId/documents', documentRoutes);
 // ---------------------------------------------------------------------------
 // Cron Jobs
 // ---------------------------------------------------------------------------
