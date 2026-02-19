@@ -14,6 +14,7 @@ import {
   createLead as apiCreateLead,
   importSolarQuotesLeads,
 } from '../services/api.js';
+import ImportLeadsModal from '../components/leads/ImportLeadsModal.jsx';
 import '../styles/LeadsKanban.css';
 
 export default function LeadsPage() {
@@ -24,6 +25,7 @@ export default function LeadsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [openAdd, setOpenAdd] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [selectedLeadId, setSelectedLeadId] = useState(null);
   // const [selectedLeadId, setSelectedLeadId] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -387,7 +389,18 @@ export default function LeadsPage() {
               </button>
             </div>
           )}
-          <div className="leads-filter-bar-right" style={{ marginLeft: view === 'table' ? '8px' : 'auto' }}>
+          <div className="leads-filter-bar-right" style={{ marginLeft: view === 'table' ? '8px' : 'auto', display: 'flex', gap: '8px' }}>
+            <button
+              type="button"
+              className="leads-add-btn bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+              onClick={() => setShowImport(true)}
+              style={{ backgroundColor: '#fff', color: '#374151', border: '1px solid #d1d5db' }}
+            >
+              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="mr-1">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              Import CSV
+            </button>
             <button
               type="button"
               className="leads-add-btn"
@@ -399,9 +412,10 @@ export default function LeadsPage() {
             </button>
           </div>
         </div>
-      </header>
+      </header >
 
-      {toast && <div className="leads-toast">{toast}</div>}
+      {toast && <div className="leads-toast">{toast}</div>
+      }
 
       <div className="leads-page-content">
         {loading ? (
@@ -512,6 +526,17 @@ export default function LeadsPage() {
           )}
         </div>
       </Modal>
-    </div>
+
+      {
+        showImport && (
+          <ImportLeadsModal
+            onClose={() => setShowImport(false)}
+            onSuccess={() => {
+              setRefreshTrigger(p => p + 1);
+            }}
+          />
+        )
+      }
+    </div >
   );
 }

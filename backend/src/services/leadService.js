@@ -93,6 +93,30 @@ export async function createLead(payload) {
 }
 
 /**
+ * Bulk import leads.
+ * @param {Array} leads
+ * @returns {Promise<{ imported: number, failed: number, errors: Array<{ row: number, error: string }> }>}
+ */
+export async function importLeads(leads) {
+  let imported = 0;
+  let failed = 0;
+  const errors = [];
+
+  for (let i = 0; i < leads.length; i++) {
+    const lead = leads[i];
+    try {
+      await createLead(lead);
+      imported++;
+    } catch (err) {
+      failed++;
+      errors.push({ row: i + 1, error: err.message, lead });
+    }
+  }
+
+  return { imported, failed, errors };
+}
+
+/**
  * Get leads (optionally filterable). Returns flat array.
  * @param {{
  *   stage?: string,

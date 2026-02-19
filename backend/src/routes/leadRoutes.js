@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import {
   createLead,
+  importLeads,
   listLeads,
   getLeadById,
   updateLead,
@@ -17,6 +18,7 @@ const router = Router();
 router.use(requireAuth, tenantContext);
 
 router.post('/', createLead);
+router.post('/import', importLeads);
 router.get('/', listLeads);
 router.get('/:id', getLeadById);
 router.put('/:id', updateLead);

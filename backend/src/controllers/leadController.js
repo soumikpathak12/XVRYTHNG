@@ -152,6 +152,27 @@ export async function createLead(req, res) {
 }
 
 
+// -------------------- IMPORT --------------------
+export async function importLeads(req, res) {
+  try {
+    const { leads } = req.body;
+    if (!Array.isArray(leads) || leads.length === 0) {
+      return res.status(400).json({ success: false, message: 'No leads provided.' });
+    }
+
+    const { imported, failed, errors } = await leadService.importLeads(leads);
+
+    return res.status(200).json({
+      success: true,
+      data: { imported, failed, errors },
+      message: `Imported ${imported} leads. ${failed} failed.`,
+    });
+  } catch (err) {
+    console.error('Import leads error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}
+
 // -------------------- LIST --------------------
 export async function listLeads(req, res) {
   try {
@@ -223,7 +244,7 @@ export async function updateLead(req, res) {
     if (body.value_amount !== undefined) payload.value_amount = body.value_amount;
     if (body.source !== undefined) payload.source = body.source;
     if (body.site_inspection_date !== undefined) payload.site_inspection_date = toMySQLDateTime(body.site_inspection_date);
-    
+
     if (body.system_type !== undefined) payload.system_type = trimOrNull(body.system_type, 100);
     if (body.house_storey !== undefined) payload.house_storey = trimOrNull(body.house_storey, 50);
     if (body.roof_type !== undefined) payload.roof_type = trimOrNull(body.roof_type, 100);

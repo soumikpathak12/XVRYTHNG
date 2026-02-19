@@ -541,6 +541,22 @@ export async function createLead(payload, { normalize = true } = {}) {
 }
 
 /**
+ * Import multiple leads
+ */
+export async function importLeads(leads) {
+  const res = await authFetch('/api/leads/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ leads }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.message || 'Failed to import leads');
+  }
+  return data;
+}
+
+/**
  * GET /api/leads
  * @param {{ grouped?: boolean, stage?: string, search?: string, assigned_user?: string, limit?: number, offset?: number }} params
  * @returns {Promise<{ success: boolean, data: any }>}
