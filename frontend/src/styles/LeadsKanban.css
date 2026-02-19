@@ -434,7 +434,7 @@
 .leads-board {
     display: flex;
     gap: 20px;
-    padding: 0 28px;
+    padding: 0 30px;
     align-items: flex-start;
     min-width: min-content;
     height: 100%;
