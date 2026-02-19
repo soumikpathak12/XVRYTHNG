@@ -23,9 +23,11 @@
     "express-fileupload": "^1.5.2",
     "fast-xml-parser": "^5.3.6",
     "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.2",
     "mysql2": "^3.6.5",
     "node-cron": "^4.2.1",
     "nodemailer": "^8.0.0",
+    "resend": "^6.9.2",
     "ws": "^8.19.0"
   }
 }
