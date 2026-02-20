@@ -4,44 +4,31 @@
   max-width: none;
 }
 
-.my-project-welcome {
+/* Your Project Status card */
+.my-project-status-card {
+  margin-bottom: 24px;
+}
+
+.my-project-status-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
-}
-
-.my-project-welcome-content {
-  flex: 1;
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .my-project-welcome-title {
-  font-size: 1.75rem;
+  font-size: 1.5rem;
   font-weight: 800;
   color: #1A1A2E;
   margin: 0 0 8px;
   letter-spacing: -0.02em;
 }
 
-.my-project-welcome-status {
-  font-size: 1rem;
-  color: #555555;
-  margin: 0;
-  line-height: 1.5;
-}
-
-.my-project-welcome-icon {
-  color: rgba(26, 123, 123, 0.15);
-  flex-shrink: 0;
-}
-
-/* Your Project Status card */
-.my-project-status-card {
-  margin-bottom: 24px;
-}
-
 .my-project-status-title {
-  font-size: 1.25rem;
+  font-size: 1.125rem;
   font-weight: 700;
   color: #1A1A2E;
   margin: 0 0 4px;
@@ -50,7 +37,12 @@
 .my-project-status-subtitle {
   font-size: 0.875rem;
   color: #555555;
-  margin: 0 0 24px;
+  margin: 0;
+}
+
+.my-project-welcome-icon {
+  color: rgba(26, 123, 123, 0.15);
+  flex-shrink: 0;
 }
 
 /* Timeline – 5 stages with connectors */
@@ -224,9 +216,11 @@
 }
 
 @media (max-width: 768px) {
-  .my-project-welcome {
+  .my-project-status-header {
     flex-direction: column;
     gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
   }
   
   .my-project-welcome-icon {
@@ -234,7 +228,7 @@
   }
   
   .my-project-welcome-title {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
   }
   
   .my-project-status-title {

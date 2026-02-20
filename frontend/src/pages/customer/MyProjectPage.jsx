@@ -101,19 +101,17 @@ export default function MyProjectPage() {
 
   return (
     <div className="my-project-page">
-      <div className="customer-portal-card my-project-welcome">
-        <div className="my-project-welcome-content">
-          <h1 className="my-project-welcome-title">Hello, {firstName}!</h1>
-          <p className="my-project-welcome-status">{statusMessage}</p>
-        </div>
-        <div className="my-project-welcome-icon" aria-hidden>
-          <Zap size={64} strokeWidth={1.5} />
-        </div>
-      </div>
-
       <div className="customer-portal-card my-project-status-card">
-        <h2 className="my-project-status-title">Your Project Status</h2>
-        <p className="my-project-status-subtitle">Project ID: {projectId} • {systemLabel}</p>
+        <div className="my-project-status-header">
+          <div>
+            <h1 className="my-project-welcome-title">Hello, {firstName}!</h1>
+            <h2 className="my-project-status-title">Your Project Status</h2>
+            <p className="my-project-status-subtitle">Project ID: {projectId} • {systemLabel}</p>
+          </div>
+          <div className="my-project-welcome-icon" aria-hidden>
+            <Zap size={48} strokeWidth={1.5} />
+          </div>
+        </div>
         <div className="my-project-timeline">
           {PROJECT_TIMELINE_STAGES.map((stage, index) => {
             const isComplete = index < currentStageIndex;
