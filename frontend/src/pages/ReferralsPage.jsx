@@ -4,9 +4,10 @@
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, TrendingUp, Clock, CheckCircle } from 'lucide-react';
-import { getReferrals, getReferralCounts, getReferrers, markReferralBonusPaid, getReferralSettings, saveReferralSettings } from '../services/api.js';
+import { Users, TrendingUp, Clock, CheckCircle, MoreVertical, ExternalLink } from 'lucide-react';
+import { getReferrals, getReferralCounts, getReferrers, markReferralBonusPaid, getReferralSettings, saveReferralSettings, updateLeadStage } from '../services/api.js';
 import EditReferralSettingsModal from '../components/referrals/EditReferralSettingsModal.jsx';
+import Modal from '../components/common/Modal.jsx';
 import '../styles/ReferralsDashboard.css';
 
 const REFERRAL_STATUSES = {
@@ -56,6 +57,11 @@ export default function ReferralsPage() {
   // Actions
   const [markingPaid, setMarkingPaid] = useState(null);
   const [toast, setToast] = useState('');
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedReferral, setSelectedReferral] = useState(null);
+  const [paymentDate, setPaymentDate] = useState('');
+  const [updatingStage, setUpdatingStage] = useState(null);
+  const [showStatusMenu, setShowStatusMenu] = useState(null);
   
   // Settings
   const [bonusConfig, setBonusConfig] = useState(DEFAULT_BONUS_CONFIG);
@@ -91,6 +97,19 @@ export default function ReferralsPage() {
   useEffect(() => {
     loadReferrals();
   }, [loadReferrals]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showStatusMenu && !event.target.closest('.referrals-actions-menu')) {
+        setShowStatusMenu(null);
+      }
+    };
+    if (showStatusMenu) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [showStatusMenu]);
 
   // Load settings on mount
   useEffect(() => {
@@ -141,12 +160,15 @@ export default function ReferralsPage() {
     }
   };
 
-  const handleMarkBonusPaid = async (referralId) => {
+  const handleMarkBonusPaid = async (referralId, paidAt = null) => {
     try {
       setMarkingPaid(referralId);
-      await markReferralBonusPaid(referralId);
+      await markReferralBonusPaid(referralId, paidAt);
       setToast('Bonus marked as paid successfully');
       setTimeout(() => setToast(''), 3000);
+      setShowPaymentModal(false);
+      setSelectedReferral(null);
+      setPaymentDate('');
       await loadReferrals();
     } catch (err) {
       console.error('Error marking bonus as paid:', err);
@@ -155,6 +177,40 @@ export default function ReferralsPage() {
     } finally {
       setMarkingPaid(null);
     }
+  };
+
+  const handleOpenPaymentModal = (referral) => {
+    setSelectedReferral(referral);
+    setPaymentDate(new Date().toISOString().split('T')[0]); // Today's date
+    setShowPaymentModal(true);
+  };
+
+  const handleUpdateStatus = async (referralId, newStage) => {
+    try {
+      setUpdatingStage(referralId);
+      await updateLeadStage(referralId, newStage);
+      setToast('Status updated successfully');
+      setTimeout(() => setToast(''), 3000);
+      setShowStatusMenu(null);
+      await loadReferrals();
+    } catch (err) {
+      console.error('Error updating status:', err);
+      setToast(err.message || 'Failed to update status');
+      setTimeout(() => setToast(''), 5000);
+    } finally {
+      setUpdatingStage(null);
+    }
+  };
+
+  // Map referral status to lead stage for updating
+  const getStageForStatus = (status) => {
+    const map = {
+      [REFERRAL_STATUSES.PENDING]: 'new',
+      [REFERRAL_STATUSES.IN_PROGRESS]: 'negotiation',
+      [REFERRAL_STATUSES.CONVERTED]: 'closed_won',
+      [REFERRAL_STATUSES.LOST]: 'closed_lost',
+    };
+    return map[status] || null;
   };
 
   const formatCurrency = (amount) => {
@@ -326,18 +382,62 @@ export default function ReferralsPage() {
                       <strong>{formatCurrency(referral.bonusAmount)}</strong>
                     </td>
                     <td>
-                      {referral.status === REFERRAL_STATUSES.CONVERTED && (
-                        <button
-                          className="referrals-pay-link"
-                          onClick={() => handleMarkBonusPaid(referral.id)}
-                          disabled={markingPaid === referral.id}
-                        >
-                          {markingPaid === referral.id ? 'Processing...' : 'Pay Bonus'}
-                        </button>
-                      )}
-                      {referral.status === REFERRAL_STATUSES.BONUS_PAID && (
-                        <span className="referrals-paid-badge">Paid</span>
-                      )}
+                      <div className="referrals-actions">
+                        {referral.status === REFERRAL_STATUSES.CONVERTED && (
+                          <button
+                            className="referrals-pay-link"
+                            onClick={() => handleOpenPaymentModal(referral)}
+                            disabled={markingPaid === referral.id}
+                          >
+                            {markingPaid === referral.id ? 'Processing...' : 'Pay Bonus'}
+                          </button>
+                        )}
+                        {referral.status === REFERRAL_STATUSES.BONUS_PAID && (
+                          <span className="referrals-paid-badge">Paid</span>
+                        )}
+                        <div className="referrals-actions-menu">
+                          <button
+                            className="referrals-menu-btn"
+                            onClick={() => setShowStatusMenu(showStatusMenu === referral.id ? null : referral.id)}
+                            type="button"
+                            aria-label="More actions"
+                          >
+                            <MoreVertical size={16} />
+                          </button>
+                          {showStatusMenu === referral.id && (
+                            <div className="referrals-menu-dropdown">
+                              <button
+                                className="referrals-menu-item"
+                                onClick={() => navigate(`/admin/leads/${referral.id}`)}
+                                type="button"
+                              >
+                                <ExternalLink size={14} />
+                                View Lead
+                              </button>
+                              {referral.status !== REFERRAL_STATUSES.CONVERTED && referral.status !== REFERRAL_STATUSES.BONUS_PAID && (
+                                <button
+                                  className="referrals-menu-item"
+                                  onClick={() => handleUpdateStatus(referral.id, 'closed_won')}
+                                  disabled={updatingStage === referral.id}
+                                  type="button"
+                                >
+                                  Mark as Converted
+                                </button>
+                              )}
+                              {referral.status !== REFERRAL_STATUSES.LOST && (
+                                <button
+                                  className="referrals-menu-item referrals-menu-item-danger"
+                                  onClick={() => handleUpdateStatus(referral.id, 'closed_lost')}
+                                  disabled={updatingStage === referral.id}
+                                  type="button"
+                                >
+                                  Mark as Lost
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -355,6 +455,58 @@ export default function ReferralsPage() {
         onSave={handleSaveSettings}
         saving={savingSettings}
       />
+
+      {/* Payment Modal */}
+      <Modal title="Record Bonus Payment" open={showPaymentModal} onClose={() => {
+        setShowPaymentModal(false);
+        setSelectedReferral(null);
+        setPaymentDate('');
+      }} width={400}>
+        {selectedReferral && (
+          <div className="referrals-payment-modal">
+            <div className="referrals-payment-modal-info">
+              <p><strong>Referrer:</strong> {selectedReferral.referrer?.name || '—'}</p>
+              <p><strong>Referred Customer:</strong> {selectedReferral.customer_name}</p>
+              <p><strong>Bonus Amount:</strong> {formatCurrency(selectedReferral.bonusAmount)}</p>
+            </div>
+            <div className="referrals-payment-modal-field">
+              <label className="referrals-payment-modal-label" htmlFor="payment-date">
+                Payment Date
+              </label>
+              <input
+                id="payment-date"
+                type="date"
+                className="referrals-payment-modal-input"
+                value={paymentDate}
+                onChange={(e) => setPaymentDate(e.target.value)}
+                required
+              />
+            </div>
+            <div className="referrals-payment-modal-actions">
+              <button
+                type="button"
+                className="referrals-payment-modal-cancel"
+                onClick={() => {
+                  setShowPaymentModal(false);
+                  setSelectedReferral(null);
+                  setPaymentDate('');
+                }}
+                disabled={markingPaid === selectedReferral.id}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="referrals-payment-modal-confirm"
+                onClick={() => handleMarkBonusPaid(selectedReferral.id, paymentDate || null)}
+                disabled={markingPaid === selectedReferral.id || !paymentDate}
+              >
+                {markingPaid === selectedReferral.id ? 'Recording...' : 'Record Payment'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

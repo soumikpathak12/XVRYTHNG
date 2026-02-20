@@ -232,6 +232,177 @@
   font-weight: 500;
 }
 
+.referrals-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.referrals-menu-btn {
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.referrals-menu-btn:hover {
+  background: #f1f5f9;
+}
+
+.referrals-actions-menu {
+  position: relative;
+}
+
+.referrals-menu-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  min-width: 180px;
+  z-index: 10;
+  overflow: hidden;
+}
+
+.referrals-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 0.875rem;
+  color: #1A1A2E;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.referrals-menu-item:hover:not(:disabled) {
+  background: #f8fafc;
+}
+
+.referrals-menu-item:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.referrals-menu-item-danger {
+  color: #DC3545;
+}
+
+.referrals-menu-item-danger:hover:not(:disabled) {
+  background: #fff5f5;
+}
+
+/* Payment Modal */
+.referrals-payment-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.referrals-payment-modal-info {
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.referrals-payment-modal-info p {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: #1A1A2E;
+}
+
+.referrals-payment-modal-info strong {
+  color: #1A1A2E;
+  font-weight: 600;
+}
+
+.referrals-payment-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.referrals-payment-modal-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1A1A2E;
+}
+
+.referrals-payment-modal-input {
+  padding: 10px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.9375rem;
+  color: #1A1A2E;
+  background: #fff;
+  transition: border-color 0.2s;
+}
+
+.referrals-payment-modal-input:focus {
+  outline: none;
+  border-color: #1A7B7B;
+  box-shadow: 0 0 0 2px rgba(26, 123, 123, 0.15);
+}
+
+.referrals-payment-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.referrals-payment-modal-cancel,
+.referrals-payment-modal-confirm {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  border: none;
+}
+
+.referrals-payment-modal-cancel {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.referrals-payment-modal-cancel:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.referrals-payment-modal-confirm {
+  background: #1A7B7B;
+  color: #fff;
+}
+
+.referrals-payment-modal-confirm:hover:not(:disabled) {
+  background: #4DB8A8;
+}
+
+.referrals-payment-modal-cancel:disabled,
+.referrals-payment-modal-confirm:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 @media (max-width: 1200px) {
   .referrals-stats {
     grid-template-columns: repeat(2, 1fr);
