@@ -1,0 +1,189 @@
+/* My Project page – welcome, timeline, details */
+.my-project-page {
+  max-width: 900px;
+}
+
+.my-project-welcome {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.my-project-welcome-content {
+  flex: 1;
+}
+
+.my-project-welcome-title {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 8px;
+  letter-spacing: -0.02em;
+}
+
+.my-project-welcome-status {
+  font-size: 1rem;
+  color: #475569;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.my-project-welcome-icon {
+  color: rgba(26, 123, 123, 0.15);
+  flex-shrink: 0;
+}
+
+/* Timeline */
+.my-project-timeline {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.my-project-timeline-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  position: relative;
+  min-width: 100px;
+}
+
+.my-project-timeline-step-marker {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: 700;
+  background: #e2e8f0;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+.my-project-timeline-step.complete .my-project-timeline-step-marker {
+  background: #1A7B7B;
+  color: #fff;
+}
+
+.my-project-timeline-step.current .my-project-timeline-step-marker {
+  background: #fff;
+  color: #1A7B7B;
+  border: 2px solid #1A7B7B;
+}
+
+.my-project-timeline-check {
+  font-size: 1rem;
+}
+
+.my-project-timeline-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #64748b;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.my-project-timeline-step.complete .my-project-timeline-label,
+.my-project-timeline-step.current .my-project-timeline-label {
+  color: #0f172a;
+}
+
+.my-project-timeline-connector {
+  position: absolute;
+  top: 18px;
+  left: calc(50% + 50px);
+  width: calc(100px - 36px - 20px);
+  height: 2px;
+  background: #e2e8f0;
+}
+
+.my-project-timeline-step.complete .my-project-timeline-connector {
+  background: #1A7B7B;
+}
+
+/* Details row – 3 cards */
+.my-project-details-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 24px;
+}
+
+.my-project-detail-card {
+  margin-bottom: 0;
+}
+
+.my-project-detail-card-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 16px;
+}
+
+.my-project-system-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.my-project-system-item:last-child {
+  margin-bottom: 0;
+}
+
+.my-project-system-icon {
+  color: #1A7B7B;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.my-project-system-value {
+  display: block;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.my-project-system-desc {
+  display: block;
+  font-size: 0.8125rem;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.my-project-date-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.my-project-date-row:last-child {
+  border-bottom: none;
+}
+
+.my-project-date-label {
+  font-size: 0.875rem;
+  color: #475569;
+}
+
+.my-project-date-value {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.my-project-support-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.my-project-message-btn {
+  margin-top: auto;
+}

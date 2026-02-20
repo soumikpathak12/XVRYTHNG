@@ -1,4 +1,5 @@
 import * as leadService from '../services/leadService.js';
+import * as customerCredentialsService from '../services/customerCredentialsService.js';
 
 const STAGES = [
   'new',
@@ -392,6 +393,45 @@ export async function listLeadNotes(req, res) {
     return res.status(status).json({
       success: false,
       message: err.message ?? 'Failed to load notes.',
+    });
+  }
+}
+
+/** -------------------- SEND CUSTOMER CREDENTIALS (Closed Won only) -------------------- */
+export async function sendCustomerCredentials(req, res) {
+  try {
+    const leadId = req.params.id;
+    const result = await leadService.getLeadById(leadId);
+    const lead = result.lead;
+    if (!lead) return res.status(404).json({ success: false, message: 'Lead not found.' });
+    if (lead.stage !== 'closed_won') {
+      return res.status(400).json({ success: false, message: 'Only leads in Closed Won stage can receive portal credentials.' });
+    }
+    const email = lead.email && String(lead.email).trim();
+    if (!email || !EMAIL_RE.test(email)) {
+      return res.status(400).json({ success: false, message: 'Lead must have a valid email address.' });
+    }
+
+    const customerName = lead.customer_name && String(lead.customer_name).trim() || null;
+    const linkToken = customerCredentialsService.createLinkToken(email, { leadId: lead.id, customerName });
+    const portalBaseUrl = process.env.PORTAL_BASE_URL || process.env.APP_BASE_URL || 'http://localhost:5173';
+    const loginUrl = `${portalBaseUrl}/portal/login?token=${linkToken}`;
+    await customerCredentialsService.sendPortalLinkEmail({
+      to: email,
+      customerName,
+      loginUrl,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Portal link sent to customer.',
+      email,
+    });
+  } catch (err) {
+    console.error('Send customer credentials error:', err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to send credentials.',
     });
   }
 }

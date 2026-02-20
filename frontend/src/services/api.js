@@ -14,6 +14,110 @@ export function setAuthToken(token) {
   else localStorage.removeItem('xvrythng_token');
 }
 
+/* ---------- Customer portal (simulated OTP login) ---------- */
+const CUSTOMER_CREDENTIALS_KEY = 'xvrythng_customer_credentials';
+
+export function getCustomerToken() {
+  return localStorage.getItem('xvrythng_customer_token');
+}
+
+export function setCustomerToken(token) {
+  if (token) localStorage.setItem('xvrythng_customer_token', token);
+  else localStorage.removeItem('xvrythng_customer_token');
+}
+
+/** Store sent credentials for a lead (simulated). Called when staff sends credentials. */
+export function saveCustomerCredentials(email, { leadId, otp, customerName }) {
+  const raw = localStorage.getItem(CUSTOMER_CREDENTIALS_KEY);
+  const map = raw ? JSON.parse(raw) : {};
+  map[email.toLowerCase().trim()] = { leadId, otp: String(otp), customerName };
+  localStorage.setItem(CUSTOMER_CREDENTIALS_KEY, JSON.stringify(map));
+}
+
+export function getCustomerCredentials(email) {
+  const raw = localStorage.getItem(CUSTOMER_CREDENTIALS_KEY);
+  const map = raw ? JSON.parse(raw) : {};
+  return map[email.toLowerCase().trim()] || null;
+}
+
+/**
+ * GET /api/customer/verify-link?token= – validate link token, returns { valid, email?, customerName? }.
+ */
+export async function customerVerifyLink(token) {
+  const res = await fetch(`${BASE}/api/customer/verify-link?token=${encodeURIComponent(token)}`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Invalid link');
+  return data;
+}
+
+/**
+ * POST /api/customer/request-otp – send OTP to email (requires token from link).
+ */
+export async function customerRequestOtp(email, token) {
+  const res = await fetch(`${BASE}/api/customer/request-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: String(email).trim(), token: token || undefined }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Could not send OTP');
+  return data;
+}
+
+/**
+ * POST /api/customer/login – verify OTP with backend, returns { success, token, user }.
+ */
+export async function customerLoginApi(email, otp) {
+  const res = await fetch(`${BASE}/api/customer/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: String(email).trim(), otp: String(otp).trim() }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Invalid or expired OTP.');
+  return data;
+}
+
+/** Fallback: simulated customer login from localStorage (when backend OTP not used). */
+export function customerLoginLocal(email, otp) {
+  const creds = getCustomerCredentials(email);
+  if (!creds) throw new Error('No credentials found for this email. Ask your project team to send you a login link.');
+  if (String(otp).trim() !== creds.otp) throw new Error('Invalid OTP. Please check the code sent to your email.');
+  const token = 'customer_' + creds.leadId + '_' + Date.now();
+  const user = {
+    role: 'customer',
+    email: email.trim(),
+    name: creds.customerName || email,
+    leadId: creds.leadId,
+  };
+  setCustomerToken(token);
+  localStorage.setItem('xvrythng_customer_user', JSON.stringify(user));
+  return { success: true, token, user };
+}
+
+const CUSTOMER_PROJECT_PREFIX = 'xvrythng_customer_project_';
+
+/** Store project/lead snapshot for customer view (when staff sends credentials). */
+export function saveCustomerProjectSnapshot(leadId, lead) {
+  localStorage.setItem(
+    CUSTOMER_PROJECT_PREFIX + leadId,
+    JSON.stringify({
+      customer_name: lead.customer_name,
+      email: lead.email,
+      suburb: lead.suburb,
+      system_size_kw: lead.system_size_kw,
+      value_amount: lead.value_amount,
+      site_inspection_date: lead.site_inspection_date,
+      stage: lead.stage,
+    })
+  );
+}
+
+export function getCustomerProjectSnapshot(leadId) {
+  const raw = localStorage.getItem(CUSTOMER_PROJECT_PREFIX + leadId);
+  return raw ? JSON.parse(raw) : null;
+}
+
 /** Clear auth storage and notify app that session timed out (8h). */
 function clearSessionAndNotify(data = {}) {
   localStorage.removeItem('xvrythng_token');
@@ -593,6 +697,21 @@ export async function getLead(id) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message || 'Lead not found');
   return data; // { success: true, lead, activities, documents, communications }
+}
+
+/**
+ * POST /api/leads/:id/send-customer-credentials – send OTP email via Resend (or log in dev).
+ * Returns { success, message, email, otp? } (otp only in dev).
+ */
+export async function sendCustomerCredentials(leadId) {
+  const res = await authFetch(`/api/leads/${encodeURIComponent(leadId)}/send-customer-credentials`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Failed to send credentials');
+  return data;
 }
 
 /**

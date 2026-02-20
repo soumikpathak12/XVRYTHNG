@@ -31,6 +31,16 @@ function loadStoredPermissions() {
   }
 }
 
+function loadStoredCustomerUser() {
+  try {
+    const raw = localStorage.getItem('xvrythng_customer_user');
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     const raw = localStorage.getItem('xvrythng_user');
@@ -41,6 +51,7 @@ export function AuthProvider({ children }) {
       return null;
     }
   });
+  const [customerUser, setCustomerUser] = useState(loadStoredCustomerUser);
   const [permissions, setPermissions] = useState(loadStoredPermissions);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -80,6 +91,31 @@ export function AuthProvider({ children }) {
     setPermissions([]);
     setError(null);
     setSessionExpiredMessage(null);
+  }, []);
+
+  const customerLogin = useCallback(async (email, otp) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api.customerLoginApi(email, otp);
+      if (!data.success || !data.user) throw new Error('Invalid login');
+      api.setCustomerToken(data.token);
+      localStorage.setItem('xvrythng_customer_user', JSON.stringify(data.user));
+      setCustomerUser(data.user);
+      return data;
+    } catch (err) {
+      setError(err.message || 'Login failed');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const customerLogout = useCallback(() => {
+    api.setCustomerToken(null);
+    localStorage.removeItem('xvrythng_customer_user');
+    setCustomerUser(null);
+    setError(null);
   }, []);
 
   const can = useCallback((resource, action) => {
@@ -143,6 +179,7 @@ export function AuthProvider({ children }) {
 
   const value = {
     user,
+    customerUser,
     permissions,
     can,
     refreshPermissions,
@@ -152,7 +189,10 @@ export function AuthProvider({ children }) {
     clearSessionExpiredMessage: useCallback(() => setSessionExpiredMessage(null), []),
     login,
     logout,
+    customerLogin,
+    customerLogout,
     isAuthenticated: !!user,
+    isCustomerAuthenticated: !!customerUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,13 +1,14 @@
 // pages/LeadDetailPage.jsx – full-page lead detail (not a popup)
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getLead, updateLead, updateLeadStage } from '../services/api.js';
+import { getLead, updateLead, updateLeadStage, sendCustomerCredentials as sendCustomerCredentialsApi, saveCustomerProjectSnapshot } from '../services/api.js';
 import { colorForStage } from '../components/leads/theme.js';
 import LeadDetailDetails from '../components/leads/LeadDetailDetails.jsx';
 import LeadDetailActivity from '../components/leads/LeadDetailActivity.jsx';
 import LeadDetailDocuments from '../components/leads/LeadDetailDocuments.jsx';
 import LeadDetailCommunications from '../components/leads/LeadDetailCommunications.jsx';
 import LeadDetailSolarQuotes from '../components/leads/LeadDetailSolarQuotes.jsx';
+import CredentialsSentModal from '../components/leads/CredentialsSentModal.jsx';
 import '../styles/LeadDetailModal.css';
 
 const STAGE_LABELS = {
@@ -29,6 +30,8 @@ export default function LeadDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('details');
+  const [credentialsSent, setCredentialsSent] = useState(null); // { email, otp } after send
+  const [sendingCredentials, setSendingCredentials] = useState(false);
 
   const loadLead = useCallback(async () => {
     if (!leadId) return;
@@ -79,6 +82,22 @@ export default function LeadDetailPage() {
 
   const handleBack = () => navigate('/admin/leads');
 
+  const handleSendCredentials = useCallback(async () => {
+    const leadObj = data?.lead;
+    if (!leadObj?.email || !leadObj.customer_name) return;
+    setSendingCredentials(true);
+    setError('');
+    try {
+      const res = await sendCustomerCredentialsApi(leadId);
+      saveCustomerProjectSnapshot(leadObj.id, leadObj);
+      setCredentialsSent({ email: res.email || leadObj.email });
+    } catch (err) {
+      setError(err.message || 'Failed to send credentials');
+    } finally {
+      setSendingCredentials(false);
+    }
+  }, [data, leadId]);
+
   const lead = data?.lead;
   const stageLabel = lead ? (STAGE_LABELS[lead.stage] || lead.stage) : '';
   const sourceLabel = lead?.source || '—';
@@ -117,6 +136,16 @@ export default function LeadDetailPage() {
               </div>
 
               <div className="lead-detail-actions">
+                {lead.stage === 'closed_won' && (
+                  <button
+                    type="button"
+                    className="lead-detail-btn primary"
+                    onClick={handleSendCredentials}
+                    disabled={sendingCredentials || !lead.email}
+                  >
+                    {sendingCredentials ? 'Sending…' : 'Send Credentials'}
+                  </button>
+                )}
                 <button type="button" className="lead-detail-btn primary">Schedule Inspection</button>
                 <button type="button" className="lead-detail-btn secondary">Create Proposal</button>
                 {lead.stage !== 'closed_lost' && (
@@ -128,6 +157,14 @@ export default function LeadDetailPage() {
             </div>
           ) : null}
         </header>
+
+        {credentialsSent && (
+          <CredentialsSentModal
+            open={!!credentialsSent}
+            onClose={() => setCredentialsSent(null)}
+            email={credentialsSent.email}
+          />
+        )}
 
         {lead && (
           <>

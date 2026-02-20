@@ -22,6 +22,10 @@ import LeadsPage from './pages/LeadsPage.jsx';
 import LeadDetailPage from './pages/LeadDetailPage.jsx';
 import LeadsCalendarPage from './pages/admin/LeadsCalendarPage.jsx';
 import MessagesPage from './pages/MessagesPage.jsx';
+import CustomerLoginPage from './pages/customer/CustomerLoginPage.jsx';
+import CustomerPortalLayout from './pages/customer/CustomerPortalLayout.jsx';
+import MyProjectPage from './pages/customer/MyProjectPage.jsx';
+import ReferralsPage from './pages/customer/ReferralsPage.jsx';
 
 function PlaceholderPage({ title, message, children }) {
   return (
@@ -100,6 +104,13 @@ function RequireAuth({ children }) {
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return children;
+}
+
+/** Protects customer portal: must be customer-authenticated. */
+function RequireCustomerAuth({ children }) {
+  const { isCustomerAuthenticated } = useAuth();
+  if (!isCustomerAuthenticated) return <Navigate to="/portal/login" replace />;
   return children;
 }
 
@@ -186,6 +197,20 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* CUSTOMER PORTAL: magic-link style login (email + OTP), then My Project + Referrals */}
+        <Route path="/portal/login" element={<CustomerLoginPage />} />
+        <Route
+          path="/portal"
+          element={
+            <RequireCustomerAuth>
+              <CustomerPortalLayout />
+            </RequireCustomerAuth>
+          }
+        >
+          <Route index element={<MyProjectPage />} />
+          <Route path="referrals" element={<ReferralsPage />} />
+        </Route>
 
         {/* CATCH-ALL: send unknown routes to login (public) */}
         <Route path="*" element={<Navigate to="/login" replace />} />
