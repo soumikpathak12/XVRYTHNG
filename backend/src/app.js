@@ -37,6 +37,31 @@ app.use('/uploads', express.static(uploadsDir));
 
 app.get('/health', (_, res) => res.status(200).json({ status: 'ok' }));
 
+// Dev-only: get a customer portal test link (no auth). Open in browser: /api/dev/portal-test-link?leadId=69
+if (process.env.NODE_ENV === 'development') {
+  const leadService = await import('./services/leadService.js').then(m => m.default);
+  const customerCredentialsService = await import('./services/customerCredentialsService.js');
+  app.get('/api/dev/portal-test-link', async (req, res) => {
+    try {
+      const leadId = req.query.leadId || req.query.lead_id || '69';
+      const result = await leadService.getLeadById(leadId);
+      const lead = result.lead;
+      if (!lead || !lead.email) {
+        return res.status(400).json({ success: false, message: 'Lead not found or has no email.', leadId });
+      }
+      const linkToken = customerCredentialsService.createLinkToken(lead.email, {
+        leadId: lead.id,
+        customerName: lead.customer_name || null,
+      });
+      const base = process.env.PORTAL_BASE_URL || process.env.APP_BASE_URL || 'http://localhost:5173';
+      const loginUrl = `${base}/portal/login?token=${linkToken}`;
+      return res.status(200).json({ success: true, loginUrl, email: lead.email });
+    } catch (err) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+}
+
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/users', userRoutes);

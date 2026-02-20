@@ -1,12 +1,15 @@
 /**
  * Customer portal layout: sidebar (Referrals, My Project) + main content.
- * Only shown when customer is authenticated.
+ * Collapse/expand matches main CRM (fixed sidebar, marginLeft on main, chevrons).
  */
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { Zap, Briefcase, User, LogOut } from 'lucide-react';
+import { Zap, Briefcase, User, LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
 import '../../styles/CustomerPortal.css';
+
+const SIDEBAR_WIDTH = 280;
+const SIDEBAR_WIDTH_COLLAPSED = 80;
 
 export default function CustomerPortalLayout() {
   const { customerUser, customerLogout } = useAuth();
@@ -24,7 +27,22 @@ export default function CustomerPortalLayout() {
 
   return (
     <div className="customer-portal">
-      <aside className={`customer-portal-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
+      <aside
+        className={`customer-portal-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}
+        style={{
+          width: sidebarCollapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH,
+          transition: 'width .2s ease',
+        }}
+      >
+        <button
+          type="button"
+          className="customer-portal-collapse-top"
+          onClick={() => setSidebarCollapsed((c) => !c)}
+          aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          title={sidebarCollapsed ? 'Expand' : 'Collapse'}
+        >
+          {sidebarCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+        </button>
         <div className="customer-portal-sidebar-nav">
           <NavLink to="/portal/referrals" className={({ isActive }) => 'customer-portal-nav-item' + (isActive ? ' active' : '')}>
             <Zap className="customer-portal-nav-icon" size={20} />
@@ -40,8 +58,9 @@ export default function CustomerPortalLayout() {
             <User className="customer-portal-user-icon" size={20} />
             {!sidebarCollapsed && <span>{firstName}</span>}
           </div>
-          <button type="button" className="customer-portal-collapse" onClick={() => setSidebarCollapsed((c) => !c)}>
-            {sidebarCollapsed ? 'Expand' : 'Collapse'}
+          <button type="button" className="customer-portal-collapse" onClick={() => setSidebarCollapsed((c) => !c)} aria-label={sidebarCollapsed ? 'Expand' : 'Collapse'}>
+            {sidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+            {!sidebarCollapsed && <span>Collapse</span>}
           </button>
           <button type="button" className="customer-portal-logout" onClick={handleLogout}>
             <LogOut size={18} />
@@ -49,7 +68,13 @@ export default function CustomerPortalLayout() {
           </button>
         </div>
       </aside>
-      <main className="customer-portal-main">
+      <main
+        className="customer-portal-main"
+        style={{
+          marginLeft: sidebarCollapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH,
+          transition: 'margin-left .2s ease',
+        }}
+      >
         <Outlet />
       </main>
     </div>

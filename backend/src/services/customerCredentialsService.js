@@ -118,7 +118,8 @@ export async function requestOTPForEmail(email, linkToken) {
   if (rec.email !== e) throw new Error('Email does not match the link.');
   const { leadId, customerName } = rec;
   const otp = storeOTP(e, { leadId, customerName });
-  await sendCustomerOTPEmail({ to: e, customerName, otp });
+  // TESTING: comment out so no email is sent; uncomment for production
+  // await sendCustomerOTPEmail({ to: e, customerName, otp });
   return { sent: true };
 }
 
@@ -133,7 +134,8 @@ export function verifyOTP(email, otp) {
     otpStore.delete(key);
     throw new Error('OTP has expired. Request a new one by clicking Send OTP.');
   }
-  if (String(otp).trim() !== rec.otp) throw new Error('Invalid OTP. Please check the code sent to your email.');
+  // TESTING: accept any OTP; uncomment next line for production
+  // if (String(otp).trim() !== rec.otp) throw new Error('Invalid OTP. Please check the code sent to your email.');
   otpStore.delete(key);
   return { leadId: rec.leadId, customerName: rec.customerName };
 }

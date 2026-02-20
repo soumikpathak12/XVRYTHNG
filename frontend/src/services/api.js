@@ -78,6 +78,30 @@ export async function customerLoginApi(email, otp) {
   return data;
 }
 
+/**
+ * POST /api/customer/submit-referral – submit a referral (creates lead in CRM, NEW stage, source=referral).
+ * Requires customer token. Body: { friendName, friendEmail, friendPhone }.
+ */
+export async function submitReferralApi(payload) {
+  const token = getCustomerToken();
+  if (!token) throw new Error('Please sign in to submit a referral.');
+  const res = await fetch(`${BASE}/api/customer/submit-referral`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      friendName: String(payload.friendName ?? '').trim(),
+      friendEmail: String(payload.friendEmail ?? '').trim(),
+      friendPhone: String(payload.friendPhone ?? '').trim(),
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Failed to submit referral');
+  return data;
+}
+
 /** Fallback: simulated customer login from localStorage (when backend OTP not used). */
 export function customerLoginLocal(email, otp) {
   const creds = getCustomerCredentials(email);
@@ -697,6 +721,17 @@ export async function getLead(id) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message || 'Lead not found');
   return data; // { success: true, lead, activities, documents, communications }
+}
+
+/**
+ * GET /api/leads/:id/customer-portal-test-link – create a portal login link for testing (no email sent).
+ * Returns { success, loginUrl, email, message }.
+ */
+export async function getCustomerPortalTestLink(leadId) {
+  const res = await authFetch(`/api/leads/${encodeURIComponent(leadId)}/customer-portal-test-link`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Failed to get test link');
+  return data;
 }
 
 /**

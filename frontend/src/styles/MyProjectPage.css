@@ -1,6 +1,7 @@
-/* My Project page – welcome, timeline, details */
+/* My Project page – welcome, timeline, details (full width) */
 .my-project-page {
-  max-width: 900px;
+  width: 100%;
+  max-width: none;
 }
 
 .my-project-welcome {
@@ -34,13 +35,32 @@
   flex-shrink: 0;
 }
 
-/* Timeline */
+/* Your Project Status card */
+.my-project-status-card {
+  margin-bottom: 24px;
+}
+
+.my-project-status-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 4px;
+}
+
+.my-project-status-subtitle {
+  font-size: 0.875rem;
+  color: #64748b;
+  margin: 0 0 24px;
+}
+
+/* Timeline – 5 stages with connectors */
 .my-project-timeline {
   display: flex;
   align-items: flex-start;
   gap: 0;
   overflow-x: auto;
-  padding-bottom: 8px;
+  padding-bottom: 24px;
+  justify-content: space-between;
 }
 
 .my-project-timeline-step {
@@ -49,17 +69,19 @@
   align-items: center;
   flex-shrink: 0;
   position: relative;
-  min-width: 100px;
+  flex: 1;
+  min-width: 0;
+  max-width: 140px;
 }
 
 .my-project-timeline-step-marker {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
   font-weight: 700;
   background: #e2e8f0;
   color: #64748b;
@@ -67,22 +89,21 @@
 }
 
 .my-project-timeline-step.complete .my-project-timeline-step-marker {
-  background: #1A7B7B;
+  background: #334155;
   color: #fff;
 }
 
 .my-project-timeline-step.current .my-project-timeline-step-marker {
-  background: #fff;
-  color: #1A7B7B;
-  border: 2px solid #1A7B7B;
+  background: #334155;
+  color: #fff;
 }
 
 .my-project-timeline-check {
-  font-size: 1rem;
+  flex-shrink: 0;
 }
 
 .my-project-timeline-label {
-  font-size: 0.6875rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: #64748b;
   text-align: center;
@@ -94,24 +115,100 @@
   color: #0f172a;
 }
 
+.my-project-timeline-date {
+  display: block;
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 2px;
+  text-align: center;
+}
+
+.my-project-timeline-badge {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 4px 10px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  border-radius: 6px;
+  background: #334155;
+  color: #fff;
+}
+
+.my-project-timeline-badge-pending {
+  background: #e2e8f0;
+  color: #475569;
+}
+
 .my-project-timeline-connector {
   position: absolute;
-  top: 18px;
-  left: calc(50% + 50px);
-  width: calc(100px - 36px - 20px);
+  top: 20px;
+  left: calc(50% + 24px);
+  width: calc(100% - 24px);
   height: 2px;
   background: #e2e8f0;
+  pointer-events: none;
 }
 
-.my-project-timeline-step.complete .my-project-timeline-connector {
-  background: #1A7B7B;
+.my-project-timeline-connector.complete {
+  background: #334155;
 }
 
-/* Details row – 3 cards */
+/* Status update box below timeline */
+.my-project-status-update {
+  display: flex;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.my-project-status-update-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.my-project-status-update-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.my-project-status-update-heading {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 8px;
+}
+
+.my-project-status-update-body {
+  font-size: 0.9375rem;
+  color: #475569;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.my-project-status-update-body strong {
+  color: #0f172a;
+}
+
+/* Details row – 3 cards, fill available width */
 .my-project-details-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 24px;
+}
+
+@media (max-width: 900px) {
+  .my-project-details-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .my-project-detail-card {

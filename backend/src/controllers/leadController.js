@@ -397,6 +397,40 @@ export async function listLeadNotes(req, res) {
   }
 }
 
+/** -------------------- CUSTOMER PORTAL TEST LINK (no email sent) -------------------- */
+export async function getCustomerPortalTestLink(req, res) {
+  try {
+    const rawId = req.params.id ?? req.query.leadId ?? req.body?.leadId;
+    const leadId = rawId != null ? String(rawId) : null;
+    if (!leadId || !leadId.trim()) {
+      return res.status(400).json({ success: false, message: 'leadId is required (param or query).' });
+    }
+    const result = await leadService.getLeadById(leadId.trim());
+    const lead = result.lead;
+    if (!lead) return res.status(404).json({ success: false, message: 'Lead not found.' });
+    const email = lead.email && String(lead.email).trim();
+    if (!email || !EMAIL_RE.test(email)) {
+      return res.status(400).json({ success: false, message: 'Lead must have a valid email address.' });
+    }
+    const customerName = lead.customer_name && String(lead.customer_name).trim() || null;
+    const linkToken = customerCredentialsService.createLinkToken(email, { leadId: lead.id, customerName });
+    const portalBaseUrl = process.env.PORTAL_BASE_URL || process.env.APP_BASE_URL || 'http://localhost:5173';
+    const loginUrl = `${portalBaseUrl}/portal/login?token=${linkToken}`;
+    return res.status(200).json({
+      success: true,
+      loginUrl,
+      email,
+      message: 'Test link created (valid 7 days). No email sent.',
+    });
+  } catch (err) {
+    console.error('Customer portal test link error:', err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to create test link.',
+    });
+  }
+}
+
 /** -------------------- SEND CUSTOMER CREDENTIALS (Closed Won only) -------------------- */
 export async function sendCustomerCredentials(req, res) {
   try {
@@ -426,6 +460,7 @@ export async function sendCustomerCredentials(req, res) {
       success: true,
       message: 'Portal link sent to customer.',
       email,
+      loginUrl, // so staff can copy link for testing
     });
   } catch (err) {
     console.error('Send customer credentials error:', err);

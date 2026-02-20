@@ -190,6 +190,37 @@
   color: #166534;
 }
 
+.lead-detail-referred-by {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 28px;
+  background: #f0fdfa;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 0.875rem;
+}
+
+.lead-detail-referred-by-label {
+  font-weight: 600;
+  color: #64748b;
+}
+
+.lead-detail-referred-by-value {
+  color: #0f172a;
+}
+
+.lead-detail-referred-by-link {
+  margin-left: auto;
+  color: #0d9488;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.lead-detail-referred-by-link:hover {
+  text-decoration: underline;
+}
+
 .lead-detail-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));

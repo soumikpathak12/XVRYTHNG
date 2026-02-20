@@ -1,41 +1,72 @@
-/* Customer portal – brand theme, sidebar + main */
+/* Customer portal – brand theme, sidebar + main (collapse/expand like main CRM) */
 .customer-portal {
   display: flex;
   min-height: 100vh;
   background: #f1f5f9;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  overflow: hidden;
 }
 
 .customer-portal-sidebar {
-  width: 240px;
   flex-shrink: 0;
   background: #fff;
   border-right: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
-  transition: width 0.2s ease;
+  height: 100vh;
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 40;
+  padding: 16px 12px;
+  box-sizing: border-box;
 }
 
-.customer-portal-sidebar.collapsed {
-  width: 72px;
+.customer-portal-collapse-top {
+  align-self: flex-start;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: #f1f5f9;
+  color: #475569;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.customer-portal-collapse-top:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.customer-portal-sidebar.collapsed .customer-portal-collapse-top {
+  align-self: center;
+  margin-left: 0;
 }
 
 .customer-portal-sidebar-nav {
-  padding: 24px 0;
+  padding: 8px 0 16px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .customer-portal-nav-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 24px;
-  color: #64748b;
+  padding: 10px 12px;
+  color: #556070;
   text-decoration: none;
   font-size: 0.9375rem;
-  font-weight: 500;
+  font-weight: 600;
+  border-radius: 14px;
   transition: background 0.15s, color 0.15s;
 }
 
@@ -45,8 +76,9 @@
 }
 
 .customer-portal-nav-item.active {
-  background: rgba(26, 123, 123, 0.1);
-  color: #1A7B7B;
+  background: #146b6b;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(20, 107, 107, 0.25);
 }
 
 .customer-portal-nav-icon {
@@ -54,7 +86,7 @@
 }
 
 .customer-portal-sidebar.collapsed .customer-portal-nav-item {
-  padding: 12px;
+  padding: 10px 12px;
   justify-content: center;
 }
 
@@ -90,8 +122,9 @@
   background: none;
   color: #64748b;
   font-size: 0.8125rem;
+  font-weight: 600;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 14px;
   transition: background 0.15s, color 0.15s;
 }
 
@@ -107,11 +140,18 @@
   display: none;
 }
 
+.customer-portal-sidebar.collapsed .customer-portal-collapse,
+.customer-portal-sidebar.collapsed .customer-portal-logout {
+  justify-content: center;
+}
+
 .customer-portal-main {
   flex: 1;
   min-width: 0;
   padding: 28px;
   overflow-y: auto;
+  min-height: 100vh;
+  box-sizing: border-box;
 }
 
 /* Cards */

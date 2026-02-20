@@ -1,7 +1,7 @@
 // pages/LeadDetailPage.jsx – full-page lead detail (not a popup)
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { getLead, updateLead, updateLeadStage, sendCustomerCredentials as sendCustomerCredentialsApi, saveCustomerProjectSnapshot } from '../services/api.js';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { getLead, updateLead, updateLeadStage, sendCustomerCredentials as sendCustomerCredentialsApi, getCustomerPortalTestLink, saveCustomerProjectSnapshot } from '../services/api.js';
 import { colorForStage } from '../components/leads/theme.js';
 import LeadDetailDetails from '../components/leads/LeadDetailDetails.jsx';
 import LeadDetailActivity from '../components/leads/LeadDetailActivity.jsx';
@@ -30,8 +30,9 @@ export default function LeadDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('details');
-  const [credentialsSent, setCredentialsSent] = useState(null); // { email, otp } after send
+  const [credentialsSent, setCredentialsSent] = useState(null); // { email, loginUrl?, isTestLink? } after send or get test link
   const [sendingCredentials, setSendingCredentials] = useState(false);
+  const [loadingTestLink, setLoadingTestLink] = useState(false);
 
   const loadLead = useCallback(async () => {
     if (!leadId) return;
@@ -41,6 +42,7 @@ export default function LeadDetailPage() {
       const res = await getLead(leadId);
       setData({
         lead: res.lead,
+        referredBy: res.referredBy || null,
         activities: res.activities || [],
         documents: res.documents || [],
         communications: res.communications || [],
@@ -90,7 +92,7 @@ export default function LeadDetailPage() {
     try {
       const res = await sendCustomerCredentialsApi(leadId);
       saveCustomerProjectSnapshot(leadObj.id, leadObj);
-      setCredentialsSent({ email: res.email || leadObj.email });
+      setCredentialsSent({ email: res.email || leadObj.email, loginUrl: res.loginUrl });
     } catch (err) {
       setError(err.message || 'Failed to send credentials');
     } finally {
@@ -98,7 +100,26 @@ export default function LeadDetailPage() {
     }
   }, [data, leadId]);
 
+  const handleGetTestLink = useCallback(async () => {
+    const leadObj = data?.lead;
+    if (!leadObj?.email) {
+      setError('Lead must have an email address.');
+      return;
+    }
+    setLoadingTestLink(true);
+    setError('');
+    try {
+      const res = await getCustomerPortalTestLink(leadId);
+      setCredentialsSent({ email: res.email || leadObj.email, loginUrl: res.loginUrl, isTestLink: true });
+    } catch (err) {
+      setError(err.message || 'Failed to get test link');
+    } finally {
+      setLoadingTestLink(false);
+    }
+  }, [data, leadId]);
+
   const lead = data?.lead;
+  const referredBy = data?.referredBy;
   const stageLabel = lead ? (STAGE_LABELS[lead.stage] || lead.stage) : '';
   const sourceLabel = lead?.source || '—';
 
@@ -136,6 +157,16 @@ export default function LeadDetailPage() {
               </div>
 
               <div className="lead-detail-actions">
+                {lead.email && (
+                  <button
+                    type="button"
+                    className="lead-detail-btn secondary"
+                    onClick={handleGetTestLink}
+                    disabled={loadingTestLink}
+                  >
+                    {loadingTestLink ? '…' : 'Get test link'}
+                  </button>
+                )}
                 {lead.stage === 'closed_won' && (
                   <button
                     type="button"
@@ -163,11 +194,23 @@ export default function LeadDetailPage() {
             open={!!credentialsSent}
             onClose={() => setCredentialsSent(null)}
             email={credentialsSent.email}
+            loginUrl={credentialsSent.loginUrl}
+            isTestLink={credentialsSent.isTestLink}
           />
         )}
 
         {lead && (
           <>
+            {referredBy && (
+              <div className="lead-detail-referred-by">
+                <span className="lead-detail-referred-by-label">Referred by</span>
+                <span className="lead-detail-referred-by-value">
+                  {referredBy.customer_name}
+                  {referredBy.email ? ` (${referredBy.email})` : ''}
+                </span>
+                <Link to={`/admin/leads/${referredBy.id}`} className="lead-detail-referred-by-link">View referrer</Link>
+              </div>
+            )}
             <div className="lead-detail-cards">
               <div className="lead-detail-card">
                 <span className="lead-detail-card-label">Location</span>
