@@ -1,5 +1,6 @@
 /**
- * Customer portal login: open link from email → email pre-filled → Send OTP → enter OTP → Sign in.
+ * Customer portal login: email → Send OTP → enter OTP → Sign in.
+ * Supports both magic link flow (with token) and direct email entry.
  */
 import { useState, useEffect } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
@@ -14,16 +15,18 @@ export default function CustomerLoginPage() {
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [linkToken, setLinkToken] = useState(tokenFromUrl || null);
-  const [linkValid, setLinkValid] = useState(null); // null = checking, true = valid, false = invalid
+  const [linkValid, setLinkValid] = useState(null); // null = checking, true = valid, false = invalid (or no token)
   const [otpSent, setOtpSent] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
   const [localError, setLocalError] = useState('');
 
   useEffect(() => {
     if (!tokenFromUrl) {
+      // No token - allow direct email entry
       setLinkValid(false);
       return;
     }
+    // Token provided - verify it
     setLinkToken(tokenFromUrl);
     let cancelled = false;
     customerVerifyLink(tokenFromUrl)
@@ -42,10 +45,11 @@ export default function CustomerLoginPage() {
     e.preventDefault();
     setLocalError('');
     clearSessionExpiredMessage?.();
-    if (!email.trim() || !linkToken) return;
+    if (!email.trim()) return;
     setSendingOtp(true);
     try {
-      await customerRequestOtp(email.trim(), linkToken);
+      // Token is optional - can send OTP with just email
+      await customerRequestOtp(email.trim(), linkToken || undefined);
       setOtpSent(true);
     } catch (err) {
       setLocalError(err.message || 'Could not send OTP');
@@ -72,27 +76,23 @@ export default function CustomerLoginPage() {
       <div className="customer-login-bg" aria-hidden="true" />
       <div className="customer-login-card">
         <header className="customer-login-header">
-          <h1 className="customer-login-title">Customer Portal</h1>
+          <img src="/logo.jpeg" alt="XVRYTHNG" className="customer-login-logo" width="80" height="80" />
+          <h1 className="customer-login-title">XVRYTHNG</h1>
           <p className="customer-login-subtitle">
-            {linkValid === false && !tokenFromUrl && 'Use the link sent to your email to sign in.'}
-            {linkValid === true && !otpSent && 'Enter your email and click Send OTP to receive a one-time code.'}
+            {!otpSent && 'Enter your email address to receive a one-time login code.'}
             {otpSent && 'Enter the 6-digit code sent to your email. It expires in 15 minutes.'}
             {linkValid === null && tokenFromUrl && 'Verifying link…'}
           </p>
         </header>
 
-        {linkValid === false && !tokenFromUrl && (
-          <p className="customer-login-hint" style={{ marginTop: 0 }}>
-            Your project team will send you a link by email. Open that link to sign in here.
-          </p>
-        )}
         {linkValid === false && tokenFromUrl && (
           <p className="customer-login-error" style={{ marginTop: 0 }}>
-            This link is invalid or has expired. Ask your project team to send you a new link.
+            This link is invalid or has expired. You can still sign in by entering your email below.
           </p>
         )}
 
-        {linkValid === true && (
+        {/* Show form if no token, or token is verified/invalid */}
+        {(linkValid === false || linkValid === true || !tokenFromUrl) && (
           <>
             {err && (
               <div className="customer-login-error" role="alert">
@@ -114,7 +114,7 @@ export default function CustomerLoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   autoComplete="email"
-                  readOnly={!!tokenFromUrl}
+                  readOnly={!!tokenFromUrl && linkValid === true}
                 />
                 <button type="submit" className="customer-login-submit" disabled={sendingOtp}>
                   {sendingOtp ? 'Sending…' : 'Send OTP'}
@@ -139,6 +139,19 @@ export default function CustomerLoginPage() {
                 <button type="submit" className="customer-login-submit" disabled={loading}>
                   {loading ? 'Signing in…' : 'Sign in'}
                 </button>
+                {otpSent && (
+                  <button
+                    type="button"
+                    className="customer-login-resend"
+                    onClick={() => {
+                      setOtpSent(false);
+                      setOtp('');
+                    }}
+                    style={{ marginTop: '12px', background: 'none', border: 'none', color: '#1A7B7B', textDecoration: 'underline', cursor: 'pointer', fontSize: '0.875rem' }}
+                  >
+                    Use a different email
+                  </button>
+                )}
               </form>
             )}
           </>

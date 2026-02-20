@@ -26,11 +26,11 @@ export async function verifyLink(req, res) {
   }
 }
 
-/** POST /api/customer/request-otp { email, token } → send OTP to email (token from link required). */
+/** POST /api/customer/request-otp { email, token? } → send OTP to email (token optional - can use email directly). */
 export async function requestOtp(req, res) {
   try {
     const { email, token } = req.body || {};
-    await customerCredentialsService.requestOTPForEmail(email, token);
+    await customerCredentialsService.requestOTPForEmail(email, token || null);
     return res.status(200).json({ success: true, message: 'OTP sent to your email.' });
   } catch (err) {
     return res.status(400).json({

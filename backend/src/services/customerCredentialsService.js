@@ -1,9 +1,11 @@
 /**
  * Customer portal: link token (sent when staff clicks "Send credentials"), OTP (sent when user clicks "Send OTP").
  * Send credentials → email with portal link only. User opens link → enters email (pre-filled) → Send OTP → receives OTP email → Sign in with OTP.
+ * Also supports direct email entry without magic link for returning users.
  */
 import crypto from 'crypto';
 import { Resend } from 'resend';
+import db from '../config/db.js';
 
 const OTP_TTL_MS = 15 * 60 * 1000; // 15 minutes
 const LINK_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -88,38 +90,63 @@ export async function sendPortalLinkEmail({ to, customerName, loginUrl }) {
     <p>— XVRYTHNG</p>
   `;
 
-  const resend = new Resend(apiKey);
-  const toList = Array.isArray(to) ? to : [String(to)];
-  console.log('[Resend] Sending portal link email to:', toList[0], 'from:', from);
-  const { data, error } = await resend.emails.send({
-    from,
-    to: toList,
-    subject,
-    html,
-    text,
-  });
-  if (error) {
-    console.error('[Resend] Portal link email failed:', error);
-    throw new Error(error.message || 'Failed to send email');
-  }
-  console.log('[Resend] Portal link email sent, id:', data?.id);
+  // TESTING: Commented out email sending to avoid quota limits
+  // const resend = new Resend(apiKey);
+  // const toList = Array.isArray(to) ? to : [String(to)];
+  // console.log('[Resend] Sending portal link email to:', toList[0], 'from:', from);
+  // const { data, error } = await resend.emails.send({
+  //   from,
+  //   to: toList,
+  //   subject,
+  //   html,
+  //   text,
+  // });
+  // if (error) {
+  //   console.error('[Resend] Portal link email failed:', error);
+  //   throw new Error(error.message || 'Failed to send email');
+  // }
+  // console.log('[Resend] Portal link email sent, id:', data?.id);
+  console.log(`[TESTING] Portal link email would be sent to ${to} with URL: ${loginUrl} (email sending disabled)`);
   return { sent: true };
 }
 
 /**
- * Request OTP for an email. Valid only when linkToken is provided and matches the email (user opened the link).
+ * Request OTP for an email. Can work with or without linkToken.
+ * If linkToken is provided, validates it. If not, looks up email in leads table.
  * Generates OTP, stores it, sends OTP email via Resend.
  */
-export async function requestOTPForEmail(email, linkToken) {
+export async function requestOTPForEmail(email, linkToken = null) {
   const e = String(email || '').toLowerCase().trim();
   if (!e) throw new Error('Email is required.');
-  const rec = verifyLinkToken(linkToken);
-  if (!rec) throw new Error('Invalid or expired link. Use the latest link sent to your email.');
-  if (rec.email !== e) throw new Error('Email does not match the link.');
-  const { leadId, customerName } = rec;
+  
+  let leadId, customerName;
+  
+  if (linkToken) {
+    // Magic link flow: verify token
+    const rec = verifyLinkToken(linkToken);
+    if (!rec) throw new Error('Invalid or expired link. Use the latest link sent to your email.');
+    if (rec.email !== e) throw new Error('Email does not match the link.');
+    leadId = rec.leadId;
+    customerName = rec.customerName;
+  } else {
+    // Direct OTP flow: look up email in leads table
+    const [rows] = await db.execute(
+      'SELECT id, customer_name, email FROM leads WHERE email = ? LIMIT 1',
+      [e]
+    );
+    
+    if (!rows || rows.length === 0) {
+      throw new Error('No account found with this email address. Please contact your project team.');
+    }
+    
+    leadId = rows[0].id;
+    customerName = rows[0].customer_name || e;
+  }
+  
   const otp = storeOTP(e, { leadId, customerName });
-  // TESTING: comment out so no email is sent; uncomment for production
+  // TESTING: Commented out email sending to avoid quota limits
   // await sendCustomerOTPEmail({ to: e, customerName, otp });
+  console.log(`[TESTING] OTP for ${e}: ${otp} (email sending disabled)`);
   return { sent: true };
 }
 
@@ -134,8 +161,10 @@ export function verifyOTP(email, otp) {
     otpStore.delete(key);
     throw new Error('OTP has expired. Request a new one by clicking Send OTP.');
   }
-  // TESTING: accept any OTP; uncomment next line for production
-  // if (String(otp).trim() !== rec.otp) throw new Error('Invalid OTP. Please check the code sent to your email.');
+  // Verify OTP matches
+  if (String(otp).trim() !== rec.otp) {
+    throw new Error('Invalid OTP. Please check the code sent to your email.');
+  }
   otpStore.delete(key);
   return { leadId: rec.leadId, customerName: rec.customerName };
 }
@@ -162,20 +191,22 @@ export async function sendCustomerOTPEmail({ to, customerName, otp }) {
     <p>— XVRYTHNG</p>
   `;
 
-  const resend = new Resend(apiKey);
-  const toList = Array.isArray(to) ? to : [String(to)];
-  console.log('[Resend] Sending OTP email to:', toList[0], 'from:', from);
-  const { data, error } = await resend.emails.send({
-    from,
-    to: toList,
-    subject,
-    html,
-    text,
-  });
-  if (error) {
-    console.error('[Resend] OTP email failed:', error);
-    throw new Error(error.message || 'Failed to send email');
-  }
-  console.log('[Resend] OTP email sent, id:', data?.id);
+  // TESTING: Commented out email sending to avoid quota limits
+  // const resend = new Resend(apiKey);
+  // const toList = Array.isArray(to) ? to : [String(to)];
+  // console.log('[Resend] Sending OTP email to:', toList[0], 'from:', from);
+  // const { data, error } = await resend.emails.send({
+  //   from,
+  //   to: toList,
+  //   subject,
+  //   html,
+  //   text,
+  // });
+  // if (error) {
+  //   console.error('[Resend] OTP email failed:', error);
+  //   throw new Error(error.message || 'Failed to send email');
+  // }
+  // console.log('[Resend] OTP email sent, id:', data?.id);
+  console.log(`[TESTING] OTP email would be sent to ${to} with OTP: ${otp} (email sending disabled)`);
   return { sent: true };
 }

@@ -175,6 +175,55 @@
   .referrals-form-grid {
     grid-template-columns: 1fr;
   }
+  
+  .referrals-code-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .referrals-code-input {
+    max-width: 100%;
+  }
+  
+  .referrals-copy-btn {
+    width: 100%;
+  }
+  
+  .referrals-list-item {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  
+  .referrals-payment-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .referrals-payment-amount {
+    align-self: flex-end;
+  }
+}
+
+@media (max-width: 480px) {
+  .referrals-title {
+    font-size: 1.25rem;
+  }
+  
+  .referrals-code-section,
+  .referrals-form-section,
+  .referrals-list-section,
+  .referrals-payment-section {
+    margin-bottom: 16px;
+  }
+  
+  .referrals-list-container {
+    padding: 16px;
+  }
+  
+  .referrals-payment-item {
+    padding: 12px 16px;
+  }
 }
 
 /* Your Referrals list */

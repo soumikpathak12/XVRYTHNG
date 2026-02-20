@@ -223,6 +223,87 @@
   }
 }
 
+@media (max-width: 768px) {
+  .my-project-welcome {
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .my-project-welcome-icon {
+    align-self: flex-start;
+  }
+  
+  .my-project-welcome-title {
+    font-size: 1.5rem;
+  }
+  
+  .my-project-status-title {
+    font-size: 1.125rem;
+  }
+  
+  .my-project-timeline {
+    overflow-x: auto;
+    padding-bottom: 16px;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .my-project-timeline-step {
+    min-width: 100px;
+    flex: 0 0 auto;
+  }
+  
+  .my-project-timeline-label {
+    font-size: 0.75rem;
+  }
+  
+  .my-project-timeline-date {
+    font-size: 0.6875rem;
+  }
+  
+  .my-project-status-update {
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+  }
+  
+  .my-project-status-update-icon {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .my-project-status-update-heading {
+    font-size: 0.9375rem;
+  }
+  
+  .my-project-status-update-body {
+    font-size: 0.875rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .my-project-welcome-title {
+    font-size: 1.25rem;
+  }
+  
+  .my-project-timeline-step {
+    min-width: 80px;
+  }
+  
+  .my-project-timeline-step-marker {
+    width: 32px;
+    height: 32px;
+    font-size: 0.8125rem;
+  }
+  
+  .my-project-timeline-label {
+    font-size: 0.6875rem;
+  }
+  
+  .my-project-timeline-connector {
+    top: 16px;
+  }
+}
+
 .my-project-detail-card {
   margin-bottom: 0;
 }
