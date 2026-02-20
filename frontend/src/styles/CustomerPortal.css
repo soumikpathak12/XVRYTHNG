@@ -90,68 +90,73 @@
   justify-content: center;
 }
 
-.customer-portal-sidebar-footer {
-  margin-top: auto;
-  padding: 16px;
-  border-top: 1px solid #e2e8f0;
-}
-
-.customer-portal-user {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  font-size: 0.875rem;
-  color: #475569;
-  margin-bottom: 8px;
-}
-
-.customer-portal-user-icon {
-  flex-shrink: 0;
-  color: #94a3b8;
-}
-
-.customer-portal-collapse,
-.customer-portal-logout {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px 12px;
-  border: none;
-  background: none;
-  color: #64748b;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  cursor: pointer;
-  border-radius: 14px;
-  transition: background 0.15s, color 0.15s;
-}
-
-.customer-portal-collapse:hover,
-.customer-portal-logout:hover {
-  background: #f1f5f9;
-  color: #1A1A2E;
-}
-
-.customer-portal-sidebar.collapsed .customer-portal-user span,
-.customer-portal-sidebar.collapsed .customer-portal-collapse span,
-.customer-portal-sidebar.collapsed .customer-portal-logout span {
-  display: none;
-}
-
-.customer-portal-sidebar.collapsed .customer-portal-collapse,
-.customer-portal-sidebar.collapsed .customer-portal-logout {
-  justify-content: center;
-}
 
 .customer-portal-main {
   flex: 1;
   min-width: 0;
-  padding: 28px;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
   box-sizing: border-box;
+}
+
+.customer-portal-header {
+  flex-shrink: 0;
+  padding: 16px 28px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.customer-portal-header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.customer-portal-header-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  color: #475569;
+}
+
+.customer-portal-header-user-icon {
+  flex-shrink: 0;
+  color: #94a3b8;
+}
+
+.customer-portal-header-user-name {
+  font-weight: 500;
+}
+
+.customer-portal-header-logout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: none;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.customer-portal-header-logout:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.customer-portal-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 28px;
 }
 
 /* Cards */

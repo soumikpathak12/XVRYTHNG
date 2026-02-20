@@ -980,3 +980,76 @@ export async function removeGroupParticipant(conversationId, userId, companyId) 
   const url = `/api/chats/${encodeURIComponent(conversationId)}/participants/${encodeURIComponent(userId)}${q ? `?${q}` : ''}`;
   await authFetch(url, { method: 'DELETE' });
 }
+
+/* ---------- Referrals ---------- */
+
+/**
+ * GET /api/referrals - List referrals with filters
+ * @param {Object} filters - { status, dateFrom, dateTo, referrerId, limit, offset }
+ */
+export async function getReferrals(filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.status) params.append('status', filters.status);
+  if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
+  if (filters.dateTo) params.append('dateTo', filters.dateTo);
+  if (filters.referrerId) params.append('referrerId', filters.referrerId);
+  if (filters.limit) params.append('limit', filters.limit);
+  if (filters.offset) params.append('offset', filters.offset);
+  
+  const url = `/api/referrals${params.toString() ? `?${params.toString()}` : ''}`;
+  const data = await authFetchJSON(url, { method: 'GET' });
+  return data;
+}
+
+/**
+ * GET /api/referrals/counts - Get referral counts by status
+ */
+export async function getReferralCounts() {
+  const data = await authFetchJSON('/api/referrals/counts', { method: 'GET' });
+  return data.counts;
+}
+
+/**
+ * GET /api/referrals/referrers - Get all referrers
+ */
+export async function getReferrers() {
+  const data = await authFetchJSON('/api/referrals/referrers', { method: 'GET' });
+  return data.referrers;
+}
+
+/**
+ * POST /api/referrals/:id/mark-bonus-paid - Mark bonus as paid
+ */
+export async function markReferralBonusPaid(referralId, paidAt = null) {
+  const data = await authFetchJSON(`/api/referrals/${encodeURIComponent(referralId)}/mark-bonus-paid`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ paidAt }),
+  });
+  return data;
+}
+
+/**
+ * GET /api/referrals/settings - Get referral bonus settings
+ */
+export async function getReferralSettings() {
+  try {
+    const data = await authFetchJSON('/api/referrals/settings', { method: 'GET' });
+    return data.settings || null;
+  } catch (err) {
+    // If endpoint doesn't exist, return null (will use defaults)
+    return null;
+  }
+}
+
+/**
+ * PUT /api/referrals/settings - Save referral bonus settings
+ */
+export async function saveReferralSettings(settings) {
+  const data = await authFetchJSON('/api/referrals/settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ settings }),
+  });
+  return data;
+}

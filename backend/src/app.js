@@ -16,6 +16,7 @@ import customerRoutes from './routes/customerRoutes.js';
 import calendarRoutes from './routes/calendarRoutes.js';
 import solarQuotesRoutes from './routes/solarQuotesRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';
+import referralRoutes from './routes/referralRoutes.js';
 import cron from 'node-cron';
 import { syncSolarQuotesLeads } from './services/solarQuotesService.js';
 import { fileURLToPath } from 'url';
@@ -72,6 +73,7 @@ app.use('/api/customer', customerRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/integrations/solarquotes', solarQuotesRoutes);
 app.use('/api/chats', chatRoutes);
+app.use('/api/referrals', referralRoutes);
 
 app.use('/api', meController);
 

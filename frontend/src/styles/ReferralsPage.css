@@ -139,6 +139,22 @@
   box-shadow: 0 0 0 2px rgba(26, 123, 123, 0.15);
 }
 
+.referrals-input-error {
+  border-color: #dc2626;
+}
+
+.referrals-input-error:focus {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15);
+}
+
+.referrals-field-error {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: #dc2626;
+}
+
 .referrals-submit-wrap {
   display: flex;
   align-items: flex-end;

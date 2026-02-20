@@ -53,20 +53,6 @@ export default function CustomerPortalLayout() {
             {!sidebarCollapsed && <span>My Project</span>}
           </NavLink>
         </div>
-        <div className="customer-portal-sidebar-footer">
-          <div className="customer-portal-user">
-            <User className="customer-portal-user-icon" size={20} />
-            {!sidebarCollapsed && <span>{firstName}</span>}
-          </div>
-          <button type="button" className="customer-portal-collapse" onClick={() => setSidebarCollapsed((c) => !c)} aria-label={sidebarCollapsed ? 'Expand' : 'Collapse'}>
-            {sidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-            {!sidebarCollapsed && <span>Collapse</span>}
-          </button>
-          <button type="button" className="customer-portal-logout" onClick={handleLogout}>
-            <LogOut size={18} />
-            {!sidebarCollapsed && <span>Log out</span>}
-          </button>
-        </div>
       </aside>
       <main
         className="customer-portal-main"
@@ -75,7 +61,21 @@ export default function CustomerPortalLayout() {
           transition: 'margin-left .2s ease',
         }}
       >
-        <Outlet />
+        <header className="customer-portal-header">
+          <div className="customer-portal-header-right">
+            <div className="customer-portal-header-user">
+              <User className="customer-portal-header-user-icon" size={18} />
+              <span className="customer-portal-header-user-name">{firstName}</span>
+            </div>
+            <button type="button" className="customer-portal-header-logout" onClick={handleLogout}>
+              <LogOut size={18} />
+              <span>Log out</span>
+            </button>
+          </div>
+        </header>
+        <div className="customer-portal-content">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

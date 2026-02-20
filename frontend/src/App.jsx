@@ -25,7 +25,8 @@ import MessagesPage from './pages/MessagesPage.jsx';
 import CustomerLoginPage from './pages/customer/CustomerLoginPage.jsx';
 import CustomerPortalLayout from './pages/customer/CustomerPortalLayout.jsx';
 import MyProjectPage from './pages/customer/MyProjectPage.jsx';
-import ReferralsPage from './pages/customer/ReferralsPage.jsx';
+import CustomerReferralsPage from './pages/customer/ReferralsPage.jsx';
+import ReferralsPage from './pages/ReferralsPage.jsx';
 
 function PlaceholderPage({ title, message, children }) {
   return (
@@ -43,7 +44,7 @@ const AdminProjects = () => <PlaceholderPage title="Projects" message="In-house 
 const AdminOnField = () => <PlaceholderPage title="On-Field" message="Field schedules & activities." />;
 const AdminOperations = () => <PlaceholderPage title="Operations" message="Approvals, payroll, billing." />;
 const AdminAttendance = () => <PlaceholderPage title="Attendance" message="Time & attendance overview." />;
-const AdminReferrals = () => <PlaceholderPage title="Referrals" message="Referral tracking & payouts." />;
+// AdminReferrals now uses ReferralsPage component
 const AdminSettings = () => <PlaceholderPage title="Settings" message="Organization & system settings." />;
 
 // ---------- Login Page ----------
@@ -155,7 +156,7 @@ function App() {
           <Route path="on-field" element={<RequirePermission resource="on_field" action="view"><AdminOnField /></RequirePermission>} />
           <Route path="operations" element={<RequirePermission resource="operations" action="view"><AdminOperations /></RequirePermission>} />
           <Route path="attendance" element={<RequirePermission resource="attendance" action="view"><AdminAttendance /></RequirePermission>} />
-          <Route path="referrals" element={<RequirePermission resource="referrals" action="view"><AdminReferrals /></RequirePermission>} />
+          <Route path="referrals" element={<RequirePermission resource="referrals" action="view"><ReferralsPage /></RequirePermission>} />
           <Route path="messages" element={<RequirePermission resource="messages" action="view"><MessagesPage /></RequirePermission>} />
           <Route path="settings" element={<RequirePermission resource="settings" action="view"><SettingsPage /></RequirePermission>} />
           <Route path="profile" element={<RequirePermission resource="profile" action="view"><ProfilePage /></RequirePermission>} />
@@ -181,7 +182,7 @@ function App() {
           <Route path="on-field" element={<PlaceholderPage title="On-Field" message="Field schedules & activities." />} />
           <Route path="operations" element={<PlaceholderPage title="Operations" message="Approvals, payroll, billing." />} />
           <Route path="attendance" element={<PlaceholderPage title="Attendance" message="Time & attendance overview." />} />
-          <Route path="referrals" element={<PlaceholderPage title="Referrals" message="Referral tracking & payouts." />} />
+          <Route path="referrals" element={<ReferralsPage />} />
           <Route path="messages" element={<MessagesPage />} />
           <Route path="settings" element={<CompanySettingsPage />} />
         </Route>
@@ -209,7 +210,7 @@ function App() {
           }
         >
           <Route index element={<MyProjectPage />} />
-          <Route path="referrals" element={<ReferralsPage />} />
+          <Route path="referrals" element={<CustomerReferralsPage />} />
         </Route>
 
         {/* CATCH-ALL: send unknown routes to login (public) */}
