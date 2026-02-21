@@ -349,13 +349,28 @@ export default function LeadsCalendar({
                 <div className="lc2-dateNum">{d.date.getDate()}</div>
 
                 {visible.map((lead, i) => (
-                  <CalendarLeadEntry
-                    key={lead.id ?? i}
-                    lead={lead}
-                    title={titleForLead(lead)}
-                    subtitle={subtitleForLead(lead) || undefined}
-                    onClick={onLeadClick}
-                  />
+          <CalendarLeadEntry
+  key={lead.id ?? i}
+  lead={lead}
+  title={titleForLead(lead)}
+  subtitle={subtitleForLead(lead) || undefined}
+  onClick={() => {
+    if (typeof onLeadClick === 'function') {
+      onLeadClick(lead);                           // ✅ dùng callback nếu được truyền
+    } else if (lead?.id != null) {
+      window.location.assign(`/admin/leads/${lead.id}/site-inspection`);
+    }
+  }}
+  role="button"
+  tabIndex={0}
+  onKeyDown={(e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && lead?.id != null) {
+      e.preventDefault();
+      if (typeof onLeadClick === 'function') onLeadClick(lead);
+      else window.location.assign(`/admin/leads/${lead.id}/site-inspection`);
+    }
+  }}
+/>
                 ))}
 
                 {overflow > 0 && <div className="lc2-more">+{overflow} more</div>}

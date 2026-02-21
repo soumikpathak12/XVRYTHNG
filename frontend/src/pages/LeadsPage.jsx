@@ -421,7 +421,7 @@ export default function LeadsPage() {
               getDate={(l) => l._raw?.site_inspection_date ?? null}
               titleForLead={(l) => l.customerName || `Lead #${l.id}`}
               subtitleForLead={(l) => [l.suburb, l.stage].filter(Boolean).join(' • ') || ''}
-              onLeadClick={(lead) => navigate(`${lead.id}`)}
+              onLeadClick={(lead) => navigate(`/admin/leads/${lead.id}/site-inspection`)}
               weekStartsOn={1}
             />
           </div>

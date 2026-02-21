@@ -123,12 +123,10 @@ export default function LeadsCalendarPage() {
           getDate={getDate}
           titleForLead={(l) => l.customerName}
           subtitleForLead={(l) => `${l.suburb || ''} • ${l.stage || ''}`}
-          onLeadClick={(lead) => {
-            // Optional: navigate to a lead detail page if you have one
-            // navigate(`/admin/leads/${lead.id}`);
-          }}
+         
+onLeadClick={(lead) => navigate(`/admin/leads/${lead.id}/site-inspection`)}
           weekStartsOn={1}
-          locale="vi-VN"
+          
         />
       )}
     </div>
