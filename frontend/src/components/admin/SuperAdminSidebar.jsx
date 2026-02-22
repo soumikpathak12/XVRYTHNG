@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  UserPlus
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -31,6 +32,7 @@ const ALL_NAV_ITEMS = [
   { to: '/admin/referrals', label: 'Referrals', icon: Share2, permission: { resource: 'referrals', action: 'view' } },
   { to: '/admin/messages', label: 'Messages', icon: MessageSquare, permission: { resource: 'messages', action: 'view' } },
   { to: '/admin/settings', label: 'Settings', icon: Settings, permission: { resource: 'settings', action: 'view' } },
+  { to: '/admin/users/create', label: 'Add User', icon: UserPlus, permission: { resource: 'users', action: 'create' } },
 ];
 
 export default function SuperAdminSidebar({ onLogout, user, logoSrc, collapsed: controlledCollapsed, onCollapsedChange }) {

@@ -23,6 +23,8 @@ import LeadDetailPage from './pages/LeadDetailPage.jsx';
 import LeadsCalendarPage from './pages/admin/LeadsCalendarPage.jsx';
 import MessagesPage from './pages/MessagesPage.jsx';
 import SiteInspectionPage from './pages/admin/SiteInspectionPage.jsx';
+import CreateUser from './pages/admin/CreateUserPage.jsx';
+
 function PlaceholderPage({ title, message, children }) {
   return (
     <div style={{ padding: '2rem', textAlign: 'center', color: '#1A1A2E' }}>
@@ -161,6 +163,16 @@ function App() {
           <Route path="companies" element={<RequirePermission resource="companies" action="view"><CompaniesPage /></RequirePermission>} />
           <Route path="companies/new" element={<RequirePermission resource="companies" action="create"><CompanyOnboardingWizard /></RequirePermission>} />
           <Route path="companies/:id/edit" element={<RequirePermission resource="companies" action="update"><CompanyOnboardingWizard /></RequirePermission>} />
+          
+  <Route
+    path="users/create"
+    element={
+      <RequirePermission resource="users" action="create">
+        <CreateUser />
+      </RequirePermission>
+    }
+  />
+
           <Route path="roles" element={<Navigate to="/admin/settings" replace />} />
         </Route>
 

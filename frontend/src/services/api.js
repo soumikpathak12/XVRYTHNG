@@ -852,3 +852,15 @@ export async function uploadSiteInspectionFile(leadId, file, section) {
   }
   return data.data; // { filename, storage_url }
 }
+
+// src/services/api.js
+
+// Create User (protected, always performs a real fetch with JWT)
+export async function apiCreateUser(payload) {
+  console.log('[apiCreateUser] calling /api/users'); // DEBUG
+  return authFetchJSON('/api/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
