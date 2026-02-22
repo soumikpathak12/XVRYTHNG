@@ -33,6 +33,10 @@ export default function LeadCard({ lead, onDragStart, onDragEnd, onSelect }) {
     return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
   })();
 
+  const sourceLabel = lead.source
+    ? (lead.source.toLowerCase() === 'referral' ? 'Referral' : lead.source)
+    : null;
+
   return (
     <article
       className={`leads-card ${cardVariant}`}
@@ -51,8 +55,8 @@ export default function LeadCard({ lead, onDragStart, onDragEnd, onSelect }) {
       </div>
 
       <div className="leads-card-meta">
-        {lead.source ? (
-          <span className="leads-card-meta-source">{lead.source}</span>
+        {sourceLabel ? (
+          <span className="leads-card-meta-source">{sourceLabel}</span>
         ) : (
           <span className="leads-card-meta-muted">—</span>
         )}
