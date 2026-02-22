@@ -995,7 +995,7 @@ export async function getReferrals(filters = {}) {
   if (filters.referrerId) params.append('referrerId', filters.referrerId);
   if (filters.limit) params.append('limit', filters.limit);
   if (filters.offset) params.append('offset', filters.offset);
-  
+
   const url = `/api/referrals${params.toString() ? `?${params.toString()}` : ''}`;
   const data = await authFetchJSON(url, { method: 'GET' });
   return data;
@@ -1052,4 +1052,45 @@ export async function saveReferralSettings(settings) {
     body: JSON.stringify({ settings }),
   });
   return data;
+}
+
+
+// GET /api/leads/:id/site-inspection
+export async function getSiteInspection(leadId) {
+  return authFetchJSON(`/api/leads/${encodeURIComponent(leadId)}/site-inspection`, { method: 'GET' });
+}
+
+// PUT /api/leads/:id/site-inspection  → save draft
+export async function saveSiteInspectionDraft(leadId, payload) {
+  return authFetchJSON(`/api/leads/${encodeURIComponent(leadId)}/site-inspection`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+// POST /api/leads/:id/site-inspection/submit  → submit (requires required fields)
+export async function submitSiteInspection(leadId, payload) {
+  return authFetchJSON(`/api/leads/${encodeURIComponent(leadId)}/site-inspection/submit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+export async function uploadSiteInspectionFile(leadId, file, section) {
+  const fd = new FormData();
+  fd.append('file', file);
+  if (section) fd.append('section', section);
+  const res = await authFetch(`/api/leads/${encodeURIComponent(leadId)}/site-inspection/files/upload`, {
+    method: 'POST',
+    body: fd,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data?.success) {
+    const err = new Error(data.message || 'Failed to upload image');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data.data; // { filename, storage_url }
 }

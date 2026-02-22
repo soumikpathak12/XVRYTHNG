@@ -18,7 +18,7 @@ import RequirePermission from './components/RequirePermission.jsx';
 import RolesPage from './pages/admin/RolesPage.jsx';
 import CompanySettingsPage from './pages/company/CompanySettingPage.jsx';
 import CompanyPage from './pages/company/CompanyPage.jsx';
-import LeadsPage from './pages/LeadsPage.jsx';
+import LeadsPage from './pages/LeadsPAge.jsx';
 import LeadDetailPage from './pages/LeadDetailPage.jsx';
 import LeadsCalendarPage from './pages/admin/LeadsCalendarPage.jsx';
 import MessagesPage from './pages/MessagesPage.jsx';
@@ -28,6 +28,7 @@ import MyProjectPage from './pages/customer/MyProjectPage.jsx';
 import CustomerReferralsPage from './pages/customer/ReferralsPage.jsx';
 import ReferralsPage from './pages/ReferralsPage.jsx';
 
+import SiteInspectionPage from './pages/admin/SiteInspectionPage.jsx';
 function PlaceholderPage({ title, message, children }) {
   return (
     <div style={{ padding: '2rem', textAlign: 'center', color: '#1A1A2E' }}>
@@ -151,6 +152,16 @@ function App() {
           <Route path="overview" element={<RequirePermission resource="overview" action="view"><AdminOverview /></RequirePermission>} />
           <Route path="leads" element={<RequirePermission resource="leads" action="view"><LeadsPage /></RequirePermission>} />
           <Route path="leads/:id" element={<RequirePermission resource="leads" action="view"><LeadDetailPage /></RequirePermission>} />
+
+          <Route
+            path="leads/:id/site-inspection"
+            element={
+              <RequirePermission resource="leads" action="view">
+                <SiteInspectionPage />
+              </RequirePermission>
+            }
+          />
+
           <Route path="leads/calendar" element={<RequirePermission resource="leads" action="view"><LeadsCalendarPage /></RequirePermission>} />
           <Route path="projects" element={<RequirePermission resource="projects" action="view"><AdminProjects /></RequirePermission>} />
           <Route path="on-field" element={<RequirePermission resource="on_field" action="view"><AdminOnField /></RequirePermission>} />

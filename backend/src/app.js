@@ -9,7 +9,7 @@ import authRoutes from './routes/authRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import meController from './controllers/meController.js';
-
+import documentRoutes from './routes/documentRoutes.js'
 import companyRoutes from './routes/companyRoutes.js';
 import leadsRoutes from './routes/leadRoutes.js';
 import customerRoutes from './routes/customerRoutes.js';
@@ -17,11 +17,13 @@ import calendarRoutes from './routes/calendarRoutes.js';
 import solarQuotesRoutes from './routes/solarQuotesRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';
 import referralRoutes from './routes/referralRoutes.js';
+import emailRoutes from './routes/emailRoutes.js';
 import cron from 'node-cron';
 import { syncSolarQuotesLeads } from './services/solarQuotesService.js';
 import { fileURLToPath } from 'url';
 import path from 'path';
-
+import siteInspectionRoutes from './routes/siteInspectionRoutes.js';
+import siteInspectionFilesRoutes from './routes/siteInspectionFilesRoutes.js'
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -35,7 +37,7 @@ app.use(cors({
 app.use(express.json({ limit: '256kb' }));
 
 app.use('/uploads', express.static(uploadsDir));
-
+app.use('/api/leads/:leadId/site-inspection/files', siteInspectionFilesRoutes);
 app.get('/health', (_, res) => res.status(200).json({ status: 'ok' }));
 
 // Dev-only: get a customer portal test link (no auth). Open in browser: /api/dev/portal-test-link?leadId=69
@@ -76,6 +78,10 @@ app.use('/api/chats', chatRoutes);
 app.use('/api/referrals', referralRoutes);
 
 app.use('/api', meController);
+
+app.use('/api/webhooks/email', express.json({ limit: '1mb' }), emailRoutes);
+app.use('/api/leads/:leadId/documents', documentRoutes);
+app.use('/api/leads/:leadId/site-inspection', siteInspectionRoutes);
 
 // ---------------------------------------------------------------------------
 // Cron Jobs

@@ -22,8 +22,6 @@ function deriveFlags(stage) {
 /**
  * Insert a new lead and return the created row.
  */
-
-
 export async function createLead(payload) {
   const {
     stage,
@@ -57,7 +55,6 @@ export async function createLead(payload) {
     VALUES
     (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?)
   `;
-
   const params = [
     stage,
     customer_name,
@@ -73,7 +70,9 @@ export async function createLead(payload) {
     won_lost_at,
     site_inspection_date ?? null,
     external_id,
-    marketing_payload_json ? (typeof marketing_payload_json === 'string' ? marketing_payload_json : JSON.stringify(marketing_payload_json)) : null,
+    marketing_payload_json
+      ? (typeof marketing_payload_json === 'string' ? marketing_payload_json : JSON.stringify(marketing_payload_json))
+      : null,
   ];
 
   const [result] = await db.execute(sql, params);
@@ -82,15 +81,14 @@ export async function createLead(payload) {
     err.statusCode = 500;
     throw err;
   }
-
   const insertedId = result.insertId;
+
   const [rows] = await db.execute('SELECT * FROM leads WHERE id = ? LIMIT 1', [insertedId]);
   if (!rows?.[0]) {
     const err = new Error('Insert succeeded but row not found when re-querying');
     err.statusCode = 500;
     throw err;
   }
-
   return rows[0];
 }
 
@@ -136,12 +134,10 @@ export async function getLeads(filters = {}) {
     where.push('stage = ?');
     params.push(filters.stage);
   }
-
   if (filters.assigned_user) {
     where.push('assigned_user = ?');
     params.push(filters.assigned_user);
   }
-
   if (filters.search) {
     where.push('(customer_name LIKE ? OR suburb LIKE ? OR source LIKE ?)');
     const q = `%${filters.search}%`;
@@ -149,7 +145,6 @@ export async function getLeads(filters = {}) {
   }
 
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
-
   let limitSql = '';
   if (typeof filters.limit === 'number' && filters.limit > 0) {
     limitSql = 'LIMIT ?';
@@ -167,7 +162,6 @@ export async function getLeads(filters = {}) {
     ORDER BY last_activity_at DESC, created_at DESC
     ${limitSql}
   `;
-
   const [rows] = await db.execute(sql, params);
   return rows;
 }
@@ -179,10 +173,17 @@ export async function getLeads(filters = {}) {
  * @returns {Promise<Array>}
  */
 export async function getLeadsByDateRange(startDate, endDate) {
-  if (!startDate || !endDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+  if (
+    !startDate ||
+    !endDate ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(startDate) ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(endDate)
+  ) {
     return [];
   }
   const startDt = `${startDate} 00:00:00`;
+
+  // endNext = endDate + 1
   const endNext = new Date(endDate + 'T12:00:00Z');
   endNext.setUTCDate(endNext.getUTCDate() + 1);
   const endNextStr = endNext.toISOString().slice(0, 10);
@@ -197,38 +198,88 @@ export async function getLeadsByDateRange(startDate, endDate) {
   return rows;
 }
 
-/**
- * Get a single lead by id (with relations placeholder).
- * Returns { lead, activities: [], documents: [], communications: [] } for future relations.
- */
-/*export async function getLeadById(leadId) {
+/** -------------------- COMMUNICATIONS (NEW) -------------------- */
+export async function getLeadCommunications(leadId) {
   if (!leadId || Number.isNaN(Number(leadId))) {
     const err = new Error('Invalid lead id');
     err.statusCode = 400;
     throw err;
   }
-  const [rows] = await db.execute('SELECT * FROM leads WHERE id = ? LIMIT 1', [leadId]);
-  const lead = rows[0];
-  if (!lead) {
+  const [rows] = await db.execute(
+    `SELECT id, lead_id, direction, channel, subject, body, automated,
+            provider_message_id, related_message_id, sent_at, delivered_at, created_at
+     FROM lead_communications
+     WHERE lead_id = ?
+     ORDER BY created_at DESC`,
+    [leadId]
+  );
+  return rows;
+}
+
+/**
+ * Optional helper to log a communication manually from API.
+ */
+export async function addLeadCommunication(leadId, {
+  direction = 'outbound',
+  channel = 'email',
+  subject = null,
+  body = null,
+  automated = false,
+  provider_message_id = null,
+  related_message_id = null,
+  sent_at = null,
+  delivered_at = null,
+}) {
+  if (!leadId || Number.isNaN(Number(leadId))) {
+    const err = new Error('Invalid lead id');
+    err.statusCode = 400;
+    throw err;
+  }
+  const [rows] = await db.execute('SELECT id FROM leads WHERE id = ? LIMIT 1', [leadId]);
+  if (!rows?.[0]) {
     const err = new Error('Lead not found');
     err.statusCode = 404;
     throw err;
   }
-  return {
-    lead,
-    activities: [],
-    documents: [],
-    communications: [],
-  };
-}*/
+  const sql = `
+    INSERT INTO lead_communications
+    (lead_id, direction, channel, subject, body, automated, provider_message_id, related_message_id, sent_at, delivered_at, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+  `;
+  const params = [
+    Number(leadId),
+    direction,
+    channel,
+    subject ?? null,
+    body ?? null,
+    automated ? 1 : 0,
+    provider_message_id ?? null,
+    related_message_id ?? null,
+    sent_at ?? null,
+    delivered_at ?? null,
+  ];
+  const [ins] = await db.execute(sql, params);
+  if (!ins?.affectedRows) {
+    const err = new Error('Insert communication returned 0 affected rows');
+    err.statusCode = 500;
+    throw err;
+  }
+  const insertedId = ins.insertId;
+  const [commRows] = await db.execute(
+    `SELECT id, lead_id, direction, channel, subject, body, automated, provider_message_id, related_message_id, sent_at, delivered_at, created_at
+     FROM lead_communications WHERE id = ? LIMIT 1`,
+    [insertedId]
+  );
+  return commRows[0];
+}
 
+/** -------------------- UPDATE LEAD -------------------- */
 export async function updateLead(leadId, payload) {
   if (!leadId || Number.isNaN(Number(leadId))) {
     const err = new Error('Invalid lead id');
     err.statusCode = 400;
     throw err;
   }
-
   const [rows] = await db.execute('SELECT id FROM leads WHERE id = ? LIMIT 1', [leadId]);
   if (!rows[0]) {
     const err = new Error('Lead not found');
@@ -254,6 +305,12 @@ export async function updateLead(leadId, payload) {
     const { is_closed, is_won } = deriveFlags(stage);
     updates.push('stage = ?', 'is_closed = ?', 'is_won = ?');
     params.push(stage, is_closed ? 1 : 0, is_won ? 1 : 0);
+
+    // ✅ set contacted_at khi vào contacted (nếu chưa có)
+    updates.push(
+      'contacted_at = CASE WHEN ? = "contacted" AND contacted_at IS NULL THEN NOW() ELSE contacted_at END'
+    );
+    params.push(stage);
   }
 
   // Core fields
@@ -355,6 +412,7 @@ export async function updateLead(leadId, payload) {
   return updated[0];
 }
 
+/** -------------------- UPDATE STAGE (set contacted_at when entering 'contacted') -------------------- */
 export async function updateLeadStage(leadId, nextStage) {
   if (!leadId || Number.isNaN(Number(leadId))) {
     const err = new Error('Invalid lead id');
@@ -367,7 +425,6 @@ export async function updateLeadStage(leadId, nextStage) {
     throw err;
   }
 
-  // Fetch current lead to decide how to handle won_lost_at
   const [rows] = await db.execute('SELECT id, stage, is_closed FROM leads WHERE id = ? LIMIT 1', [leadId]);
   const current = rows[0];
   if (!current) {
@@ -380,10 +437,6 @@ export async function updateLeadStage(leadId, nextStage) {
   const enteringClosed = !current.is_closed && is_closed;
   const leavingClosed = current.is_closed && !is_closed;
 
-  // won_lost_at logic:
-  //  - enteringClosed → NOW()
-  //  - leavingClosed → NULL
-  //  - staying in same “closedness” (e.g., closed_won → closed_lost) → keep NOW() by re-setting to NOW()
   let wonLostSql = 'won_lost_at = won_lost_at'; // default: unchanged
   if (enteringClosed) {
     wonLostSql = 'won_lost_at = NOW()';
@@ -400,18 +453,18 @@ export async function updateLeadStage(leadId, nextStage) {
       is_closed = ?,
       is_won = ?,
       ${wonLostSql},
+      contacted_at = CASE WHEN ? = 'contacted' AND contacted_at IS NULL THEN NOW() ELSE contacted_at END,
       last_activity_at = NOW()
     WHERE id = ?
   `;
-  const params = [nextStage, is_closed ? 1 : 0, is_won ? 1 : 0, leadId];
+  const params = [nextStage, is_closed ? 1 : 0, is_won ? 1 : 0, nextStage, leadId];
 
   await db.execute(sql, params);
-
   const [updated] = await db.execute('SELECT * FROM leads WHERE id = ? LIMIT 1', [leadId]);
   return updated[0];
 }
 
-
+/** -------------------- NOTES -------------------- */
 export async function addLeadNote(leadId, { body, followUpAt = null, createdBy = null }) {
   if (!leadId || Number.isNaN(Number(leadId))) {
     const err = new Error('Invalid lead id');
@@ -431,7 +484,6 @@ export async function addLeadNote(leadId, { body, followUpAt = null, createdBy =
     VALUES (?, ?, ?, ?)
   `;
   const params = [Number(leadId), String(body), followUpAt ?? null, createdBy ?? null];
-
   const [ins] = await db.execute(sql, params);
   if (!ins?.affectedRows) {
     const err = new Error('Insert note returned 0 affected rows');
@@ -464,13 +516,14 @@ export async function getLeadNotes(leadId) {
   return rows;
 }
 
-/** -------------------- GET BY ID (with real activities from notes) -------------------- */
+/** -------------------- GET BY ID (activities from notes + communications) -------------------- */
 export async function getLeadById(leadId) {
   if (!leadId || Number.isNaN(Number(leadId))) {
     const err = new Error('Invalid lead id');
     err.statusCode = 400;
     throw err;
   }
+
   const [rows] = await db.execute('SELECT * FROM leads WHERE id = ? LIMIT 1', [leadId]);
   const lead = rows[0];
   if (!lead) {
@@ -505,12 +558,13 @@ export async function getLeadById(leadId) {
       };
     }
   }
+  const communications = await getLeadCommunications(leadId);
 
   return {
     lead,
     referredBy,
     activities,
     documents: [],
-    communications: [],
+    communications,
   };
 }
