@@ -22,6 +22,12 @@ import LeadsPage from './pages/LeadsPAge.jsx';
 import LeadDetailPage from './pages/LeadDetailPage.jsx';
 import LeadsCalendarPage from './pages/admin/LeadsCalendarPage.jsx';
 import MessagesPage from './pages/MessagesPage.jsx';
+import CustomerLoginPage from './pages/customer/CustomerLoginPage.jsx';
+import CustomerPortalLayout from './pages/customer/CustomerPortalLayout.jsx';
+import MyProjectPage from './pages/customer/MyProjectPage.jsx';
+import CustomerReferralsPage from './pages/customer/ReferralsPage.jsx';
+import ReferralsPage from './pages/ReferralsPage.jsx';
+
 import SiteInspectionPage from './pages/admin/SiteInspectionPage.jsx';
 import CreateUser from './pages/admin/CreateUserPage.jsx';
 
@@ -41,7 +47,7 @@ const AdminProjects = () => <PlaceholderPage title="Projects" message="In-house 
 const AdminOnField = () => <PlaceholderPage title="On-Field" message="Field schedules & activities." />;
 const AdminOperations = () => <PlaceholderPage title="Operations" message="Approvals, payroll, billing." />;
 const AdminAttendance = () => <PlaceholderPage title="Attendance" message="Time & attendance overview." />;
-const AdminReferrals = () => <PlaceholderPage title="Referrals" message="Referral tracking & payouts." />;
+// AdminReferrals now uses ReferralsPage component
 const AdminSettings = () => <PlaceholderPage title="Settings" message="Organization & system settings." />;
 
 // ---------- Login Page ----------
@@ -105,6 +111,13 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+/** Protects customer portal: must be customer-authenticated. */
+function RequireCustomerAuth({ children }) {
+  const { isCustomerAuthenticated } = useAuth();
+  if (!isCustomerAuthenticated) return <Navigate to="/portal/login" replace />;
+  return children;
+}
+
 function App() {
   const requestPasswordReset = async ({ email }) => {
     await new Promise((r) => setTimeout(r, 600));
@@ -141,22 +154,22 @@ function App() {
           <Route path="overview" element={<RequirePermission resource="overview" action="view"><AdminOverview /></RequirePermission>} />
           <Route path="leads" element={<RequirePermission resource="leads" action="view"><LeadsPage /></RequirePermission>} />
           <Route path="leads/:id" element={<RequirePermission resource="leads" action="view"><LeadDetailPage /></RequirePermission>} />
-         
-  <Route
-    path="leads/:id/site-inspection"
-    element={
-      <RequirePermission resource="leads" action="view">
-        <SiteInspectionPage />
-      </RequirePermission>
-    }
-  />
+
+          <Route
+            path="leads/:id/site-inspection"
+            element={
+              <RequirePermission resource="leads" action="view">
+                <SiteInspectionPage />
+              </RequirePermission>
+            }
+          />
 
           <Route path="leads/calendar" element={<RequirePermission resource="leads" action="view"><LeadsCalendarPage /></RequirePermission>} />
           <Route path="projects" element={<RequirePermission resource="projects" action="view"><AdminProjects /></RequirePermission>} />
           <Route path="on-field" element={<RequirePermission resource="on_field" action="view"><AdminOnField /></RequirePermission>} />
           <Route path="operations" element={<RequirePermission resource="operations" action="view"><AdminOperations /></RequirePermission>} />
           <Route path="attendance" element={<RequirePermission resource="attendance" action="view"><AdminAttendance /></RequirePermission>} />
-          <Route path="referrals" element={<RequirePermission resource="referrals" action="view"><AdminReferrals /></RequirePermission>} />
+          <Route path="referrals" element={<RequirePermission resource="referrals" action="view"><ReferralsPage /></RequirePermission>} />
           <Route path="messages" element={<RequirePermission resource="messages" action="view"><MessagesPage /></RequirePermission>} />
           <Route path="settings" element={<RequirePermission resource="settings" action="view"><SettingsPage /></RequirePermission>} />
           <Route path="profile" element={<RequirePermission resource="profile" action="view"><ProfilePage /></RequirePermission>} />
@@ -192,7 +205,7 @@ function App() {
           <Route path="on-field" element={<PlaceholderPage title="On-Field" message="Field schedules & activities." />} />
           <Route path="operations" element={<PlaceholderPage title="Operations" message="Approvals, payroll, billing." />} />
           <Route path="attendance" element={<PlaceholderPage title="Attendance" message="Time & attendance overview." />} />
-          <Route path="referrals" element={<PlaceholderPage title="Referrals" message="Referral tracking & payouts." />} />
+          <Route path="referrals" element={<ReferralsPage />} />
           <Route path="messages" element={<MessagesPage />} />
           <Route path="settings" element={<CompanySettingsPage />} />
         </Route>
@@ -208,6 +221,20 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* CUSTOMER PORTAL: magic-link style login (email + OTP), then My Project + Referrals */}
+        <Route path="/portal/login" element={<CustomerLoginPage />} />
+        <Route
+          path="/portal"
+          element={
+            <RequireCustomerAuth>
+              <CustomerPortalLayout />
+            </RequireCustomerAuth>
+          }
+        >
+          <Route index element={<MyProjectPage />} />
+          <Route path="referrals" element={<CustomerReferralsPage />} />
+        </Route>
 
         {/* CATCH-ALL: send unknown routes to login (public) */}
         <Route path="*" element={<Navigate to="/login" replace />} />

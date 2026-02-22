@@ -69,7 +69,7 @@ export default function KanbanColumn({
                 flex: 1,
                 border: 'none',
                 borderRadius: '6px',
-                padding: '4px 8px',
+                padding: '6px 8px',
                 fontSize: '0.8125rem',
                 outline: 'none',
                 color: '#334155'

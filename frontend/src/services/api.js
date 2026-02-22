@@ -14,6 +14,134 @@ export function setAuthToken(token) {
   else localStorage.removeItem('xvrythng_token');
 }
 
+/* ---------- Customer portal (simulated OTP login) ---------- */
+const CUSTOMER_CREDENTIALS_KEY = 'xvrythng_customer_credentials';
+
+export function getCustomerToken() {
+  return localStorage.getItem('xvrythng_customer_token');
+}
+
+export function setCustomerToken(token) {
+  if (token) localStorage.setItem('xvrythng_customer_token', token);
+  else localStorage.removeItem('xvrythng_customer_token');
+}
+
+/** Store sent credentials for a lead (simulated). Called when staff sends credentials. */
+export function saveCustomerCredentials(email, { leadId, otp, customerName }) {
+  const raw = localStorage.getItem(CUSTOMER_CREDENTIALS_KEY);
+  const map = raw ? JSON.parse(raw) : {};
+  map[email.toLowerCase().trim()] = { leadId, otp: String(otp), customerName };
+  localStorage.setItem(CUSTOMER_CREDENTIALS_KEY, JSON.stringify(map));
+}
+
+export function getCustomerCredentials(email) {
+  const raw = localStorage.getItem(CUSTOMER_CREDENTIALS_KEY);
+  const map = raw ? JSON.parse(raw) : {};
+  return map[email.toLowerCase().trim()] || null;
+}
+
+/**
+ * GET /api/customer/verify-link?token= – validate link token, returns { valid, email?, customerName? }.
+ */
+export async function customerVerifyLink(token) {
+  const res = await fetch(`${BASE}/api/customer/verify-link?token=${encodeURIComponent(token)}`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Invalid link');
+  return data;
+}
+
+/**
+ * POST /api/customer/request-otp – send OTP to email (requires token from link).
+ */
+export async function customerRequestOtp(email, token) {
+  const res = await fetch(`${BASE}/api/customer/request-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: String(email).trim(), token: token || undefined }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Could not send OTP');
+  return data;
+}
+
+/**
+ * POST /api/customer/login – verify OTP with backend, returns { success, token, user }.
+ */
+export async function customerLoginApi(email, otp) {
+  const res = await fetch(`${BASE}/api/customer/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: String(email).trim(), otp: String(otp).trim() }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Invalid or expired OTP.');
+  return data;
+}
+
+/**
+ * POST /api/customer/submit-referral – submit a referral (creates lead in CRM, NEW stage, source=referral).
+ * Requires customer token. Body: { friendName, friendEmail, friendPhone }.
+ */
+export async function submitReferralApi(payload) {
+  const token = getCustomerToken();
+  if (!token) throw new Error('Please sign in to submit a referral.');
+  const res = await fetch(`${BASE}/api/customer/submit-referral`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      friendName: String(payload.friendName ?? '').trim(),
+      friendEmail: String(payload.friendEmail ?? '').trim(),
+      friendPhone: String(payload.friendPhone ?? '').trim(),
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Failed to submit referral');
+  return data;
+}
+
+/** Fallback: simulated customer login from localStorage (when backend OTP not used). */
+export function customerLoginLocal(email, otp) {
+  const creds = getCustomerCredentials(email);
+  if (!creds) throw new Error('No credentials found for this email. Ask your project team to send you a login link.');
+  if (String(otp).trim() !== creds.otp) throw new Error('Invalid OTP. Please check the code sent to your email.');
+  const token = 'customer_' + creds.leadId + '_' + Date.now();
+  const user = {
+    role: 'customer',
+    email: email.trim(),
+    name: creds.customerName || email,
+    leadId: creds.leadId,
+  };
+  setCustomerToken(token);
+  localStorage.setItem('xvrythng_customer_user', JSON.stringify(user));
+  return { success: true, token, user };
+}
+
+const CUSTOMER_PROJECT_PREFIX = 'xvrythng_customer_project_';
+
+/** Store project/lead snapshot for customer view (when staff sends credentials). */
+export function saveCustomerProjectSnapshot(leadId, lead) {
+  localStorage.setItem(
+    CUSTOMER_PROJECT_PREFIX + leadId,
+    JSON.stringify({
+      customer_name: lead.customer_name,
+      email: lead.email,
+      suburb: lead.suburb,
+      system_size_kw: lead.system_size_kw,
+      value_amount: lead.value_amount,
+      site_inspection_date: lead.site_inspection_date,
+      stage: lead.stage,
+    })
+  );
+}
+
+export function getCustomerProjectSnapshot(leadId) {
+  const raw = localStorage.getItem(CUSTOMER_PROJECT_PREFIX + leadId);
+  return raw ? JSON.parse(raw) : null;
+}
+
 /** Clear auth storage and notify app that session timed out (8h). */
 function clearSessionAndNotify(data = {}) {
   localStorage.removeItem('xvrythng_token');
@@ -541,6 +669,22 @@ export async function createLead(payload, { normalize = true } = {}) {
 }
 
 /**
+ * Import multiple leads
+ */
+export async function importLeads(leads) {
+  const res = await authFetch('/api/leads/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ leads }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.message || 'Failed to import leads');
+  }
+  return data;
+}
+
+/**
  * GET /api/leads
  * @param {{ grouped?: boolean, stage?: string, search?: string, assigned_user?: string, limit?: number, offset?: number }} params
  * @returns {Promise<{ success: boolean, data: any }>}
@@ -577,6 +721,32 @@ export async function getLead(id) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message || 'Lead not found');
   return data; // { success: true, lead, activities, documents, communications }
+}
+
+/**
+ * GET /api/leads/:id/customer-portal-test-link – create a portal login link for testing (no email sent).
+ * Returns { success, loginUrl, email, message }.
+ */
+export async function getCustomerPortalTestLink(leadId) {
+  const res = await authFetch(`/api/leads/${encodeURIComponent(leadId)}/customer-portal-test-link`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Failed to get test link');
+  return data;
+}
+
+/**
+ * POST /api/leads/:id/send-customer-credentials – send OTP email via Resend (or log in dev).
+ * Returns { success, message, email, otp? } (otp only in dev).
+ */
+export async function sendCustomerCredentials(leadId) {
+  const res = await authFetch(`/api/leads/${encodeURIComponent(leadId)}/send-customer-credentials`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Failed to send credentials');
+  return data;
 }
 
 /**
@@ -811,6 +981,78 @@ export async function removeGroupParticipant(conversationId, userId, companyId) 
   await authFetch(url, { method: 'DELETE' });
 }
 
+/* ---------- Referrals ---------- */
+
+/**
+ * GET /api/referrals - List referrals with filters
+ * @param {Object} filters - { status, dateFrom, dateTo, referrerId, limit, offset }
+ */
+export async function getReferrals(filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.status) params.append('status', filters.status);
+  if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
+  if (filters.dateTo) params.append('dateTo', filters.dateTo);
+  if (filters.referrerId) params.append('referrerId', filters.referrerId);
+  if (filters.limit) params.append('limit', filters.limit);
+  if (filters.offset) params.append('offset', filters.offset);
+
+  const url = `/api/referrals${params.toString() ? `?${params.toString()}` : ''}`;
+  const data = await authFetchJSON(url, { method: 'GET' });
+  return data;
+}
+
+/**
+ * GET /api/referrals/counts - Get referral counts by status
+ */
+export async function getReferralCounts() {
+  const data = await authFetchJSON('/api/referrals/counts', { method: 'GET' });
+  return data.counts;
+}
+
+/**
+ * GET /api/referrals/referrers - Get all referrers
+ */
+export async function getReferrers() {
+  const data = await authFetchJSON('/api/referrals/referrers', { method: 'GET' });
+  return data.referrers;
+}
+
+/**
+ * POST /api/referrals/:id/mark-bonus-paid - Mark bonus as paid
+ */
+export async function markReferralBonusPaid(referralId, paidAt = null) {
+  const data = await authFetchJSON(`/api/referrals/${encodeURIComponent(referralId)}/mark-bonus-paid`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ paidAt }),
+  });
+  return data;
+}
+
+/**
+ * GET /api/referrals/settings - Get referral bonus settings
+ */
+export async function getReferralSettings() {
+  try {
+    const data = await authFetchJSON('/api/referrals/settings', { method: 'GET' });
+    return data.settings || null;
+  } catch (err) {
+    // If endpoint doesn't exist, return null (will use defaults)
+    return null;
+  }
+}
+
+/**
+ * PUT /api/referrals/settings - Save referral bonus settings
+ */
+export async function saveReferralSettings(settings) {
+  const data = await authFetchJSON('/api/referrals/settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ settings }),
+  });
+  return data;
+}
 
 
 // GET /api/leads/:id/site-inspection
@@ -841,7 +1083,7 @@ export async function uploadSiteInspectionFile(leadId, file, section) {
   if (section) fd.append('section', section);
   const res = await authFetch(`/api/leads/${encodeURIComponent(leadId)}/site-inspection/files/upload`, {
     method: 'POST',
-    body: fd, 
+    body: fd,
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data?.success) {

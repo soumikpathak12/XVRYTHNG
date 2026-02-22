@@ -12,9 +12,11 @@ import meController from './controllers/meController.js';
 import documentRoutes from './routes/documentRoutes.js'
 import companyRoutes from './routes/companyRoutes.js';
 import leadsRoutes from './routes/leadRoutes.js';
+import customerRoutes from './routes/customerRoutes.js';
 import calendarRoutes from './routes/calendarRoutes.js';
 import solarQuotesRoutes from './routes/solarQuotesRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';
+import referralRoutes from './routes/referralRoutes.js';
 import emailRoutes from './routes/emailRoutes.js';
 import cron from 'node-cron';
 import { syncSolarQuotesLeads } from './services/solarQuotesService.js';
@@ -38,15 +40,42 @@ app.use('/uploads', express.static(uploadsDir));
 app.use('/api/leads/:leadId/site-inspection/files', siteInspectionFilesRoutes);
 app.get('/health', (_, res) => res.status(200).json({ status: 'ok' }));
 
+// Dev-only: get a customer portal test link (no auth). Open in browser: /api/dev/portal-test-link?leadId=69
+if (process.env.NODE_ENV === 'development') {
+  const leadService = await import('./services/leadService.js').then(m => m.default);
+  const customerCredentialsService = await import('./services/customerCredentialsService.js');
+  app.get('/api/dev/portal-test-link', async (req, res) => {
+    try {
+      const leadId = req.query.leadId || req.query.lead_id || '69';
+      const result = await leadService.getLeadById(leadId);
+      const lead = result.lead;
+      if (!lead || !lead.email) {
+        return res.status(400).json({ success: false, message: 'Lead not found or has no email.', leadId });
+      }
+      const linkToken = customerCredentialsService.createLinkToken(lead.email, {
+        leadId: lead.id,
+        customerName: lead.customer_name || null,
+      });
+      const base = process.env.PORTAL_BASE_URL || process.env.APP_BASE_URL || 'http://localhost:5173';
+      const loginUrl = `${base}/portal/login?token=${linkToken}`;
+      return res.status(200).json({ success: true, loginUrl, email: lead.email });
+    } catch (err) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  });
+}
+
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/users', userRoutes);
 
 app.use('/api/company', companyRoutes);
 app.use('/api/leads', leadsRoutes);
+app.use('/api/customer', customerRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/integrations/solarquotes', solarQuotesRoutes);
 app.use('/api/chats', chatRoutes);
+app.use('/api/referrals', referralRoutes);
 
 app.use('/api', meController);
 

@@ -1,0 +1,349 @@
+/* Referrals page – referral program, form, list, payment history */
+.referrals-page {
+  width: 100%;
+  max-width: none;
+}
+
+.referrals-header {
+  margin-bottom: 24px;
+}
+
+.referrals-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 8px;
+}
+
+.referrals-title-icon {
+  color: #1A7B7B;
+  flex-shrink: 0;
+}
+
+.referrals-incentive {
+  font-size: 1rem;
+  color: #475569;
+  margin: 0;
+}
+
+.referrals-incentive strong {
+  color: #0f172a;
+}
+
+/* Your Referral Code */
+.referrals-code-section {
+  margin-bottom: 24px;
+}
+
+.referrals-code-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 10px;
+}
+
+.referrals-code-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.referrals-code-input {
+  flex: 1;
+  max-width: 320px;
+  padding: 10px 14px;
+  font-size: 0.9375rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.referrals-code-input:focus {
+  outline: none;
+  border-color: #1A7B7B;
+  box-shadow: 0 0 0 2px rgba(26, 123, 123, 0.15);
+}
+
+.referrals-copy-btn {
+  padding: 10px 20px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #fff;
+  background: #475569;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.referrals-copy-btn:hover {
+  background: #334155;
+}
+
+/* Submit Referral form */
+.referrals-form-section {
+  margin-bottom: 24px;
+}
+
+.referrals-section-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 16px;
+}
+
+.referrals-form-error {
+  color: #dc2626;
+  font-size: 0.875rem;
+  margin: 0 0 12px;
+}
+
+.referrals-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 24px;
+}
+
+.referrals-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.referrals-field-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #475569;
+}
+
+.referrals-input {
+  padding: 10px 14px;
+  font-size: 0.9375rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #0f172a;
+}
+
+.referrals-input::placeholder {
+  color: #94a3b8;
+}
+
+.referrals-input:focus {
+  outline: none;
+  border-color: #1A7B7B;
+  box-shadow: 0 0 0 2px rgba(26, 123, 123, 0.15);
+}
+
+.referrals-input-error {
+  border-color: #dc2626;
+}
+
+.referrals-input-error:focus {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15);
+}
+
+.referrals-field-error {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: #dc2626;
+}
+
+.referrals-submit-wrap {
+  display: flex;
+  align-items: flex-end;
+}
+
+.referrals-send-btn {
+  width: 100%;
+  background: #475569 !important;
+  color: #fff !important;
+  padding: 12px 20px;
+}
+
+.referrals-send-btn:hover:not(:disabled) {
+  background: #334155 !important;
+}
+
+@media (max-width: 640px) {
+  .referrals-form-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .referrals-code-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .referrals-code-input {
+    max-width: 100%;
+  }
+  
+  .referrals-copy-btn {
+    width: 100%;
+  }
+  
+  .referrals-list-item {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  
+  .referrals-payment-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .referrals-payment-amount {
+    align-self: flex-end;
+  }
+}
+
+@media (max-width: 480px) {
+  .referrals-title {
+    font-size: 1.25rem;
+  }
+  
+  .referrals-code-section,
+  .referrals-form-section,
+  .referrals-list-section,
+  .referrals-payment-section {
+    margin-bottom: 16px;
+  }
+  
+  .referrals-list-container {
+    padding: 16px;
+  }
+  
+  .referrals-payment-item {
+    padding: 12px 16px;
+  }
+}
+
+/* Your Referrals list */
+.referrals-list-section {
+  margin-bottom: 24px;
+}
+
+.referrals-list-container {
+  min-height: 120px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 24px;
+}
+
+.referrals-empty {
+  margin: 0;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.referrals-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.referrals-list-item {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 16px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 0.9375rem;
+}
+
+.referrals-list-item:last-child {
+  border-bottom: none;
+}
+
+.referrals-list-name {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.referrals-list-email {
+  color: #64748b;
+}
+
+.referrals-list-date {
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+/* Payment History */
+.referrals-payment-section {
+  margin-bottom: 24px;
+}
+
+.referrals-payment-list {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.referrals-payment-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+}
+
+.referrals-payment-item-border {
+  border-top: 1px solid #e2e8f0;
+}
+
+.referrals-payment-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.referrals-payment-title {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.referrals-payment-details {
+  font-size: 0.8125rem;
+  color: #64748b;
+}
+
+.referrals-payment-badge {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 6px;
+  width: fit-content;
+}
+
+.referrals-payment-badge-paid {
+  background: #334155;
+  color: #fff;
+}
+
+.referrals-payment-badge-pending {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.referrals-payment-amount {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #0f172a;
+  flex-shrink: 0;
+}

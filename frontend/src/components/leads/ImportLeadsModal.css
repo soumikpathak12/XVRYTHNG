@@ -1,0 +1,471 @@
+/* Import Leads Modal - Brand Design */
+.import-leads-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 1rem;
+}
+
+.import-leads-modal-container {
+  background: #FFFFFF;
+  border-radius: 12px;
+  box-shadow: 
+    0 4px 6px -1px rgba(26, 27, 46, 0.1),
+    0 10px 24px -4px rgba(26, 27, 46, 0.12);
+  max-width: 48rem;
+  width: 100%;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.import-leads-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.import-leads-modal-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1A1A2E;
+  margin: 0;
+}
+
+.import-leads-modal-close {
+  background: transparent;
+  border: none;
+  color: #9CA3AF;
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.import-leads-modal-close:hover {
+  color: #555555;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.import-leads-modal-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Step 1: Upload */
+.import-leads-upload-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  border: 2px dashed #D1D5DB;
+  border-radius: 8px;
+  background: #F5F5F5;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.import-leads-upload-area:hover {
+  border-color: #1A7B7B;
+  background: #F0FAFA;
+}
+
+.import-leads-upload-icon {
+  width: 3rem;
+  height: 3rem;
+  color: #9CA3AF;
+  margin-bottom: 1rem;
+}
+
+.import-leads-upload-title {
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: #1A1A2E;
+  margin: 0 0 0.5rem;
+}
+
+.import-leads-upload-subtitle {
+  font-size: 0.875rem;
+  color: #555555;
+  margin: 0 0 1.5rem;
+}
+
+.import-leads-file-input {
+  display: block;
+  width: 100%;
+  font-size: 0.875rem;
+  color: #555555;
+}
+
+.import-leads-file-input::file-selector-button {
+  margin-right: 1rem;
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  border: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  background: rgba(26, 123, 123, 0.1);
+  color: #1A7B7B;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.import-leads-file-input::file-selector-button:hover {
+  background: rgba(26, 123, 123, 0.15);
+}
+
+/* Step 2: Mapping */
+.import-leads-mapping-title {
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: #1A1A2E;
+  margin: 0 0 1rem;
+}
+
+.import-leads-mapping-subtitle {
+  font-size: 0.875rem;
+  color: #555555;
+  margin: 0 0 1.5rem;
+}
+
+.import-leads-mapping-header {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #E5E7EB;
+  font-weight: 600;
+  color: #1A1A2E;
+}
+
+.import-leads-mapping-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.import-leads-mapping-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  align-items: center;
+}
+
+.import-leads-field-label {
+  display: flex;
+  align-items: center;
+  color: #1A1A2E;
+}
+
+.import-leads-field-required {
+  color: #DC3545;
+  margin-left: 0.25rem;
+}
+
+.import-leads-select {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  border: 1px solid #D1D5DB;
+  border-radius: 6px;
+  background: #FFFFFF;
+  color: #1A1A2E;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.import-leads-select:focus {
+  outline: none;
+  border-color: #1A7B7B;
+  box-shadow: 0 0 0 3px rgba(26, 123, 123, 0.1);
+}
+
+/* Step 3: Preview */
+.import-leads-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.import-leads-preview-title {
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: #1A1A2E;
+  margin: 0;
+}
+
+.import-leads-preview-stats {
+  font-size: 0.875rem;
+}
+
+.import-leads-stat-valid {
+  color: #28A745;
+  font-weight: 500;
+  margin-right: 1rem;
+}
+
+.import-leads-stat-invalid {
+  color: #DC3545;
+  font-weight: 500;
+}
+
+.import-leads-preview-table-container {
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+}
+
+.import-leads-preview-table-wrapper {
+  overflow-x: auto;
+  max-height: 300px;
+}
+
+.import-leads-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 100%;
+}
+
+.import-leads-preview-table thead {
+  background: #F5F5F5;
+}
+
+.import-leads-preview-table th {
+  padding: 0.75rem 1.5rem;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #555555;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.import-leads-preview-table tbody {
+  background: #FFFFFF;
+}
+
+.import-leads-preview-table tbody tr {
+  border-top: 1px solid #E5E7EB;
+}
+
+.import-leads-preview-table tbody tr.import-leads-row-invalid {
+  background: rgba(220, 53, 69, 0.05);
+}
+
+.import-leads-preview-table td {
+  padding: 1rem 1.5rem;
+  font-size: 0.875rem;
+  color: #1A1A2E;
+  white-space: nowrap;
+}
+
+.import-leads-preview-table td.import-leads-row-number {
+  color: #555555;
+}
+
+.import-leads-status-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.import-leads-status-invalid {
+  color: #DC3545;
+}
+
+.import-leads-status-valid {
+  color: #28A745;
+}
+
+.import-leads-status-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.import-leads-preview-more {
+  padding: 0.75rem 1.5rem;
+  font-size: 0.875rem;
+  color: #555555;
+  text-align: center;
+  background: #F5F5F5;
+  border-top: 1px solid #E5E7EB;
+}
+
+.import-leads-errors-container {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: rgba(220, 53, 69, 0.05);
+  border-radius: 6px;
+  max-height: 150px;
+  overflow-y: auto;
+  border: 1px solid rgba(220, 53, 69, 0.2);
+}
+
+.import-leads-errors-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #C82333;
+  margin: 0 0 0.5rem;
+}
+
+.import-leads-errors-list {
+  list-style: disc;
+  list-style-position: inside;
+  font-size: 0.75rem;
+  color: #C82333;
+  margin: 0;
+  padding: 0;
+}
+
+.import-leads-errors-list li {
+  margin-bottom: 0.25rem;
+}
+
+/* Step 4: Result */
+.import-leads-result-container {
+  text-align: center;
+  padding: 2rem 0;
+}
+
+.import-leads-result-icon {
+  width: 4rem;
+  height: 4rem;
+  margin: 0 auto 1rem;
+}
+
+.import-leads-result-icon.success {
+  color: #28A745;
+}
+
+.import-leads-result-icon.warning {
+  color: #FFC107;
+}
+
+.import-leads-result-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1A1A2E;
+  margin: 0 0 0.5rem;
+}
+
+.import-leads-result-message {
+  color: #555555;
+  margin: 0 0 1.5rem;
+}
+
+.import-leads-result-message strong {
+  font-weight: 600;
+}
+
+.import-leads-result-message strong.success {
+  color: #28A745;
+}
+
+.import-leads-result-message strong.error {
+  color: #DC3545;
+}
+
+.import-leads-result-errors {
+  text-align: left;
+  max-width: 32rem;
+  margin: 0 auto 1.5rem;
+  background: #F5F5F5;
+  padding: 1rem;
+  border-radius: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #E5E7EB;
+}
+
+.import-leads-result-errors-title {
+  font-weight: 600;
+  color: #1A1A2E;
+  margin: 0 0 0.5rem;
+}
+
+.import-leads-result-errors-list {
+  font-size: 0.875rem;
+  color: #C82333;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.import-leads-result-errors-list li {
+  margin-bottom: 0.25rem;
+}
+
+/* Buttons */
+.import-leads-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 2rem;
+}
+
+.import-leads-btn {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.import-leads-btn-secondary {
+  color: #1A1A2E;
+  background: #FFFFFF;
+  border: 1px solid #D1D5DB;
+}
+
+.import-leads-btn-secondary:hover {
+  background: #F5F5F5;
+}
+
+.import-leads-btn-primary {
+  color: #FFFFFF;
+  background: #1A7B7B;
+  box-shadow: 0 2px 4px rgba(26, 123, 123, 0.2);
+}
+
+.import-leads-btn-primary:hover:not(:disabled) {
+  background: #4DB8A8;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(26, 123, 123, 0.3);
+}
+
+.import-leads-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.import-leads-btn-close {
+  padding: 0.5rem 1.5rem;
+  background: #1A1A2E;
+  color: #FFFFFF;
+  font-weight: 500;
+}
+
+.import-leads-btn-close:hover {
+  background: #2A2A3E;
+}

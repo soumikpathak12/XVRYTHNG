@@ -1,4 +1,5 @@
 import * as leadService from '../services/leadService.js';
+import * as customerCredentialsService from '../services/customerCredentialsService.js';
 
 const STAGES = [
   'new',
@@ -152,6 +153,27 @@ export async function createLead(req, res) {
 }
 
 
+// -------------------- IMPORT --------------------
+export async function importLeads(req, res) {
+  try {
+    const { leads } = req.body;
+    if (!Array.isArray(leads) || leads.length === 0) {
+      return res.status(400).json({ success: false, message: 'No leads provided.' });
+    }
+
+    const { imported, failed, errors } = await leadService.importLeads(leads);
+
+    return res.status(200).json({
+      success: true,
+      data: { imported, failed, errors },
+      message: `Imported ${imported} leads. ${failed} failed.`,
+    });
+  } catch (err) {
+    console.error('Import leads error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}
+
 // -------------------- LIST --------------------
 export async function listLeads(req, res) {
   try {
@@ -223,7 +245,7 @@ export async function updateLead(req, res) {
     if (body.value_amount !== undefined) payload.value_amount = body.value_amount;
     if (body.source !== undefined) payload.source = body.source;
     if (body.site_inspection_date !== undefined) payload.site_inspection_date = toMySQLDateTime(body.site_inspection_date);
-    
+
     if (body.system_type !== undefined) payload.system_type = trimOrNull(body.system_type, 100);
     if (body.house_storey !== undefined) payload.house_storey = trimOrNull(body.house_storey, 50);
     if (body.roof_type !== undefined) payload.roof_type = trimOrNull(body.roof_type, 100);
@@ -371,6 +393,80 @@ export async function listLeadNotes(req, res) {
     return res.status(status).json({
       success: false,
       message: err.message ?? 'Failed to load notes.',
+    });
+  }
+}
+
+/** -------------------- CUSTOMER PORTAL TEST LINK (no email sent) -------------------- */
+export async function getCustomerPortalTestLink(req, res) {
+  try {
+    const rawId = req.params.id ?? req.query.leadId ?? req.body?.leadId;
+    const leadId = rawId != null ? String(rawId) : null;
+    if (!leadId || !leadId.trim()) {
+      return res.status(400).json({ success: false, message: 'leadId is required (param or query).' });
+    }
+    const result = await leadService.getLeadById(leadId.trim());
+    const lead = result.lead;
+    if (!lead) return res.status(404).json({ success: false, message: 'Lead not found.' });
+    const email = lead.email && String(lead.email).trim();
+    if (!email || !EMAIL_RE.test(email)) {
+      return res.status(400).json({ success: false, message: 'Lead must have a valid email address.' });
+    }
+    const customerName = lead.customer_name && String(lead.customer_name).trim() || null;
+    const linkToken = customerCredentialsService.createLinkToken(email, { leadId: lead.id, customerName });
+    const portalBaseUrl = process.env.PORTAL_BASE_URL || process.env.APP_BASE_URL || 'http://localhost:5173';
+    const loginUrl = `${portalBaseUrl}/portal/login?token=${linkToken}`;
+    return res.status(200).json({
+      success: true,
+      loginUrl,
+      email,
+      message: 'Test link created (valid 7 days). No email sent.',
+    });
+  } catch (err) {
+    console.error('Customer portal test link error:', err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to create test link.',
+    });
+  }
+}
+
+/** -------------------- SEND CUSTOMER CREDENTIALS (Closed Won only) -------------------- */
+export async function sendCustomerCredentials(req, res) {
+  try {
+    const leadId = req.params.id;
+    const result = await leadService.getLeadById(leadId);
+    const lead = result.lead;
+    if (!lead) return res.status(404).json({ success: false, message: 'Lead not found.' });
+    if (lead.stage !== 'closed_won') {
+      return res.status(400).json({ success: false, message: 'Only leads in Closed Won stage can receive portal credentials.' });
+    }
+    const email = lead.email && String(lead.email).trim();
+    if (!email || !EMAIL_RE.test(email)) {
+      return res.status(400).json({ success: false, message: 'Lead must have a valid email address.' });
+    }
+
+    const customerName = lead.customer_name && String(lead.customer_name).trim() || null;
+    const linkToken = customerCredentialsService.createLinkToken(email, { leadId: lead.id, customerName });
+    const portalBaseUrl = process.env.PORTAL_BASE_URL || process.env.APP_BASE_URL || 'http://localhost:5173';
+    const loginUrl = `${portalBaseUrl}/portal/login?token=${linkToken}`;
+    await customerCredentialsService.sendPortalLinkEmail({
+      to: email,
+      customerName,
+      loginUrl,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Portal link sent to customer.',
+      email,
+      loginUrl, // so staff can copy link for testing
+    });
+  } catch (err) {
+    console.error('Send customer credentials error:', err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to send credentials.',
     });
   }
 }

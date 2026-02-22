@@ -32,6 +32,7 @@ export async function createLead(payload) {
     system_size_kw,
     value_amount,
     source,
+    referred_by_lead_id = null,
     site_inspection_date,
     external_id = null,
     marketing_payload_json = null,
@@ -49,10 +50,10 @@ export async function createLead(payload) {
   const sql = `
     INSERT INTO leads
     (stage, customer_name, email, phone, suburb, system_size_kw, value_amount,
-     source, is_closed, is_won, won_lost_at, last_activity_at, site_inspection_date,
+     source, referred_by_lead_id, is_closed, is_won, won_lost_at, last_activity_at, site_inspection_date, 
      external_id, marketing_payload_json)
     VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?)
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?)
   `;
   const params = [
     stage,
@@ -63,6 +64,7 @@ export async function createLead(payload) {
     system_size_kw == null ? null : Number(system_size_kw),
     value_amount == null ? null : Number(value_amount),
     source ?? null,
+    referred_by_lead_id == null ? null : Number(referred_by_lead_id),
     is_closed ? 1 : 0,
     is_won ? 1 : 0,
     won_lost_at,
@@ -88,6 +90,30 @@ export async function createLead(payload) {
     throw err;
   }
   return rows[0];
+}
+
+/**
+ * Bulk import leads.
+ * @param {Array} leads
+ * @returns {Promise<{ imported: number, failed: number, errors: Array<{ row: number, error: string }> }>}
+ */
+export async function importLeads(leads) {
+  let imported = 0;
+  let failed = 0;
+  const errors = [];
+
+  for (let i = 0; i < leads.length; i++) {
+    const lead = leads[i];
+    try {
+      await createLead(lead);
+      imported++;
+    } catch (err) {
+      failed++;
+      errors.push({ row: i + 1, error: err.message, lead });
+    }
+  }
+
+  return { imported, failed, errors };
 }
 
 /**
@@ -516,10 +542,27 @@ export async function getLeadById(leadId) {
     body: n.body + (n.follow_up_at ? `\n\nNext follow-up: ${String(n.follow_up_at).slice(0, 10)}` : ''),
   }));
 
+  // If this lead was referred by a customer, fetch referrer info for CRM display
+  let referredBy = null;
+  const refLeadId = lead.referred_by_lead_id;
+  if (refLeadId != null && Number(refLeadId)) {
+    const [refRows] = await db.execute(
+      'SELECT id, customer_name, email FROM leads WHERE id = ? LIMIT 1',
+      [refLeadId]
+    );
+    if (refRows?.[0]) {
+      referredBy = {
+        id: refRows[0].id,
+        customer_name: refRows[0].customer_name,
+        email: refRows[0].email,
+      };
+    }
+  }
   const communications = await getLeadCommunications(leadId);
 
   return {
     lead,
+    referredBy,
     activities,
     documents: [],
     communications,
