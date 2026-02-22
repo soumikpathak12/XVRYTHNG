@@ -11,6 +11,8 @@
   "dependencies": {
     "express-fileupload": "^1.5.2",
     "jsonwebtoken": "^9.0.3",
+    "jspdf": "^4.2.0",
+    "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.563.0",
     "papaparse": "^5.5.3",
     "react": "^18.2.0",
