@@ -7,7 +7,7 @@ import {
 } from '../services/emailService.js';
 
 // ENV
-const ADMIN_EMAIL = (process.env.OWNER_DOC_ADMIN_EMAIL).trim();
+const ADMIN_EMAIL = (process.env.OWNER_DOC_ADMIN_EMAIL || '').trim();
 const OWNER_SCHEDULE = (process.env.OWNER_DOC_REMINDER_SCHEDULE_MINUTES || '')
   .split(',')
   .map(s => Number(s.trim()))
