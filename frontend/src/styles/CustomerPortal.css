@@ -73,6 +73,7 @@
 .customer-portal-nav-item:hover {
   background: #f8fafc;
   color: #1A7B7B;
+  text-decoration: none;
 }
 
 .customer-portal-nav-item.active {
@@ -137,6 +138,7 @@
   display: flex;
   align-items: center;
   gap: 16px;
+  margin-left: auto;
 }
 
 .customer-portal-header-user {
