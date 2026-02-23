@@ -17,23 +17,25 @@ import { getRequiredKeys, formatValueForPdf } from '../../utils/template.js';
 import { buildStepsFromEnabled } from '../../templates/sectionCatalog.js';
 
 // ================= UI tokens =================
+// ================= UI tokens =================
 const UI = {
   color: {
     navy: '#0F172A',
-    teal: '#0FA5A5',
-    tealDark: '#0C8B8B',
+    teal: '#1A7B7B',        // BRAND PRIMARY
+    tealDark: '#176D6D',    // BRAND PRIMARY - hover/darker
     border: 'rgba(2,6,23,0.08)',
     borderStrong: 'rgba(2,6,23,0.14)',
     muted: '#6B7280',
     sand: '#F8FAFC',
     bg: '#FFFFFF',
-    ring: 'rgba(15,165,165,0.35)',
+    ring: 'rgba(26,123,123,0.35)', // based on #1A7B7B
     shadow: 'rgba(2,6,23,0.06)',
   },
   radius: 14,
   pad: 16,
   gap: 12,
 };
+
 const card = {
   background: UI.color.bg,
   border: `1px solid ${UI.color.border}`,
@@ -41,12 +43,16 @@ const card = {
   padding: UI.pad,
   boxShadow: `0 1px 2px ${UI.color.shadow}, 0 8px 24px ${UI.color.shadow}`,
 };
+
 const barWrap = { height: 10, background: '#EEF2F7', borderRadius: 999, overflow: 'hidden' };
+
 const barFill = {
   height: 10,
+  // gradient theo brand
   background: `linear-gradient(90deg, ${UI.color.teal} 0%, ${UI.color.tealDark} 100%)`,
   transition: 'width .25s ease',
 };
+
 const input = {
   border: `1px solid ${UI.color.border}`,
   borderRadius: 10,
@@ -54,6 +60,7 @@ const input = {
   background: '#fff',
   outline: 'none',
 };
+
 const btn = (variant = 'secondary') => ({
   background: variant === 'primary' ? UI.color.teal : '#fff',
   color: variant === 'primary' ? '#fff' : UI.color.navy,
@@ -66,7 +73,6 @@ const btn = (variant = 'secondary') => ({
   alignItems: 'center',
   gap: 8,
 });
-
 // ================= Toolbar =================
 function TemplateToolbar({ templates, selectedId, onSelect, onRefresh }) {
   return (
