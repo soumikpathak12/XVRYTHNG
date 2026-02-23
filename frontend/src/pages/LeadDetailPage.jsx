@@ -1,7 +1,15 @@
 // pages/LeadDetailPage.jsx – full-page lead detail (not a popup)
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { getLead, updateLead, updateLeadStage, sendCustomerCredentials as sendCustomerCredentialsApi, getCustomerPortalTestLink, saveCustomerProjectSnapshot } from '../services/api.js';
+import {
+  getLead,
+  updateLead,
+  updateLeadStage,
+  sendCustomerCredentials as sendCustomerCredentialsApi,
+  getCustomerPortalTestLink,
+  saveCustomerProjectSnapshot,
+  createLeadProposal, // NEW
+} from '../services/api.js';
 import { colorForStage } from '../components/leads/theme.js';
 import LeadDetailDetails from '../components/leads/LeadDetailDetails.jsx';
 import LeadDetailActivity from '../components/leads/LeadDetailActivity.jsx';
@@ -30,9 +38,10 @@ export default function LeadDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('details');
-  const [credentialsSent, setCredentialsSent] = useState(null); // { email, loginUrl?, isTestLink? } after send or get test link
+  const [credentialsSent, setCredentialsSent] = useState(null); // { email, loginUrl?, isTestLink? }
   const [sendingCredentials, setSendingCredentials] = useState(false);
   const [loadingTestLink, setLoadingTestLink] = useState(false);
+  const [creatingProposal, setCreatingProposal] = useState(false); // NEW
 
   const loadLead = useCallback(async () => {
     if (!leadId) return;
@@ -118,6 +127,21 @@ export default function LeadDetailPage() {
     }
   }, [data, leadId]);
 
+  // NEW: Create Proposal
+  const handleCreateProposal = useCallback(async () => {
+    if (!leadId) return;
+    setCreatingProposal(true);
+    setError('');
+    try {
+      await createLeadProposal(leadId);
+      await loadLead(); // refresh UI (stage, proposal_sent)
+    } catch (err) {
+      setError(err?.message || 'Failed to create proposal');
+    } finally {
+      setCreatingProposal(false);
+    }
+  }, [leadId, loadLead]);
+
   const lead = data?.lead;
   const referredBy = data?.referredBy;
   const stageLabel = lead ? (STAGE_LABELS[lead.stage] || lead.stage) : '';
@@ -153,6 +177,12 @@ export default function LeadDetailPage() {
                     {stageLabel}
                   </span>
                   <span className="lead-detail-tag lead-detail-tag-source">{sourceLabel}</span>
+                  {/* OPTIONAL: show manual attention flag from proposal FU */}
+                  {lead.proposal_fu_flagged_for_review_at && (
+                    <span className="lead-detail-tag" style={{ backgroundColor: '#FEF3C7', color: '#92400E', border: '1px solid #F59E0B' }}>
+                      Action needed
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -178,7 +208,18 @@ export default function LeadDetailPage() {
                   </button>
                 )}
                 <button type="button" className="lead-detail-btn primary">Schedule Inspection</button>
-                <button type="button" className="lead-detail-btn secondary">Create Proposal</button>
+
+                {/* UPDATED: Create Proposal */}
+                <button
+                  type="button"
+                  className="lead-detail-btn secondary"
+                  onClick={handleCreateProposal}
+                  disabled={creatingProposal || lead?.proposal_sent === 1}
+                  title={lead?.proposal_sent ? 'Proposal has been marked as sent' : 'Mark proposal as sent and start automated follow-ups'}
+                >
+                  {creatingProposal ? 'Creating…' : (lead?.proposal_sent ? 'Proposal Sent' : 'Create Proposal')}
+                </button>
+
                 {lead.stage !== 'closed_lost' && (
                   <button type="button" className="lead-detail-btn secondary danger" onClick={handleMarkLost}>
                     Mark Lost
@@ -211,6 +252,7 @@ export default function LeadDetailPage() {
                 <Link to={`/admin/leads/${referredBy.id}`} className="lead-detail-referred-by-link">View referrer</Link>
               </div>
             )}
+
             <div className="lead-detail-cards">
               <div className="lead-detail-card">
                 <span className="lead-detail-card-label">Location</span>
@@ -259,7 +301,17 @@ export default function LeadDetailPage() {
 
             <div className="lead-detail-footer-actions">
               <button type="button" className="lead-detail-footer-btn primary">Schedule Site Inspection</button>
-              <button type="button" className="lead-detail-footer-btn secondary">Generate Proposal</button>
+
+              {/* UPDATED footer button */}
+              <button
+                type="button"
+                className="lead-detail-footer-btn secondary"
+                onClick={handleCreateProposal}
+                disabled={creatingProposal || lead?.proposal_sent === 1}
+              >
+                {creatingProposal ? 'Creating…' : (lead?.proposal_sent ? 'Proposal Sent' : 'Create Proposal')}
+              </button>
+
               <button type="button" className="lead-detail-footer-btn secondary">Send Email</button>
               <button type="button" className="lead-detail-footer-btn secondary">Log Call</button>
               <button type="button" className="lead-detail-footer-btn secondary">Convert to Project</button>

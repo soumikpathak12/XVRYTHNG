@@ -1,6 +1,6 @@
 // components/leads/LeadDetailModal.jsx – popup design (rounded modal, blurred backdrop, header/tabs/footer)
 import React, { useState, useEffect, useCallback } from 'react';
-import { getLead, updateLead, updateLeadStage } from '../../services/api.js';
+import { getLead, updateLead, updateLeadStage, createLeadProposal } from '../../services/api.js';
 import { colorForStage } from './theme.js';
 import LeadDetailOverview from './LeadDetailOverview.jsx'; // ⬅️ Overview trước, Edit sẽ vào Details
 import LeadDetailActivity from './LeadDetailActivity.jsx';
@@ -20,6 +20,16 @@ const STAGE_LABELS = {
   closed_won: 'Closed Won',
   closed_lost: 'Closed Lost',
 };
+
+ const handleCreateProposal = async () => {
+    try {
+      await createLeadProposal(leadId);
+      onLeadUpdated?.(leadId, 'proposal_sent');
+      await loadLead(); // refresh
+    } catch (err) {
+      setError(err?.message || 'Failed to create proposal');
+    }
+  };
 
 export default function LeadDetailModal({ leadId, onClose, onLeadUpdated }) {
   const [data, setData] = useState(null);
@@ -149,7 +159,15 @@ export default function LeadDetailModal({ leadId, onClose, onLeadUpdated }) {
                 Mark as Lost
               </button>
               <button type="button" className="lead-detail-popup-footer-btn secondary">Schedule Visit</button>
-              <button type="button" className="lead-detail-popup-footer-btn primary">Create Proposal</button>
+
+              <button
+                  type="button"
+                  className="lead-detail-popup-footer-btn primary"
+                  onClick={handleCreateProposal}
+                  disabled={lead?.proposal_sent === 1}
+                >
+                  {lead?.proposal_sent ? 'Proposal Sent' : 'Create Proposal'}
+              </button>
             </footer>
           </>
         )}

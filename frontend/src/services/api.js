@@ -1094,3 +1094,56 @@ export async function uploadSiteInspectionFile(leadId, file, section) {
   }
   return data.data; // { filename, storage_url }
 }
+
+ export async function getCompanyInspectionTemplates(query = {}) {
+   const q = new URLSearchParams(query).toString();
+   const res = await authFetch(`/api/company/settings/inspection-templates${q ? `?${q}` : ''}`, { method: 'GET' });
+   const j = await res.json().catch(() => ({}));
+   if (!res.ok || !j.success) {
+     const msg = j.message ?? `Failed to load templates (HTTP ${res.status})`;
+     const err = new Error(msg); err.status = res.status; err.body = j; throw err;
+   }
+   return j;
+ }
+ export async function saveInspectionTemplate(payload) {
+   const res = await authFetch('/api/company/settings/inspection-templates', {
+     method: 'POST',
+     headers: { 'Content-Type': 'application/json' },
+     body: JSON.stringify(payload),
+   });
+   const j = await res.json().catch(() => ({}));
+   if (!res.ok || !j.success) {
+     const msg = j.message ?? `Failed to save template (HTTP ${res.status})`;
+     const err = new Error(msg); err.status = res.status; err.body = j; throw err;
+   }
+   return j;
+ }
+ export async function publishInspectionTemplate(id) {
+   const res = await authFetch(`/api/company/settings/inspection-templates/${id}/publish`, { method: 'POST' });
+   const j = await res.json().catch(() => ({}));
+   if (!res.ok || !j.success) {
+     const msg = j.message ?? `Failed to publish template (HTTP ${res.status})`;
+     const err = new Error(msg); err.status = res.status; err.body = j; throw err;
+   }
+   return j;
+ }
+ export async function deleteInspectionTemplate(id) {
+   const res = await authFetch(`/api/company/settings/inspection-templates/${id}`, { method: 'DELETE' });
+   const j = await res.json().catch(() => ({}));
+   if (!res.ok || !j.success) {
+     const msg = j.message ?? `Failed to delete template (HTTP ${res.status})`;
+     const err = new Error(msg); err.status = res.status; err.body = j; throw err;
+   }
+   return j;
+ }
+
+ export async function createLeadProposal(leadId) {
+  const res = await authFetch(`/api/leads/${encodeURIComponent(leadId)}/proposal`, { method: 'POST' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.success) {
+    const msg = data.message ?? `Failed to mark proposal (HTTP ${res.status})`;
+    const err = new Error(msg);
+    err.status = res.status; err.body = data; throw err;
+  }
+  return data;
+}

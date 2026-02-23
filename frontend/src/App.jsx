@@ -28,6 +28,8 @@ import MyProjectPage from './pages/customer/MyProjectPage.jsx';
 import CustomerReferralsPage from './pages/customer/ReferralsPage.jsx';
 import ReferralsPage from './pages/ReferralsPage.jsx';
 
+import AdminTemplatesPage from './pages/admin/AdminTemplatePage.jsx';
+
 import SiteInspectionPage from './pages/admin/SiteInspectionPage.jsx';
 function PlaceholderPage({ title, message, children }) {
   return (
@@ -175,6 +177,7 @@ function App() {
           <Route path="companies/new" element={<RequirePermission resource="companies" action="create"><CompanyOnboardingWizard /></RequirePermission>} />
           <Route path="companies/:id/edit" element={<RequirePermission resource="companies" action="update"><CompanyOnboardingWizard /></RequirePermission>} />
           <Route path="roles" element={<Navigate to="/admin/settings" replace />} />
+          <Route path="/admin/settings/inspection-templates" element={<AdminTemplatesPage />} />
         </Route>
 
         {/* PROTECTED: Company area (layout CompanyPage + nested) */}
