@@ -1147,3 +1147,83 @@ export async function uploadSiteInspectionFile(leadId, file, section) {
   }
   return data;
 }
+
+export async function listEmployees(params = {}) {
+  const q = new URLSearchParams();
+  if (params.department_id) q.set('department_id', String(params.department_id));
+  if (params.job_role_id) q.set('job_role_id', String(params.job_role_id));
+  if (params.status) q.set('status', params.status);
+  if (params.q) q.set('q', params.q);
+  if (typeof params.limit === 'number') q.set('limit', String(params.limit));
+  if (typeof params.offset === 'number') q.set('offset', String(params.offset));
+  const url = `/api/employees${q.toString() ? `?${q.toString()}` : ''}`;
+  const res = await authFetch(url, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message ?? 'Failed to load employees');
+  return data; // { success: true, data: [...] }
+}
+
+export async function createEmployee(payload) {
+  const res = await authFetch('/api/employees', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 422) {
+    const err = new Error('Validation error');
+    err.status = 422; err.body = data;
+    throw err;
+  }
+  if (!res.ok) throw new Error(data.message ?? 'Failed to create employee');
+  return data.data; // employee row
+}
+
+export async function getEmployee(id) {
+  const res = await authFetch(`/api/employees/${encodeURIComponent(id)}`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message ?? 'Failed to load employee');
+  return data.data; // { employee, qualifications, emergency_contacts }
+}
+
+export async function updateEmployee(id, payload) {
+  const res = await authFetch(`/api/employees/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 422) { const err = new Error('Validation error'); err.status = 422; err.body = data; throw err; }
+  if (!res.ok) throw new Error(data.message ?? 'Failed to update employee');
+  return data.data;
+}
+
+export async function deactivateEmployee(id) {
+  const res = await authFetch(`/api/employees/${encodeURIComponent(id)}/deactivate`, { method: 'PATCH' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message ?? 'Failed to deactivate employee');
+  return data.data; // { id, status: 'inactive' }
+}
+
+export async function previewRoleModules(job_role_id) {
+  const res = await authFetch(`/api/employees/preview/role-modules/${encodeURIComponent(job_role_id)}`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message ?? 'Failed to get role modules preview');
+  return data.data; // [{ module_key, display_name }]
+}
+
+export async function getJobRoleOptions(params = {}) {
+  
+  const headers = {};
+  if (params.companyId) headers['X-Tenant-Id'] = String(params.companyId);
+  const res = await authFetch('/api/employees/options/job-roles', { headers });
+
+  const data = await res.json();
+  return data.data ?? [];
+}
+export async function getEmploymentTypeOptions() {
+  const res = await authFetch('/api/employees/options/employment-types', { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message ?? 'Failed to load employment types');
+  return data.data; // [{ id, name }]
+}

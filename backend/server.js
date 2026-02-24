@@ -23,6 +23,6 @@ server.listen(PORT, () => {
 });
 
 
-startFollowupWorker();
-startOwnerDocReminderWorker();
-startProposalFollowupWorker();
+//startFollowupWorker();
+//startOwnerDocReminderWorker();
+//  startProposalFollowupWorker();
