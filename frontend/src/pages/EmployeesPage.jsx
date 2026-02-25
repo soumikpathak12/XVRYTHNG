@@ -14,6 +14,7 @@ import {
   previewRoleModules,
   getJobRoleOptions,
   getEmploymentTypeOptions,
+  createEmployeeLogin,
 } from '../services/api.js';
 
 /* ----------------------------- Small UI bits ----------------------------- */
@@ -24,6 +25,7 @@ function Badge({ children, tone = 'success' }) {
     danger: { bg: '#FEE2E2', fg: '#991B1B' },    // red
     warning: { bg: '#FEF3C7', fg: '#92400E' },   // amber
     gray: { bg: '#E5E7EB', fg: '#374151' },
+    info: { bg: '#DBEAFE', fg: '#1D4ED8' },
   };
   const c = map[tone] ?? map.gray;
   return (
@@ -71,19 +73,20 @@ function SectionCard({ title, subtitle, children, action }) {
   );
 }
 
-function PrimaryButton({ children, onClick, type = 'button', color = '#146b6b' }) {
+function PrimaryButton({ children, onClick, type = 'button', color = '#146b6b', disabled }) {
   return (
     <button
       type={type}
       onClick={onClick}
+      disabled={disabled}
       style={{
         padding: '10px 14px',
-        background: color,
+        background: disabled ? '#94a3b8' : color,
         color: '#fff',
         border: 'none',
         borderRadius: 10,
         fontWeight: 700,
-        cursor: 'pointer',
+        cursor: disabled ? 'not-allowed' : 'pointer',
         boxShadow: '0 3px 10px rgba(20,107,107,.20)',
       }}
     >
@@ -112,6 +115,7 @@ function GhostButton({ children, onClick }) {
   );
 }
 
+/* ----------------------------- Employee Form ----------------------------- */
 
 function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
   const [form, setForm] = useState(() => ({
@@ -127,7 +131,10 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
       email: initial?.email ?? '',
       phone: initial?.phone ?? '',
       address_line1: initial?.address_line1 ?? '',
+      address_line2: initial?.address_line2 ?? '',
       city: initial?.city ?? '',
+      state: initial?.state ?? '',
+      postal_code: initial?.postal_code ?? '',
       country: initial?.country ?? '',
     },
     employment: {
@@ -140,6 +147,11 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
     },
     qualifications: initial?.qualifications ?? [],
     emergency_contacts: initial?.emergency_contacts ?? [],
+    account: {
+      enable_login: false,
+      password: '',
+      password_confirm: '',
+    },
   }));
 
   const [roleModules, setRoleModules] = useState([]);
@@ -148,7 +160,6 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
   const [saving, setSaving] = useState(false);
   const [errText, setErrText] = useState('');
 
-  // handle change (deep path)
   const handleChange = (path, value) => {
     setForm((prev) => {
       const next = structuredClone(prev);
@@ -159,6 +170,7 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
     });
   };
 
+  // Load dropdown options
   useEffect(() => {
     let alive = true;
 
@@ -170,9 +182,7 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
       .then((rows) => alive && setRoleOptions(rows ?? []))
       .catch(() => alive && setRoleOptions([]));
 
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, [companyId]);
 
   // Preview modules when role changes
@@ -186,9 +196,7 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
     previewRoleModules(jobRoleId)
       .then((rows) => alive && setRoleModules(rows))
       .catch(() => alive && setRoleModules([]));
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, [form.employment.job_role_id]);
 
   const submit = async (e) => {
@@ -196,6 +204,18 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
     try {
       setSaving(true);
       setErrText('');
+      // Validate account if enable_login
+      if (form.account.enable_login) {
+        if (!form.account.password || form.account.password.length < 8) {
+          throw new Error('Password must be at least 8 characters');
+        }
+        if (form.account.password !== form.account.password_confirm) {
+          throw new Error('Password does not match');
+        }
+        if (!form.contact.email) {
+          throw new Error('Email is required when enabling login');
+        }
+      }
       await onSubmit(form);
     } catch (err) {
       setErrText(err?.message ?? 'Failed to save.');
@@ -211,6 +231,12 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
     padding: '8px 10px',
   };
   const labelStyle = { fontSize: 13, fontWeight: 700, color: '#374151' };
+
+  const canSubmit =
+    !form.account.enable_login ||
+    (form.account.password &&
+      form.account.password.length >= 8 &&
+      form.account.password === form.account.password_confirm);
 
   return (
     <form onSubmit={submit} className="emp-form">
@@ -274,6 +300,7 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
           />
         </label>
 
+        {/* Job role SELECT */}
         <label>
           <div style={labelStyle}>Job role</div>
           <select
@@ -295,6 +322,7 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
           </select>
         </label>
 
+        {/* Employment type SELECT */}
         <label>
           <div style={labelStyle}>Employment type</div>
           <select
@@ -352,6 +380,7 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
         </label>
       </div>
 
+      {/* Preview modules */}
       <div style={{ margin: '12px 0 6px', fontWeight: 700, color: '#374151' }}>
         Module access preview:
       </div>
@@ -362,6 +391,44 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
         {roleModules.length === 0 && <li>(no modules)</li>}
       </ul>
 
+      {/* Enable Login */}
+      <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed #E5E7EB' }}>
+        <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+          <input
+            type="checkbox"
+            checked={form.account.enable_login}
+            onChange={(e) => handleChange(['account', 'enable_login'], e.target.checked)}
+          />
+          <span style={{ fontWeight: 700, color: '#374151' }}>Enable login for this employee</span>
+        </label>
+        {form.account.enable_login && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 12 }}>
+            <label>
+              <div style={labelStyle}>Password</div>
+              <input
+                style={inputStyle}
+                type="password"
+                value={form.account.password}
+                onChange={(e) => handleChange(['account', 'password'], e.target.value)}
+                placeholder="At least 8 characters"
+                required
+              />
+            </label>
+            <label>
+              <div style={labelStyle}>Confirm password</div>
+              <input
+                style={inputStyle}
+                type="password"
+                value={form.account.password_confirm}
+                onChange={(e) => handleChange(['account', 'password_confirm'], e.target.value)}
+                required
+              />
+            </label>
+
+          </div>
+        )}
+      </div>
+
       {errText && (
         <div style={{ color: '#B91C1C', marginTop: 6, fontSize: 13 }}>{errText}</div>
       )}
@@ -371,7 +438,9 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
         style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14 }}
       >
         <GhostButton onClick={onCancel}>Cancel</GhostButton>
-        <PrimaryButton type="submit">{saving ? 'Saving…' : 'Save'}</PrimaryButton>
+        <PrimaryButton type="submit" disabled={!canSubmit}>
+          {saving ? 'Saving…' : 'Save'}
+        </PrimaryButton>
       </div>
     </form>
   );
@@ -385,6 +454,10 @@ export default function EmployeesPage() {
   const [loading, setLoading] = useState(true);
   const [openAdd, setOpenAdd] = useState(false);
   const [error, setError] = useState('');
+  const [loginForId, setLoginForId] = useState(null);
+  const [loginPw, setLoginPw] = useState('');
+  const [loginPw2, setLoginPw2] = useState('');
+  const [loginSaving, setLoginSaving] = useState(false);
   const searchRef = useRef(null);
 
   // For super admin: read ?companyId= from URL (optional)
@@ -401,7 +474,8 @@ export default function EmployeesPage() {
     try {
       const params = { ...(q ? { q } : {}), ...(companyId ? { companyId } : {}) };
       const resp = await listEmployees(params);
-      setRows(Array.isArray(resp?.data) ? resp.data : []);
+      const arr = Array.isArray(resp?.data) ? resp.data : [];
+      setRows(arr);
     } catch (e) {
       setError(e.message ?? 'Failed to load employees');
     } finally {
@@ -409,9 +483,7 @@ export default function EmployeesPage() {
     }
   }, [q, companyId]);
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  useEffect(() => { refresh(); }, [refresh]);
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -429,13 +501,41 @@ export default function EmployeesPage() {
 
   const handleCreate = async (payload) => {
     const created = await createEmployee(payload);
-    if (created?.id) setRows((prev) => [created, ...prev]);
+    if (created?.id) {
+      await refresh();
+    }
     setOpenAdd(false);
   };
 
   const handleDeactivate = async (id) => {
     const r = await deactivateEmployee(id);
     setRows((prev) => prev.map((x) => (x.id === id ? { ...x, status: r.status } : x)));
+  };
+
+  const openCreateLogin = (id) => {
+    setLoginForId(id);
+    setLoginPw('');
+    setLoginPw2('');
+  };
+  const closeCreateLogin = () => {
+    setLoginForId(null);
+    setLoginPw('');
+    setLoginPw2('');
+  };
+  const doCreateLogin = async () => {
+    try {
+      if (!loginPw || loginPw.length < 8) throw new Error('Password must be at least 8 characters');
+      if (loginPw !== loginPw2) throw new Error('Password does not match');
+      setLoginSaving(true);
+      const resp = await createEmployeeLogin(loginForId, { password: loginPw, ...(companyId ? { companyId } : {}) });
+      const userId = resp?.user_id ?? resp?.data?.user_id;
+      setRows((prev) => prev.map((x) => (x.id === loginForId ? { ...x, user_id: userId ?? x.user_id } : x)));
+      closeCreateLogin();
+    } catch (err) {
+      alert(err?.message ?? 'Failed to create login');
+    } finally {
+      setLoginSaving(false);
+    }
   };
 
   /* ----------------------------- Render ----------------------------- */
@@ -511,6 +611,7 @@ export default function EmployeesPage() {
                   <th style={tableHeadStyle}>Department</th>
                   <th style={tableHeadStyle}>Email</th>
                   <th style={tableHeadStyle}>Status</th>
+                  <th style={tableHeadStyle}>Login</th>
                   <th style={{ ...tableHeadStyle, textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
@@ -528,20 +629,56 @@ export default function EmployeesPage() {
                     <td style={cellStyle}>
                       <Badge tone={r.status === 'active' ? 'success' : 'gray'}>{r.status}</Badge>
                     </td>
+                    <td style={cellStyle}>
+                      {r.user_id ? (
+                        <Badge tone="info">has login</Badge>
+                      ) : (
+                        <button
+                          onClick={() => openCreateLogin(r.id)}
+                          style={{
+                            padding: '6px 10px',
+                            height: 32,
+                            lineHeight: '20px',
+                            background: '#fff',
+                            color: '#1D4ED8',
+                            border: '1px solid #93C5FD',
+                            borderRadius: 8,
+                            fontWeight: 600,
+                            fontSize: 13,
+                            cursor: 'pointer',
+                          }}
+                          title="Create Login"
+                        >
+                          Create Login
+                        </button>
+                      )}
+                    </td>
                     <td style={{ ...cellStyle, textAlign: 'right' }}>
                       {r.status === 'active' ? (
                         <button
                           onClick={() => handleDeactivate(r.id)}
                           style={{
                             padding: '6px 10px',
-                            background: '#FEE2E2',
-                            color: '#991B1B',
-                            border: 'none',
-                            borderRadius: 10,
-                            fontWeight: 700,
+                            height: 32,
+                            lineHeight: '20px',
+                            background: '#fff',
+                            color: '#B91C1C',
+                            border: '1px solid #FCA5A5',
+                            borderRadius: 8,
+                            fontWeight: 600,
+                            fontSize: 13,
                             cursor: 'pointer',
+                            transition: 'all .15s ease',
                           }}
                           title="Deactivate"
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = '#FEF2F2';
+                            e.currentTarget.style.borderColor = '#F87171';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = '#fff';
+                            e.currentTarget.style.borderColor = '#FCA5A5';
+                          }}
                         >
                           Deactivate
                         </button>
@@ -553,7 +690,7 @@ export default function EmployeesPage() {
                 ))}
                 {filtered.length === 0 && !loading && (
                   <tr>
-                    <td colSpan={6} style={{ ...cellStyle, color: '#6B7280' }}>
+                    <td colSpan={7} style={{ ...cellStyle, color: '#6B7280' }}>
                       (no data)
                     </td>
                   </tr>
@@ -564,6 +701,7 @@ export default function EmployeesPage() {
         )}
       </SectionCard>
 
+      {/* Modal Add */}
       {openAdd && (
         <div
           className="modal-backdrop"
@@ -606,6 +744,70 @@ export default function EmployeesPage() {
               onCancel={() => setOpenAdd(false)}
               onSubmit={handleCreate}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Modal Create Login */}
+      {loginForId && (
+        <div
+          className="modal-backdrop"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15,23,42,.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 110,
+          }}
+          onClick={closeCreateLogin}
+        >
+          <div
+            className="modal"
+            style={{
+              width: 'min(520px, 92vw)',
+              background: '#fff',
+              borderRadius: 16,
+              padding: 18,
+              boxShadow: '0 20px 60px rgba(0,0,0,.25)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 8px', color: '#0F172A' }}>Create Login</h3>
+            <p style={{ marginTop: 0, color: '#6B7280', fontSize: 13 }}>
+              Set a password for this employee (min 8 chars). The login email is their employee email.
+            </p>
+            <div style={{ display: 'grid', gap: 8 }}>
+              <input
+                type="password"
+                placeholder="Password"
+                value={loginPw}
+                onChange={(e) => setLoginPw(e.target.value)}
+                style={{
+                  border: '1px solid #D1D5DB',
+                  borderRadius: 10,
+                  padding: '8px 10px',
+                }}
+              />
+              <input
+                type="password"
+                placeholder="Confirm password"
+                value={loginPw2}
+                onChange={(e) => setLoginPw2(e.target.value)}
+                style={{
+                  border: '1px solid #D1D5DB',
+                  borderRadius: 10,
+                  padding: '8px 10px',
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14 }}>
+              <GhostButton onClick={closeCreateLogin}>Cancel</GhostButton>
+              <PrimaryButton onClick={doCreateLogin} disabled={loginSaving || !loginPw || loginPw !== loginPw2}>
+                {loginSaving ? 'Creating…' : 'Create'}
+              </PrimaryButton>
+            </div>
           </div>
         </div>
       )}

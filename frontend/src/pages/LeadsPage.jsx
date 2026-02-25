@@ -17,9 +17,17 @@ import {
 import ImportLeadsModal from '../components/leads/ImportLeadsModal.jsx';
 import '../styles/LeadsKanban.css';
 
+function useLeadBase() {
+  const { pathname } = useLocation();
+  if (pathname.startsWith('/admin')) return '/admin';
+  if (pathname.startsWith('/employee')) return '/employee';
+  return '/dashboard'; // fallback cho company
+}
+
 export default function LeadsPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const base = useLeadBase(); 
 
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,7 +35,6 @@ export default function LeadsPage() {
   const [openAdd, setOpenAdd] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [selectedLeadId, setSelectedLeadId] = useState(null);
-  // const [selectedLeadId, setSelectedLeadId] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [toast, setToast] = useState('');
   const [syncing, setSyncing] = useState(false);
@@ -412,10 +419,9 @@ export default function LeadsPage() {
             </button>
           </div>
         </div>
-      </header >
+      </header>
 
-      {toast && <div className="leads-toast">{toast}</div>
-      }
+      {toast && <div className="leads-toast">{toast}</div>}
 
       <div className="leads-page-content">
         {loading ? (
@@ -435,7 +441,7 @@ export default function LeadsPage() {
               getDate={(l) => l._raw?.site_inspection_date ?? null}
               titleForLead={(l) => l.customerName || `Lead #${l.id}`}
               subtitleForLead={(l) => [l.suburb, l.stage].filter(Boolean).join(' • ') || ''}
-              onLeadClick={(lead) => navigate(`/admin/leads/${lead.id}/site-inspection`)}
+              onLeadClick={(lead) => navigate(`${base}/leads/${lead.id}/site-inspection`)}
               weekStartsOn={1}
             />
           </div>
@@ -448,7 +454,6 @@ export default function LeadsPage() {
           />
         )}
       </div>
-
 
       <Modal open={openAdd} onClose={() => setOpenAdd(false)} title="Add New Lead" width={720}>
         <AddLeadForm
@@ -527,16 +532,14 @@ export default function LeadsPage() {
         </div>
       </Modal>
 
-      {
-        showImport && (
-          <ImportLeadsModal
-            onClose={() => setShowImport(false)}
-            onSuccess={() => {
-              setRefreshTrigger(p => p + 1);
-            }}
-          />
-        )
-      }
-    </div >
+      {showImport && (
+        <ImportLeadsModal
+          onClose={() => setShowImport(false)}
+          onSuccess={() => {
+            setRefreshTrigger(p => p + 1);
+          }}
+        />
+      )}
+    </div>
   );
 }

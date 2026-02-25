@@ -1,144 +1,151 @@
 // src/services/employeeService.js
 import db from '../config/db.js';
+import bcrypt from 'bcryptjs';
 
-// ---------------------- CREATE ----------------------
-export async function createEmployee(companyId, payload) {
-  if (!companyId) {
-    const e = new Error('Missing company context');
-    e.statusCode = 400;
-    throw e;
-  }
 
-  const {
-    employee_code = null,
-    personal = {},
-    contact = {},
-    employment = {},
-    qualifications = [],
-    emergency_contacts = [],
-  } = payload ?? {};
-
-  const {
-    first_name, last_name, date_of_birth = null, gender = null, avatar_url = null,
-  } = personal ?? {};
-  const {
-    email, phone = null, address_line1 = null, address_line2 = null, city = null, state = null,
-    postal_code = null, country = null,
-  } = contact ?? {};
-  const {
-    department_id = null, job_role_id = null, employment_type_id = null,
-    start_date = null, end_date = null, rate_type = 'monthly', rate_amount = 0,
-  } = employment ?? {};
-
-  if (!first_name || !last_name) {
-    const err = new Error('first_name and last_name are required');
-    err.statusCode = 422; throw err;
-  }
-  if (!email) {
-    const err = new Error('email is required');
-    err.statusCode = 422; throw err;
-  }
-
-  // Ensure FK belongs to company
-  const checkSql = `
-    SELECT
-      (SELECT COUNT(*) FROM departments d WHERE d.id <=> ? AND d.company_id = ?) AS ok_dept,
-      (SELECT COUNT(*) FROM job_roles jr WHERE jr.id <=> ? AND jr.company_id = ?) AS ok_role
-  `;
-  const [ck] = await db.execute(checkSql, [
-    department_id ?? null, Number(companyId),
-    job_role_id ?? null, Number(companyId),
-  ]);
-  if ((department_id && !ck?.[0]?.ok_dept) || (job_role_id && !ck?.[0]?.ok_role)) {
-    const e = new Error('department_id or job_role_id invalid for this company');
-    e.statusCode = 422; throw e;
-  }
-
-  const sql = `
-    INSERT INTO employees (
-      company_id, user_id, employee_code, first_name, last_name, date_of_birth, gender,
-      email, phone, address_line1, address_line2, city, state, postal_code, country,
-      department_id, job_role_id, employment_type_id, start_date, end_date,
-      rate_type, rate_amount, status, avatar_url, created_at, updated_at
-    ) VALUES (
-      ?, NULL, ?, ?, ?, ?, ?,
-      ?, ?, ?, ?, ?, ?, ?, ?,
-      ?, ?, ?, ?, ?,
-      ?, ?, 'active', ?, NOW(), NOW()
-    )
-  `;
-  const params = [
-    Number(companyId),
-    employee_code ?? null,
-    first_name, last_name, date_of_birth ?? null, gender ?? null,
-    email, phone ?? null, address_line1 ?? null, address_line2 ?? null,
-    city ?? null, state ?? null, postal_code ?? null, country ?? null,
-    department_id ?? null, job_role_id ?? null, employment_type_id ?? null,
-    start_date ?? null, end_date ?? null,
-    rate_type ?? 'monthly', rate_amount == null ? 0 : Number(rate_amount),
-    avatar_url ?? null,
-  ];
-
-  const [ins] = await db.execute(sql, params);
-  if (!ins?.affectedRows) {
-    const err = new Error('Insert employee returned 0 affected rows');
-    err.statusCode = 500; throw err;
-  }
-  const empId = ins.insertId;
-
-  // qualifications
-  if (Array.isArray(qualifications) && qualifications.length > 0) {
-    const qsql = `
-      INSERT INTO employee_qualifications (employee_id, qualification_id, obtained_date, expires_date)
-      VALUES (?, ?, ?, ?)
-    `;
-    for (const q of qualifications) {
-      if (!q?.qualification_id) continue;
-      await db.execute(qsql, [
-        empId,
-        Number(q.qualification_id),
-        q.obtained_date ?? null,
-        q.expires_date ?? null,
-      ]);
-    }
-  }
-
-  // emergency contacts
-  if (Array.isArray(emergency_contacts) && emergency_contacts.length > 0) {
-    const esql = `
-      INSERT INTO emergency_contacts (employee_id, contact_name, relationship, phone, email, address)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `;
-    for (const e of emergency_contacts) {
-      if (!e?.contact_name || !e?.phone) continue;
-      await db.execute(esql, [
-        empId,
-        String(e.contact_name),
-        e.relationship ?? null,
-        String(e.phone),
-        e.email ?? null,
-        e.address ?? null,
-      ]);
-    }
-  }
-
-  const [row] = await db.execute(`
-    SELECT e.*, d.name AS department_name, jr.name AS job_role_name, et.name AS employment_type_name
-    FROM employees e
-    LEFT JOIN departments d ON d.id = e.department_id
-    LEFT JOIN job_roles jr ON jr.id = e.job_role_id
-    LEFT JOIN employment_types et ON et.id = e.employment_type_id
-    WHERE e.id = ? LIMIT 1
-  `, [empId]);
-
-  return row?.[0];
+function asNumberOrNull(v) {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
 }
 
-// ---------------------- LIST ----------------------
-export async function listEmployees(
-  companyId,
-  { department_id, job_role_id, status, q, limit, offset } = {}
-) {
+
+export async function createEmployee(companyId, payload) {
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const {
+      employee_code,
+      personal = {},
+      contact = {},
+      employment = {},
+      account = {}, // { enable_login, password }
+      qualifications = [],
+      emergency_contacts = [],
+    } = payload ?? {};
+
+    // 1) Insert employee
+    const [empRes] = await conn.execute(
+      `
+      INSERT INTO employees (
+        company_id, user_id, employee_code,
+        first_name, last_name, date_of_birth, gender,
+        email, phone, address_line1, address_line2, city, state, postal_code, country,
+        department_id, job_role_id, employment_type_id,
+        start_date, end_date, rate_type, rate_amount,
+        status, avatar_url, created_at, updated_at
+      )
+      VALUES (
+        ?, NULL, ?,
+        ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?,
+        ?, ?, ?, ?,
+        'active', ?, NOW(), NOW()
+      )
+      `,
+      [
+        Number(companyId), employee_code ?? null,
+        personal.first_name ?? '', personal.last_name ?? '', personal.date_of_birth ?? null, personal.gender ?? null,
+        contact.email ?? '', contact.phone ?? null, contact.address_line1 ?? null, contact.address_line2 ?? null,
+        contact.city ?? null, contact.state ?? null, contact.postal_code ?? null, contact.country ?? null,
+        asNumberOrNull(employment.department_id), asNumberOrNull(employment.job_role_id), asNumberOrNull(employment.employment_type_id),
+        employment.start_date || null, employment.end_date || null,
+        employment.rate_type || 'monthly', Number(employment.rate_amount ?? 0),
+        personal.avatar_url ?? null,
+      ]
+    );
+    const employeeId = empRes.insertId;
+
+    if (account?.enable_login) {
+      const email = (contact.email ?? '').trim().toLowerCase();
+      if (!email) throw new Error('Email is required to create login');
+      if (!account.password || account.password.length < 8) {
+        throw new Error('Password must be at least 8 characters');
+      }
+      const platformRoleId = 4; // field_agent
+      const fullName = `${personal.first_name ?? ''} ${personal.last_name ?? ''}`.trim() || email;
+      const passwordHash = await bcrypt.hash(account.password, 10);
+
+      const [userRes] = await conn.execute(
+        `
+        INSERT INTO users (company_id, role_id, email, password_hash, name, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 'active', NOW(), NOW())
+        `,
+        [Number(companyId), platformRoleId, email, passwordHash, fullName]
+      );
+      const userId = userRes.insertId;
+
+      await conn.execute(
+        `UPDATE employees SET user_id = ? WHERE id = ?`,
+        [userId, employeeId]
+      );
+    }
+
+    await conn.commit();
+
+    return { id: employeeId };
+  } catch (e) {
+    await conn.rollback();
+    throw e;
+  } finally {
+    conn.release();
+  }
+}
+
+export async function createEmployeeAccount(companyId, employeeId, password) {
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // Lấy employee
+    const [[emp]] = await conn.execute(
+      `
+      SELECT e.id, e.company_id, e.email, e.first_name, e.last_name, e.user_id
+      FROM employees e
+      WHERE e.company_id = ? AND e.id = ?
+      LIMIT 1
+      `,
+      [Number(companyId), Number(employeeId)]
+    );
+    if (!emp) throw new Error('Employee not found');
+    if (emp.user_id) throw new Error('Employee already has a user account');
+
+    const email = (emp.email ?? '').trim().toLowerCase();
+    if (!email) throw new Error('Employee has no email');
+    if (!password || password.length < 8) throw new Error('Password must be at least 8 characters');
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const platformRoleId = 4; // field_agent
+    const fullName = `${emp.first_name ?? ''} ${emp.last_name ?? ''}`.trim() || email;
+
+    // Tạo user
+    const [userRes] = await conn.execute(
+      `
+      INSERT INTO users (company_id, role_id, email, password_hash, name, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 'active', NOW(), NOW())
+      `,
+      [Number(companyId), platformRoleId, email, passwordHash, fullName]
+    );
+    const userId = userRes.insertId;
+
+    await conn.execute(`UPDATE employees SET user_id = ? WHERE id = ?`, [userId, employeeId]);
+
+    await conn.commit();
+    return { user_id: userId };
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
+
+export async function listEmployees(companyId, {
+  department_id, job_role_id, status, q, limit, offset,
+} = {}) {
   if (!companyId) return [];
 
   const where = ['e.company_id = ?'];
@@ -149,8 +156,7 @@ export async function listEmployees(
   if (status)        { where.push('e.status        = ?'); params.push(String(status)); }
   if (q) {
     where.push('(e.first_name LIKE ? OR e.last_name LIKE ? OR e.email LIKE ?)');
-    const like = `%${q}%`;
-    params.push(like, like, like);
+    const like = `%${q}%`; params.push(like, like, like);
   }
 
   let lim = '';
@@ -167,7 +173,7 @@ export async function listEmployees(
     SELECT
       e.id, e.employee_code,
       e.first_name, e.last_name, e.email, e.phone, e.status, e.avatar_url,
-      e.department_id, e.job_role_id,
+      e.department_id, e.job_role_id, e.user_id, -- <== quan trọng cho Create Login
       d.name  AS department,
       jr.name AS role
     FROM employees e
@@ -179,187 +185,108 @@ export async function listEmployees(
     ORDER BY e.created_at DESC
     ${lim}
   `;
-
   const [rows] = await db.execute(sql, params);
   return rows;
 }
 
-// ---------------------- GET DETAIL ----------------------
 export async function getEmployee(companyId, id) {
-  if (!companyId) {
-    const e = new Error('Missing company context'); e.statusCode = 400; throw e;
-  }
-  const [emp] = await db.execute(`
-    SELECT e.*, d.name AS department, jr.name AS role, et.name AS employment_type
+  const [[row]] = await db.execute(
+    `
+    SELECT e.*
     FROM employees e
-    LEFT JOIN departments d ON d.id = e.department_id
-    LEFT JOIN job_roles jr ON jr.id = e.job_role_id
-    LEFT JOIN employment_types et ON et.id = e.employment_type_id
-    WHERE e.company_id = ? AND e.id = ? LIMIT 1
-  `, [Number(companyId), Number(id)]);
-  const employee = emp?.[0];
-  if (!employee) {
-    const err = new Error('Employee not found'); err.statusCode = 404; throw err;
-  }
-
-  const [quals] = await db.execute(`
-    SELECT q.id, q.name, q.authority, eq.obtained_date, eq.expires_date
-    FROM employee_qualifications eq
-    JOIN qualifications q ON q.id = eq.qualification_id
-    WHERE eq.employee_id = ?
-  `, [Number(id)]);
-
-  const [emg] = await db.execute(`
-    SELECT id, contact_name, relationship, phone, email, address
-    FROM emergency_contacts
-    WHERE employee_id = ?
-    ORDER BY id ASC
-  `, [Number(id)]);
-
-  return { employee, qualifications: quals, emergency_contacts: emg };
-}
-
-// ---------------------- UPDATE ----------------------
-export async function updateEmployee(companyId, id, payload) {
-  if (!companyId) {
-    const e = new Error('Missing company context'); e.statusCode = 400; throw e;
-  }
-
-  const [own] = await db.execute(
-    'SELECT id FROM employees WHERE id = ? AND company_id = ? LIMIT 1',
-    [Number(id), Number(companyId)],
+    WHERE e.company_id = ? AND e.id = ?
+    LIMIT 1
+    `,
+    [Number(companyId), Number(id)]
   );
-  if (!own?.[0]) {
-    const err = new Error('Employee not found'); err.statusCode = 404; throw err;
-  }
-
-  const { personal = {}, contact = {}, employment = {}, qualifications = null, emergency_contacts = null } = payload ?? {};
-  const cols = []; const params = [];
-  const set = (col, val) => { cols.push(`${col} = ?`); params.push(val); };
-
-  // personal
-  if (personal.first_name !== undefined) set('first_name', personal.first_name);
-  if (personal.last_name !== undefined) set('last_name', personal.last_name);
-  if (personal.date_of_birth !== undefined) set('date_of_birth', personal.date_of_birth ?? null);
-  if (personal.gender !== undefined) set('gender', personal.gender ?? null);
-  if (personal.avatar_url !== undefined) set('avatar_url', personal.avatar_url ?? null);
-
-  // contact
-  if (contact.email !== undefined) set('email', contact.email);
-  if (contact.phone !== undefined) set('phone', contact.phone ?? null);
-  if (contact.address_line1 !== undefined) set('address_line1', contact.address_line1 ?? null);
-  if (contact.address_line2 !== undefined) set('address_line2', contact.address_line2 ?? null);
-  if (contact.city !== undefined) set('city', contact.city ?? null);
-  if (contact.state !== undefined) set('state', contact.state ?? null);
-  if (contact.postal_code !== undefined) set('postal_code', contact.postal_code ?? null);
-  if (contact.country !== undefined) set('country', contact.country ?? null);
-
-  // employment
-  if (employment.department_id !== undefined) set('department_id', employment.department_id ?? null);
-  if (employment.job_role_id !== undefined) set('job_role_id', employment.job_role_id ?? null);
-  if (employment.employment_type_id !== undefined) set('employment_type_id', employment.employment_type_id ?? null);
-  if (employment.start_date !== undefined) set('start_date', employment.start_date ?? null);
-  if (employment.end_date !== undefined) set('end_date', employment.end_date ?? null);
-  if (employment.rate_type !== undefined) set('rate_type', employment.rate_type ?? 'monthly');
-  if (employment.rate_amount !== undefined) set('rate_amount', employment.rate_amount ?? 0);
-
-  if (cols.length) {
-    params.push(Number(id));
-    const sql = `UPDATE employees SET ${cols.join(', ')}, updated_at = NOW() WHERE id = ?`;
-    await db.execute(sql, params);
-  }
-
-  // replace qualifications if provided
-  if (Array.isArray(qualifications)) {
-    await db.execute('DELETE FROM employee_qualifications WHERE employee_id = ?', [Number(id)]);
-    if (qualifications.length) {
-      const sql = `
-        INSERT INTO employee_qualifications (employee_id, qualification_id, obtained_date, expires_date)
-        VALUES (?, ?, ?, ?)
-      `;
-      for (const q of qualifications) {
-        if (!q?.qualification_id) continue;
-        await db.execute(sql, [
-          Number(id),
-          Number(q.qualification_id),
-          q.obtained_date ?? null,
-          q.expires_date ?? null,
-        ]);
-      }
-    }
-  }
-
-  // replace emergency contacts if provided
-  if (Array.isArray(emergency_contacts)) {
-    await db.execute('DELETE FROM emergency_contacts WHERE employee_id = ?', [Number(id)]);
-    if (emergency_contacts.length) {
-      const sql = `
-        INSERT INTO emergency_contacts (employee_id, contact_name, relationship, phone, email, address)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `;
-      for (const e of emergency_contacts) {
-        if (!e?.contact_name || !e?.phone) continue;
-        await db.execute(sql, [
-          Number(id),
-          String(e.contact_name),
-          e.relationship ?? null,
-          String(e.phone),
-          e.email ?? null,
-          e.address ?? null,
-        ]);
-      }
-    }
-  }
-
-  return getEmployee(Number(companyId), Number(id));
+  return row ?? null;
 }
 
-// --------------------- DEACTIVATE ----------------------
+export async function updateEmployee(companyId, id, body = {}) {
+  const fields = [];
+  const params = [];
+
+  const map = {
+    first_name: body?.personal?.first_name,
+    last_name: body?.personal?.last_name,
+    date_of_birth: body?.personal?.date_of_birth,
+    gender: body?.personal?.gender,
+    avatar_url: body?.personal?.avatar_url,
+
+    email: body?.contact?.email,
+    phone: body?.contact?.phone,
+    address_line1: body?.contact?.address_line1,
+    address_line2: body?.contact?.address_line2,
+    city: body?.contact?.city,
+    state: body?.contact?.state,
+    postal_code: body?.contact?.postal_code,
+    country: body?.contact?.country,
+
+    department_id: asNumberOrNull(body?.employment?.department_id),
+    job_role_id: asNumberOrNull(body?.employment?.job_role_id),
+    employment_type_id: asNumberOrNull(body?.employment?.employment_type_id),
+    start_date: body?.employment?.start_date,
+    end_date: body?.employment?.end_date,
+    rate_type: body?.employment?.rate_type,
+    rate_amount: Number(body?.employment?.rate_amount ?? 0),
+  };
+
+  for (const [k, v] of Object.entries(map)) {
+    if (v !== undefined) { fields.push(`${k} = ?`); params.push(v); }
+  }
+  if (fields.length === 0) return await getEmployee(companyId, id);
+
+  const sql = `
+    UPDATE employees
+       SET ${fields.join(', ')}, updated_at = NOW()
+     WHERE company_id = ? AND id = ?
+  `;
+  params.push(Number(companyId), Number(id));
+
+  await db.execute(sql, params);
+  return await getEmployee(companyId, id);
+}
+
 export async function deactivateEmployee(companyId, id) {
-  if (!companyId) {
-    const e = new Error('Missing company context'); e.statusCode = 400; throw e;
-  }
-  const [own] = await db.execute('SELECT id FROM employees WHERE id = ? AND company_id = ? LIMIT 1', [Number(id), Number(companyId)]);
-  if (!own?.[0]) {
-    const err = new Error('Employee not found'); err.statusCode = 404; throw err;
-  }
-  await db.execute("UPDATE employees SET status = 'inactive', updated_at = NOW() WHERE id = ?", [Number(id)]);
-  const [row] = await db.execute('SELECT id, status FROM employees WHERE id = ? LIMIT 1', [Number(id)]);
-  return row?.[0];
+  await db.execute(
+    `UPDATE employees SET status = 'inactive', updated_at = NOW() WHERE company_id = ? AND id = ?`,
+    [Number(companyId), Number(id)]
+  );
+  return await getEmployee(companyId, id);
 }
+
 
 export async function getRoleModulesPreview(companyId, jobRoleId) {
-  if (!companyId) {
-    const e = new Error('Missing company context'); e.statusCode = 400; throw e;
-  }
-  const [rows] = await db.execute(`
-    SELECT module_key, display_name
-    FROM v_role_access_preview
-    WHERE company_id = ? AND job_role_id = ?
-    ORDER BY display_name
-  `, [Number(companyId), Number(jobRoleId)]);
+  const [rows] = await db.execute(
+    `
+    SELECT m.key_name AS module_key, m.display_name
+    FROM job_role_modules jrm
+    JOIN job_roles jr ON jr.id = jrm.job_role_id AND jr.company_id = ?
+    JOIN modules m   ON m.key_name = jrm.module_key
+    WHERE jrm.job_role_id = ?
+    ORDER BY m.display_name
+    `,
+    [Number(companyId), Number(jobRoleId)]
+  );
   return rows;
 }
 
 export async function getJobRolesForCompany(companyId) {
-  console.log('[EMP SRV] getJobRoles companyId =', companyId);
   const [rows] = await db.execute(
-    `SELECT id, code, name
-     FROM job_roles
-     WHERE company_id = ?
-     ORDER BY name ASC`,
+    `
+    SELECT id, code, name
+    FROM job_roles
+    WHERE company_id = ?
+    ORDER BY name ASC
+    `,
     [Number(companyId)]
   );
-  console.log('[EMP SRV] getJobRoles returned =', rows?.length);
   return rows;
 }
-``
 
 export async function getEmploymentTypes() {
   const [rows] = await db.execute(
-    `SELECT id, name
-     FROM employment_types
-     ORDER BY id ASC`
+    `SELECT id, name FROM employment_types ORDER BY id ASC`
   );
   return rows;
 }

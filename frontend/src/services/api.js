@@ -555,10 +555,13 @@ export async function changePassword({ currentPassword, newPassword }) {
    COMPANY (current company)
    ======================================================================= */
 
+// src/services/api.js
 export async function getCompanySidebar() {
-  return authFetchJSON('/api/me/sidebar', { method: 'GET' });
+  const res = await authFetch('/api/me/sidebar', { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message ?? 'Failed to load sidebar');
+  return data.data ?? { role: null, modules: [] };
 }
-
 export async function getCompanyProfile() {
   return authFetchJSON('/api/company/me', { method: 'GET' });
 }
@@ -1226,4 +1229,51 @@ export async function getEmploymentTypeOptions() {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message ?? 'Failed to load employment types');
   return data.data; // [{ id, name }]
+}
+
+export async function createEmployeeLogin(id, { password, companyId } = {}) {
+  const q = new URLSearchParams();
+  if (companyId) q.set('companyId', companyId);
+
+  const url = `/api/employees/${id}/create-login?${q.toString()}`;
+  const res = await authFetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message ?? 'Failed to create login');
+  return data.data ?? data; // { user_id }
+}
+
+export async function getJobRolesForTenant(companyId) {
+  const headers = {};
+  if (companyId) headers['X-Tenant-Id'] = String(companyId);
+  return authFetchJSON('/api/admin/job-roles', { method: 'GET', headers });
+}
+export async function getCompanyModulesForTenant(companyId) {
+  const headers = {};
+  if (companyId) headers['X-Tenant-Id'] = String(companyId);
+  return authFetchJSON('/api/admin/modules', { method: 'GET', headers });
+}
+
+export async function getJobRoles(params = {}) {
+  const q = new URLSearchParams(params).toString();
+  return authFetchJSON(`/api/admin/job-roles${q ? `?${q}` : ''}`, { method: 'GET' });
+}
+
+export async function getCompanyModules(params = {}) {
+  const q = new URLSearchParams(params).toString();
+  return authFetchJSON(`/api/admin/modules${q ? `?${q}` : ''}`, { method: 'GET' });
+}
+
+export async function setJobRoleModules(jobRoleId, { moduleKeys }) {
+  const res = await authFetch(`/api/admin/job-roles/${encodeURIComponent(jobRoleId)}/modules`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ moduleKeys }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message ?? 'Failed to update job role modules');
+  return data;
 }
