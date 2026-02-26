@@ -33,6 +33,8 @@ import EmployeesPage from './pages/EmployeesPage.jsx';
 
 import EmployeePage from './pages/employee/EmployeePage.jsx';
 
+import EmployeeProfilePage from './pages/EmployeeProfilePage.jsx';
+
 function PlaceholderPage({ title, message, children }) {
   return (
     <div style={{ padding: '2rem', textAlign: 'center', color: '#1A1A2E' }}>
@@ -186,6 +188,11 @@ function App() {
             </RequirePermission>
           } />
 
+          <Route
+              path="employees/:id"
+              element={<EmployeeProfilePage />}
+            />
+
           <Route path="projects" element={
             <RequirePermission resource="projects" action="view">
               <AdminProjects />
@@ -254,6 +261,8 @@ function App() {
 
           <Route path="roles" element={<Navigate to="/admin/settings" replace />} />
           <Route path="/admin/settings/inspection-templates" element={<AdminTemplatesPage />} />
+          
+
         </Route>
 
         <Route

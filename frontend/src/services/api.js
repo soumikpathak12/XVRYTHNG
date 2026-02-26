@@ -1150,7 +1150,6 @@ export async function uploadSiteInspectionFile(leadId, file, section) {
   }
   return data;
 }
-
 export async function listEmployees(params = {}) {
   const q = new URLSearchParams();
   if (params.department_id) q.set('department_id', String(params.department_id));
@@ -1159,6 +1158,8 @@ export async function listEmployees(params = {}) {
   if (params.q) q.set('q', params.q);
   if (typeof params.limit === 'number') q.set('limit', String(params.limit));
   if (typeof params.offset === 'number') q.set('offset', String(params.offset));
+  if (params.companyId) q.set('companyId', String(params.companyId));
+
   const url = `/api/employees${q.toString() ? `?${q.toString()}` : ''}`;
   const res = await authFetch(url, { method: 'GET' });
   const data = await res.json().catch(() => ({}));
@@ -1182,15 +1183,22 @@ export async function createEmployee(payload) {
   return data.data; // employee row
 }
 
-export async function getEmployee(id) {
-  const res = await authFetch(`/api/employees/${encodeURIComponent(id)}`, { method: 'GET' });
+// GET /api/employees/:id (?companyId= for super_admin)
+export async function getEmployee(id, params = {}) {
+  const q = new URLSearchParams();
+  if (params.companyId) q.set('companyId', String(params.companyId));
+  const res = await authFetch(`/api/employees/${encodeURIComponent(id)}${q.toString() ? `?${q}` : ''}`, { method: 'GET' });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message ?? 'Failed to load employee');
-  return data.data; // { employee, qualifications, emergency_contacts }
+  return data; // { success:true, data:{...} }
 }
 
-export async function updateEmployee(id, payload) {
-  const res = await authFetch(`/api/employees/${encodeURIComponent(id)}`, {
+
+// PUT /api/employees/:id (?companyId= for super_admin)
+export async function updateEmployee(id, payload, params = {}) {
+  const q = new URLSearchParams();
+  if (params.companyId) q.set('companyId', String(params.companyId));
+  const res = await authFetch(`/api/employees/${encodeURIComponent(id)}${q.toString() ? `?${q}` : ''}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -1277,3 +1285,61 @@ export async function setJobRoleModules(jobRoleId, { moduleKeys }) {
   if (!res.ok) throw new Error(data.message ?? 'Failed to update job role modules');
   return data;
 }
+
+// List documents of an employee
+export async function listEmployeeDocuments(employeeId, params = {}) {
+  const q = new URLSearchParams();
+  if (params.companyId) q.set('companyId', String(params.companyId));
+  const res = await authFetch(`/api/employees/${encodeURIComponent(employeeId)}/documents${q.toString() ? `?${q}` : ''}`, {
+    method: 'GET'
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message ?? 'Failed to load documents');
+  return data.data ?? [];
+}
+
+// Upload a document
+export async function uploadEmployeeDocument(employeeId, file, { label, notes, companyId } = {}) {
+  const q = new URLSearchParams();
+  if (companyId) q.set('companyId', String(companyId));
+
+  const fd = new FormData();
+  fd.append('file', file);
+  if (label) fd.append('label', label);
+  if (notes) fd.append('notes', notes);
+
+  const res = await authFetch(`/api/employees/${encodeURIComponent(employeeId)}/documents${q.toString() ? `?${q}` : ''}`, {
+    method: 'POST',
+    body: fd,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message ?? 'Failed to upload document');
+  return data.data;
+}
+
+// Download (returns a blob)
+export async function downloadEmployeeDocument(employeeId, docId, params = {}) {
+  const q = new URLSearchParams();
+  if (params.companyId) q.set('companyId', String(params.companyId));
+  const res = await authFetch(`/api/employees/${encodeURIComponent(employeeId)}/documents/${encodeURIComponent(docId)}/download${q.toString() ? `?${q}` : ''}`, {
+    method: 'GET'
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.message ?? 'Failed to download');
+  }
+  const blob = await res.blob();
+  return blob;
+}
+
+// Delete
+export async function deleteEmployeeDocument(employeeId, docId, params = {}) {
+  const q = new URLSearchParams();
+  if (params.companyId) q.set('companyId', String(params.companyId));
+  const res = await authFetch(`/api/employees/${encodeURIComponent(employeeId)}/documents/${encodeURIComponent(docId)}${q.toString() ? `?${q}` : ''}`, {
+    method: 'DELETE'
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message ?? 'Failed to delete document');
+  return true;
+} 

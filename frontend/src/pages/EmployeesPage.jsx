@@ -6,7 +6,7 @@ import React, {
   useState,
   useCallback,
 } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   listEmployees,
   createEmployee,
@@ -15,15 +15,22 @@ import {
   getJobRoleOptions,
   getEmploymentTypeOptions,
   createEmployeeLogin,
+  getEmployee,
+  updateEmployee,
 } from '../services/api.js';
 
-/* ----------------------------- Small UI bits ----------------------------- */
+// New UI components (đã gửi riêng):
+import OverviewStatCards from '../components/employees/OverviewStatCards.jsx';
+import FiltersBar from '../components/employees/FiltersBar.jsx';
+import QuickCheckIn from '../components/employees/QuickCheckIn.jsx';
+import PendingLeaveList from '../components/employees/PendingLeaveList.jsx';
 
+/* ----------------------------- Small UI bits ----------------------------- */
 function Badge({ children, tone = 'success' }) {
   const map = {
-    success: { bg: '#DCFCE7', fg: '#166534' },   // green
-    danger: { bg: '#FEE2E2', fg: '#991B1B' },    // red
-    warning: { bg: '#FEF3C7', fg: '#92400E' },   // amber
+    success: { bg: '#DCFCE7', fg: '#166534' },
+    danger: { bg: '#FEE2E2', fg: '#991B1B' },
+    warning: { bg: '#FEF3C7', fg: '#92400E' },
     gray: { bg: '#E5E7EB', fg: '#374151' },
     info: { bg: '#DBEAFE', fg: '#1D4ED8' },
   };
@@ -31,45 +38,20 @@ function Badge({ children, tone = 'success' }) {
   return (
     <span
       style={{
-        padding: '3px 8px',
-        borderRadius: 8,
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
         background: c.bg,
         color: c.fg,
+        padding: '2px 8px',
+        borderRadius: 999,
         fontSize: 12,
-        fontWeight: 600,
-        display: 'inline-block',
-        lineHeight: 1.2,
+        fontWeight: 700,
         textTransform: 'lowercase',
       }}
     >
       {String(children).toLowerCase()}
     </span>
-  );
-}
-
-function SectionCard({ title, subtitle, children, action }) {
-  return (
-    <section style={{ padding: '20px 0' }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          marginBottom: 12,
-        }}
-      >
-        <div>
-          <h1 style={{ margin: 0, color: '#155E63', fontSize: 24, fontWeight: 800 }}>
-            {title}
-          </h1>
-          {subtitle && (
-            <p style={{ margin: '6px 0 0', color: '#6B7280' }}>{subtitle}</p>
-          )}
-        </div>
-        {action}
-      </div>
-      {children}
-    </section>
   );
 }
 
@@ -80,14 +62,14 @@ function PrimaryButton({ children, onClick, type = 'button', color = '#146b6b', 
       onClick={onClick}
       disabled={disabled}
       style={{
-        padding: '10px 14px',
-        background: disabled ? '#94a3b8' : color,
+        padding: '8px 14px',
+        background: disabled ? '#8fb3b3' : color,
         color: '#fff',
         border: 'none',
         borderRadius: 10,
         fontWeight: 700,
         cursor: disabled ? 'not-allowed' : 'pointer',
-        boxShadow: '0 3px 10px rgba(20,107,107,.20)',
+        boxShadow: '0 2px 6px rgba(20,107,107,0.25)',
       }}
     >
       {children}
@@ -98,12 +80,12 @@ function PrimaryButton({ children, onClick, type = 'button', color = '#146b6b', 
 function GhostButton({ children, onClick }) {
   return (
     <button
-      type="button"
       onClick={onClick}
+      type="button"
       style={{
-        padding: '8px 12px',
+        padding: '8px 14px',
         background: '#fff',
-        color: '#374151',
+        color: '#111827',
         border: '1px solid #D1D5DB',
         borderRadius: 10,
         fontWeight: 600,
@@ -115,8 +97,7 @@ function GhostButton({ children, onClick }) {
   );
 }
 
-/* ----------------------------- Employee Form ----------------------------- */
-
+/* ----------------------------- Employee Form (FULL) ----------------------------- */
 function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
   const [form, setForm] = useState(() => ({
     employee_code: initial?.employee_code ?? '',
@@ -147,11 +128,7 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
     },
     qualifications: initial?.qualifications ?? [],
     emergency_contacts: initial?.emergency_contacts ?? [],
-    account: {
-      enable_login: false,
-      password: '',
-      password_confirm: '',
-    },
+    account: { enable_login: false, password: '', password_confirm: '' },
   }));
 
   const [roleModules, setRoleModules] = useState([]);
@@ -173,7 +150,6 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
   // Load dropdown options
   useEffect(() => {
     let alive = true;
-
     getEmploymentTypeOptions()
       .then((rows) => alive && setEmpTypeOptions(rows ?? []))
       .catch(() => alive && setEmpTypeOptions([]));
@@ -204,6 +180,7 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
     try {
       setSaving(true);
       setErrText('');
+
       // Validate account if enable_login
       if (form.account.enable_login) {
         if (!form.account.password || form.account.password.length < 8) {
@@ -216,6 +193,7 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
           throw new Error('Email is required when enabling login');
         }
       }
+
       await onSubmit(form);
     } catch (err) {
       setErrText(err?.message ?? 'Failed to save.');
@@ -239,57 +217,67 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
       form.account.password === form.account.password_confirm);
 
   return (
-    <form onSubmit={submit} className="emp-form">
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3,minmax(0,1fr))',
-          gap: 12,
-          marginBottom: 12,
-        }}
-      >
-        <label>
-          <div style={labelStyle}>First name</div>
+    <form onSubmit={submit} style={{ display: 'grid', gap: 14 }}>
+      {/* Employee Code (read-only on edit if present) */}
+      {Boolean(initial?.employee_code) && (
+        <div style={{ display: 'grid', gap: 6 }}>
+          <label style={labelStyle}>Employee code</label>
+          <input
+            type="text"
+            value={initial.employee_code}
+            disabled
+            style={{ ...inputStyle, background: '#F9FAFB', color: '#6B7280' }}
+          />
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div style={{ display: 'grid', gap: 6 }}>
+          <label style={labelStyle}>First name</label>
           <input
             style={inputStyle}
             value={form.personal.first_name}
             onChange={(e) => handleChange(['personal', 'first_name'], e.target.value)}
             required
           />
-        </label>
-        <label>
-          <div style={labelStyle}>Last name</div>
+        </div>
+        <div style={{ display: 'grid', gap: 6 }}>
+          <label style={labelStyle}>Last name</label>
           <input
             style={inputStyle}
             value={form.personal.last_name}
             onChange={(e) => handleChange(['personal', 'last_name'], e.target.value)}
             required
           />
-        </label>
-        <label>
-          <div style={labelStyle}>Email</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div style={{ display: 'grid', gap: 6 }}>
+          <label style={labelStyle}>Email</label>
           <input
-            style={inputStyle}
             type="email"
+            style={inputStyle}
             value={form.contact.email}
             onChange={(e) => handleChange(['contact', 'email'], e.target.value)}
             required
           />
-        </label>
-
-        <label>
-          <div style={labelStyle}>Phone</div>
+        </div>
+        <div style={{ display: 'grid', gap: 6 }}>
+          <label style={labelStyle}>Phone</label>
           <input
             style={inputStyle}
             value={form.contact.phone}
             onChange={(e) => handleChange(['contact', 'phone'], e.target.value)}
           />
-        </label>
-        <label>
-          <div style={labelStyle}>Department ID</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div style={{ display: 'grid', gap: 6 }}>
+          <label style={labelStyle}>Department ID</label>
           <input
             style={inputStyle}
-            type="number"
             value={form.employment.department_id}
             onChange={(e) =>
               handleChange(
@@ -298,11 +286,11 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
               )
             }
           />
-        </label>
+        </div>
 
         {/* Job role SELECT */}
-        <label>
-          <div style={labelStyle}>Job role</div>
+        <div style={{ display: 'grid', gap: 6 }}>
+          <label style={labelStyle}>Job role</label>
           <select
             style={inputStyle}
             value={form.employment.job_role_id}
@@ -320,11 +308,18 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
               </option>
             ))}
           </select>
-        </label>
+          {!initial?.employee_code && (
+            <div style={{ fontSize: 12, color: '#6B7280' }}>
+              The employee code will be generated automatically from the job role, e.g. <b>XTR-DIR-001</b>.
+            </div>
+          )}
+        </div>
+      </div>
 
-        {/* Employment type SELECT */}
-        <label>
-          <div style={labelStyle}>Employment type</div>
+      {/* Employment type SELECT */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+        <div style={{ display: 'grid', gap: 6 }}>
+          <label style={labelStyle}>Employment type</label>
           <select
             style={inputStyle}
             value={form.employment.employment_type_id}
@@ -342,20 +337,18 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
               </option>
             ))}
           </select>
-        </label>
-
-        <label>
-          <div style={labelStyle}>Start date</div>
+        </div>
+        <div style={{ display: 'grid', gap: 6 }}>
+          <label style={labelStyle}>Start date</label>
           <input
-            style={inputStyle}
             type="date"
-            value={form.employment.start_date ?? ''}
+            style={inputStyle}
+            value={form.employment.start_date}
             onChange={(e) => handleChange(['employment', 'start_date'], e.target.value)}
           />
-        </label>
-
-        <label>
-          <div style={labelStyle}>Rate type</div>
+        </div>
+        <div style={{ display: 'grid', gap: 6 }}>
+          <label style={labelStyle}>Rate type</label>
           <select
             style={inputStyle}
             value={form.employment.rate_type}
@@ -366,77 +359,83 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
             <option value="monthly">monthly</option>
             <option value="annual">annual</option>
           </select>
-        </label>
-        <label>
-          <div style={labelStyle}>Rate amount</div>
-          <input
-            style={inputStyle}
-            type="number"
-            value={form.employment.rate_amount}
-            onChange={(e) =>
-              handleChange(['employment', 'rate_amount'], Number(e.target.value))
-            }
-          />
-        </label>
+        </div>
       </div>
 
-      {/* Preview modules */}
-      <div style={{ margin: '12px 0 6px', fontWeight: 700, color: '#374151' }}>
-        Module access preview:
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div style={{ display: 'grid', gap: 6 }}>
+          <label style={labelStyle}>Rate amount</label>
+          <input
+            type="number"
+            step="0.01"
+            style={inputStyle}
+            value={form.employment.rate_amount}
+            onChange={(e) => handleChange(['employment', 'rate_amount'], Number(e.target.value))}
+          />
+        </div>
       </div>
-      <ul style={{ marginTop: 4 }}>
-        {roleModules.map((m) => (
-          <li key={m.module_key}>{m.display_name}</li>
-        ))}
-        {roleModules.length === 0 && <li>(no modules)</li>}
-      </ul>
+
+      {/* Module Preview */}
+      <div style={{ display: 'grid', gap: 6 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, color: '#374151' }}>Module access preview:</div>
+        <ul style={{ margin: 0, paddingLeft: 18 }}>
+          {roleModules.map((m) => (
+            <li key={m.module_key} style={{ fontSize: 13 }}>
+              {m.display_name}
+            </li>
+          ))}
+          {roleModules.length === 0 && (
+            <li style={{ fontSize: 13, color: '#6B7280' }}>(no modules)</li>
+          )}
+        </ul>
+      </div>
 
       {/* Enable Login */}
-      <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed #E5E7EB' }}>
-        <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+      <div style={{ display: 'grid', gap: 6 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <input
             type="checkbox"
             checked={form.account.enable_login}
             onChange={(e) => handleChange(['account', 'enable_login'], e.target.checked)}
           />
-          <span style={{ fontWeight: 700, color: '#374151' }}>Enable login for this employee</span>
+          Enable login for this employee
         </label>
+        <div style={{ fontSize: 12, color: '#6B7280', marginTop: -6, marginBottom: 6 }}>
+          An onboarding email with the login credentials will be sent to the employee's email.
+        </div>
         {form.account.enable_login && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 12 }}>
-            <label>
-              <div style={labelStyle}>Password</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ display: 'grid', gap: 6 }}>
+              <label style={labelStyle}>Password</label>
               <input
-                style={inputStyle}
                 type="password"
+                style={inputStyle}
                 value={form.account.password}
                 onChange={(e) => handleChange(['account', 'password'], e.target.value)}
                 placeholder="At least 8 characters"
                 required
               />
-            </label>
-            <label>
-              <div style={labelStyle}>Confirm password</div>
+            </div>
+            <div style={{ display: 'grid', gap: 6 }}>
+              <label style={labelStyle}>Confirm password</label>
               <input
-                style={inputStyle}
                 type="password"
+                style={inputStyle}
                 value={form.account.password_confirm}
                 onChange={(e) => handleChange(['account', 'password_confirm'], e.target.value)}
                 required
               />
-            </label>
-
+            </div>
           </div>
         )}
       </div>
 
+      {/* Errors */}
       {errText && (
-        <div style={{ color: '#B91C1C', marginTop: 6, fontSize: 13 }}>{errText}</div>
+        <div style={{ color: '#B91C1C', fontWeight: 600, fontSize: 13 }}>{errText}</div>
       )}
 
-      <div
-        className="form-actions"
-        style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14 }}
-      >
+      <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
         <GhostButton onClick={onCancel}>Cancel</GhostButton>
         <PrimaryButton type="submit" disabled={!canSubmit}>
           {saving ? 'Saving…' : 'Save'}
@@ -447,17 +446,30 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
 }
 
 /* ----------------------------- Page ----------------------------- */
-
 export default function EmployeesPage() {
+  const brand = '#146b6b';
+  const navigate = useNavigate();
+
   const [rows, setRows] = useState([]);
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(true);
+
   const [openAdd, setOpenAdd] = useState(false);
+  const [openEdit, setOpenEdit] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [editInitial, setEditInitial] = useState(null);
+  const [editLoading, setEditLoading] = useState(false);
   const [error, setError] = useState('');
+
   const [loginForId, setLoginForId] = useState(null);
   const [loginPw, setLoginPw] = useState('');
   const [loginPw2, setLoginPw2] = useState('');
   const [loginSaving, setLoginSaving] = useState(false);
+
+  const [roleOptions, setRoleOptions] = useState([]);
+  const [roleFilter, setRoleFilter] = useState('');      // job_role_id
+  const [statusFilter, setStatusFilter] = useState('');  // active|on_leave|inactive|terminated
+
   const searchRef = useRef(null);
 
   // For super admin: read ?companyId= from URL (optional)
@@ -467,12 +479,27 @@ export default function EmployeesPage() {
     const c = sp.get('companyId');
     return c ? Number(c) : null;
   }, [location.search]);
+    const qs = useMemo(() => (companyId ? `?companyId=${companyId}` : ''), [companyId]);
+
+  // Load role options for filter
+  useEffect(() => {
+    let alive = true;
+    getJobRoleOptions(companyId ? { companyId } : {})
+      .then((rows) => alive && setRoleOptions(rows ?? []))
+      .catch(() => alive && setRoleOptions([]));
+    return () => { alive = false; };
+  }, [companyId]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const params = { ...(q ? { q } : {}), ...(companyId ? { companyId } : {}) };
+      const params = {
+        ...(q ? { q } : {}),
+        ...(companyId ? { companyId } : {}),
+        ...(roleFilter ? { job_role_id: Number(roleFilter) } : {}),
+        ...(statusFilter ? { status: statusFilter } : {}),
+      };
       const resp = await listEmployees(params);
       const arr = Array.isArray(resp?.data) ? resp.data : [];
       setRows(arr);
@@ -481,7 +508,7 @@ export default function EmployeesPage() {
     } finally {
       setLoading(false);
     }
-  }, [q, companyId]);
+  }, [q, roleFilter, statusFilter, companyId]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -498,13 +525,45 @@ export default function EmployeesPage() {
       );
     });
   }, [rows, q]);
+  const stats = useMemo(() => {
+    const totalEmployees = rows.length;
+    const onLeave = rows.filter(r => r.status === 'on_leave').length;
+    const checkedInToday = 12;     // demo value
+    const pendingExpenses = 7;     // demo value
+    return { totalEmployees, onLeave, checkedInToday, pendingExpenses };
+  }, [rows]);
+
+  const employeesSelect = useMemo(() =>
+    rows.map(r => ({ id: r.id, name: `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim() || r.email })), [rows]
+  );
+
+  const openEditModal = async (id) => {
+    try {
+      setEditLoading(true);
+      setEditId(id);
+      const detail = await getEmployee(id, companyId ? { companyId } : {});
+      const data = detail?.data ?? detail;
+      setEditInitial(data || {});
+      setOpenEdit(true);
+    } catch (e) {
+      alert(e?.message ?? 'Failed to load employee');
+    } finally {
+      setEditLoading(false);
+    }
+  };
 
   const handleCreate = async (payload) => {
     const created = await createEmployee(payload);
-    if (created?.id) {
-      await refresh();
-    }
+    if (created?.id) await refresh();
     setOpenAdd(false);
+  };
+
+  const handleUpdate = async (payload) => {
+    await updateEmployee(editId, payload, companyId ? { companyId } : {});
+    await refresh();
+    setOpenEdit(false);
+    setEditInitial(null);
+    setEditId(null);
   };
 
   const handleDeactivate = async (id) => {
@@ -513,14 +572,10 @@ export default function EmployeesPage() {
   };
 
   const openCreateLogin = (id) => {
-    setLoginForId(id);
-    setLoginPw('');
-    setLoginPw2('');
+    setLoginForId(id); setLoginPw(''); setLoginPw2('');
   };
   const closeCreateLogin = () => {
-    setLoginForId(null);
-    setLoginPw('');
-    setLoginPw2('');
+    setLoginForId(null); setLoginPw(''); setLoginPw2('');
   };
   const doCreateLogin = async () => {
     try {
@@ -539,7 +594,6 @@ export default function EmployeesPage() {
   };
 
   /* ----------------------------- Render ----------------------------- */
-
   const tableHeadStyle = {
     textAlign: 'left',
     fontSize: 12,
@@ -557,193 +611,220 @@ export default function EmployeesPage() {
   };
 
   return (
-    <div style={{ padding: '20px 24px' }}>
-      <SectionCard
-        title="Employees"
-        subtitle="Add, view, and manage your staff."
-        action={<PrimaryButton onClick={() => setOpenAdd(true)}>Add Employee</PrimaryButton>}
-      >
-        <div
-          style={{
-            display: 'flex',
-            gap: 12,
-            alignItems: 'center',
-            marginBottom: 12,
-          }}
-        >
-          <input
-            ref={searchRef}
-            type="search"
-            placeholder="Search name / email / department / role..."
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            style={{
-              flex: '0 0 360px',
-              border: '1px solid #D1D5DB',
-              borderRadius: 12,
-              padding: '10px 12px',
-            }}
-            aria-label="Search employees"
-          />
-
-          {/* (optional) companyId hint for Super Admin */}
-          {companyId && (
-            <span style={{ fontSize: 12, color: '#6B7280' }}>
-              Company ID: <strong>{companyId}</strong>
-            </span>
-          )}
-        </div>
-
-        {/* Content */}
-        {loading ? (
-          <div style={{ padding: '16px 0', color: '#6B7280' }}>Loading…</div>
-        ) : error ? (
-          <div style={{ padding: '12px', background: '#FEF2F2', color: '#991B1B', borderRadius: 10 }}>
-            {error}
+    <div style={{ display: 'grid', gap: 14 }}>
+      {/* Header */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: 14, border: '1px solid #E5E7EB', borderRadius: 12, background: '#F9FAFB'
+      }}>
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 900, color: '#111827' }}>Employee Management</div>
+          <div style={{ fontSize: 13, color: '#6B7280' }}>
+            Manage team members, attendance, and leave
           </div>
-        ) : (
-          <div className="emp-table-wrap" style={{ background: '#fff', borderRadius: 14 }}>
-            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
-              <thead>
-                <tr>
-                  <th style={tableHeadStyle}>Name</th>
-                  <th style={tableHeadStyle}>Role</th>
-                  <th style={tableHeadStyle}>Department</th>
-                  <th style={tableHeadStyle}>Email</th>
-                  <th style={tableHeadStyle}>Status</th>
-                  <th style={tableHeadStyle}>Login</th>
-                  <th style={{ ...tableHeadStyle, textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((r) => (
-                  <tr key={r.id}>
-                    <td style={cellStyle}>
-                      <strong style={{ color: '#0F172A' }}>
+        </div>
+        
+      </div>
+
+      {/* KPI Cards */}
+      <OverviewStatCards stats={stats} />
+
+      {/* Filters */}
+      <FiltersBar
+        q={q} setQ={setQ}
+        roleFilter={roleFilter} setRoleFilter={setRoleFilter} roleOptions={roleOptions}
+        statusFilter={statusFilter} setStatusFilter={setStatusFilter}
+        onAddEmployee={() => setOpenAdd(true)}
+        brand={brand}
+      />
+
+      {/* List */}
+      {loading ? (
+        <div>Loading…</div>
+      ) : error ? (
+        <div style={{ color: '#B91C1C', fontWeight: 600 }}>{error}</div>
+      ) : (
+        <div style={{ overflowX: 'auto', border: '1px solid #E5E7EB', borderRadius: 12, background: '#fff' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={tableHeadStyle}>Employee</th>
+                <th style={tableHeadStyle}>Code</th>
+                <th style={tableHeadStyle}>Role</th>
+                <th style={tableHeadStyle}>Department</th>
+                <th style={tableHeadStyle}>Contact</th>
+                <th style={tableHeadStyle}>Status</th>
+                <th style={tableHeadStyle}>Last check-in</th>
+                <th style={tableHeadStyle}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((r) => (
+                <tr key={r.id}>
+                  <td style={cellStyle}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 28, height: 28, borderRadius: 999, background: '#E5E7EB' }} />
+                      <div style={{ fontWeight: 800 }}>
                         {(r.first_name ?? '') + ' ' + (r.last_name ?? '')}
-                      </strong>
-                    </td>
-                    <td style={cellStyle}>{r.role ?? '-'}</td>
-                    <td style={cellStyle}>{r.department ?? '-'}</td>
-                    <td style={cellStyle}>{r.email}</td>
-                    <td style={cellStyle}>
-                      <Badge tone={r.status === 'active' ? 'success' : 'gray'}>{r.status}</Badge>
-                    </td>
-                    <td style={cellStyle}>
+                      </div>
+                    </div>
+                  </td>
+                  <td style={cellStyle}>{r.employee_code ?? '-'}</td>
+                  <td style={cellStyle}>{r.role ?? '-'}</td>
+                  <td style={cellStyle}>{r.department ?? '-'}</td>
+                  <td style={cellStyle}>
+                    <div style={{ color: '#374151' }}>{r.email}</div>
+                    {r.phone && <div style={{ color: '#6B7280', fontSize: 12 }}>{r.phone}</div>}
+                  </td>
+                  <td style={cellStyle}>
+                    <Badge tone={r.status === 'active' ? 'success' : r.status === 'on_leave' ? 'warning' : 'gray'}>
+                      {r.status}
+                    </Badge>
+                  </td>
+                  <td style={cellStyle}>—</td>
+                  <td style={cellStyle}>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      
+                     
+                      <button
+                         onClick={() => navigate(`${r.id}${qs}`, { relative: 'path' })}
+                         style={{
+                           padding: '6px 10px', height: 32, lineHeight: '20px',
+                           background: '#fff', color: '#374151', border: '1px solid #D1D5DB',
+                           borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer',
+                         }}
+                         title="View Profile"
+                       >
+                         View Profile
+                     </button>
+
+
+                      <button
+                        onClick={() => openEditModal(r.id)}
+                        style={{
+                          padding: '6px 10px', height: 32, lineHeight: '20px',
+                          background: '#fff', color: brand, border: '1px solid #8fb3b3',
+                          borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer',
+                        }}
+                      >
+                        Edit
+                      </button>
+
                       {r.user_id ? (
                         <Badge tone="info">has login</Badge>
                       ) : (
                         <button
                           onClick={() => openCreateLogin(r.id)}
                           style={{
-                            padding: '6px 10px',
-                            height: 32,
-                            lineHeight: '20px',
-                            background: '#fff',
-                            color: '#1D4ED8',
-                            border: '1px solid #93C5FD',
-                            borderRadius: 8,
-                            fontWeight: 600,
-                            fontSize: 13,
-                            cursor: 'pointer',
+                            padding: '6px 10px', height: 32, lineHeight: '20px',
+                            background: '#fff', color: '#1D4ED8', border: '1px solid #93C5FD',
+                            borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer',
                           }}
                           title="Create Login"
                         >
                           Create Login
                         </button>
                       )}
-                    </td>
-                    <td style={{ ...cellStyle, textAlign: 'right' }}>
+
                       {r.status === 'active' ? (
                         <button
                           onClick={() => handleDeactivate(r.id)}
                           style={{
-                            padding: '6px 10px',
-                            height: 32,
-                            lineHeight: '20px',
-                            background: '#fff',
-                            color: '#B91C1C',
-                            border: '1px solid #FCA5A5',
-                            borderRadius: 8,
-                            fontWeight: 600,
-                            fontSize: 13,
-                            cursor: 'pointer',
-                            transition: 'all .15s ease',
+                            padding: '6px 10px', height: 32, lineHeight: '20px',
+                            background: '#fff', color: '#B91C1C', border: '1px solid #FCA5A5',
+                            borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer',
                           }}
                           title="Deactivate"
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = '#FEF2F2';
-                            e.currentTarget.style.borderColor = '#F87171';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = '#fff';
-                            e.currentTarget.style.borderColor = '#FCA5A5';
-                          }}
                         >
                           Deactivate
                         </button>
                       ) : (
-                        <span style={{ color: '#6B7280', fontSize: 12 }}>(inactive)</span>
+                        <Badge tone="gray">(inactive)</Badge>
                       )}
-                    </td>
-                  </tr>
-                ))}
-                {filtered.length === 0 && !loading && (
-                  <tr>
-                    <td colSpan={7} style={{ ...cellStyle, color: '#6B7280' }}>
-                      (no data)
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </SectionCard>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {filtered.length === 0 && !loading && (
+                <tr>
+                  <td style={{ ...cellStyle, color: '#6B7280' }} colSpan={8}>
+                    (no data)
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gap: 12 }}>
+        <QuickCheckIn
+          employees={employeesSelect}
+          onRecord={({ employeeId, checkinType }) => {
+            const name = employeesSelect.find(e => e.id === employeeId)?.name || `#${employeeId}`;
+            alert(`Recorded: ${checkinType} for ${name} (UI only)`);
+          }}
+          brand={brand}
+        />
+        <PendingLeaveList brand={brand} />
+      </div>
 
       {/* Modal Add */}
       {openAdd && (
         <div
-          className="modal-backdrop"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(15,23,42,.45)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 100,
-          }}
           onClick={() => setOpenAdd(false)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,.3)',
+            display: 'grid', placeItems: 'center', zIndex: 40,
+          }}
         >
           <div
-            className="modal"
-            style={{
-              width: 'min(900px, 92vw)',
-              background: '#fff',
-              borderRadius: 16,
-              padding: 18,
-              boxShadow: '0 20px 60px rgba(0,0,0,.25)',
-            }}
             onClick={(e) => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 12, padding: 18, width: 760, maxWidth: '98%' }}
           >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: 6,
-              }}
-            >
-              <h3 style={{ margin: 0, color: '#0F172A' }}>Add New Employee</h3>
-              <GhostButton onClick={() => setOpenAdd(false)}>Close</GhostButton>
+            <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#111827' }}>
+              Add New Employee
+            </h4>
+            <div style={{ marginTop: 10 }}>
+              <EmployeeForm
+                onCancel={() => setOpenAdd(false)}
+                onSubmit={handleCreate}
+                companyId={companyId ?? null}
+                initial={null}
+              />
             </div>
+          </div>
+        </div>
+      )}
 
-            <EmployeeForm
-              companyId={companyId ?? undefined}
-              onCancel={() => setOpenAdd(false)}
-              onSubmit={handleCreate}
-            />
+      {/* Modal Edit */}
+      {openEdit && (
+        <div
+          onClick={() => setOpenEdit(false)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,.3)',
+            display: 'grid', placeItems: 'center', zIndex: 40,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 12, padding: 18, width: 760, maxWidth: '98%' }}
+          >
+            <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#111827' }}>
+              Edit Employee
+            </h4>
+            <div style={{ marginTop: 10 }}>
+              {editLoading ? (
+                <div>Loading…</div>
+              ) : (
+                <EmployeeForm
+                  initial={editInitial}
+                  companyId={companyId ?? null}
+                  onCancel={() => setOpenEdit(false)}
+                  onSubmit={handleUpdate}
+                />
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -751,62 +832,43 @@ export default function EmployeesPage() {
       {/* Modal Create Login */}
       {loginForId && (
         <div
-          className="modal-backdrop"
+          onClick={() => closeCreateLogin()}
           style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(15,23,42,.45)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 110,
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,.3)',
+            display: 'grid', placeItems: 'center', zIndex: 40,
           }}
-          onClick={closeCreateLogin}
         >
           <div
-            className="modal"
-            style={{
-              width: 'min(520px, 92vw)',
-              background: '#fff',
-              borderRadius: 16,
-              padding: 18,
-              boxShadow: '0 20px 60px rgba(0,0,0,.25)',
-            }}
             onClick={(e) => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 12, padding: 18, width: 520, maxWidth: '95%' }}
           >
-            <h3 style={{ margin: '0 0 8px', color: '#0F172A' }}>Create Login</h3>
-            <p style={{ marginTop: 0, color: '#6B7280', fontSize: 13 }}>
+            <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#111827' }}>
+              Create Login
+            </h4>
+            <p style={{ margin: '8px 0 14px', color: '#6B7280', fontSize: 13 }}>
               Set a password for this employee (min 8 chars). The login email is their employee email.
             </p>
-            <div style={{ display: 'grid', gap: 8 }}>
+            <div style={{ display: 'grid', gap: 10 }}>
               <input
                 type="password"
                 placeholder="Password"
                 value={loginPw}
                 onChange={(e) => setLoginPw(e.target.value)}
-                style={{
-                  border: '1px solid #D1D5DB',
-                  borderRadius: 10,
-                  padding: '8px 10px',
-                }}
+                style={{ border: '1px solid #D1D5DB', borderRadius: 10, padding: '8px 10px' }}
               />
               <input
                 type="password"
                 placeholder="Confirm password"
                 value={loginPw2}
                 onChange={(e) => setLoginPw2(e.target.value)}
-                style={{
-                  border: '1px solid #D1D5DB',
-                  borderRadius: 10,
-                  padding: '8px 10px',
-                }}
+                style={{ border: '1px solid #D1D5DB', borderRadius: 10, padding: '8px 10px' }}
               />
-            </div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14 }}>
-              <GhostButton onClick={closeCreateLogin}>Cancel</GhostButton>
-              <PrimaryButton onClick={doCreateLogin} disabled={loginSaving || !loginPw || loginPw !== loginPw2}>
-                {loginSaving ? 'Creating…' : 'Create'}
-              </PrimaryButton>
+              <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                <GhostButton onClick={closeCreateLogin}>Cancel</GhostButton>
+                <PrimaryButton onClick={doCreateLogin} disabled={loginSaving} color={brand}>
+                  {loginSaving ? 'Creating…' : 'Create'}
+                </PrimaryButton>
+              </div>
             </div>
           </div>
         </div>

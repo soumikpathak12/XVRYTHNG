@@ -1,7 +1,7 @@
 // src/services/employeeService.js
 import db from '../config/db.js';
 import bcrypt from 'bcryptjs';
-
+import { sendEmployeeCredentialEmail } from './emailService.js';
 
 function asNumberOrNull(v) {
   if (v == null || v === '') return null;
@@ -25,6 +25,14 @@ export async function createEmployee(companyId, payload) {
       emergency_contacts = [],
     } = payload ?? {};
 
+    let _newLoginEmail = null;
+    let _tempPassword = null;
+
+    let finalCode = employee_code ?? null;
+    if (!finalCode) {
+      finalCode = await genEmployeeCode(conn, companyId, employment?.job_role_id);
+    }
+
     // 1) Insert employee
     const [empRes] = await conn.execute(
       `
@@ -46,7 +54,7 @@ export async function createEmployee(companyId, payload) {
       )
       `,
       [
-        Number(companyId), employee_code ?? null,
+        Number(companyId), finalCode ?? null,
         personal.first_name ?? '', personal.last_name ?? '', personal.date_of_birth ?? null, personal.gender ?? null,
         contact.email ?? '', contact.phone ?? null, contact.address_line1 ?? null, contact.address_line2 ?? null,
         contact.city ?? null, contact.state ?? null, contact.postal_code ?? null, contact.country ?? null,
@@ -81,9 +89,29 @@ export async function createEmployee(companyId, payload) {
         `UPDATE employees SET user_id = ? WHERE id = ?`,
         [userId, employeeId]
       );
+      
+      _newLoginEmail = email;
+      _tempPassword = account.password;
+
     }
 
     await conn.commit();
+
+    
+    try {
+      if (_newLoginEmail) {
+        await sendEmployeeCredentialEmail({
+          to: _newLoginEmail,
+          employeeName: `${personal.first_name ?? ''} ${personal.last_name ?? ''}`.trim(),
+          email: _newLoginEmail,
+          tempPassword: _tempPassword,
+          companyName: 'XVRYTHNG',
+          appUrl: process.env.APP_BASE_URL || 'http://localhost:5173',
+        });
+     }
+    } catch (mailErr) {
+      console.error('[ONBOARD] Send credential email failed:', mailErr?.message || mailErr);
+    }
 
     return { id: employeeId };
   } catch (e) {
@@ -99,7 +127,6 @@ export async function createEmployeeAccount(companyId, employeeId, password) {
   try {
     await conn.beginTransaction();
 
-    // Lấy employee
     const [[emp]] = await conn.execute(
       `
       SELECT e.id, e.company_id, e.email, e.first_name, e.last_name, e.user_id
@@ -120,7 +147,6 @@ export async function createEmployeeAccount(companyId, employeeId, password) {
     const platformRoleId = 4; // field_agent
     const fullName = `${emp.first_name ?? ''} ${emp.last_name ?? ''}`.trim() || email;
 
-    // Tạo user
     const [userRes] = await conn.execute(
       `
       INSERT INTO users (company_id, role_id, email, password_hash, name, status, created_at, updated_at)
@@ -132,8 +158,23 @@ export async function createEmployeeAccount(companyId, employeeId, password) {
 
     await conn.execute(`UPDATE employees SET user_id = ? WHERE id = ?`, [userId, employeeId]);
 
-    await conn.commit();
-    return { user_id: userId };
+    
+  await conn.commit();
+
+   try {
+     await sendEmployeeCredentialEmail({
+       to: email,
+       employeeName: fullName,
+       email,
+       tempPassword: password, 
+       appUrl: process.env.APP_BASE_URL || 'http://localhost:5173',
+     });
+   } catch (mailErr) {
+     console.error('[ONBOARD] Send credential email (createAccount) failed:', mailErr?.message || mailErr);
+   }
+
+   return { user_id: userId };
+
   } catch (err) {
     await conn.rollback();
     throw err;
@@ -289,4 +330,28 @@ export async function getEmploymentTypes() {
     `SELECT id, name FROM employment_types ORDER BY id ASC`
   );
   return rows;
+}
+
+async function genEmployeeCode(conn, companyId, jobRoleId) {
+  if (!jobRoleId) return null; 
+  const [[jr]] = await conn.execute(
+    'SELECT code FROM job_roles WHERE id = ? AND company_id = ? LIMIT 1',
+    [Number(jobRoleId), Number(companyId)]
+  );
+  if (!jr) return null;
+  const roleCode = String(jr.code || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const prefix = 'XTR';
+  const base = `${prefix}-${roleCode}-`;
+  const like = `${base}%`;
+
+  const [[row]] = await conn.execute(
+    `SELECT MAX(CAST(SUBSTRING(employee_code, LENGTH(?) + 1) AS UNSIGNED)) AS max_seq
+     FROM employees
+     WHERE company_id = ? AND employee_code LIKE ?`,
+    [base, Number(companyId), like]
+  );
+
+  const next = (row?.max_seq || 0) + 1;
+  const seq = String(next).padStart(3, '0');
+  return `${base}${seq}`;
 }
