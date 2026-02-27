@@ -24,6 +24,12 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import siteInspectionRoutes from './routes/siteInspectionRoutes.js';
 import siteInspectionFilesRoutes from './routes/siteInspectionFilesRoutes.js'
+
+import inspectionTemplateRoutes from './routes/inspectionTemplateRoutes.js';
+import leadProposalRoutes from './routes/leadProposalRoutes.js';
+
+import employeeRoutes from './routes/employeeRoutes.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -82,7 +88,9 @@ app.use('/api', meController);
 app.use('/api/webhooks/email', express.json({ limit: '1mb' }), emailRoutes);
 app.use('/api/leads/:leadId/documents', documentRoutes);
 app.use('/api/leads/:leadId/site-inspection', siteInspectionRoutes);
-
+app.use('/api/company/settings/inspection-templates', inspectionTemplateRoutes);
+app.use('/api/leads', leadProposalRoutes);
+app.use('/api/employees', employeeRoutes);
 // ---------------------------------------------------------------------------
 // Cron Jobs
 // ---------------------------------------------------------------------------

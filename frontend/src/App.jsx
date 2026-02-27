@@ -28,9 +28,12 @@ import MyProjectPage from './pages/customer/MyProjectPage.jsx';
 import CustomerReferralsPage from './pages/customer/ReferralsPage.jsx';
 import ReferralsPage from './pages/ReferralsPage.jsx';
 
+import AdminTemplatesPage from './pages/admin/AdminTemplatePage.jsx';
+
 import SiteInspectionPage from './pages/admin/SiteInspectionPage.jsx';
 import CreateUser from './pages/admin/CreateUserPage.jsx';
 
+import EmployeesPage from './pages/EmployeesPage.jsx';
 function PlaceholderPage({ title, message, children }) {
   return (
     <div style={{ padding: '2rem', textAlign: 'center', color: '#1A1A2E' }}>
@@ -165,6 +168,15 @@ function App() {
           />
 
           <Route path="leads/calendar" element={<RequirePermission resource="leads" action="view"><LeadsCalendarPage /></RequirePermission>} />
+          
+          <Route
+              path="employees"
+              element={  <RequirePermission resource="employees" action="view">
+                  <EmployeesPage />
+              </RequirePermission>
+              }
+            />
+
           <Route path="projects" element={<RequirePermission resource="projects" action="view"><AdminProjects /></RequirePermission>} />
           <Route path="on-field" element={<RequirePermission resource="on_field" action="view"><AdminOnField /></RequirePermission>} />
           <Route path="operations" element={<RequirePermission resource="operations" action="view"><AdminOperations /></RequirePermission>} />
@@ -187,6 +199,7 @@ function App() {
   />
 
           <Route path="roles" element={<Navigate to="/admin/settings" replace />} />
+          <Route path="/admin/settings/inspection-templates" element={<AdminTemplatesPage />} />
         </Route>
 
         {/* PROTECTED: Company area (layout CompanyPage + nested) */}

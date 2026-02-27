@@ -15,7 +15,8 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
-  UserPlus
+  UserPlus,
+  UserCog
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -25,6 +26,7 @@ const ALL_NAV_ITEMS = [
   { to: '/admin/profile', label: 'My Profile', icon: UserCircle, permission: { resource: 'profile', action: 'view' } },
   { to: '/admin/companies', label: 'Companies', icon: Building2, permission: { resource: 'companies', action: 'view' } },
   { to: '/admin/leads', label: 'Lead Pipeline', icon: UsersRound, permission: { resource: 'leads', action: 'view' } },
+  { to: '/admin/employees', label: 'Employees', icon: UserCog, permission: { resource: 'employees', action: 'view' } },
   { to: '/admin/projects', label: 'Projects', icon: Boxes, permission: { resource: 'projects', action: 'view' } },
   { to: '/admin/on-field', label: 'On-Field', icon: HardHat, permission: { resource: 'on_field', action: 'view' } },
   { to: '/admin/operations', label: 'Operations', icon: Factory, permission: { resource: 'operations', action: 'view' } },
@@ -33,6 +35,7 @@ const ALL_NAV_ITEMS = [
   { to: '/admin/messages', label: 'Messages', icon: MessageSquare, permission: { resource: 'messages', action: 'view' } },
   { to: '/admin/settings', label: 'Settings', icon: Settings, permission: { resource: 'settings', action: 'view' } },
   { to: '/admin/users/create', label: 'Add User', icon: UserPlus, permission: { resource: 'users', action: 'create' } },
+  
 ];
 
 export default function SuperAdminSidebar({ onLogout, user, logoSrc, collapsed: controlledCollapsed, onCollapsedChange }) {

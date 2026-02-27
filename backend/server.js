@@ -9,6 +9,9 @@ import app from './src/app.js';
 import { attach as attachChatSocket } from './src/chatSocket.js';
 import { startFollowupWorker } from './src/jobs/followupWorker.js';
 import { startOwnerDocReminderWorker } from './src/jobs/ownerDocReminderWorker.js';
+
+import { startProposalFollowupWorker } from './src/jobs/proposalFollowUpWorker.js';
+
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const server = http.createServer(app);
 
@@ -22,3 +25,4 @@ server.listen(PORT, () => {
 
 //startFollowupWorker();
 //startOwnerDocReminderWorker();
+//  startProposalFollowupWorker();
