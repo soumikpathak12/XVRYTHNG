@@ -20,5 +20,5 @@ server.listen(PORT, () => {
 });
 
 
-startFollowupWorker();
-startOwnerDocReminderWorker();
+//startFollowupWorker();
+//startOwnerDocReminderWorker();
