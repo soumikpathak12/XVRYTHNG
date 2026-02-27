@@ -66,6 +66,28 @@ export async function createEmployee(companyId, payload) {
     );
     const employeeId = empRes.insertId;
 
+    if (Array.isArray(emergency_contacts) && emergency_contacts.length > 0) {
+      const rows = emergency_contacts
+        .filter(c => c && (c.contact_name || c.phone || c.email))
+        .map(c => [
+          Number(employeeId),
+          c.contact_name ?? '',
+          c.relationship ?? null,
+          c.phone ?? '',
+          c.email ?? null,
+          c.address ?? null,
+        ]);
+      if (rows.length > 0) {
+        const placeholders = rows.map(() => '(?,?,?,?,?,?)').join(',');
+        await conn.query(
+          `INSERT INTO emergency_contacts
+             (employee_id, contact_name, relationship, phone, email, address)
+           VALUES ${placeholders}`,
+          rows.flat()
+        );
+      }
+    }
+
     if (account?.enable_login) {
       const email = (contact.email ?? '').trim().toLowerCase();
       if (!email) throw new Error('Email is required to create login');
@@ -90,6 +112,11 @@ export async function createEmployee(companyId, payload) {
         [userId, employeeId]
       );
       
+      await conn.execute(
+        `UPDATE users SET must_change_password = 1 WHERE id = ?`,
+        [userId]
+      );
+
       _newLoginEmail = email;
       _tempPassword = account.password;
 
@@ -157,6 +184,11 @@ export async function createEmployeeAccount(companyId, employeeId, password) {
     const userId = userRes.insertId;
 
     await conn.execute(`UPDATE employees SET user_id = ? WHERE id = ?`, [userId, employeeId]);
+    
+    await conn.execute(
+      `UPDATE users SET must_change_password = 1 WHERE id = ?`,
+      [userId]
+    );
 
     
   await conn.commit();

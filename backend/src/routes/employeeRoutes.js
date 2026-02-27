@@ -12,7 +12,7 @@ import {
   getJobRolesForCompany,
   getEmploymentTypes,
 } from '../controllers/employeeController.js';
-
+import * as employeeService from '../services/employeeService.js'
 const router = Router();
 router.use(requireAuth, tenantContext);
 

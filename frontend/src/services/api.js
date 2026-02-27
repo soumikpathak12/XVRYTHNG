@@ -1343,3 +1343,14 @@ export async function deleteEmployeeDocument(employeeId, docId, params = {}) {
   if (!res.ok) throw new Error(data.message ?? 'Failed to delete document');
   return true;
 } 
+
+export async function changePasswordEmp({ currentPassword, newPassword }) {
+  const resp = await fetch('/api/auth/change-password-emp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data?.message || 'Failed to change password');
+  return data;
+}

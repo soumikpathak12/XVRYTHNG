@@ -630,13 +630,15 @@ export default function EmployeesPage() {
       <OverviewStatCards stats={stats} />
 
       {/* Filters */}
+    
       <FiltersBar
         q={q} setQ={setQ}
         roleFilter={roleFilter} setRoleFilter={setRoleFilter} roleOptions={roleOptions}
         statusFilter={statusFilter} setStatusFilter={setStatusFilter}
-        onAddEmployee={() => setOpenAdd(true)}
+        onAddEmployee={() => navigate(`new${qs}`, { relative: 'path' })}
         brand={brand}
       />
+
 
       {/* List */}
       {loading ? (
@@ -769,34 +771,7 @@ export default function EmployeesPage() {
         <PendingLeaveList brand={brand} />
       </div>
 
-      {/* Modal Add */}
-      {openAdd && (
-        <div
-          onClick={() => setOpenAdd(false)}
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,.3)',
-            display: 'grid', placeItems: 'center', zIndex: 40,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{ background: '#fff', borderRadius: 12, padding: 18, width: 760, maxWidth: '98%' }}
-          >
-            <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#111827' }}>
-              Add New Employee
-            </h4>
-            <div style={{ marginTop: 10 }}>
-              <EmployeeForm
-                onCancel={() => setOpenAdd(false)}
-                onSubmit={handleCreate}
-                companyId={companyId ?? null}
-                initial={null}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
+      
       {/* Modal Edit */}
       {openEdit && (
         <div

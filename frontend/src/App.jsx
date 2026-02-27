@@ -33,8 +33,11 @@ import EmployeesPage from './pages/EmployeesPage.jsx';
 
 import EmployeePage from './pages/employee/EmployeePage.jsx';
 
-import EmployeeProfilePage from './pages/EmployeeProfilePage.jsx';
+import EmployeeCreatePage from './pages/EmployeeCreate.jsx';
 
+import EmployeeProfilePage from './pages/EmployeeProfilePage.jsx';
+import RequirePasswordUpdate from './components/auth/RequiredPasswordUpdate.jsx';
+import EmployeeChangePasswordPage from './pages/EmployeeChangePasswordPage.jsx';
 function PlaceholderPage({ title, message, children }) {
   return (
     <div style={{ padding: '2rem', textAlign: 'center', color: '#1A1A2E' }}>
@@ -187,11 +190,14 @@ function App() {
               <EmployeesPage />
             </RequirePermission>
           } />
+          
 
           <Route
               path="employees/:id"
               element={<EmployeeProfilePage />}
             />
+          
+          <Route path="employees/new" element={<EmployeeCreatePage />} />
 
           <Route path="projects" element={
             <RequirePermission resource="projects" action="view">
@@ -286,13 +292,19 @@ function App() {
         </Route>
 
         <Route
-          path="/employee"
-          element={
-            <ProtectedRoute>
-              <EmployeePage />
-            </ProtectedRoute>
-          }
+         path="/employee"
+         element={
+           <ProtectedRoute>
+             <RequirePasswordUpdate>
+               <EmployeePage />
+             </RequirePasswordUpdate>
+           </ProtectedRoute>
+         }
         >
+          {/* Employee default landing (only accessible if password already changed) */}
+          <Route index element={<PlaceholderPage title="Employee" message="Welcome 👋" />} />
+         <Route path="change-password" element={<EmployeeChangePasswordPage />} />
+
           <Route index element={<PlaceholderPage title="Employee" message="Welcome 👋" />} />
 
           <Route path="leads" element={
