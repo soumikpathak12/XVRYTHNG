@@ -12,13 +12,11 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
 const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
 
-
-const LOCK_THRESHOLD = Number(process.env.AUTH_LOCK_THRESHOLD || 5);      // attempts
-const LOCK_MINUTES   = Number(process.env.AUTH_LOCK_MINUTES || 15); 
-
+const LOCK_THRESHOLD = Number(process.env.AUTH_LOCK_THRESHOLD || 5); // attempts
+const LOCK_MINUTES = Number(process.env.AUTH_LOCK_MINUTES || 15);
 
 const DUMMY_BCRYPT_HASH =
-  '$2a$10$0qR0Kq6r8Yb1G7TnO4oNauT5x3kAQlH1gLk3u6xU4E8S7pZ7sY3z2'
+  '$2a$10$0qR0Kq6r8Yb1G7TnO4oNauT5x3kAQlH1gLk3u6xU4E8S7pZ7sY3z2';
 
 if (!JWT_SECRET || JWT_SECRET.length < 32) {
   console.warn('Warning: JWT_SECRET should be at least 32 characters for production.');
@@ -30,7 +28,10 @@ if (!JWT_SECRET || JWT_SECRET.length < 32) {
  */
 export async function findUserByEmail(email, companyId = null) {
   const [rows] = await db.execute(
-    `SELECT u.id, u.company_id, u.role_id, u.email, u.password_hash, u.name, u.status, r.name AS role_name
+    `SELECT
+       u.id, u.company_id, u.role_id, u.email, u.password_hash, u.name, u.status,
+       u.must_change_password, u.failed_attempts, u.lock_until,
+       r.name AS role_name
      FROM users u
      INNER JOIN roles r ON u.role_id = r.id
      WHERE u.email = ? AND (u.company_id <=> ?)
@@ -41,11 +42,15 @@ export async function findUserByEmail(email, companyId = null) {
 }
 
 /**
- * Find all users with this email (any company). Used when login has no companyId and no user found for company_id IS NULL.
+ * Find all users with this email (any company). Used when login has no companyId and
+ * no user found for company_id IS NULL.
  */
 async function findUsersByEmailOnly(email) {
   const [rows] = await db.execute(
-    `SELECT u.id, u.company_id, u.role_id, u.email, u.password_hash, u.name, u.status, r.name AS role_name
+    `SELECT
+       u.id, u.company_id, u.role_id, u.email, u.password_hash, u.name, u.status,
+       u.must_change_password, u.failed_attempts, u.lock_until,
+       r.name AS role_name
      FROM users u
      INNER JOIN roles r ON u.role_id = r.id
      WHERE u.email = ?
@@ -60,7 +65,10 @@ async function findUsersByEmailOnly(email) {
  */
 export async function findUserById(userId) {
   const [rows] = await db.execute(
-    `SELECT u.id, u.company_id, u.role_id, u.email, u.password_hash, u.name, u.status, r.name AS role_name
+    `SELECT
+       u.id, u.company_id, u.role_id, u.email, u.password_hash, u.name, u.status,
+       u.must_change_password, u.failed_attempts, u.lock_until,
+       r.name AS role_name
      FROM users u
      INNER JOIN roles r ON u.role_id = r.id
      WHERE u.id = ?
@@ -74,7 +82,6 @@ export async function findUserById(userId) {
  * Internal: mark a failed attempt and set lock if threshold reached.
  */
 async function recordFailedAttempt(user) {
-  // Atomically increment and (if needed) set lock_until in a single UPDATE
   await db.execute(
     `UPDATE users
        SET failed_attempts = failed_attempts + 1,
@@ -86,7 +93,6 @@ async function recordFailedAttempt(user) {
     [LOCK_THRESHOLD, LOCK_MINUTES, user.id]
   );
 
-  // Fetch the fresh values after the update
   const [rows] = await db.execute(
     'SELECT failed_attempts, lock_until FROM users WHERE id = ?',
     [user.id]
@@ -107,10 +113,9 @@ async function resetAttempts(userId) {
   );
 }
 
-
 /**
  * Validate credentials and return user (without password) or null.
- * When companyId is null and no user found for company_id IS NULL, tries by email only (so company admins can log in without sending companyId).
+ * When companyId is null and no user found for company_id IS NULL, tries by email only.
  */
 export async function validateCredentials(email, password, companyId = null) {
   let user = await findUserByEmail(email, companyId);
@@ -120,8 +125,10 @@ export async function validateCredentials(email, password, companyId = null) {
     if (byEmail.length === 1) {
       user = byEmail[0];
     } else if (byEmail.length > 1) {
-      await bcrypt.compare(password || '', DUMMY_BCRYPT_HASH);
-      throw new Error('Multiple accounts found for this email. Please contact support or use your company portal.');
+      await bcrypt.compare(password || '', DUMMY_BCRYPT_HASH); // timing equalization
+      throw new Error(
+        'Multiple accounts found for this email. Please contact support or use your company portal.'
+      );
     }
   }
 
@@ -130,17 +137,14 @@ export async function validateCredentials(email, password, companyId = null) {
     throw new Error('Invalid email or password');
   }
 
-  // Status checks
   if (user.status !== 'active') {
     throw new Error('Account is inactive');
   }
 
-  // If currently locked, block until lock_until passes
   if (user.lock_until && new Date(user.lock_until) > new Date()) {
     throw new Error('Account is temporarily locked. Please try again later.');
   }
 
-  // Check password
   const valid = await bcrypt.compare(password, user.password_hash);
   if (!valid) {
     const { locked } = await recordFailedAttempt(user);
@@ -150,11 +154,9 @@ export async function validateCredentials(email, password, companyId = null) {
     throw new Error('Invalid email or password');
   }
 
-  // Success: reset counters, keep last_login_at as part of reset
   await resetAttempts(user.id);
   return user;
 }
-
 
 /**
  * Generate access JWT: userId, role, companyId (for RBAC and tenant context).
@@ -201,7 +203,7 @@ export async function createRefreshToken(userId) {
 
 function parseExpiryToSeconds(exp) {
   const match = String(exp).trim().match(/^(\d+)(s|m|h|d)$/);
-  if (!match) return 7 * 24 * 3600; // default 7d in seconds
+  if (!match) return 7 * 24 * 3600; // default 7d
   const n = parseInt(match[1], 10);
   const u = match[2];
   if (u === 's') return n;
@@ -213,7 +215,7 @@ function parseExpiryToSeconds(exp) {
 
 /**
  * Refresh rotation: validate refresh token, delete it (one-time use), issue new access + refresh.
- * Returns { accessToken, refreshToken, expiresIn, refreshExpiresIn, user } or throws.
+ * Returns { accessToken, refreshToken, expiresIn, refreshExpiresIn, user, permissions, needsPasswordChange } or throws.
  */
 export async function refresh(refreshTokenRaw) {
   if (!refreshTokenRaw || typeof refreshTokenRaw !== 'string') {
@@ -260,11 +262,13 @@ export async function refresh(refreshTokenRaw) {
       companyId: user.company_id,
     },
     permissions,
+    needsPasswordChange: !!user.must_change_password,
   };
 }
 
 /**
  * Login: validate credentials, update last_login_at, return access + refresh tokens and user.
+ * Returns { accessToken, refreshToken, expiresIn, refreshExpiresIn, user, permissions, needsPasswordChange }.
  */
 export async function login(email, password, companyId = null) {
   const user = await validateCredentials(email, password, companyId);
@@ -293,5 +297,38 @@ export async function login(email, password, companyId = null) {
       companyId: user.company_id,
     },
     permissions,
+    needsPasswordChange: !!user.must_change_password,
   };
+}
+
+
+export async function changePassword(userId, currentPassword, newPassword) {
+  if (!newPassword || newPassword.length < 8) {
+    throw new Error('New password must be at least 8 characters.');
+  }
+
+  const [rows] = await db.execute(
+    `SELECT id, password_hash FROM users WHERE id = ? LIMIT 1`,
+    [Number(userId)]
+  );
+  const user = rows?.[0];
+  if (!user) throw new Error('User not found.');
+
+  const ok = await bcrypt.compare(currentPassword ?? '', user.password_hash);
+  if (!ok) throw new Error('Current password is incorrect.');
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+
+  await db.execute(
+    `UPDATE users
+       SET password_hash = ?, must_change_password = 0, password_changed_at = NOW(),
+           failed_attempts = 0, lock_until = NULL, updated_at = NOW()
+     WHERE id = ?`,
+    [passwordHash, Number(userId)]
+  );
+
+  // Invalidate all existing refresh tokens so old sessions are logged out.
+  await db.execute(`DELETE FROM refresh_tokens WHERE user_id = ?`, [Number(userId)]);
+
+  return { success: true };
 }
