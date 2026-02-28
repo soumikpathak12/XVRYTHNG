@@ -10,7 +10,7 @@ import {
   deactivateEmployee,
   getRoleModulesPreview,
   getJobRolesForCompany,
-  getEmploymentTypes,
+  getEmploymentTypes,getDepartmentsForCompany
 } from '../controllers/employeeController.js';
 import * as employeeService from '../services/employeeService.js'
 const router = Router();
@@ -26,7 +26,7 @@ router.get('/', listEmployees);
 router.get('/preview/role-modules/:job_role_id', getRoleModulesPreview);
 router.get('/options/job-roles', getJobRolesForCompany);
 router.get('/options/employment-types', getEmploymentTypes);
-
+router.get('/options/departments', getDepartmentsForCompany);
 router.get('/:id', getEmployee);
 router.put('/:id', updateEmployee);
 router.patch('/:id/deactivate', deactivateEmployee);

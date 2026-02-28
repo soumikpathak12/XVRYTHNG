@@ -1251,6 +1251,16 @@ export async function getEmploymentTypeOptions() {
   return data.data; // [{ id, name }]
 }
 
+
+export async function getDepartmentOptions(params = {}) {
+  const headers = {};
+  if (params.companyId) headers['X-Tenant-Id'] = String(params.companyId);
+  const res = await authFetch('/api/employees/options/departments', { headers });
+  const data = await res.json();
+  return data.data ?? []; // [{ id, code, name }]
+}
+
+
 export async function createEmployeeLogin(id, { password, companyId } = {}) {
   const q = new URLSearchParams();
   if (companyId) q.set('companyId', companyId);

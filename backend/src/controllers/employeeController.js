@@ -162,3 +162,18 @@ export async function getEmploymentTypes(req, res) {
     return res.status(500).json({ success: false, message: 'Failed to load employment types' });
   }
 }
+
+
+export async function getDepartmentsForCompany(req, res) {
+  try {
+    const companyId = resolveCompanyId(req);
+    if (!companyId) {
+      return res.status(200).json({ success: true, data: [] });
+    }
+    const rows = await employeeService.getDepartmentsForCompany(companyId);
+    return res.status(200).json({ success: true, data: rows });
+  } catch (err) {
+    console.error('Get departments error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to load departments' });
+  }
+}

@@ -5,7 +5,7 @@ import {
   createEmployee,
   previewRoleModules,
   getJobRoleOptions,
-  getEmploymentTypeOptions,
+  getEmploymentTypeOptions,getDepartmentOptions
 } from '../services/api.js';
 
 function PrimaryButton({ children, onClick, type = 'button', color = '#146b6b', disabled }) {
@@ -114,14 +114,18 @@ function PersonalStep({ form, onChange, inputStyle, labelStyle }) {
             onChange={e => onChange(['personal', 'date_of_birth'], e.target.value)}
           />
         </div>
-        <div style={{ display: 'grid', gap: 6 }}>
-          <label style={labelStyle}>Gender</label>
-          <input
-            style={inputStyle}
-            value={form.personal.gender}
-            onChange={e => onChange(['personal', 'gender'], e.target.value)}
-          />
-        </div>
+      <div style={{ display: 'grid', gap: 6 }}>
+        <label style={labelStyle}>Gender</label>
+        <select
+          style={inputStyle}
+          value={form.personal.gender}
+          onChange={e => onChange(['personal', 'gender'], e.target.value)}
+        >
+          <option value="">-- Select gender --</option>
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+        </select>
+      </div>
       </div>
     </div>
   );
@@ -208,17 +212,28 @@ function ContactAddrStep({ form, onChange, inputStyle, labelStyle }) {
   );
 }
 
-function EmploymentStep({ form, onChange, inputStyle, labelStyle, roleOptions, empTypeOptions, roleModules }) {
+function EmploymentStep({ form, onChange, inputStyle, labelStyle, roleOptions, empTypeOptions, roleModules,deptOptions }) {
   return (
     <div style={{ display: 'grid', gap: 10 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div style={{ display: 'grid', gap: 6 }}>
           <label style={labelStyle}>Department ID</label>
-          <input
+          
+          <select
             style={inputStyle}
             value={form.employment.department_id}
-            onChange={e => onChange(['employment', 'department_id'], e.target.value ? Number(e.target.value) : '')}
-          />
+            onChange={(e) =>
+              onChange(['employment', 'department_id'], e.target.value ? Number(e.target.value) : '')
+            }
+          >
+            <option value="">-- Select department --</option>
+            {deptOptions.map(d => (
+              <option key={d.id} value={d.id}>
+                {d.code ? `${d.code} — ${d.name}` : d.name}
+              </option>
+            ))}
+          </select>
+
         </div>
         <div style={{ display: 'grid', gap: 6 }}>
           <label style={labelStyle}>Job role</label>
@@ -516,6 +531,7 @@ export default function EmployeeCreatePage() {
 
   const [roleOptions, setRoleOptions] = useState([]);
   const [empTypeOptions, setEmpTypeOptions] = useState([]);
+  const [deptOptions, setDeptOptions] = useState([]);
   const [roleModules, setRoleModules] = useState([]);
   const [saving, setSaving] = useState(false);
   const [errText, setErrText] = useState('');
@@ -528,6 +544,11 @@ export default function EmployeeCreatePage() {
     getJobRoleOptions(companyId ? { companyId } : {})
       .then(rows => alive && setRoleOptions(rows ?? []))
       .catch(() => alive && setRoleOptions([]));
+    
+    getDepartmentOptions(companyId ? { companyId } : {})
+        .then(rows => alive && setDeptOptions(rows ?? []))
+        .catch(() => alive && setDeptOptions([]));
+
     return () => { alive = false; };
   }, [companyId]);
 
@@ -610,6 +631,7 @@ export default function EmployeeCreatePage() {
             roleOptions={roleOptions}
             empTypeOptions={empTypeOptions}
             roleModules={roleModules}
+             deptOptions={deptOptions}
           />
         );
       case 'account':

@@ -17,7 +17,7 @@ const brand = '#146b6b';
 
 function Pill({ children, tone = 'success' }) {
   const map = {
-    success: { bg: '#DCFCE7', fg: '#166534' },
+    success: { bg: '#DCFCE7', fg: '#28A745' },
     gray:    { bg: '#E5E7EB', fg: '#374151' },
     neutral: { bg: '#F3F4F6', fg: '#111827' },
   };
@@ -29,7 +29,7 @@ function Pill({ children, tone = 'success' }) {
         alignItems: 'center',
         gap: 6,
         background: c.bg,
-        color: c.fg,
+        color:brand,
         padding: '2px 10px',
         borderRadius: 999,
         fontSize: 12,
@@ -568,20 +568,26 @@ export default function EmployeeProfilePage() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <button
           onClick={() => navigate(-1)}
-          style={{ border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', fontWeight: 700 }}
+          style={{ border: 'none', background: 'transparent', color: 'brand', cursor: 'pointer', fontWeight: 700 }}
         >
           ← Back to Employees
         </button>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          <button
-            style={{
-              padding: '8px 12px', borderRadius: 10,
-              background: '#111827', color: '#fff', border: 'none', fontWeight: 800, cursor: 'pointer',
-            }}
-            onClick={() => setOpenEdit(true)}
-          >
-            Edit Profile
-          </button>
+       <button
+  style={{
+    padding: '8px 12px',
+    borderRadius: 10,
+    background: brand,
+    color: '#fff',
+    border: 'none',
+    fontWeight: 800,
+    cursor: 'pointer',
+    boxShadow: '0 2px 6px rgba(20,107,107,0.25)',
+  }}
+  onClick={() => setOpenEdit(true)}
+>
+  Edit Profile
+</button>
           <button
             style={{
               padding: '8px 12px', borderRadius: 10,
@@ -653,15 +659,21 @@ export default function EmployeeProfilePage() {
             <Progress label="Sick Leave" value={8} total={10} />
             <Progress label="Personal Leave" value={5} total={10} />
             <div style={{ marginTop: 10 }}>
-              <button
-                style={{
-                  background: '#111827', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 14px',
-                  fontWeight: 800, cursor: 'pointer', width: '100%',
-                }}
-                onClick={() => alert('Request Leave (UI only)')}
-              >
-                Request Leave
-              </button>
+            <button
+              style={{
+                background: brand,
+                color: '#fff',
+                border: 'none',
+                borderRadius: 8,
+                padding: '10px 14px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                width: '100%',
+              }}
+              onClick={() => alert('Request Leave (UI only)')}
+            >
+              Request Leave
+            </button>
             </div>
           </Section>
 
@@ -693,18 +705,19 @@ export default function EmployeeProfilePage() {
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
               <label
                 style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 8,
-                  background: '#111827', color: '#fff', borderRadius: 8,
-                  padding: '8px 12px', fontWeight: 800, cursor: 'pointer'
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  background: brand,
+                  color: '#fff',
+                  borderRadius: 8,
+                  padding: '8px 12px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
                 }}
               >
                 Upload Document
-                <input
-                  type="file"
-                  onChange={onUploadDoc}
-                  style={{ display: 'none' }}
-                  disabled={docUploading}
-                />
+                <input type="file" onChange={onUploadDoc} style={{ display: 'none' }} />
               </label>
               {docUploading && <span style={{ fontSize: 12, color: '#6B7280' }}>Uploading…</span>}
             </div>

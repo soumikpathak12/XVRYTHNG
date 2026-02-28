@@ -387,3 +387,17 @@ async function genEmployeeCode(conn, companyId, jobRoleId) {
   const seq = String(next).padStart(3, '0');
   return `${base}${seq}`;
 }
+
+
+export async function getDepartmentsForCompany(companyId) {
+  const [rows] = await db.execute(
+    `
+    SELECT id, code, name
+    FROM departments
+    WHERE company_id = ?
+    ORDER BY name ASC
+    `,
+    [Number(companyId)]
+  );
+  return rows;
+}
