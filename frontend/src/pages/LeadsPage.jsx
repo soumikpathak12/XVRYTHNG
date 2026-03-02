@@ -5,7 +5,6 @@ import KanbanBoard from '../components/leads/KanbanBoard.jsx';
 import { STAGES } from '../components/leads/KanbanBoard.jsx';
 import LeadsTable from '../components/leads/LeadsTable.jsx';
 import LeadsCalendar from '../components/leads/LeadsCalendar.jsx';
-import LeadDetailModal from '../components/leads/LeadDetailModal.jsx';
 import Modal from '../components/common/Modal.jsx';
 import AddLeadForm from '../components/leads/LeadForm.jsx';
 import {
@@ -27,14 +26,13 @@ function useLeadBase() {
 export default function LeadsPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const base = useLeadBase(); 
+  const base = useLeadBase();
 
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [openAdd, setOpenAdd] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [selectedLeadId, setSelectedLeadId] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [toast, setToast] = useState('');
   const [syncing, setSyncing] = useState(false);
@@ -51,7 +49,8 @@ export default function LeadsPage() {
     const v = (params.get('view') || '').toLowerCase();
     return ['kanban', 'table', 'calendar'].includes(v) ? v : 'kanban';
   };
-  const [view, setView] = useState(getInitialView);
+  // ✅ phải gọi hàm để lấy giá trị, tránh set function vào state
+  const [view, setView] = useState(getInitialView());
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -81,14 +80,18 @@ export default function LeadsPage() {
   const transformLead = useCallback((row) => {
     if (!row) return null;
     const systemSizeKw =
-      row.system_size_kw != null ? Number(row.system_size_kw)
-        : row.systemSize != null ? Number(row.systemSize)
-          : null;
+      row.system_size_kw != null
+        ? Number(row.system_size_kw)
+        : row.systemSize != null
+        ? Number(row.systemSize)
+        : null;
 
     const valueNum =
-      row.value_amount != null ? Number(row.value_amount)
-        : row.value != null ? Number(row.value)
-          : null;
+      row.value_amount != null
+        ? Number(row.value_amount)
+        : row.value != null
+        ? Number(row.value)
+        : null;
 
     return {
       id: row.id,
@@ -119,12 +122,14 @@ export default function LeadsPage() {
         if (alive) setLoading(false);
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [transformLead, refreshTrigger]);
 
   const handleStageChange = useCallback(
     async (leadId, nextStage) => {
-      // Update UI first
+      // Update UI trước
       setLeads((prev) =>
         prev.map((l) => (String(l.id) === String(leadId) ? { ...l, stage: nextStage } : l))
       );
@@ -138,15 +143,14 @@ export default function LeadsPage() {
               return {
                 ...l,
                 stage: updated.stage,
-                lastActivity:
-                  view === 'table' ? l.lastActivity : (updated.last_activity_at || l.lastActivity),
+                lastActivity: view === 'table' ? l.lastActivity : updated.last_activity_at || l.lastActivity,
                 _raw: updated,
               };
             })
           );
         }
       } catch (err) {
-        // Rollback if API fails
+        // Rollback nếu API fail
         setLeads((prev) =>
           prev.map((l) =>
             String(l.id) === String(leadId) ? { ...l, stage: l._raw?.stage || l.stage } : l
@@ -159,7 +163,13 @@ export default function LeadsPage() {
     [view]
   );
 
-  // Call real API to create a lead and add to list
+  // Điều hướng chi tiết lead theo base (tuyệt đối)
+  const goLeadDetail = useCallback(
+    (id) => navigate(`${base}/leads/${id}`),
+    [navigate, base]
+  );
+
+  // Tạo lead
   const handleCreateLead = useCallback(
     async (payload) => {
       try {
@@ -182,7 +192,7 @@ export default function LeadsPage() {
       const res = await importSolarQuotesLeads();
       const count = res.count || 0;
       setSyncResult({ success: true, count });
-      setRefreshTrigger(t => t + 1);
+      setRefreshTrigger((t) => t + 1);
     } catch (err) {
       console.error('Import failed', err);
       setSyncResult({ success: false, error: err.message || 'SolarQuotes import failed' });
@@ -207,11 +217,11 @@ export default function LeadsPage() {
     const rows = boardLeads.map((lead) => {
       const lastActivity = lead.lastActivity
         ? (() => {
-          const d = new Date(lead.lastActivity);
-          return isNaN(d.getTime())
-            ? lead.lastActivity
-            : d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
-        })()
+            const d = new Date(lead.lastActivity);
+            return isNaN(d.getTime())
+              ? lead.lastActivity
+              : d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+          })()
         : '';
       const value = lead.value != null ? String(lead.value) : '';
       return [
@@ -341,7 +351,9 @@ export default function LeadsPage() {
                   setSearchStage(null);
                 }
               }}
-              placeholder={searchStage ? `Search in ${searchStage.replace('_', ' ')}...` : "Search by name, suburb, source, stage..."}
+              placeholder={
+                searchStage ? `Search in ${searchStage.replace('_', ' ')}...` : 'Search by name, suburb, source, stage...'
+              }
               aria-label="Search leads"
             />
             {search && (
@@ -367,7 +379,9 @@ export default function LeadsPage() {
           >
             <option value="">All sources</option>
             {distinctSources.map((s) => (
-              <option key={s} value={s}>{s}</option>
+              <option key={s} value={s}>
+                {s}
+              </option>
             ))}
           </select>
           <select
@@ -386,25 +400,35 @@ export default function LeadsPage() {
           </span>
           {view === 'table' && (
             <div className="leads-filter-bar-right">
-              <button
-                type="button"
-                className="leads-export-csv-btn"
-                onClick={exportLeadsCsv}
-                disabled={boardLeads.length === 0}
-              >
+              <button type="button" className="leads-export-csv-btn" onClick={exportLeadsCsv} disabled={boardLeads.length === 0}>
                 Export CSV
               </button>
             </div>
           )}
-          <div className="leads-filter-bar-right" style={{ marginLeft: view === 'table' ? '8px' : 'auto', display: 'flex', gap: '8px' }}>
+          <div
+            className="leads-filter-bar-right"
+            style={{ marginLeft: view === 'table' ? '8px' : 'auto', display: 'flex', gap: '8px' }}
+          >
             <button
               type="button"
               className="leads-add-btn bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
               onClick={() => setShowImport(true)}
               style={{ backgroundColor: '#fff', color: '#374151', border: '1px solid #d1d5db' }}
             >
-              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="mr-1">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              <svg
+                width="16"
+                height="16"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="mr-1"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                />
               </svg>
               Import CSV
             </button>
@@ -432,7 +456,8 @@ export default function LeadsPage() {
           <LeadsTable
             leads={boardLeads}
             onStageChange={handleStageChange}
-            onSelectLead={(id) => navigate(`${id}`)}
+            // ✅ dùng điều hướng tuyệt đối theo base
+            onSelectLead={(id) => goLeadDetail(id)}
           />
         ) : view === 'calendar' ? (
           <div className="leads-calendar-wrap">
@@ -450,17 +475,14 @@ export default function LeadsPage() {
             leads={boardLeads}
             onStageChange={handleStageChange}
             onFocusSearch={focusSearch}
-            onSelectLead={(id) => navigate(`${id}`)}
+            // ✅ dùng điều hướng tuyệt đối theo base
+            onSelectLead={(id) => goLeadDetail(id)}
           />
         )}
       </div>
 
       <Modal open={openAdd} onClose={() => setOpenAdd(false)} title="Add New Lead" width={720}>
-        <AddLeadForm
-          embedded
-          onCancel={() => setOpenAdd(false)}
-          onSubmit={handleCreateLead}
-        />
+        <AddLeadForm embedded onCancel={() => setOpenAdd(false)} onSubmit={handleCreateLead} />
       </Modal>
 
       {/* Sync Modal */}
@@ -478,15 +500,23 @@ export default function LeadsPage() {
             </div>
           ) : syncResult?.success ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-              <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div
+                style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '50%',
+                  backgroundColor: '#d1fae5',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
                 <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="#059669" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
               </div>
               <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#111827' }}>Sync Complete</h3>
-              <p style={{ color: '#6b7280' }}>
-                Successfully synced.
-              </p>
+              <p style={{ color: '#6b7280' }}>Successfully synced.</p>
               <button
                 onClick={() => setSyncResult(null)}
                 style={{
@@ -497,7 +527,7 @@ export default function LeadsPage() {
                   borderRadius: '6px',
                   border: 'none',
                   cursor: 'pointer',
-                  fontSize: '14px'
+                  fontSize: '14px',
                 }}
               >
                 Close
@@ -505,7 +535,17 @@ export default function LeadsPage() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-              <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div
+                style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '50%',
+                  backgroundColor: '#fee2e2',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
                 <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="#dc2626" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -522,7 +562,7 @@ export default function LeadsPage() {
                   borderRadius: '6px',
                   border: 'none',
                   cursor: 'pointer',
-                  fontSize: '14px'
+                  fontSize: '14px',
                 }}
               >
                 Close
@@ -536,10 +576,11 @@ export default function LeadsPage() {
         <ImportLeadsModal
           onClose={() => setShowImport(false)}
           onSuccess={() => {
-            setRefreshTrigger(p => p + 1);
+            setRefreshTrigger((p) => p + 1);
           }}
         />
       )}
     </div>
   );
 }
+``

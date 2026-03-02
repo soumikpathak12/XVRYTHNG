@@ -1,6 +1,6 @@
 // pages/LeadDetailPage.jsx – full-page lead detail (not a popup)
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import {
   getLead,
   updateLead,
@@ -31,9 +31,19 @@ const STAGE_LABELS = {
   closed_lost: 'Closed Lost',
 };
 
+// Helper: detect base path from current URL
+function getBaseFromPathname(pathname) {
+  if (pathname.startsWith('/admin')) return '/admin';
+  if (pathname.startsWith('/employee')) return '/employee';
+  return '/dashboard';
+}
+
 export default function LeadDetailPage() {
   const { id: leadId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const base = getBaseFromPathname(location.pathname);
+
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -85,13 +95,13 @@ export default function LeadDetailPage() {
   const handleMarkLost = async () => {
     try {
       await updateLeadStage(leadId, 'closed_lost');
-      navigate('/admin/leads');
+      navigate(`${base}/leads`); 
     } catch (err) {
       setError(err.message || 'Failed to update stage');
     }
   };
 
-  const handleBack = () => navigate('/admin/leads');
+  const handleBack = () => navigate(`${base}/leads`); 
 
   const handleSendCredentials = useCallback(async () => {
     const leadObj = data?.lead;
@@ -151,7 +161,7 @@ export default function LeadDetailPage() {
     return (
       <div className="lead-detail-page-wrap">
         <p>No lead selected.</p>
-        <button type="button" onClick={() => navigate('/admin/leads')}>Back to Pipeline</button>
+        <button type="button" onClick={() => navigate(`${base}/leads`)}>Back to Pipeline</button>
       </div>
     );
   }
@@ -160,7 +170,12 @@ export default function LeadDetailPage() {
     <div className="lead-detail-page-wrap">
       <div className="lead-detail-page">
         <header className="lead-detail-header">
-          <button type="button" className="lead-detail-back" onClick={handleBack} aria-label="Back to pipeline">
+          <button
+            type="button"
+            className="lead-detail-back"
+            onClick={handleBack}
+            aria-label="Back to pipeline"
+          >
             ← Back to Pipeline
           </button>
 
@@ -171,13 +186,14 @@ export default function LeadDetailPage() {
           ) : lead ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <h1 id="lead-detail-title" className="lead-detail-name" style={{ marginBottom: '8px' }}>{lead.customer_name}</h1>
+                <h1 id="lead-detail-title" className="lead-detail-name" style={{ marginBottom: '8px' }}>
+                  {lead.customer_name}
+                </h1>
                 <div className="lead-detail-tags" style={{ marginBottom: 0 }}>
                   <span className="lead-detail-tag lead-detail-tag-stage" style={{ backgroundColor: '#0d9488' }}>
                     {stageLabel}
                   </span>
                   <span className="lead-detail-tag lead-detail-tag-source">{sourceLabel}</span>
-                  {/* OPTIONAL: show manual attention flag from proposal FU */}
                   {lead.proposal_fu_flagged_for_review_at && (
                     <span className="lead-detail-tag" style={{ backgroundColor: '#FEF3C7', color: '#92400E', border: '1px solid #F59E0B' }}>
                       Action needed
@@ -249,7 +265,9 @@ export default function LeadDetailPage() {
                   {referredBy.customer_name}
                   {referredBy.email ? ` (${referredBy.email})` : ''}
                 </span>
-                <Link to={`/admin/leads/${referredBy.id}`} className="lead-detail-referred-by-link">View referrer</Link>
+                <Link to={`${base}/leads/${referredBy.id}`} className="lead-detail-referred-by-link">
+                  View referrer
+                </Link>
               </div>
             )}
 

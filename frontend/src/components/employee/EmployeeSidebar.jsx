@@ -1,14 +1,24 @@
 // src/pages/employee/EmployeeSidebar.jsx
 import { NavLink } from 'react-router-dom';
-import { UsersRound, HardHat, MessageSquare, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
+
+import { UsersRound, HardHat, MessageSquare, Settings, ChevronLeft, ChevronRight,
+         ClipboardList, Briefcase, Building2, Gift,  LayoutDashboard, } from 'lucide-react';
+
 import { useEffect, useState } from 'react';
 import { getCompanySidebar } from '../../services/api.js';
 
 const EMP_MODULE_NAV = {
+  
+  dashboard: { to: '/employee', label: 'Dashboard', icon: LayoutDashboard },
+
   leads:     { to: '/employee/leads',     label: 'Lead Pipeline', icon: UsersRound },
   on_field:  { to: '/employee/on-field',  label: 'On-Field',      icon: HardHat   },
   messages:  { to: '/employee/messages',  label: 'Messages',      icon: MessageSquare },
   settings:  { to: '/employee/settings',  label: 'Settings',      icon: Settings },
+  attendance:{ to: '/employee/attendance', label: 'Attendance',    icon: ClipboardList },
+  operations:{ to: '/employee/operations', label: 'Operations',    icon: Briefcase },
+  projects:  { to: '/employee/projects',   label: 'Projects',      icon: Building2 },
+  referrals: { to: '/employee/referrals',  label: 'Referrals',     icon: Gift },
 };
 
 export default function EmployeeSidebar() {
@@ -33,7 +43,9 @@ export default function EmployeeSidebar() {
     return () => { alive = false; };
   }, []);
 
-  const navItems = (modules || []).map(k => EMP_MODULE_NAV[k]).filter(Boolean);
+
+ const moduleItems = (modules ?? []).map((k) => EMP_MODULE_NAV[k]).filter(Boolean);
+  const navItems = [EMP_MODULE_NAV.dashboard, ...moduleItems];
 
   const linkBase = { display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
     borderRadius: 14, fontWeight: 600, color: '#556070', textDecoration: 'none' };

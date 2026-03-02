@@ -7,6 +7,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import * as profileService from '../services/profileService.js';
 import * as permissionService from '../services/permissionService.js';
+import * as authService from '../services/authService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -99,11 +100,12 @@ export async function updateProfile(req, res) {
 /** PUT /api/users/me/password - body: { currentPassword, newPassword } */
 export async function changePassword(req, res) {
   try {
+    const userId = req.user?.id;
     const { currentPassword, newPassword } = req.body || {};
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ success: false, message: 'Current password and new password are required' });
     }
-    await profileService.changePassword(req.user.id, currentPassword, newPassword);
+     await authService.changePassword(userId, currentPassword, newPassword);
     return res.json({ success: true, message: 'Password updated' });
   } catch (err) {
     const msg = err?.message || '';

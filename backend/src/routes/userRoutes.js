@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import fileUpload from 'express-fileupload';
-import { requireAuth } from '../controllers/adminController.js';
+import { requireAuth } from '../middleware/auth.js';
 import { getProfile, updateProfile, changePassword, getMyPermissions } from '../controllers/profileController.js';
 
 import { postUser } from '../controllers/userController.js';
@@ -33,4 +33,6 @@ router.post('/', requireAuth, async (req, res, next) => {
   console.log('[ROUTE:/api/users] POST body=', req.body);
   next();
 }, postUser);
+
+
 export default router;

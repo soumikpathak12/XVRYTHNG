@@ -1369,9 +1369,11 @@ export async function deleteEmployeeDocument(employeeId, docId, params = {}) {
 export async function changePasswordEmp({ currentPassword, newPassword }) {
   const resp = await fetch('/api/auth/change-password-emp', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
+    
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ currentPassword, newPassword }),
   });
+
   const data = await resp.json();
   if (!resp.ok) throw new Error(data?.message || 'Failed to change password');
   return data;

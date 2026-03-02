@@ -3,6 +3,7 @@
  */
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
+
 import LoginForm from './components/auth/LoginForm.jsx';
 import ForgotPassword from './components/auth/ForgotPassword.jsx';
 import ResetPassword from './components/auth/ResetPassword.jsx';
@@ -18,28 +19,30 @@ import RequirePermission from './components/RequirePermission.jsx';
 import RolesPage from './pages/admin/RolesPage.jsx';
 import CompanySettingsPage from './pages/company/CompanySettingPage.jsx';
 import CompanyPage from './pages/company/CompanyPage.jsx';
+
 import LeadsPage from './pages/LeadsPAge.jsx';
 import LeadDetailPage from './pages/LeadDetailPage.jsx';
 import LeadsCalendarPage from './pages/admin/LeadsCalendarPage.jsx';
 import MessagesPage from './pages/MessagesPage.jsx';
+
 import CustomerLoginPage from './pages/customer/CustomerLoginPage.jsx';
 import CustomerPortalLayout from './pages/customer/CustomerPortalLayout.jsx';
 import MyProjectPage from './pages/customer/MyProjectPage.jsx';
 import CustomerReferralsPage from './pages/customer/ReferralsPage.jsx';
+
 import ReferralsPage from './pages/ReferralsPage.jsx';
 import AdminTemplatesPage from './pages/admin/AdminTemplatePage.jsx';
 import SiteInspectionPage from './pages/admin/SiteInspectionPage.jsx';
 import CreateUser from './pages/admin/CreateUserPage.jsx';
 
 import EmployeesPage from './pages/EmployeesPage.jsx';
-
 import EmployeePage from './pages/employee/EmployeePage.jsx';
-
 import EmployeeCreatePage from './pages/EmployeeCreate.jsx';
-
 import EmployeeProfilePage from './pages/EmployeeProfilePage.jsx';
+
 import RequirePasswordUpdate from './components/auth/RequiredPasswordUpdate.jsx';
 import EmployeeChangePasswordPage from './pages/EmployeeChangePasswordPage.jsx';
+
 function PlaceholderPage({ title, message, children }) {
   return (
     <div style={{ padding: '2rem', textAlign: 'center', color: '#1A1A2E' }}>
@@ -71,7 +74,7 @@ function LoginPage() {
     clearSessionExpiredMessage?.();
     try {
       await login(credentials);
-    } catch { }
+    } catch {}
   };
 
   if (isAuthenticated) {
@@ -157,122 +160,168 @@ function App() {
         >
           <Route index element={<Navigate to="overview" replace />} />
 
-          <Route path="overview" element={
-            <RequirePermission resource="overview" action="view">
-              <AdminOverview />
-            </RequirePermission>
-          } />
-
-          <Route path="leads" element={
-            <RequirePermission resource="leads" action="view">
-              <LeadsPage />
-            </RequirePermission>
-          } />
-
-          <Route path="leads/:id" element={
-            <RequirePermission resource="leads" action="view">
-              <LeadDetailPage />
-            </RequirePermission>
-          } />
-
-          <Route path="leads/:id/site-inspection" element={
-            <RequirePermission resource="leads" action="view">
-              <SiteInspectionPage />
-            </RequirePermission>
-          } />
-
-          <Route path="leads/calendar" element={
-            <RequirePermission resource="leads" action="view">
-              <LeadsCalendarPage />
-            </RequirePermission>
-          } />
-
-          <Route path="employees" element={
-            <RequirePermission resource="employees" action="view">
-              <EmployeesPage />
-            </RequirePermission>
-          } />
-
-
           <Route
-            path="employees/:id"
-            element={<EmployeeProfilePage />}
+            path="overview"
+            element={
+              <RequirePermission resource="overview" action="view">
+                <AdminOverview />
+              </RequirePermission>
+            }
           />
 
+          <Route
+            path="leads"
+            element={
+              <RequirePermission resource="leads" action="view">
+                <LeadsPage />
+              </RequirePermission>
+            }
+          />
+
+          <Route
+            path="leads/:id"
+            element={
+              <RequirePermission resource="leads" action="view">
+                <LeadDetailPage />
+              </RequirePermission>
+            }
+          />
+
+          <Route
+            path="leads/:id/site-inspection"
+            element={
+              <RequirePermission resource="leads" action="view">
+                <SiteInspectionPage />
+              </RequirePermission>
+            }
+          />
+
+          <Route
+            path="leads/calendar"
+            element={
+              <RequirePermission resource="leads" action="view">
+                <LeadsCalendarPage />
+              </RequirePermission>
+            }
+          />
+
+          <Route
+            path="employees"
+            element={
+              <RequirePermission resource="employees" action="view">
+                <EmployeesPage />
+              </RequirePermission>
+            }
+          />
+          <Route path="employees/:id" element={<EmployeeProfilePage />} />
           <Route path="employees/new" element={<EmployeeCreatePage />} />
 
-          <Route path="projects" element={
-            <RequirePermission resource="projects" action="view">
-              <AdminProjects />
-            </RequirePermission>
-          } />
+          <Route
+            path="projects"
+            element={
+              <RequirePermission resource="projects" action="view">
+                <AdminProjects />
+              </RequirePermission>
+            }
+          />
 
-          <Route path="on-field" element={
-            <RequirePermission resource="on_field" action="view">
-              <AdminOnField />
-            </RequirePermission>
-          } />
+          <Route
+            path="on-field"
+            element={
+              <RequirePermission resource="on_field" action="view">
+                <AdminOnField />
+              </RequirePermission>
+            }
+          />
 
-          <Route path="operations" element={
-            <RequirePermission resource="operations" action="view">
-              <AdminOperations />
-            </RequirePermission>
-          } />
+          <Route
+            path="operations"
+            element={
+              <RequirePermission resource="operations" action="view">
+                <AdminOperations />
+              </RequirePermission>
+            }
+          />
 
-          <Route path="attendance" element={
-            <RequirePermission resource="attendance" action="view">
-              <AdminAttendance />
-            </RequirePermission>
-          } />
+          <Route
+            path="attendance"
+            element={
+              <RequirePermission resource="attendance" action="view">
+                <AdminAttendance />
+              </RequirePermission>
+            }
+          />
 
-          <Route path="referrals" element={
-            <RequirePermission resource="referrals" action="view">
-              <ReferralsPage />
-            </RequirePermission>
-          } />
+          <Route
+            path="referrals"
+            element={
+              <RequirePermission resource="referrals" action="view">
+                <ReferralsPage />
+              </RequirePermission>
+            }
+          />
 
-          <Route path="messages" element={
-            <RequirePermission resource="messages" action="view">
-              <MessagesPage />
-            </RequirePermission>
-          } />
+          <Route
+            path="messages"
+            element={
+              <RequirePermission resource="messages" action="view">
+                <MessagesPage />
+              </RequirePermission>
+            }
+          />
 
-          <Route path="settings" element={
-            <RequirePermission resource="settings" action="view">
-              <SettingsPage />
-            </RequirePermission>
-          } />
+          <Route
+            path="settings"
+            element={
+              <RequirePermission resource="settings" action="view">
+                <SettingsPage />
+              </RequirePermission>
+            }
+          />
 
-          <Route path="profile" element={
-            <RequirePermission resource="profile" action="view">
-              <ProfilePage />
-            </RequirePermission>
-          } />
+          <Route
+            path="profile"
+            element={
+              <RequirePermission resource="profile" action="view">
+                <ProfilePage />
+              </RequirePermission>
+            }
+          />
 
-          <Route path="companies" element={
-            <RequirePermission resource="companies" action="view">
-              <CompaniesPage />
-            </RequirePermission>
-          } />
+          <Route
+            path="companies"
+            element={
+              <RequirePermission resource="companies" action="view">
+                <CompaniesPage />
+              </RequirePermission>
+            }
+          />
 
-          <Route path="companies/new" element={
-            <RequirePermission resource="companies" action="create">
-              <CompanyOnboardingWizard />
-            </RequirePermission>
-          } />
+          <Route
+            path="companies/new"
+            element={
+              <RequirePermission resource="companies" action="create">
+                <CompanyOnboardingWizard />
+              </RequirePermission>
+            }
+          />
 
-          <Route path="companies/:id/edit" element={
-            <RequirePermission resource="companies" action="update">
-              <CompanyOnboardingWizard />
-            </RequirePermission>
-          } />
+          <Route
+            path="companies/:id/edit"
+            element={
+              <RequirePermission resource="companies" action="update">
+                <CompanyOnboardingWizard />
+              </RequirePermission>
+            }
+          />
 
           <Route path="roles" element={<Navigate to="/admin/settings" replace />} />
-          <Route path="/admin/settings/inspection-templates" element={<AdminTemplatesPage />} />
 
-
+          {/* chỉnh thành relative path */}
+          <Route path="settings/inspection-templates" element={<AdminTemplatesPage />} />
         </Route>
 
+        {/* Company Admin / Manager */}
         <Route
           path="/dashboard"
           element={
@@ -282,7 +331,6 @@ function App() {
           }
         >
           <Route index element={<PlaceholderPage title="Dashboard" message="Company Admin / Manager (Phase 2+)." />} />
-
           <Route path="projects" element={<PlaceholderPage title="Projects" message="In-house & retailer projects." />} />
           <Route path="leads" element={<PlaceholderPage title="Lead Pipeline" message="Manage and track leads." />} />
           <Route path="on-field" element={<PlaceholderPage title="On-Field" message="Field schedules & activities." />} />
@@ -293,6 +341,7 @@ function App() {
           <Route path="settings" element={<CompanySettingsPage />} />
         </Route>
 
+        {/* Employee portal */}
         <Route
           path="/employee"
           element={
@@ -303,40 +352,112 @@ function App() {
             </ProtectedRoute>
           }
         >
-          {/* Employee default landing (only accessible if password already changed) */}
-          <Route index element={<PlaceholderPage title="Employee" message="Welcome 👋" />} />
+          <Route index element={<PlaceholderPage title="Dashboard" message="Your tasks, KPIs & quick actions." />} />
+
+          <Route path="dashboard" element={<PlaceholderPage title="Dashboard" message="Your tasks, KPIs & quick actions." />} />
+
           <Route path="change-password" element={<EmployeeChangePasswordPage />} />
 
-          <Route index element={<PlaceholderPage title="Employee" message="Welcome 👋" />} />
+          {/* Leads */}
+          <Route
+            path="leads"
+            element={
+              <RequirePermission resource="leads" action="view">
+                <LeadsPage />
+              </RequirePermission>
+            }
+          />
 
-          <Route path="leads" element={
+            <Route
+          path="leads/:id"
+          element={
             <RequirePermission resource="leads" action="view">
-              <LeadsPage />
+              <LeadDetailPage />
             </RequirePermission>
-          } />
+          }
+        />
 
-          <Route path="leads/calendar" element={
-            <RequirePermission resource="leads" action="view">
-              <LeadsCalendarPage />
-            </RequirePermission>
-          } />
+          <Route
+            path="leads/calendar"
+            element={
+              <RequirePermission resource="leads" action="view">
+                <LeadsCalendarPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="leads/:id/site-inspection"
+            element={
+              <RequirePermission resource="leads" action="view">
+                <SiteInspectionPage />
+              </RequirePermission>
+            }
+          />
 
-          <Route path="leads/:id/site-inspection" element={
-            <RequirePermission resource="leads" action="view">
-              <SiteInspectionPage />
-            </RequirePermission>
-          } />
+          {/* Messages */}
+          <Route
+            path="messages"
+            element={
+              <RequirePermission resource="messages" action="view">
+                <MessagesPage />
+              </RequirePermission>
+            }
+          />
 
-          <Route path="settings" element={
-            <RequirePermission resource="profile" action="view">
-              <ProfilePage />
-            </RequirePermission>
-          } />
+          {/* Attendance */}
+          <Route
+            path="attendance"
+            element={
+              <RequirePermission resource="attendance" action="view">
+                <PlaceholderPage title="Attendance" message="Time & attendance (Employee)" />
+              </RequirePermission>
+            }
+          />
+
+          {/* Operations */}
+          <Route
+            path="operations"
+            element={
+              <RequirePermission resource="operations" action="view">
+                <PlaceholderPage title="Operations" message="Approvals, payroll, billing (Employee)" />
+              </RequirePermission>
+            }
+          />
+
+          {/* Projects */}
+          <Route
+            path="projects"
+            element={
+              <RequirePermission resource="projects" action="view">
+                <PlaceholderPage title="Projects" message="Employee projects." />
+              </RequirePermission>
+            }
+          />
+
+          {/* Referrals */}
+          <Route
+            path="referrals"
+            element={
+              <RequirePermission resource="referrals" action="view">
+                <ReferralsPage />
+              </RequirePermission>
+            }
+          />
+
+          {/* Settings (profile) */}
+          <Route
+            path="settings"
+            element={
+              <RequirePermission resource="profile" action="view">
+                <ProfilePage />
+              </RequirePermission>
+            }
+          />
         </Route>
+        
+      
 
-        <Route path="/access-denied" element={<ProtectedRoute><AccessDeniedPage /></ProtectedRoute>} />
-        <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-
+        {/* Mobile placeholder */}
         <Route
           path="/mobile"
           element={
@@ -346,6 +467,11 @@ function App() {
           }
         />
 
+        {/* Access denied + profile */}
+        <Route path="/access-denied" element={<ProtectedRoute><AccessDeniedPage /></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+
+        {/* Customer portal */}
         <Route path="/portal/login" element={<CustomerLoginPage />} />
         <Route
           path="/portal"
@@ -359,6 +485,7 @@ function App() {
           <Route path="referrals" element={<CustomerReferralsPage />} />
         </Route>
 
+        {/* Fallback */}
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>

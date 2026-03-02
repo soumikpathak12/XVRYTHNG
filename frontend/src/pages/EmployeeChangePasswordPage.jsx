@@ -1,6 +1,7 @@
 // src/pages/employee/EmployeeChangePasswordPage.jsx
 import React, { useState } from 'react';
 import { changePasswordEmp } from '../services/api.js';
+import { changePasswordMe } from '../services/api.js';
 
 export default function EmployeeChangePasswordPage() {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -17,11 +18,10 @@ export default function EmployeeChangePasswordPage() {
     if (!canSubmit) { setMsg('New passwords do not match or too short.'); return; }
     try {
       setSaving(true);
-      await changePasswordEmp({ currentPassword, newPassword });
+     await changePasswordMe({ currentPassword, newPassword });
       setMsg('Password changed successfully. You can now access your portal.');
       setCurrentPassword(''); setNewPassword(''); setConfirm('');
-      // Optionally trigger a refresh token flow or soft-refresh user profile in context
-      // to clear needsPasswordChange in the UI without a hard reload.
+
     } catch (err) {
       setMsg(err?.message || 'Failed to change password.');
     } finally {
