@@ -519,20 +519,23 @@ export async function updateProfileMe(payload) {
  * PUT /api/users/me/password
  * @param {{ currentPassword: string, newPassword: string }} payload
  */
-export async function changePasswordMe(payload) {
+export async function changePasswordMe({ currentPassword, newPassword }) {
   const res = await authFetch('/api/users/me/password', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      currentPassword: payload.currentPassword,
-      newPassword: payload.newPassword,
-    }),
+    body: JSON.stringify({ currentPassword, newPassword }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message || 'Failed to change password');
+
+  if (data.success && data.accessToken && data.refreshToken) {
+    localStorage.setItem('xvrythng_token', data.accessToken);
+    localStorage.setItem('xvrythng_user', JSON.stringify(data.user));
+
+  }
+
   return data;
 }
-
 /**
  * ADMIN: POST /api/admin/change-password
  * @param {{ currentPassword: string, newPassword: string }} param0

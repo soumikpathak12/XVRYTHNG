@@ -97,16 +97,37 @@ export async function updateProfile(req, res) {
   }
 }
 
-/** PUT /api/users/me/password - body: { currentPassword, newPassword } */
+
 export async function changePassword(req, res) {
   try {
-    const userId = req.user?.id;
-    const { currentPassword, newPassword } = req.body || {};
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ success: false, message: 'Current password and new password are required' });
-    }
-     await authService.changePassword(userId, currentPassword, newPassword);
-    return res.json({ success: true, message: 'Password updated' });
+    const userId = req.user?.userId;
+    const { currentPassword, newPassword } = req.body ?? {};
+    if (!userId) return res.status(401).json({ success: false, message: 'Unauthorized' });
+
+    await authService.changePassword(userId, currentPassword, newPassword); 
+  //give new tokens
+    const userRow = await authService.findUserById(userId);
+    const { accessToken, expiresIn } = authService.createAccessToken(userRow);
+    const { refreshToken, refreshExpiresIn } = await authService.createRefreshToken(userId);
+    const permissions = await permissionService.getPermissionsForUser(userId);
+
+    return res.json({
+      success: true,
+      accessToken,
+      refreshToken,
+      expiresIn,
+      refreshExpiresIn,
+      user: {
+        id: userRow.id,
+        name: userRow.name,
+        email: userRow.email,
+        role: userRow.role_name,
+        roleId: userRow.role_id,
+        companyId: userRow.company_id,
+      },
+      permissions,
+      needsPasswordChange: false,
+    });
   } catch (err) {
     const msg = err?.message || '';
     if (msg.includes('incorrect')) {
