@@ -49,7 +49,6 @@ export default function LeadsPage() {
     const v = (params.get('view') || '').toLowerCase();
     return ['kanban', 'table', 'calendar'].includes(v) ? v : 'kanban';
   };
-  // ✅ phải gọi hàm để lấy giá trị, tránh set function vào state
   const [view, setView] = useState(getInitialView());
 
   useEffect(() => {
@@ -129,7 +128,6 @@ export default function LeadsPage() {
 
   const handleStageChange = useCallback(
     async (leadId, nextStage) => {
-      // Update UI trước
       setLeads((prev) =>
         prev.map((l) => (String(l.id) === String(leadId) ? { ...l, stage: nextStage } : l))
       );
@@ -150,7 +148,6 @@ export default function LeadsPage() {
           );
         }
       } catch (err) {
-        // Rollback nếu API fail
         setLeads((prev) =>
           prev.map((l) =>
             String(l.id) === String(leadId) ? { ...l, stage: l._raw?.stage || l.stage } : l
@@ -163,13 +160,11 @@ export default function LeadsPage() {
     [view]
   );
 
-  // Điều hướng chi tiết lead theo base (tuyệt đối)
   const goLeadDetail = useCallback(
     (id) => navigate(`${base}/leads/${id}`),
     [navigate, base]
   );
 
-  // Tạo lead
   const handleCreateLead = useCallback(
     async (payload) => {
       try {
@@ -456,7 +451,6 @@ export default function LeadsPage() {
           <LeadsTable
             leads={boardLeads}
             onStageChange={handleStageChange}
-            // ✅ dùng điều hướng tuyệt đối theo base
             onSelectLead={(id) => goLeadDetail(id)}
           />
         ) : view === 'calendar' ? (
@@ -475,7 +469,6 @@ export default function LeadsPage() {
             leads={boardLeads}
             onStageChange={handleStageChange}
             onFocusSearch={focusSearch}
-            // ✅ dùng điều hướng tuyệt đối theo base
             onSelectLead={(id) => goLeadDetail(id)}
           />
         )}

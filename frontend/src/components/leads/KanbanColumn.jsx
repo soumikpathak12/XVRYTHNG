@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import LeadCard from './LeadCards.jsx';
 import { colorForStage } from './theme.js';
 
+
 export default function KanbanColumn({
   title,
   stageKey,
@@ -13,6 +14,7 @@ export default function KanbanColumn({
   onFocusSearch,
   onSelectLead,
   isHighlighted,
+  renderItem,
 }) {
   const headerColor = colorForStage(stageKey);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -22,12 +24,12 @@ export default function KanbanColumn({
     if (!searchQuery.trim()) return leads;
     const q = searchQuery.toLowerCase();
     return leads.filter((l) => {
-      const searchStr = `${l.customerName} ${l.suburb} ${l.value} ${l.systemSize}`.toLowerCase();
+      const searchStr = `${l.customerName ?? ''} ${l.suburb ?? ''} ${l.value ?? ''} ${l.systemSize ?? ''}`.toLowerCase();
       return searchStr.includes(q);
     });
   }, [leads, searchQuery]);
 
-  function handleDragOver(e) {
+  function handleDragOverInternal(e) {
     e.preventDefault();
     const content = e.currentTarget.querySelector('.leads-column-cards');
     if (content) content.classList.add('drag-over');
@@ -39,7 +41,7 @@ export default function KanbanColumn({
     if (content) content.classList.remove('drag-over');
   }
 
-  function handleDrop(e) {
+  function handleDropInternal(e) {
     const content = e.currentTarget.querySelector('.leads-column-cards');
     if (content) content.classList.remove('drag-over');
     onDrop?.(e, stageKey);
@@ -48,9 +50,9 @@ export default function KanbanColumn({
   return (
     <section
       className={`leads-column ${isHighlighted ? 'highlighted' : ''}`}
-      onDragOver={handleDragOver}
+      onDragOver={handleDragOverInternal}
       onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
+      onDrop={handleDropInternal}
       aria-label={`${title} column`}
     >
       <div
@@ -102,9 +104,12 @@ export default function KanbanColumn({
               <button
                 type="button"
                 className="leads-column-search-btn"
-                onClick={() => setIsSearchOpen(true)}
-                title="Search leads"
-                aria-label="Search leads"
+                onClick={() => {
+                  setIsSearchOpen(true);
+                  onFocusSearch?.(stageKey);
+                }}
+                title="Search in column"
+                aria-label="Search in column"
               >
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="11" cy="11" r="8" />
@@ -117,21 +122,37 @@ export default function KanbanColumn({
         )}
       </div>
 
+      {/* Cards area */}
       <div className="leads-column-cards">
         {displayLeads.length === 0 ? (
           <div className="leads-column-empty">
-            {searchQuery ? 'No matching leads' : 'No leads in this stage'}
+            {searchQuery ? 'No matching items' : 'No items in this stage'}
           </div>
         ) : (
-          displayLeads.map((l) => (
-            <LeadCard
-              key={l.id}
-              lead={l}
-              onDragStart={onDragStart}
-              onDragEnd={onDragEnd}
-              onSelect={onSelectLead ? () => onSelectLead(l.id) : undefined}
-            />
-          ))
+          displayLeads.map((item) => {
+            const handlers = {
+              onDragStart: (e) => onDragStart?.(e, item),
+              onDragEnd: onDragEnd,
+              onClick: onSelectLead ? () => onSelectLead(item.id) : undefined,
+            };
+
+            return (
+              <div key={item.id} className="leads-card-wrap">
+                {renderItem ? (
+                  // Custom renderer (e.g., ProjectCard)
+                  renderItem(item, handlers)
+                ) : (
+                  // Backward-compat: default to LeadCard used by Leads
+                  <LeadCard
+                    lead={item}
+                    onDragStart={handlers.onDragStart}
+                    onDragEnd={handlers.onDragEnd}
+                    onSelect={handlers.onClick}
+                  />
+                )}
+              </div>
+            );
+          })
         )}
       </div>
     </section>

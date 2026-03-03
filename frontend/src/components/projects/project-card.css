@@ -1,0 +1,103 @@
+/* Root card container: rounded, subtle shadow, border */
+.pcard {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;          /* gray-200 */
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  padding: 12px;
+  cursor: grab;                        /* hint draggable */
+  user-select: none;
+}
+
+/* Customer name: bold and dark */
+.pcard__title {
+  font-weight: 700;
+  color: #0f172a;                      /* slate-900 */
+  line-height: 1.2;
+}
+
+/* Address row: small and muted */
+.pcard__address {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #6b7280;                      /* gray-500 */
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.pcard__addressIcon {
+  color: #9ca3af;                      /* gray-400 */
+  flex: 0 0 auto;
+}
+
+/* Main row: system summary (left) + value (right) */
+.pcard__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.pcard__system {
+  font-weight: 600;
+  color: #0f172a;                      /* close to the sample's emphasis */
+  font-size: 14px;
+}
+
+.pcard__value {
+  color: #0ea5a4;                      /* teal-ish to match sample */
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+/* Divider line */
+.pcard__divider {
+  border-top: 1px solid #f1f5f9;       /* slate-100 */
+  margin: 10px 0 8px;
+}
+
+/* Footer: left margin pill + right assignees chips */
+.pcard__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Margin pill: soft yellow background and text */
+.pcard__margin {
+  display: inline-block;
+  background: #fff7ed;                 /* amber-50 */
+  color: #f59e0b;                      /* amber-500 */
+  border: 1px solid #fde68a;           /* amber-200 */
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Assignees group (initials) */
+.pcard__assignees {
+  display: flex;
+  gap: 6px;
+}
+
+/* Individual initials chip */
+.pcard__chip {
+  background: #f8fafc;                 /* slate-50 */
+  color: #1f2937;                      /* gray-800 */
+  border: 1px solid #e5e7eb;           /* gray-200 */
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Muted variant for "+N" if needed */
+.pcard__chip--muted {
+  color: #475569;                      /* slate-600 */
+  background: #f1f5f9;                 /* slate-100 */
+}
