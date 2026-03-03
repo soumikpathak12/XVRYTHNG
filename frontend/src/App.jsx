@@ -43,6 +43,8 @@ import EmployeeProfilePage from './pages/EmployeeProfilePage.jsx';
 import RequirePasswordUpdate from './components/auth/RequiredPasswordUpdate.jsx';
 import EmployeeChangePasswordPage from './pages/EmployeeChangePasswordPage.jsx';
 
+import DashboardPage from './pages/admin/DashboardPage.jsx';
+import ProjectsPage from './pages/ProjectsPage.jsx';
 function PlaceholderPage({ title, message, children }) {
   return (
     <div style={{ padding: '2rem', textAlign: 'center', color: '#1A1A2E' }}>
@@ -163,8 +165,8 @@ function App() {
           <Route
             path="overview"
             element={
-              <RequirePermission resource="overview" action="view">
-                <AdminOverview />
+              <RequirePermission resource="overview" action="view"> 
+                <DashboardPage />
               </RequirePermission>
             }
           />
@@ -220,7 +222,7 @@ function App() {
             path="projects"
             element={
               <RequirePermission resource="projects" action="view">
-                <AdminProjects />
+                <ProjectsPage />
               </RequirePermission>
             }
           />

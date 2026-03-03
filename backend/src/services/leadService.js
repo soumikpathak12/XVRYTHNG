@@ -568,3 +568,27 @@ export async function getLeadById(leadId) {
     communications,
   };
 }
+
+// --- add to src/services/leadService.js ---
+export async function countLeads({ stage, search } = {}) {
+  const where = [];
+  const args = [];
+
+  if (stage) {
+    where.push('stage = ?');
+    args.push(stage);
+  }
+  if (search) {
+    where.push('(customer_name LIKE ? OR suburb LIKE ? OR source LIKE ?)');
+    const q = `%${search}%`;
+    args.push(q, q, q);
+  }
+
+  const sql = `
+    SELECT COUNT(*) AS total
+    FROM leads
+    ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+  `;
+  const [rows] = await db.execute(sql, args);
+  return rows?.[0]?.total ?? 0;
+}

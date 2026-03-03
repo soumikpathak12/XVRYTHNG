@@ -1381,3 +1381,15 @@ export async function changePasswordEmp({ currentPassword, newPassword }) {
   if (!resp.ok) throw new Error(data?.message || 'Failed to change password');
   return data;
 }
+
+export async function getLeadsCount(params = {}) {
+  const q = new URLSearchParams();
+  if (params.stage) q.set('stage', params.stage);
+  if (params.search) q.set('search', params.search);
+  if (params.assigned_user) q.set('assigned_user', params.assigned_user);
+
+  const res = await authFetch(`/api/leads/count${q.toString() ? `?${q}` : ''}`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message ?? 'Failed to load lead count');
+  return data.total ?? 0;
+}

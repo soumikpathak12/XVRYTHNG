@@ -1,6 +1,6 @@
 import * as leadService from '../services/leadService.js';
 import * as customerCredentialsService from '../services/customerCredentialsService.js';
-
+import * as db from '../config/db.js'
 const STAGES = [
   'new',
   'contacted',
@@ -470,3 +470,15 @@ export async function sendCustomerCredentials(req, res) {
     });
   }
 }
+
+
+ export async function getLeadsCount(req, res) {
+   try {
+     const { stage, search } = req.query;
+     const total = await leadService.countLeads({ stage, search });
+     return res.json({ success: true, total });
+   } catch (err) {
+     console.error('getLeadsCount error', err);
+     return res.status(500).json({ success: false, message: 'Failed to count leads' });
+   }
+ }
