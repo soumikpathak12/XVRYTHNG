@@ -1393,3 +1393,96 @@ export async function getLeadsCount(params = {}) {
   if (!res.ok) throw new Error(data.message ?? 'Failed to load lead count');
   return data.total ?? 0;
 }
+
+
+
+ export async function getTrialUsers() {
+   const res = await authFetch('/api/trial-users', { method: 'GET' });
+   const data = await res.json().catch(() => ({}));
+   if (!res.ok) {
+     const err = new Error(data.message ?? 'Failed to fetch trial users');
+     err.status = res.status;
+     err.body = data;
+     throw err;
+   }
+   return data; // { success, data }
+ }
+
+
+
+ export async function createTrialUser(payload) {
+   const res = await authFetch('/api/trial-users', {
+     method: 'POST',
+     headers: { 'Content-Type': 'application/json' },
+     body: JSON.stringify(payload),
+   });
+   const data = await res.json().catch(() => ({}));
+   if (res.status === 422) {
+     const err = new Error('Validation error');
+     err.status = 422;
+     err.body = data; // { success:false, errors:{...} }
+     throw err;
+   }
+   if (!res.ok) {
+     const err = new Error(data?.message ?? 'Failed to create trial user');
+     err.status = res.status;
+     err.body = data;
+     throw err;
+   }
+   return data; // { success, data }
+ }
+
+
+
+export async function sendTrialLinks() {
+  const res = await authFetch('/api/trial-users/send-trial-links', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+   
+    body: JSON.stringify({}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.message ?? 'Failed to send trial links');
+    err.status = res.status; err.body = data;
+    throw err;
+  }
+  return data;
+}
+
+
+export async function updateTrialUser(id, payload) {
+  const res = await authFetch(`/api/trial-users/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 422) {
+    const err = new Error('Validation error');
+    err.status = 422;
+    err.body = data; // { success:false, errors:{...} }
+    throw err;
+  }
+  if (!res.ok) {
+    const err = new Error(data?.message ?? 'Failed to update trial user');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data; // { success:true, data:{...updatedRow} }
+}
+
+export async function deleteTrialUser(id) {
+  const res = await authFetch(`/api/trial-users/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data?.message ?? 'Failed to delete trial user');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data; // { success:true, message:'Trial user deleted.' }
+}

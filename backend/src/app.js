@@ -34,6 +34,7 @@ import leadProposalRoutes from './routes/leadProposalRoutes.js';
 import employeeRoutes from './routes/employeeRoutes.js';
 
 import employeeDocumentRoutes from './routes/employeeDocumentRoutes.js';
+import trialUserRoutes from './routes/trialUserRoutes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -97,6 +98,9 @@ app.use('/api/company/settings/inspection-templates', inspectionTemplateRoutes);
 app.use('/api/leads', leadProposalRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api', employeeDocumentRoutes);
+
+app.use('/api/trial-users', trialUserRoutes);
+
 // ---------------------------------------------------------------------------
 // Cron Jobs
 // ---------------------------------------------------------------------------

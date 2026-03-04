@@ -7,7 +7,7 @@ const router = Router();
 router.post('/resend/inbound', async (req, res) => {
   try {
     const payload = req.body || {};
-    const from = payload?.from || payload?.sender; // tùy JSON Resend
+    const from = payload?.from || payload?.sender; 
     const subject = payload?.subject || null;
     const body = payload?.html || payload?.text || '';
     const inReplyTo = payload?.headers?.['in-reply-to'] || null;

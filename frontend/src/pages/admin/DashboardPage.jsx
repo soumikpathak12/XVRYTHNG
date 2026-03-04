@@ -62,7 +62,6 @@ export default function AdminDashboard() {
     let alive = true;
     (async () => {
       try {
-        // If you later support range in the count endpoint, pass it: getLeadsCount({ range })
         const total = await getLeadsCount();
         if (!alive) return;
         setKpis(prev => ({
@@ -125,20 +124,6 @@ export default function AdminDashboard() {
       {/* Row: Pipeline + Recent Activity */}
       <div style={{ display:'grid', gap:12, gridTemplateColumns:'minmax(0,1fr) 360px' }}>
         <Card
-          title="Pipeline Value by Stage"
-          right={
-            <button
-              type="button"
-              onClick={toggleRange}
-              style={{
-                display:'inline-flex', alignItems:'center', gap:6,
-                border:'1px solid #e5e7eb', borderRadius:8, padding:'6px 10px',
-                background:'#fff', color:'#0f172a', fontWeight:700
-              }}
-            >
-              {range === 'month' ? 'This Month' : range === 'quarter' ? 'This Quarter' : 'This Year'} <ChevronDown size={16}/>
-            </button>
-          }
         >
           <PipelineBarChart data={pipeline}/>
         </Card>

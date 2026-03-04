@@ -45,6 +45,7 @@ import EmployeeChangePasswordPage from './pages/EmployeeChangePasswordPage.jsx';
 
 import DashboardPage from './pages/admin/DashboardPage.jsx';
 import ProjectsPage from './pages/ProjectsPage.jsx';
+import TrialUsersPage from './pages/admin/TrialUsersPage.jsx';
 function PlaceholderPage({ title, message, children }) {
   return (
     <div style={{ padding: '2rem', textAlign: 'center', color: '#1A1A2E' }}>
@@ -170,6 +171,17 @@ function App() {
               </RequirePermission>
             }
           />
+
+          
+          <Route
+            path="trial-users"
+            element={
+              <RequirePermission resource="users" action="view">
+                <TrialUsersPage />
+              </RequirePermission>
+            }
+          />
+
 
           <Route
             path="leads"
@@ -319,7 +331,6 @@ function App() {
 
           <Route path="roles" element={<Navigate to="/admin/settings" replace />} />
 
-          {/* chỉnh thành relative path */}
           <Route path="settings/inspection-templates" element={<AdminTemplatesPage />} />
         </Route>
 

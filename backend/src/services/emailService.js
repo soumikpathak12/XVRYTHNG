@@ -221,3 +221,281 @@ export async function sendEmployeeCredentialEmail({
   console.log('[ONBOARD] Resend OK, id =', data?.id);
   return data?.id || null;
 }
+
+
+/**
+ * Escape minimal HTML to protect rendering when interpolating plain text.
+ */
+function escapeHtml(s = '') {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/**
+ * Render a "bulletproof" CTA button (works in most email clients).
+ * Fallback shows the raw URL below for clients that strip styles.
+ */
+function renderCtaButton(href, label, bg = '#1A7B7B', color = '#FFFFFF') {
+  const safeHref = escapeHtml(href);
+  const safeLabel = escapeHtml(label);
+  return `
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+      <tr>
+        <td align="center" bgcolor="${bg}" style="
+          border-radius: 8px;
+          background: ${bg};
+        ">
+          <a href="${safeHref}" target="_blank" style="
+            display:inline-block;
+            font-weight:700;
+            text-decoration:none;
+            color:${color};
+            background:${bg};
+            border: 1px solid ${bg};
+            border-radius:8px;
+            padding:12px 18px;
+            font-family: Arial, Helvetica, sans-serif;
+          ">${safeLabel}</a>
+        </td>
+      </tr>
+    </table>
+    <div style="font-size:12px;color:#555555;margin-top:8px;">
+      Can’t click the button? Copy this link: <br/>
+      <a href="${safeHref}" target="_blank" style="color:#1A7B7B;">${safeHref}</a>
+    </div>
+  `;
+}
+
+/**
+ * Render a summary panel like the red boxed section in your sample image.
+ * Pass an array of items: [{label, value}, ...]
+ */
+function renderSummaryBox(items = []) {
+  if (!Array.isArray(items) || items.length === 0) return '';
+  return `
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="
+      background:#FFFFFF;
+      border:1px solid #E5E7EB;
+      border-radius:8px;
+    ">
+      <tr>
+        <td style="padding:16px;">
+          ${items
+            .map(
+              (it) => `
+              <div style="margin-bottom:8px;">
+                <div style="font-size:12px;color:#555555;margin-bottom:2px;">
+                  ${escapeHtml(it.label ?? '')}
+                </div>
+                <div style="font-size:14px;color:#1A1A2E;font-weight:700;">
+                  ${escapeHtml(it.value ?? '')}
+                </div>
+              </div>
+            `
+            )
+            .join('')}
+        </td>
+      </tr>
+    </table>
+  `;
+}
+
+/**
+ * Render Trial Link Email (table-based, inline CSS, brand colors)
+ * - Looks like the sample: prominent header, intro copy, summary box, CTA.
+ *
+ * @param {{
+ *   recipientName?: string,
+ *   trialLink: string,
+ *   companyName?: string,
+ *   // Optional visual customizations
+ *   headerTitle?: string,             // e.g., "Let's get you started."
+ *   headerBg?: string,                // header background color
+ *   logoUrl?: string | null,
+ *   // Optional summary box (like your red rectangle)
+ *   summaryItems?: Array<{ label: string, value: string }>,
+ *   // Optional footer/support text
+ *   supportHtml?: string
+ * }} opts
+ */
+export function renderTrialLinkEmail({
+  recipientName,
+  trialLink,
+  companyName = 'XVRYTHNG',
+  headerTitle = "Let's get you started.",
+  headerBg = '#1A7B7B', // Brand Primary Teal
+  logoUrl = null,
+  summaryItems = [],
+  supportHtml = '',
+}) {
+  const safeName = (recipientName || '').trim() || 'there';
+  const year = new Date().getFullYear();
+
+  // Email-safe container
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>${escapeHtml(companyName)} • Trial Access</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body style="margin:0;padding:0;background:#F5F5F5;">
+  <center style="width:100%;background:#F5F5F5;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width:640px;margin:0 auto;">
+      <!-- Brand header -->
+      <tr>
+        <td style="padding:0;">
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="
+            background:${headerBg};
+            border-radius:0 0 8px 8px;
+          ">
+            <tr>
+              <td style="padding:16px 20px;">
+                <table role="presentation" width="100%">
+                  <tr>
+                    <td align="left" valign="middle" style="font-family:Arial,Helvetica,sans-serif;">
+                      ${logoUrl ? `
+                        <img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(companyName)}" height="24" style="display:block;border:0;outline:none;">
+                      ` : `
+                        <div style="color:#FFFFFF;font-weight:800;font-size:14px;letter-spacing:1px;">
+                          ${escapeHtml(companyName)}
+                        </div>
+                      `}
+                    </td>
+                    <td></td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:12px 20px 20px;">
+                <div style="
+                  font-family:Arial,Helvetica,sans-serif;
+                  color:#FFFFFF;
+                  font-size:24px;
+                  font-weight:800;
+                ">
+                  ${escapeHtml(headerTitle)}
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- White card -->
+      <tr>
+        <td style="padding:20px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="
+            background:#FFFFFF;
+            border-radius:8px;
+            border:1px solid #E5E7EB;
+          ">
+            <tr>
+              <td style="padding:20px;font-family:Arial,Helvetica,sans-serif;color:#1A1A2E;">
+                <p style="margin:0 0 12px 0;">Hi ${escapeHtml(safeName)},</p>
+                <p style="margin:0 0 16px 0;color:#555555;">
+                  You're invited to try our platform. Click the button below to start your trial and explore the features.
+                </p>
+
+                <!-- Optional summary box -->
+                ${renderSummaryBox(summaryItems)}
+
+                <!-- Spacer -->
+                <div style="height:16px;line-height:16px;">&nbsp;</div>
+
+                <!-- CTA -->
+                ${renderCtaButton(trialLink, 'Start your trial')}
+
+                <!-- Spacer -->
+                <div style="height:16px;line-height:16px;">&nbsp;</div>
+
+                <!-- Support note -->
+                ${
+                  supportHtml
+                    ? `<div style="font-size:13px;color:#555555;">${supportHtml}</div>`
+                    : `<div style="font-size:13px;color:#555555;">
+                         Need help? Reply to this email and our team will assist you.
+                       </div>`
+                }
+              </td>
+            </tr>
+          </table>
+
+          <!-- Footer -->
+          <div style="text-align:center;color:#555555;font-size:12px;margin:14px 0;font-family:Arial,Helvetica,sans-serif;">
+            © ${year} ${escapeHtml(companyName)} • This message was sent automatically.
+          </div>
+        </td>
+      </tr>
+    </table>
+  </center>
+</body>
+</html>
+`;
+}
+
+/**
+ * Send Trial Link Email via Resend
+ * @param {{
+ *   to: string | string[],
+ *   recipientName?: string,
+ *   trialLink: string,
+ *   companyName?: string,
+ *   headerTitle?: string,
+ *   headerBg?: string,
+ *   logoUrl?: string | null,
+ *   summaryItems?: Array<{label:string, value:string}>,
+ *   supportHtml?: string,
+ *   headers?: Record<string,string>
+ * }} args
+ */
+export async function sendTrialLinkEmail({
+  to,
+  recipientName,
+  trialLink,
+  companyName = 'XVRYTHNG',
+  headerTitle,
+  headerBg,
+  logoUrl = null,
+  summaryItems,
+  supportHtml,
+  headers = {},
+}) {
+  if (Array.isArray(to)) {
+    // Validate list quickly
+    to.forEach((addr) => {
+      if (!isValidEmail(addr)) throw new Error(`Invalid recipient email: ${addr}`);
+    });
+  } else {
+    if (!isValidEmail(to)) throw new Error(`Invalid recipient email: ${to}`);
+  }
+
+  const subject = `${companyName} — Your trial access link`;
+  const html = renderTrialLinkEmail({
+    recipientName,
+    trialLink,
+    companyName,
+    headerTitle,
+    headerBg,
+    logoUrl,
+    summaryItems,
+    supportHtml,
+  });
+
+  const { data, error } = await resend.emails.send({
+    from: FROM,
+    to: Array.isArray(to) ? to : [to],
+    subject,
+    html,
+    text: `Start your trial: ${trialLink}`,
+    headers: { 'X-Email-Type': 'trial-link', ...headers },
+  });
+
+  if (error) throw new Error(error?.message ?? 'Resend send failed');
+  return data?.id ?? null;
+}
