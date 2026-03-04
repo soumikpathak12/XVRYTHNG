@@ -262,12 +262,27 @@ export default function SiteInspectionPage() {
 
     const base = selectedTemplateId ? list.find((t) => String(t.id) === String(selectedTemplateId)) || def : def;
 
-    const meta = base?.meta && typeof base.meta === 'string' ? JSON.parse(base.meta) : base?.meta || {};
-    const enabled = Array.isArray(meta.enabledSections) ? meta.enabledSections : null;
-    const steps = enabled ? buildStepsFromEnabled(enabled) : Array.isArray(base.steps) ? base.steps : base.steps ? JSON.parse(base.steps) : [];
+   
+const meta = base?.meta && typeof base.meta === 'string'
+   ? JSON.parse(base.meta)
+   : (base?.meta || {});
 
-    setTemplate({ ...base, steps });
-  }, [templates, selectedTemplateId]);
+ const parsedSteps = Array.isArray(base?.steps)
+   ? base.steps
+   : base?.steps
+     ? (() => { try { return JSON.parse(base.steps); } catch { return []; } })()
+     : [];
+
+
+ let steps = parsedSteps;
+ if (!steps.length) {
+   const enabled = Array.isArray(meta.enabledSections) ? meta.enabledSections : null;
+   steps = enabled ? buildStepsFromEnabled(enabled) : [];
+ }
+
+ setTemplate({ ...base, steps, meta });
+}, [templates, selectedTemplateId]);
+
 
   // -------- Derived: steps / required keys / progress --------
   const steps = useMemo(() => {

@@ -356,7 +356,7 @@ export default function LeadsCalendar({
   subtitle={subtitleForLead(lead) || undefined}
   onClick={() => {
     if (typeof onLeadClick === 'function') {
-      onLeadClick(lead);                           // ✅ dùng callback nếu được truyền
+      onLeadClick(lead);                          
     } else if (lead?.id != null) {
       window.location.assign(`/admin/leads/${lead.id}/site-inspection`);
     }
