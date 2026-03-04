@@ -3,7 +3,16 @@ import fileUpload from 'express-fileupload';
 import { requireAuth } from '../controllers/adminController.js';
 import { getProfile, updateProfile, changePassword, getMyPermissions } from '../controllers/profileController.js';
 
+import { postUser } from '../controllers/userController.js';
+
+
 const router = Router();
+
+// DEBUG: log ngay khi vào route
+router.use((req, res, next) => {
+  console.log('[ROUTE:/api/users] hit', req.method, req.originalUrl);
+  next();
+});
 
 router.use(
   fileUpload({
@@ -20,4 +29,8 @@ router.get('/me/permissions', getMyPermissions);
 router.put('/me', updateProfile);
 router.put('/me/password', changePassword);
 
+router.post('/', requireAuth, async (req, res, next) => {
+  console.log('[ROUTE:/api/users] POST body=', req.body);
+  next();
+}, postUser);
 export default router;

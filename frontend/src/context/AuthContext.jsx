@@ -1,11 +1,24 @@
+// src/context/AuthContext.jsx
 /**
  * Auth context: holds user + token, login/logout, loading state.
  * Session timeout: 8 hours; on 401 or token expiry we clear auth and show session-expired message.
  */
-import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+} from 'react';
 import * as api from '../services/api.js';
 
 const AuthContext = createContext(null);
+
+const TOKEN_KEY = 'xvrythng_token';
+const USER_KEY = 'xvrythng_user';
+const CUSTOMER_USER_KEY = 'xvrythng_customer_user';
+const PERMISSIONS_KEY = 'xvrythng_permissions';
 
 /** Get JWT exp in ms (client-side decode only). */
 function getJwtExpMs(token) {
@@ -18,39 +31,36 @@ function getJwtExpMs(token) {
   }
 }
 
-const PERMISSIONS_KEY = 'xvrythng_permissions';
-
-function loadStoredPermissions() {
+function safeParse(json, fallback = null) {
   try {
-    const raw = localStorage.getItem(PERMISSIONS_KEY);
-    if (!raw) return [];
-    const arr = JSON.parse(raw);
-    return Array.isArray(arr) ? arr : [];
+    return JSON.parse(json);
   } catch {
-    return [];
+    return fallback;
   }
+}
+
+function loadStoredUser() {
+  const raw = localStorage.getItem(USER_KEY);
+  return raw ? safeParse(raw, null) : null;
 }
 
 function loadStoredCustomerUser() {
-  try {
-    const raw = localStorage.getItem('xvrythng_customer_user');
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
+  const raw = localStorage.getItem(CUSTOMER_USER_KEY);
+  return raw ? safeParse(raw, null) : null;
+}
+
+function loadStoredPermissions() {
+  const raw = localStorage.getItem(PERMISSIONS_KEY);
+  const arr = raw ? safeParse(raw, []) : [];
+  return Array.isArray(arr) ? arr : [];
 }
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    const raw = localStorage.getItem('xvrythng_user');
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return null;
-    }
-  });
+  // bootstrap token into API client
+  const bootToken = localStorage.getItem(TOKEN_KEY);
+  if (bootToken) api.setAuthToken(bootToken);
+
+  const [user, setUser] = useState(loadStoredUser);
   const [customerUser, setCustomerUser] = useState(loadStoredCustomerUser);
   const [permissions, setPermissions] = useState(loadStoredPermissions);
   const [loading, setLoading] = useState(false);
@@ -58,53 +68,77 @@ export function AuthProvider({ children }) {
   const [sessionExpiredMessage, setSessionExpiredMessage] = useState(null);
   const sessionCheckRef = useRef(null);
 
+  const setToken = useCallback((token) => {
+    if (token) {
+      localStorage.setItem(TOKEN_KEY, token);
+      api.setAuthToken(token);
+    } else {
+      localStorage.removeItem(TOKEN_KEY);
+      api.setAuthToken(null);
+    }
+  }, []);
+
   const login = useCallback(async (credentials) => {
     setLoading(true);
     setError(null);
     setSessionExpiredMessage(null);
     try {
       const data = await api.login(credentials);
-      if (!data.success || !data.token || !data.user) {
-        throw new Error(data.message || 'Invalid response');
+      // Normalize token field name from API
+      const token = data?.token || data?.accessToken;
+      const apiUser = data?.user;
+      if (!data?.success || !token || !apiUser) {
+        throw new Error(data?.message || 'Invalid response');
       }
-      api.setAuthToken(data.token);
-      localStorage.setItem('xvrythng_user', JSON.stringify(data.user));
-      setUser(data.user);
-      const perms = Array.isArray(data.permissions) ? data.permissions : [];
+
+      // Persist token
+      setToken(token);
+
+      // Persist user with needsPasswordChange flag carried over
+      const nextUser = {
+        ...apiUser,
+        needsPasswordChange: !!data?.needsPasswordChange,
+      };
+      localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
+      setUser(nextUser);
+
+      // Persist permissions
+      const perms = Array.isArray(data?.permissions) ? data.permissions : [];
       setPermissions(perms);
       localStorage.setItem(PERMISSIONS_KEY, JSON.stringify(perms));
-      return data;
+
+      return { ...data, token, user: nextUser, permissions: perms };
     } catch (err) {
-      const message = err.message || 'Sign in failed';
+      const message = err?.message || 'Sign in failed';
       setError(message);
       throw err;
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setToken]);
 
   const logout = useCallback(() => {
-    api.setAuthToken(null);
-    localStorage.removeItem('xvrythng_user');
+    setToken(null);
+    localStorage.removeItem(USER_KEY);
     localStorage.removeItem(PERMISSIONS_KEY);
     setUser(null);
     setPermissions([]);
     setError(null);
     setSessionExpiredMessage(null);
-  }, []);
+  }, [setToken]);
 
   const customerLogin = useCallback(async (email, otp) => {
     setLoading(true);
     setError(null);
     try {
       const data = await api.customerLoginApi(email, otp);
-      if (!data.success || !data.user) throw new Error('Invalid login');
+      if (!data?.success || !data?.user) throw new Error('Invalid login');
       api.setCustomerToken(data.token);
-      localStorage.setItem('xvrythng_customer_user', JSON.stringify(data.user));
+      localStorage.setItem(CUSTOMER_USER_KEY, JSON.stringify(data.user));
       setCustomerUser(data.user);
       return data;
     } catch (err) {
-      setError(err.message || 'Login failed');
+      setError(err?.message || 'Login failed');
       throw err;
     } finally {
       setLoading(false);
@@ -113,15 +147,18 @@ export function AuthProvider({ children }) {
 
   const customerLogout = useCallback(() => {
     api.setCustomerToken(null);
-    localStorage.removeItem('xvrythng_customer_user');
+    localStorage.removeItem(CUSTOMER_USER_KEY);
     setCustomerUser(null);
     setError(null);
   }, []);
 
-  const can = useCallback((resource, action) => {
-    const slug = `${resource}:${action}`;
-    return permissions.includes('*:*') || permissions.includes(slug);
-  }, [permissions]);
+  const can = useCallback(
+    (resource, action) => {
+      const slug = `${resource}:${action}`;
+      return permissions.includes('*:*') || permissions.includes(slug);
+    },
+    [permissions]
+  );
 
   const refreshPermissions = useCallback(async () => {
     try {
@@ -135,22 +172,26 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  // Session expired event handler
   useEffect(() => {
     const onSessionExpired = (e) => {
-      const message = e.detail?.message || 'Session expired after 8 hours. Please sign in again.';
+      const message =
+        e.detail?.message || 'Session expired after 8 hours. Please sign in again.';
       setSessionExpiredMessage(message);
       setUser(null);
+      setToken(null);
     };
     window.addEventListener('session-expired', onSessionExpired);
     return () => window.removeEventListener('session-expired', onSessionExpired);
-  }, []);
+  }, [setToken]);
 
+  // Token countdown checker
   useEffect(() => {
-    if (!user) return;
-    const token = localStorage.getItem('xvrythng_token');
+    const token = localStorage.getItem(TOKEN_KEY);
     const expMs = getJwtExpMs(token);
-    if (!expMs) return;
+    if (!token || !expMs) return;
 
+    if (sessionCheckRef.current) clearInterval(sessionCheckRef.current);
     sessionCheckRef.current = setInterval(() => {
       if (Date.now() >= expMs) {
         window.dispatchEvent(
@@ -166,16 +207,34 @@ export function AuthProvider({ children }) {
     };
   }, [user]);
 
+  // Lazy-load permissions on first mount when user exists
   useEffect(() => {
     if (user && permissions.length === 0) {
-      api.getPermissionsMe().then((data) => {
-        if (data?.data && Array.isArray(data.data)) {
-          setPermissions(data.data);
-          localStorage.setItem(PERMISSIONS_KEY, JSON.stringify(data.data));
-        }
-      }).catch(() => {});
+      api
+        .getPermissionsMe()
+        .then((data) => {
+          if (data?.data && Array.isArray(data.data)) {
+            setPermissions(data.data);
+            localStorage.setItem(PERMISSIONS_KEY, JSON.stringify(data.data));
+          }
+        })
+        .catch(() => {});
     }
-  }, [user]);
+  }, [user, permissions.length]);
+
+  /**
+   * Mark that the user has changed password successfully on the server.
+   * Call this after a successful POST /api/auth/change-password.
+   * This lets your RequirePasswordUpdate gate pass without a full reload.
+   */
+  const markPasswordChanged = useCallback(() => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, needsPasswordChange: false };
+      localStorage.setItem(USER_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   const value = {
     user,
@@ -191,6 +250,7 @@ export function AuthProvider({ children }) {
     logout,
     customerLogin,
     customerLogout,
+    markPasswordChanged,
     isAuthenticated: !!user,
     isCustomerAuthenticated: !!customerUser,
   };
@@ -204,14 +264,17 @@ export function useAuth() {
   return ctx;
 }
 
+// Sidebar context (unchanged)
 const SidebarContext = createContext();
 export function SidebarProvider({ children }) {
   const [sidebarVersion, setSidebarVersion] = useState(0);
-  const bumpSidebar = () => setSidebarVersion(v => v + 1);
+  const bumpSidebar = () => setSidebarVersion((v) => v + 1);
   return (
     <SidebarContext.Provider value={{ sidebarVersion, bumpSidebar }}>
       {children}
     </SidebarContext.Provider>
   );
 }
-export function useSidebar() { return useContext(SidebarContext); }
+export function useSidebar() {
+  return useContext(SidebarContext);
+}

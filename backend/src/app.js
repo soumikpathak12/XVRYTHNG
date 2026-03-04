@@ -4,6 +4,9 @@
  */
 import express from 'express';
 import cors from 'cors';
+
+import db from './config/db.js';
+
 import authRoutes from './routes/authRoutes.js';
 
 import adminRoutes from './routes/adminRoutes.js';
@@ -30,12 +33,14 @@ import leadProposalRoutes from './routes/leadProposalRoutes.js';
 
 import employeeRoutes from './routes/employeeRoutes.js';
 
+import employeeDocumentRoutes from './routes/employeeDocumentRoutes.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadsDir = path.join(__dirname, 'uploads');
 
 const app = express();
-
+app.use((req, _res, next) => { req.db = db; next(); });
 app.use(cors({
   origin: process.env.CORS_ORIGIN || true,
   credentials: true,
@@ -91,6 +96,7 @@ app.use('/api/leads/:leadId/site-inspection', siteInspectionRoutes);
 app.use('/api/company/settings/inspection-templates', inspectionTemplateRoutes);
 app.use('/api/leads', leadProposalRoutes);
 app.use('/api/employees', employeeRoutes);
+app.use('/api', employeeDocumentRoutes);
 // ---------------------------------------------------------------------------
 // Cron Jobs
 // ---------------------------------------------------------------------------

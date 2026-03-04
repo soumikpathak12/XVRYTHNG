@@ -120,3 +120,26 @@ export async function refresh(req, res) {
     });
   }
 }
+
+// POST /api/auth/change-password (requires auth/JWT middleware to set req.user.userId)
+export async function changePassword(req, res) {
+  try {
+    const userId = req.user?.userId; 
+    const { currentPassword, newPassword } = req.body ?? {};
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    await authService.changePassword(userId, currentPassword, newPassword);
+    return res.status(200).json({ success: true, message: 'Password changed successfully.' });
+  } catch (err) {
+    const msg = String(err?.message || '').toLowerCase();
+    if (msg.includes('incorrect')) {
+      return res.status(400).json({ success: false, message: 'Current password is incorrect.' });
+    }
+    if (msg.includes('least 8')) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 8 characters.' });
+    }
+    console.error('Change password error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to change password.' });
+  }
+}
