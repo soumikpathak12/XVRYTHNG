@@ -1,4 +1,4 @@
-// src/pages/approvals/components/ApprovalsFilters.jsx
+// src/components/operation/ApprovalsFilters.jsx
 import React from 'react';
 
 const chipBase = {

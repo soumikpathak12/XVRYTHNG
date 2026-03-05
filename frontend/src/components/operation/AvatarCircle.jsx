@@ -1,4 +1,4 @@
-// src/pages/approvals/components/AvatarCircle.jsx
+// src/components/operation/AvatarCircle.jsx
 import React from 'react';
 
 export default function AvatarCircle({ initials }) {

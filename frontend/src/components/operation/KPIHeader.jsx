@@ -1,4 +1,4 @@
-// src/pages/approvals/components/KPIHeader.jsx
+// src/components/operation/KPIHeader.jsx
 import React from 'react';
 
 const card = {

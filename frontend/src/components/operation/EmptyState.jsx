@@ -1,4 +1,4 @@
-// src/pages/approvals/components/EmptyState.jsx
+// src/components/operation/EmptyState.jsx
 import React from 'react';
 
 export default function EmptyState({ title="No results", subtitle="Try changing filters." }) {
