@@ -46,6 +46,7 @@ import EmployeeChangePasswordPage from './pages/EmployeeChangePasswordPage.jsx';
 import DashboardPage from './pages/admin/DashboardPage.jsx';
 import ProjectsPage from './pages/ProjectsPage.jsx';
 import TrialUsersPage from './pages/admin/TrialUsersPage.jsx';
+import ApprovalsPage from './pages/admin/ApprovalPage.jsx';
 function PlaceholderPage({ title, message, children }) {
   return (
     <div style={{ padding: '2rem', textAlign: 'center', color: '#1A1A2E' }}>
@@ -252,7 +253,7 @@ function App() {
             path="operations"
             element={
               <RequirePermission resource="operations" action="view">
-                <AdminOperations />
+                <ApprovalsPage />
               </RequirePermission>
             }
           />
