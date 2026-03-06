@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, UsersRound, Boxes, HardHat, Factory,
-  Clock3, Share2, MessageSquare, Settings, ChevronLeft, ChevronRight
+  Clock3, Share2, MessageSquare, MessageCircle, Settings, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
@@ -15,6 +15,7 @@ const MODULE_NAV = {
   attendance: { to: '/dashboard/attendance', label: 'Attendance',    icon: Clock3 },
   referrals:  { to: '/dashboard/referrals',  label: 'Referrals',     icon: Share2 },
   messages:   { to: '/dashboard/messages',   label: 'Messages',      icon: MessageSquare },
+  support:    { to: '/dashboard/support-tickets', label: 'Support Tickets', icon: MessageCircle },
 };
 
 function getRoleFixedItems(role) {

@@ -13,6 +13,7 @@ const FALLBACK_BY_ROLE = {
     'attendance:view', 'attendance:edit',
     'referrals:view', 'referrals:edit',
     'messages:view', 'messages:edit',
+    'support:view', 'support:edit',
     'settings:view', 'settings:manage',
     'roles:view', 'roles:manage'
   ],
@@ -25,6 +26,7 @@ const FALLBACK_BY_ROLE = {
     'attendance:view', 'attendance:edit',
     'referrals:view',
     'messages:view', 'messages:edit',
+    'support:view', 'support:edit',
     'settings:view'
   ],
   field_agent: [
@@ -32,7 +34,8 @@ const FALLBACK_BY_ROLE = {
     'projects:view',
     'on_field:view', 'on_field:edit',
     'attendance:view', 'attendance:edit',
-    'messages:view', 'messages:edit'
+    'messages:view', 'messages:edit',
+    'support:view', 'support:edit'
   ],
 };
 

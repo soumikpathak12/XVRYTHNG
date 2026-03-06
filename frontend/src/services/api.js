@@ -153,6 +153,23 @@ export async function getSupportTicketApi(ticketId) {
   return data;
 }
 
+/** POST /api/customer/support-tickets/:id/withdraw – withdraw ticket. */
+export async function withdrawSupportTicketApi(ticketId) {
+  const token = getCustomerToken();
+  if (!token) throw new Error('Please sign in to withdraw a ticket.');
+  const res = await fetch(`${BASE}/api/customer/support-tickets/${encodeURIComponent(ticketId)}/withdraw`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Failed to withdraw ticket');
+  return data;
+}
+
 /** POST /api/customer/support-tickets/:id/replies – add reply. */
 export async function addSupportTicketReplyApi(ticketId, { body }) {
   const token = getCustomerToken();
@@ -167,6 +184,46 @@ export async function addSupportTicketReplyApi(ticketId, { body }) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message || 'Failed to send reply');
+  return data;
+}
+
+/* ---------- Admin support tickets ---------- */
+
+/** GET /api/admin/support-tickets */
+export async function listAdminSupportTickets(params = {}) {
+  const q = new URLSearchParams();
+  if (params.companyId) q.set('companyId', params.companyId);
+  if (params.status) q.set('status', params.status);
+  if (params.limit) q.set('limit', params.limit);
+  if (params.offset) q.set('offset', params.offset);
+  const url = `/api/admin/support-tickets${q.toString() ? `?${q.toString()}` : ''}`;
+  const data = await authFetchJSON(url, { method: 'GET' });
+  return data;
+}
+
+/** GET /api/admin/support-tickets/:id */
+export async function getAdminSupportTicket(ticketId) {
+  const data = await authFetchJSON(`/api/admin/support-tickets/${encodeURIComponent(ticketId)}`, { method: 'GET' });
+  return data;
+}
+
+/** POST /api/admin/support-tickets/:id/replies */
+export async function addAdminSupportTicketReply(ticketId, { body }) {
+  const data = await authFetchJSON(`/api/admin/support-tickets/${encodeURIComponent(ticketId)}/replies`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body: String(body ?? '').trim() }),
+  });
+  return data;
+}
+
+/** PATCH /api/admin/support-tickets/:id/status */
+export async function updateAdminSupportTicketStatus(ticketId, status) {
+  const data = await authFetchJSON(`/api/admin/support-tickets/${encodeURIComponent(ticketId)}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
   return data;
 }
 

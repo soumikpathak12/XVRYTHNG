@@ -9,8 +9,9 @@ import {
   listSupportTicketsApi,
   getSupportTicketApi,
   addSupportTicketReplyApi,
+  withdrawSupportTicketApi,
 } from '../../services/api.js';
-import { MessageCirclePlus, ArrowLeft, Send, Loader2, AlertCircle } from 'lucide-react';
+import { MessageCirclePlus, ArrowLeft, Send, Loader2, AlertCircle, XCircle, User, Headphones } from 'lucide-react';
 import '../../styles/CustomerPortal.css';
 import '../../styles/SupportTicketsPage.css';
 
@@ -32,7 +33,12 @@ const STATUS_LABELS = {
   in_progress: 'In Progress',
   resolved: 'Resolved',
   closed: 'Closed',
+  withdrawn: 'Withdrawn',
 };
+
+function capitalizeFirst(s) {
+  return s ? String(s).charAt(0).toUpperCase() + String(s).slice(1) : '';
+}
 
 function formatDate(d) {
   if (!d) return '';
@@ -229,7 +235,7 @@ function TicketList({ tickets, loading, onNewTicket, onSelectTicket }) {
               </div>
               <div className="support-ticket-row-meta">
                 <span className="support-ticket-date">{formatDate(t.updated_at)}</span>
-                <span className="support-ticket-priority">{t.priority}</span>
+                <span className="support-ticket-priority">{capitalizeFirst(t.priority)}</span>
               </div>
             </button>
           ))}
@@ -246,6 +252,7 @@ function TicketDetail({ ticketId, onBack }) {
   const [error, setError] = useState('');
   const [replyBody, setReplyBody] = useState('');
   const [sending, setSending] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
 
   const loadTicket = async () => {
     setLoading(true);
@@ -302,7 +309,22 @@ function TicketDetail({ ticketId, onBack }) {
   }
 
   const { ticket, replies } = data || {};
-  const canReply = ticket && ticket.status !== 'closed' && ticket.status !== 'resolved';
+  const canReply = ticket && ['open', 'in_progress'].includes(ticket.status);
+  const canWithdraw = ticket && ['open', 'in_progress'].includes(ticket.status);
+
+  const handleWithdraw = async () => {
+    if (!confirm('Are you sure you want to withdraw this ticket? The conversation history will be preserved.')) return;
+    setWithdrawing(true);
+    setError('');
+    try {
+      await withdrawSupportTicketApi(ticketId);
+      await loadTicket();
+    } catch (err) {
+      setError(err.message || 'Failed to withdraw ticket');
+    } finally {
+      setWithdrawing(false);
+    }
+  };
 
   return (
     <div className="support-ticket-detail">
@@ -313,33 +335,54 @@ function TicketDetail({ ticketId, onBack }) {
       <div className="support-ticket-detail-header customer-portal-card">
         <div className="support-ticket-detail-title-row">
           <h1 className="support-ticket-detail-subject">{ticket?.subject}</h1>
-          <span className={`support-ticket-status support-ticket-status-${ticket?.status}`}>
-            {STATUS_LABELS[ticket?.status] || ticket?.status}
-          </span>
+          <div className="support-ticket-detail-header-actions">
+            <span className={`support-ticket-status support-ticket-status-${ticket?.status}`}>
+              {STATUS_LABELS[ticket?.status] || ticket?.status}
+            </span>
+            {canWithdraw && (
+              <button
+                type="button"
+                onClick={handleWithdraw}
+                disabled={withdrawing}
+                className="support-ticket-withdraw-btn"
+              >
+                {withdrawing ? <Loader2 size={16} className="spin" /> : <XCircle size={16} />}
+                {withdrawing ? 'Withdrawing...' : 'Withdraw ticket'}
+              </button>
+            )}
+          </div>
         </div>
         <div className="support-ticket-detail-meta">
-          <span>Priority: {ticket?.priority}</span>
+          <span>Priority: {capitalizeFirst(ticket?.priority)}</span>
           <span>Created: {formatDate(ticket?.created_at)}</span>
         </div>
       </div>
 
-      <div className="support-ticket-thread customer-portal-card">
+      <div className="support-ticket-thread support-ticket-chat customer-portal-card">
         <h3 className="support-ticket-thread-title">Conversation</h3>
-        <div className="support-ticket-messages">
-          {replies?.map((r) => (
-            <div
-              key={r.id}
-              className={`support-ticket-message support-ticket-message-${r.author_type}`}
-            >
-              <div className="support-ticket-message-header">
-                <span className="support-ticket-message-author">
-                  {r.author_type === 'customer' ? 'You' : 'Support team'}
-                </span>
-                <span className="support-ticket-message-date">{formatDate(r.created_at)}</span>
+        <div className="support-ticket-chat-messages">
+          {replies?.map((r) => {
+            const isCustomer = r.author_type === 'customer';
+            return (
+              <div
+                key={r.id}
+                className={`support-ticket-chat-bubble support-ticket-chat-bubble-${r.author_type}`}
+              >
+                <div className="support-ticket-chat-avatar">
+                  {isCustomer ? <User size={20} /> : <Headphones size={20} />}
+                </div>
+                <div className="support-ticket-chat-content">
+                  <div className="support-ticket-chat-header">
+                    <span className="support-ticket-chat-author">
+                      {isCustomer ? 'You' : 'Support team'}
+                    </span>
+                    <span className="support-ticket-chat-date">{formatDate(r.created_at)}</span>
+                  </div>
+                  <div className="support-ticket-chat-body">{r.body}</div>
+                </div>
               </div>
-              <div className="support-ticket-message-body">{r.body}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {canReply && (

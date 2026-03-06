@@ -4,6 +4,7 @@ import {
   UsersRound,
   HardHat,
   MessageSquare,
+  MessageCircle,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -29,6 +30,7 @@ const EMP_MODULE_NAV = {
   operations: { to: '/employee/operations', label: 'Operations',     icon: Briefcase },
   projects:   { to: '/employee/projects',   label: 'Projects',       icon: Building2 },
   referrals:  { to: '/employee/referrals',  label: 'Referrals',      icon: Gift },
+  support:    { to: '/employee/support-tickets', label: 'Support Tickets', icon: MessageCircle },
 };
 
 export default function EmployeeSidebar() {

@@ -225,6 +225,11 @@
   color: #047857;
 }
 
+.support-ticket-status-withdrawn {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
 .support-ticket-row-meta {
   display: flex;
   gap: 16px;
@@ -267,6 +272,38 @@
   margin-bottom: 0.75rem;
 }
 
+.support-ticket-detail-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.support-ticket-withdraw-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  color: #6b7280;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.support-ticket-withdraw-btn:hover:not(:disabled) {
+  background: #fef2f2;
+  color: #DC3545;
+  border-color: #fecaca;
+}
+
+.support-ticket-withdraw-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 .support-ticket-detail-subject {
   font-size: 1.25rem;
   font-weight: 700;
@@ -292,55 +329,126 @@
   margin: 0 0 1rem;
 }
 
-.support-ticket-messages {
+/* Chat-style conversation */
+.support-ticket-chat-messages {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.25rem;
   margin-bottom: 1.5rem;
+  max-height: 480px;
+  overflow-y: auto;
 }
 
-.support-ticket-message {
-  padding: 14px 16px;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
+.support-ticket-chat-bubble {
+  display: flex;
+  gap: 12px;
+  max-width: 85%;
+  animation: support-chat-fade 0.2s ease;
 }
 
-.support-ticket-message-customer {
-  background: #f0fdfa;
-  border-color: rgba(26, 123, 123, 0.2);
-  margin-left: 0;
-  margin-right: 2rem;
+@keyframes support-chat-fade {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.support-ticket-message-staff {
-  background: #fff;
-  margin-left: 2rem;
-  margin-right: 0;
+.support-ticket-chat-bubble-customer {
+  align-self: flex-end;
+  flex-direction: row-reverse;
 }
 
-.support-ticket-message-header {
+.support-ticket-chat-bubble-staff {
+  align-self: flex-start;
+  flex-direction: row;
+}
+
+.support-ticket-chat-avatar {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.support-ticket-chat-bubble-customer .support-ticket-chat-avatar {
+  background: #1A7B7B;
+  color: #fff;
+}
+
+.support-ticket-chat-bubble-staff .support-ticket-chat-avatar {
+  background: #64748b;
+  color: #fff;
+}
+
+.support-ticket-chat-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.support-ticket-chat-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   margin-bottom: 6px;
 }
 
-.support-ticket-message-author {
+.support-ticket-chat-author {
   font-size: 0.8125rem;
   font-weight: 600;
   color: #1A7B7B;
 }
 
-.support-ticket-message-date {
-  font-size: 0.75rem;
-  color: #555555;
+.support-ticket-chat-bubble-staff .support-ticket-chat-author {
+  color: #475569;
 }
 
-.support-ticket-message-body {
+.support-ticket-chat-date {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.support-ticket-chat-body {
   font-size: 0.9375rem;
   color: #1A1A2E;
   line-height: 1.5;
   white-space: pre-wrap;
+  padding: 12px 16px;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.support-ticket-chat-bubble-customer .support-ticket-chat-body {
+  background: #f0fdfa;
+  border: 1px solid rgba(26, 123, 123, 0.15);
+  border-bottom-right-radius: 4px;
+}
+
+.support-ticket-chat-bubble-staff .support-ticket-chat-body {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-bottom-left-radius: 4px;
+}
+
+.support-ticket-chat-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.support-ticket-chat-messages::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.support-ticket-chat-messages::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.support-ticket-chat-messages::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 .support-ticket-reply-form {

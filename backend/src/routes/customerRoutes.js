@@ -5,6 +5,7 @@ import {
   listTickets,
   getTicket,
   addReply,
+  withdrawTicket,
 } from '../controllers/supportTicketController.js';
 import { requireCustomerAuth } from '../middleware/auth.js';
 
@@ -20,5 +21,6 @@ router.get('/support-tickets', requireCustomerAuth, listTickets);
 router.post('/support-tickets', requireCustomerAuth, createTicket);
 router.get('/support-tickets/:id', requireCustomerAuth, getTicket);
 router.post('/support-tickets/:id/replies', requireCustomerAuth, addReply);
+router.post('/support-tickets/:id/withdraw', requireCustomerAuth, withdrawTicket);
 
 export default router;

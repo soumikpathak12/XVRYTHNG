@@ -2,7 +2,7 @@
 import db from '../config/db.js';
 
 const ALL_KNOWN_MODULES = [
-  'leads', 'projects', 'on_field', 'operations', 'attendance', 'referrals', 'messages',
+  'leads', 'projects', 'on_field', 'operations', 'attendance', 'referrals', 'messages', 'support',
 ];
 
 const COMPANY_PSEUDO = ['settings'];
@@ -38,6 +38,7 @@ export async function getSidebarForUserRoleOnly(userId, companyId = null) {
 
   if (role === 'company_admin' || role === 'manager') {
     COMPANY_PSEUDO.forEach(k => allowSet.add(k));
+    allowSet.add('support'); // Company admin/manager can access support by default
   }
 
   if (role === 'field_agent') {

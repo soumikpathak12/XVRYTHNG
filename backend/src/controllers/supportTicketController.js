@@ -99,3 +99,26 @@ export async function addReply(req, res) {
     });
   }
 }
+
+/** POST /api/customer/support-tickets/:id/withdraw – withdraw ticket (customer only) */
+export async function withdrawTicket(req, res) {
+  try {
+    const { leadId } = req.customer || {};
+    if (!leadId) {
+      return res.status(403).json({ success: false, message: 'Customer access required' });
+    }
+    const ticketId = req.params.id;
+    const ticket = await supportTicketService.withdrawTicket(ticketId, leadId);
+    return res.status(200).json({
+      success: true,
+      message: 'Ticket withdrawn. History is preserved.',
+      data: ticket,
+    });
+  } catch (err) {
+    const code = err.statusCode || 500;
+    return res.status(code).json({
+      success: false,
+      message: err.message || 'Failed to withdraw ticket',
+    });
+  }
+}

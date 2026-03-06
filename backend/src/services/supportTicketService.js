@@ -3,7 +3,7 @@
  */
 import db from '../config/db.js';
 
-const STATUSES = new Set(['open', 'in_progress', 'resolved', 'closed']);
+const STATUSES = new Set(['open', 'in_progress', 'resolved', 'closed', 'withdrawn']);
 const PRIORITIES = new Set(['low', 'medium', 'high', 'urgent']);
 const CATEGORIES = new Set(['installation', 'referral', 'others']);
 
@@ -192,6 +192,133 @@ export async function getTicketWithReplies(ticketId, leadId) {
 }
 
 /**
+ * List tickets for admin (filtered by company, status; super_admin sees all).
+ * When companyId is set: include tickets where st.company_id matches OR
+ * (st.company_id IS NULL and lead.company_id matches) – handles tickets created before company_id was set.
+ */
+export async function listTicketsForAdmin(filters = {}) {
+  const { companyId, status, limit = 50, offset = 0 } = filters;
+  const where = [];
+  const params = [];
+
+  if (companyId != null) {
+    where.push('(st.company_id = ? OR (st.company_id IS NULL AND l.company_id = ?))');
+    params.push(Number(companyId), Number(companyId));
+  }
+  if (status && STATUSES.has(status)) {
+    where.push('st.status = ?');
+    params.push(status);
+  }
+
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  params.push(Number(limit), Number(offset));
+
+  const [rows] = await db.execute(
+    `SELECT st.id, st.lead_id, st.company_id, st.subject, st.category, st.category_other, st.status, st.priority,
+            st.assigned_user_id, st.created_at, st.updated_at,
+            l.customer_name, l.email
+     FROM support_tickets st
+     LEFT JOIN leads l ON l.id = st.lead_id
+     ${whereSql}
+     ORDER BY st.updated_at DESC, st.created_at DESC
+     LIMIT ? OFFSET ?`,
+    params
+  );
+  return rows;
+}
+
+/**
+ * Get ticket by id for admin (no lead ownership check).
+ */
+export async function getTicketByIdAdmin(ticketId) {
+  if (!ticketId || Number.isNaN(Number(ticketId))) {
+    const err = new Error('Invalid ticket id');
+    err.statusCode = 400;
+    throw err;
+  }
+  const [rows] = await db.execute(
+    `SELECT st.*, l.customer_name, l.email
+     FROM support_tickets st
+     LEFT JOIN leads l ON l.id = st.lead_id
+     WHERE st.id = ? LIMIT 1`,
+    [Number(ticketId)]
+  );
+  const ticket = rows?.[0];
+  if (!ticket) {
+    const err = new Error('Ticket not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  return ticket;
+}
+
+/**
+ * Get ticket with replies for admin.
+ */
+export async function getTicketWithRepliesAdmin(ticketId) {
+  const ticket = await getTicketByIdAdmin(ticketId);
+  const [replies] = await db.execute(
+    `SELECT r.id, r.ticket_id, r.author_type, r.author_lead_id, r.author_user_id, r.body, r.created_at,
+            u.name AS author_user_name
+     FROM support_ticket_replies r
+     LEFT JOIN users u ON u.id = r.author_user_id
+     WHERE r.ticket_id = ?
+     ORDER BY r.created_at ASC`,
+    [Number(ticketId)]
+  );
+  return { ticket, replies };
+}
+
+/**
+ * Add staff reply to a ticket.
+ */
+export async function addStaffReply(ticketId, userId, { body }) {
+  if (!body || !String(body).trim()) {
+    const err = new Error('Message is required');
+    err.statusCode = 400;
+    throw err;
+  }
+  const ticket = await getTicketByIdAdmin(ticketId);
+  if (['closed', 'resolved', 'withdrawn'].includes(ticket.status)) {
+    const err = new Error('Cannot reply to a closed, resolved, or withdrawn ticket');
+    err.statusCode = 400;
+    throw err;
+  }
+  const [result] = await db.execute(
+    `INSERT INTO support_ticket_replies (ticket_id, author_type, author_user_id, body)
+     VALUES (?, 'staff', ?, ?)`,
+    [Number(ticketId), Number(userId), String(body).trim()]
+  );
+  await db.execute(
+    'UPDATE support_tickets SET updated_at = NOW(), status = ? WHERE id = ?',
+    ['in_progress', Number(ticketId)]
+  );
+  const [rows] = await db.execute(
+    'SELECT * FROM support_ticket_replies WHERE id = ? LIMIT 1',
+    [result.insertId]
+  );
+  return rows[0];
+}
+
+/**
+ * Update ticket status (admin).
+ */
+export async function updateTicketStatus(ticketId, status) {
+  if (!STATUSES.has(status)) {
+    const err = new Error('Invalid status');
+    err.statusCode = 400;
+    throw err;
+  }
+  await getTicketByIdAdmin(ticketId);
+  await db.execute(
+    'UPDATE support_tickets SET status = ?, updated_at = NOW() WHERE id = ?',
+    [status, Number(ticketId)]
+  );
+  const [rows] = await db.execute('SELECT * FROM support_tickets WHERE id = ? LIMIT 1', [Number(ticketId)]);
+  return rows[0];
+}
+
+/**
  * Add a reply to a ticket (customer or staff).
  */
 export async function addReply(ticketId, leadId, { body, authorType = 'customer' }) {
@@ -201,8 +328,8 @@ export async function addReply(ticketId, leadId, { body, authorType = 'customer'
     throw err;
   }
   const ticket = await getTicketById(ticketId, leadId);
-  if (ticket.status === 'closed' || ticket.status === 'resolved') {
-    const err = new Error('Cannot reply to a closed or resolved ticket');
+  if (['closed', 'resolved', 'withdrawn'].includes(ticket.status)) {
+    const err = new Error('Cannot reply to a closed, resolved, or withdrawn ticket');
     err.statusCode = 400;
     throw err;
   }
@@ -220,5 +347,23 @@ export async function addReply(ticketId, leadId, { body, authorType = 'customer'
     'SELECT * FROM support_ticket_replies WHERE id = ? LIMIT 1',
     [replyId]
   );
+  return rows[0];
+}
+
+/**
+ * Withdraw a ticket (customer only). Ticket history remains visible.
+ */
+export async function withdrawTicket(ticketId, leadId) {
+  const ticket = await getTicketById(ticketId, leadId);
+  if (['closed', 'resolved', 'withdrawn'].includes(ticket.status)) {
+    const err = new Error('Ticket is already closed, resolved, or withdrawn');
+    err.statusCode = 400;
+    throw err;
+  }
+  await db.execute(
+    'UPDATE support_tickets SET status = ?, updated_at = NOW() WHERE id = ? AND lead_id = ?',
+    ['withdrawn', Number(ticketId), Number(leadId)]
+  );
+  const [rows] = await db.execute('SELECT * FROM support_tickets WHERE id = ? LIMIT 1', [Number(ticketId)]);
   return rows[0];
 }

@@ -47,6 +47,7 @@ import EmployeeChangePasswordPage from './pages/EmployeeChangePasswordPage.jsx';
 import DashboardPage from './pages/admin/DashboardPage.jsx';
 import ProjectsPage from './pages/ProjectsPage.jsx';
 import TrialUsersPage from './pages/admin/TrialUsersPage.jsx';
+import AdminSupportTicketsPage from './pages/admin/AdminSupportTicketsPage.jsx';
 function PlaceholderPage({ title, message, children }) {
   return (
     <div style={{ padding: '2rem', textAlign: 'center', color: '#1A1A2E' }}>
@@ -286,6 +287,23 @@ function App() {
           />
 
           <Route
+            path="support-tickets"
+            element={
+              <RequirePermission resource="support" action="view">
+                <AdminSupportTicketsPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="support-tickets/:ticketId"
+            element={
+              <RequirePermission resource="support" action="view">
+                <AdminSupportTicketsPage />
+              </RequirePermission>
+            }
+          />
+
+          <Route
             path="settings"
             element={
               <RequirePermission resource="settings" action="view">
@@ -352,6 +370,8 @@ function App() {
           <Route path="attendance" element={<PlaceholderPage title="Attendance" message="Time & attendance overview." />} />
           <Route path="referrals" element={<ReferralsPage />} />
           <Route path="messages" element={<MessagesPage />} />
+          <Route path="support-tickets" element={<RequirePermission resource="support" action="view"><AdminSupportTicketsPage /></RequirePermission>} />
+          <Route path="support-tickets/:ticketId" element={<RequirePermission resource="support" action="view"><AdminSupportTicketsPage /></RequirePermission>} />
           <Route path="settings" element={<CompanySettingsPage />} />
         </Route>
 
@@ -454,6 +474,24 @@ function App() {
             element={
               <RequirePermission resource="referrals" action="view">
                 <ReferralsPage />
+              </RequirePermission>
+            }
+          />
+
+          {/* Support tickets */}
+          <Route
+            path="support-tickets"
+            element={
+              <RequirePermission resource="support" action="view">
+                <AdminSupportTicketsPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="support-tickets/:ticketId"
+            element={
+              <RequirePermission resource="support" action="view">
+                <AdminSupportTicketsPage />
               </RequirePermission>
             }
           />

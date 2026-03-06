@@ -29,7 +29,14 @@ import {
   setJobRoleModules,
   listModulesForCompany,
 } from '../controllers/rolesController.js';
+import {
+  listTickets,
+  getTicket,
+  addReply,
+  updateStatus,
+} from '../controllers/adminSupportTicketController.js';
 import { tenantContext } from '../middleware/tenantContext.js';
+import { requirePermission } from '../middleware/requirePermission.js';
 
 const router = Router();
 
@@ -66,5 +73,11 @@ router.get('/job-roles', listJobRoles);
 router.get('/job-roles/:id/modules', getJobRoleModules);
 router.put('/job-roles/:id/modules', setJobRoleModules);
 router.get('/modules', listModulesForCompany);
+
+// Support tickets (admin)
+router.get('/support-tickets', requirePermission('support', 'view'), listTickets);
+router.get('/support-tickets/:id', requirePermission('support', 'view'), getTicket);
+router.post('/support-tickets/:id/replies', requirePermission('support', 'edit'), addReply);
+router.patch('/support-tickets/:id/status', requirePermission('support', 'edit'), updateStatus);
 
 export default router;

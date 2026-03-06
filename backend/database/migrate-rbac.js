@@ -40,13 +40,15 @@ const PERMISSIONS = [
   { resource: 'settings', action: 'manage', description: 'Manage settings' },
   { resource: 'roles', action: 'view', description: 'View roles' },
   { resource: 'roles', action: 'manage', description: 'Create/edit roles and assign permissions' },
+  { resource: 'support', action: 'view', description: 'View support tickets' },
+  { resource: 'support', action: 'edit', description: 'Reply to and manage support tickets' },
 ];
 
 const ROLE_PERMISSIONS_MATRIX = {
   super_admin: '*', // all
-  company_admin: ['overview:view', 'profile:view', 'profile:edit', 'leads:view', 'leads:create', 'leads:edit', 'projects:view', 'projects:create', 'projects:edit', 'on_field:view', 'on_field:edit', 'operations:view', 'operations:edit', 'attendance:view', 'attendance:edit', 'referrals:view', 'referrals:edit', 'messages:view', 'messages:edit', 'settings:view', 'settings:manage', 'roles:view', 'roles:manage'],
-  manager: ['overview:view', 'profile:view', 'profile:edit', 'leads:view', 'leads:create', 'leads:edit', 'projects:view', 'projects:create', 'projects:edit', 'on_field:view', 'on_field:edit', 'operations:view', 'attendance:view', 'attendance:edit', 'referrals:view', 'messages:view', 'messages:edit', 'settings:view'],
-  field_agent: ['overview:view', 'profile:view', 'profile:edit', 'projects:view', 'on_field:view', 'on_field:edit', 'attendance:view', 'attendance:edit', 'messages:view', 'messages:edit'],
+  company_admin: ['overview:view', 'profile:view', 'profile:edit', 'leads:view', 'leads:create', 'leads:edit', 'projects:view', 'projects:create', 'projects:edit', 'on_field:view', 'on_field:edit', 'operations:view', 'operations:edit', 'attendance:view', 'attendance:edit', 'referrals:view', 'referrals:edit', 'messages:view', 'messages:edit', 'support:view', 'support:edit', 'settings:view', 'settings:manage', 'roles:view', 'roles:manage'],
+  manager: ['overview:view', 'profile:view', 'profile:edit', 'leads:view', 'leads:create', 'leads:edit', 'projects:view', 'projects:create', 'projects:edit', 'on_field:view', 'on_field:edit', 'operations:view', 'attendance:view', 'attendance:edit', 'referrals:view', 'messages:view', 'messages:edit', 'support:view', 'support:edit', 'settings:view'],
+  field_agent: ['overview:view', 'profile:view', 'profile:edit', 'projects:view', 'on_field:view', 'on_field:edit', 'attendance:view', 'attendance:edit', 'messages:view', 'messages:edit', 'support:view', 'support:edit'],
 };
 
 async function migrate() {

@@ -1,0 +1,450 @@
+/* Admin support tickets – brand theme */
+.admin-support-page {
+  width: 100%;
+}
+
+.admin-support-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.admin-support-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1A1A2E;
+  margin: 0;
+}
+
+.admin-support-filters {
+  display: flex;
+  gap: 12px;
+}
+
+.admin-support-filter-select {
+  padding: 8px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 0.9375rem;
+  color: #1A1A2E;
+  background: #fff;
+}
+
+.admin-support-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 3rem;
+  color: #555555;
+}
+
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.admin-support-empty {
+  text-align: center;
+  padding: 3rem 2rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.admin-support-empty-icon {
+  color: #94a3b8;
+  margin-bottom: 1rem;
+}
+
+.admin-support-empty h3 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #1A1A2E;
+  margin: 0 0 0.5rem;
+}
+
+.admin-support-empty p {
+  font-size: 0.9375rem;
+  color: #555555;
+  margin: 0;
+}
+
+.admin-support-table {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.admin-support-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin-support-table th {
+  text-align: left;
+  padding: 12px 16px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #555555;
+  background: #F5F5F5;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.admin-support-table td {
+  padding: 14px 16px;
+  font-size: 0.9375rem;
+  color: #1A1A2E;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.admin-support-row {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.admin-support-row:hover {
+  background: #f8fafc;
+}
+
+.admin-support-subject {
+  font-weight: 600;
+  color: #1A1A2E;
+}
+
+.admin-support-customer {
+  color: #555555;
+}
+
+.admin-support-category {
+  font-size: 0.875rem;
+  color: #555555;
+}
+
+.admin-support-status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+.admin-support-status-open {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.admin-support-status-in_progress {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.admin-support-status-resolved,
+.admin-support-status-closed {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.admin-support-status-withdrawn {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.admin-support-priority {
+  text-transform: capitalize;
+  color: #555555;
+}
+
+.admin-support-date {
+  font-size: 0.8125rem;
+  color: #555555;
+}
+
+.admin-support-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  margin-bottom: 1rem;
+  border: none;
+  background: none;
+  color: #1A7B7B;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.admin-support-back:hover {
+  color: #4DB8A8;
+}
+
+.admin-support-detail-header {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.admin-support-detail-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 0.75rem;
+}
+
+.admin-support-detail-subject {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1A1A2E;
+  margin: 0;
+}
+
+.admin-support-detail-actions {
+  flex-shrink: 0;
+}
+
+.admin-support-status-select {
+  padding: 8px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1A1A2E;
+  background: #fff;
+}
+
+.admin-support-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  font-size: 0.9375rem;
+  color: #1A1A2E;
+}
+
+.admin-support-detail-meta strong {
+  font-weight: 600;
+  color: #1A1A2E;
+  margin-right: 4px;
+}
+
+.admin-support-thread {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.admin-support-thread-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1A1A2E;
+  margin: 0 0 1rem;
+}
+
+/* Chat-style conversation */
+.admin-support-chat-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.admin-support-chat-bubble {
+  display: flex;
+  gap: 12px;
+  max-width: 85%;
+  animation: admin-chat-fade 0.2s ease;
+}
+
+@keyframes admin-chat-fade {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.admin-support-chat-bubble-customer {
+  align-self: flex-start;
+  flex-direction: row;
+}
+
+.admin-support-chat-bubble-staff {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.admin-support-chat-avatar {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.admin-support-chat-bubble-customer .admin-support-chat-avatar {
+  background: #1A7B7B;
+  color: #fff;
+}
+
+.admin-support-chat-bubble-staff .admin-support-chat-avatar {
+  background: #64748b;
+  color: #fff;
+}
+
+.admin-support-chat-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-support-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.admin-support-chat-author {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #1A7B7B;
+}
+
+.admin-support-chat-bubble-staff .admin-support-chat-author {
+  color: #475569;
+}
+
+.admin-support-chat-date {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.admin-support-chat-body {
+  font-size: 0.9375rem;
+  color: #1A1A2E;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  padding: 12px 16px;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.admin-support-chat-bubble-customer .admin-support-chat-body {
+  background: #f0fdfa;
+  border: 1px solid rgba(26, 123, 123, 0.15);
+  border-bottom-left-radius: 4px;
+}
+
+.admin-support-chat-bubble-staff .admin-support-chat-body {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-bottom-right-radius: 4px;
+}
+
+.admin-support-chat-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.admin-support-chat-messages::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.admin-support-chat-messages::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.admin-support-chat-messages::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.admin-support-reply-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.admin-support-textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 0.9375rem;
+  color: #1A1A2E;
+  background: #fff;
+  resize: vertical;
+  min-height: 80px;
+}
+
+.admin-support-textarea:focus {
+  outline: none;
+  border-color: #1A7B7B;
+  box-shadow: 0 0 0 3px rgba(26, 123, 123, 0.15);
+}
+
+.admin-support-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  background: #1A7B7B;
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(26, 123, 123, 0.3);
+  transition: background 0.2s, transform 0.1s;
+}
+
+.admin-support-btn-primary:hover:not(:disabled) {
+  background: #4DB8A8;
+  transform: translateY(-1px);
+}
+
+.admin-support-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.admin-support-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  color: #DC3545;
+  font-size: 0.9375rem;
+}
+
+.admin-support-detail-error {
+  text-align: center;
+  padding: 2rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.admin-support-detail-error p {
+  margin: 1rem 0;
+  color: #555555;
+}
