@@ -85,6 +85,8 @@ export default function SuperAdminSidebar({ onLogout, user, logoSrc, collapsed: 
     gap: 6,
     marginTop: 8,
     flex: 1,
+    minHeight: 0,
+    overflowY: 'auto',
   };
 
   const linkBase = {

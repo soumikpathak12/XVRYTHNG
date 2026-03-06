@@ -71,7 +71,7 @@ export default function CompanySidebar({ apiBase = '/api', logoSrc }) {
   };
   const brandRow = { display: 'flex', alignItems: 'center', gap: 12, padding: '8px 8px 16px 8px' };
   const brandText = { display: collapsed ? 'none' : 'block' };
-  const navStyle = { display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, flex: 1 };
+  const navStyle = { display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, flex: 1, minHeight: 0, overflowY: 'auto' };
   const linkBase = {
     display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
     borderRadius: 14, fontWeight: 600, color: '#556070', textDecoration: 'none',

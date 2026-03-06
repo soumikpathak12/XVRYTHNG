@@ -90,7 +90,7 @@ export default function EmployeeSidebar() {
         padding: '16px 12px',
       }}
     >
-      <nav style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, flex: 1 }}>
+      <nav style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, flex: 1, minHeight: 0, overflowY: 'auto' }}>
         {loading ? (
           <div style={{ color: '#6B7280', fontSize: 13, padding: '4px 10px' }}>Loading menu…</div>
         ) : navItems.length === 0 ? (
