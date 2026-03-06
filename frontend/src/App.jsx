@@ -29,6 +29,7 @@ import CustomerLoginPage from './pages/customer/CustomerLoginPage.jsx';
 import CustomerPortalLayout from './pages/customer/CustomerPortalLayout.jsx';
 import MyProjectPage from './pages/customer/MyProjectPage.jsx';
 import CustomerReferralsPage from './pages/customer/ReferralsPage.jsx';
+import SupportTicketsPage from './pages/customer/SupportTicketsPage.jsx';
 
 import ReferralsPage from './pages/ReferralsPage.jsx';
 import AdminTemplatesPage from './pages/admin/AdminTemplatePage.jsx';
@@ -496,6 +497,8 @@ function App() {
         >
           <Route index element={<MyProjectPage />} />
           <Route path="referrals" element={<CustomerReferralsPage />} />
+          <Route path="support" element={<SupportTicketsPage />} />
+          <Route path="support/:ticketId" element={<SupportTicketsPage />} />
         </Route>
 
         {/* Fallback */}

@@ -5,7 +5,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { Zap, Briefcase, User, LogOut, ChevronLeft, ChevronRight, Menu, X } from 'lucide-react';
+import { Zap, Briefcase, User, LogOut, ChevronLeft, ChevronRight, Menu, X, MessageCircle } from 'lucide-react';
 import '../../styles/CustomerPortal.css';
 
 const SIDEBAR_WIDTH = 280;
@@ -95,6 +95,14 @@ export default function CustomerPortalLayout() {
           >
             <Zap className="customer-portal-nav-icon" size={20} />
             {(!sidebarCollapsed || isMobile) && <span>Referrals</span>}
+          </NavLink>
+          <NavLink 
+            to="/portal/support" 
+            className={({ isActive }) => 'customer-portal-nav-item' + (isActive ? ' active' : '')}
+            onClick={handleNavClick}
+          >
+            <MessageCircle className="customer-portal-nav-icon" size={20} />
+            {(!sidebarCollapsed || isMobile) && <span>Support</span>}
           </NavLink>
         </div>
       </aside>

@@ -368,6 +368,17 @@
   flex-direction: column;
 }
 
+.my-project-support-desc {
+  font-size: 0.9375rem;
+  color: #555555;
+  margin: 0 0 1rem;
+  line-height: 1.5;
+}
+
+.my-project-support-btn {
+  margin-bottom: 1rem;
+}
+
 .my-project-contact-details {
   display: flex;
   flex-direction: column;

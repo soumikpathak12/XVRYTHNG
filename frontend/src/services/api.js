@@ -102,6 +102,74 @@ export async function submitReferralApi(payload) {
   return data;
 }
 
+/* ---------- Support tickets (T-337) ---------- */
+
+/** POST /api/customer/support-tickets – create ticket. Requires customer token. */
+export async function createSupportTicketApi(payload) {
+  const token = getCustomerToken();
+  if (!token) throw new Error('Please sign in to submit a support ticket.');
+  const res = await fetch(`${BASE}/api/customer/support-tickets`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      subject: String(payload.subject ?? '').trim(),
+      body: String(payload.body ?? '').trim(),
+      priority: payload.priority || 'medium',
+      category: payload.category || 'installation',
+      categoryOther: payload.categoryOther ?? null,
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Failed to submit ticket');
+  return data;
+}
+
+/** GET /api/customer/support-tickets – list customer's tickets. */
+export async function listSupportTicketsApi() {
+  const token = getCustomerToken();
+  if (!token) throw new Error('Please sign in to view support tickets.');
+  const res = await fetch(`${BASE}/api/customer/support-tickets`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Failed to load tickets');
+  return data;
+}
+
+/** GET /api/customer/support-tickets/:id – get ticket with replies. */
+export async function getSupportTicketApi(ticketId) {
+  const token = getCustomerToken();
+  if (!token) throw new Error('Please sign in to view this ticket.');
+  const res = await fetch(`${BASE}/api/customer/support-tickets/${encodeURIComponent(ticketId)}`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Failed to load ticket');
+  return data;
+}
+
+/** POST /api/customer/support-tickets/:id/replies – add reply. */
+export async function addSupportTicketReplyApi(ticketId, { body }) {
+  const token = getCustomerToken();
+  if (!token) throw new Error('Please sign in to reply.');
+  const res = await fetch(`${BASE}/api/customer/support-tickets/${encodeURIComponent(ticketId)}/replies`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ body: String(body ?? '').trim() }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Failed to send reply');
+  return data;
+}
+
 /** Fallback: simulated customer login from localStorage (when backend OTP not used). */
 export function customerLoginLocal(email, otp) {
   const creds = getCustomerCredentials(email);

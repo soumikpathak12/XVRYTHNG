@@ -4,7 +4,8 @@
 import { useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { getCustomerProjectSnapshot } from '../../services/api.js';
-import { Zap, Battery, Clock, Check } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Zap, Battery, Clock, Check, MessageCircle } from 'lucide-react';
 import '../../styles/CustomerPortal.css';
 import '../../styles/MyProjectPage.css';
 
@@ -188,6 +189,13 @@ export default function MyProjectPage() {
 
         <div className="customer-portal-card my-project-detail-card my-project-support-card">
           <h3 className="my-project-detail-card-title">Have questions about your installation?</h3>
+          <p className="my-project-support-desc">
+            Submit a support ticket and our team will respond shortly. No need to call different numbers.
+          </p>
+          <Link to="/portal/support" className="customer-portal-btn customer-portal-btn-primary my-project-support-btn">
+            <MessageCircle size={18} />
+            Submit a support ticket
+          </Link>
           <div className="my-project-contact-details">
             <div className="my-project-contact-item">
               <span className="my-project-contact-label">Phone:</span>
@@ -196,10 +204,6 @@ export default function MyProjectPage() {
             <div className="my-project-contact-item">
               <span className="my-project-contact-label">Email:</span>
               <a href="mailto:inquiries@xtechsrenewables.com.au" className="my-project-contact-value">inquiries@xtechsrenewables.com.au</a>
-            </div>
-            <div className="my-project-contact-item">
-              <span className="my-project-contact-label">Web:</span>
-              <a href="https://xtechsrenewables.com.au" target="_blank" rel="noopener noreferrer" className="my-project-contact-value">xtechsrenewables.com.au</a>
             </div>
           </div>
         </div>
