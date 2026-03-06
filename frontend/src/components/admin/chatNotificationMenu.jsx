@@ -1,3 +1,4 @@
+// src/components/admin/ChatNotificationMenu.jsx
 import { useEffect, useRef, useState } from 'react';
 import { Bell } from 'lucide-react';
 import { formatDistanceToNowStrict } from 'date-fns';
@@ -6,14 +7,16 @@ export default function ChatNotificationMenu({
   unreadTotal,
   items = [],
   onItemClick,
-
+  onBellClick, // optional (nếu muốn bật âm thanh từ header)
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef(null);
 
   useEffect(() => {
     const onClickOutside = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false);
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setOpen(false);
+      }
     };
     document.addEventListener('click', onClickOutside);
     return () => document.removeEventListener('click', onClickOutside);
@@ -26,12 +29,16 @@ export default function ChatNotificationMenu({
   };
 
   return (
-    <div ref={containerRef} style={{ position: 'relative', display: 'inline-block' }}>
-      {/* Bell button */}
+    <div
+      ref={containerRef}
+      style={{ position: 'relative', display: 'inline-block' }}
+      onClick={(e) => e.stopPropagation()} // avoid bubbling to document
+    >
       <button
-        onClick={(e) => { // prevent bubbling to document
-          onBellClick?.();          
-          setOpen((o) => !o);       
+        onClick={(e) => {
+          e.stopPropagation();        
+          onBellClick?.();           
+          setOpen((o) => !o);        
         }}
         style={{
           position: 'relative',
@@ -102,7 +109,9 @@ export default function ChatNotificationMenu({
           </div>
 
           {items.length === 0 ? (
-            <div style={{ padding: '12px 8px', color: '#6B7280' }}>No new messages.</div>
+            <div style={{ padding: '12px 8px', color: '#6B7280' }}>
+              No new messages.
+            </div>
           ) : (
             items.map((it) => (
               <button
