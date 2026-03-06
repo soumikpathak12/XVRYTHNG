@@ -14,6 +14,7 @@ export default function AdminPage() {
   const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
+  // Guard: only super_admin can access this admin area
   if (user?.role?.toLowerCase() !== 'super_admin') {
     return <Navigate to="/dashboard" replace />;
   }
@@ -27,15 +28,33 @@ export default function AdminPage() {
     }
   };
 
+  const handleOpenConversation = (id, options = {}) => {
+    const { scope = 'all', companyId = null } = options;
+
+    navigate('/admin/messages', {
+      state: {
+        openConversationId: String(id), // keep as string for consistent comparisons
+        desiredScope: scope,            // 'company' | 'all'
+        desiredCompanyId: companyId,    // number | null
+      },
+    });
+  };
+
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#F3F4F6', overflow: 'hidden' }}>
+    <div
+      style={{
+        display: 'flex',
+        minHeight: '100vh',
+        background: '#F3F4F6',
+        overflow: 'hidden',
+      }}
+    >
       <SuperAdminSidebar
         user={user}
         collapsed={sidebarCollapsed}
         onCollapsedChange={setSidebarCollapsed}
       />
 
-      {/* Main layout with Header + Content — margin matches fixed sidebar width */}
       <div
         style={{
           flex: 1,
@@ -46,7 +65,7 @@ export default function AdminPage() {
           transition: 'margin-left .2s ease',
         }}
       >
-        <AdminHeader user={user} onLogout={handleLogout} />
+        <AdminHeader user={user} onLogout={handleLogout} onOpenConversation={handleOpenConversation} />
 
         <main
           style={{

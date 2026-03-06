@@ -1,8 +1,6 @@
-/**
- * Internal employee messaging: chat list + conversation view.
- * Matches design: search chats, list with avatars/last message/unread, conversation with bubbles.
- */
-import { useState, useEffect, useRef, useCallback } from 'react';
+
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
 /** Searchable employee dropdown for "Start a chat" */
@@ -68,14 +66,12 @@ function SearchableEmployeeSelect({ employees, placeholder, onSelect }) {
           aria-autocomplete="list"
           aria-controls="messages-employee-listbox"
         />
-        <span className="messages-employee-select-chevron" aria-hidden>▼</span>
+        <span className="messages-employee-select-chevron" aria-hidden>
+          ▼
+        </span>
       </div>
       {open && (
-        <ul
-          id="messages-employee-listbox"
-          className="messages-employee-select-list"
-          role="listbox"
-        >
+        <ul id="messages-employee-listbox" className="messages-employee-select-list" role="listbox">
           {filtered.length === 0 ? (
             <li className="messages-employee-select-empty">No matches</li>
           ) : (
@@ -99,6 +95,7 @@ function SearchableEmployeeSelect({ employees, placeholder, onSelect }) {
     </div>
   );
 }
+
 import {
   getChatCompanyUsers,
   getChatPlatformUsers,
@@ -151,9 +148,30 @@ function formatMessageTime(iso) {
 export default function MessagesPage() {
   const { user } = useAuth();
   const isSuperAdmin = user?.role?.toLowerCase() === 'super_admin';
-  const [chatScope, setChatScope] = useState('company');
+
+  // Deep-link state from navigation (comes from AdminHeader -> AdminPage -> navigate state)
+  const location = useLocation();
+  const deepLink = location.state || {};
+
+  // Initialize scope/company from navigation state ON FIRST RENDER.
+  const initialScope = isSuperAdmin
+    ? (deepLink.desiredScope === 'company' || deepLink.desiredScope === 'all'
+        ? deepLink.desiredScope
+        : 'all')
+    : 'company';
+
+  // Only keep companyId when targeting 'company' scope; otherwise null.
+  const initialCompanyId =
+    initialScope === 'company' && deepLink.desiredCompanyId != null
+      ? Number(deepLink.desiredCompanyId)
+      : null;
+
+  // Scope & context
+  const [chatScope, setChatScope] = useState(initialScope);           // 'company' | 'all'
   const [companies, setCompanies] = useState([]);
-  const [selectedCompanyId, setSelectedCompanyId] = useState(null);
+  const [selectedCompanyId, setSelectedCompanyId] = useState(initialCompanyId);
+
+  // Data & UI state
   const [companyUsers, setCompanyUsers] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -167,6 +185,8 @@ export default function MessagesPage() {
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [groupInfoOpen, setGroupInfoOpen] = useState(false);
+
+  // Refs
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const groupInfoAnchorRef = useRef(null);
@@ -174,22 +194,36 @@ export default function MessagesPage() {
   selectedIdRef.current = selectedId;
   const loadConversationsRef = useRef(null);
 
-  const handleIncomingMessage = useCallback((conversationId, message) => {
-    if (conversationId !== selectedIdRef.current) return;
-    setMessages((prev) => {
-      if (prev.some((m) => m.id === message.id)) return prev;
-      return [...prev, { ...message, isOwn: message.senderId === user?.id }];
-    });
-    loadConversationsRef.current?.();
-  }, [user?.id]);
+  // Deep-link conversation id (persisted in ref so it doesn't change across renders)
+  const initialOpenIdRef = useRef(deepLink.openConversationId ?? null);
 
+  // Socket for live updates
+  const handleIncomingMessage = useCallback(
+    (conversationId, message) => {
+      if (conversationId !== selectedIdRef.current) return;
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === message.id)) return prev;
+        return [...prev, { ...message, isOwn: message.senderId === user?.id }];
+      });
+      loadConversationsRef.current?.();
+    },
+    [user?.id]
+  );
   const { connected: wsConnected } = useChatSocket(getToken, handleIncomingMessage);
 
+  // Context derivations
   const effectiveCompanyId = isSuperAdmin
-    ? (chatScope === 'all' ? null : selectedCompanyId)
-    : undefined;
+    ? chatScope === 'all'
+      ? null
+      : selectedCompanyId
+    : undefined; // non-SA users don't pass companyId to API
   const usePlatformDm = isSuperAdmin && chatScope === 'all';
 
+  // ✅ Central policy: show "New group" ONLY when scope = company (for Super Admin).
+  // For non-SA users, it's always "company", so `canCreateGroups` is true.
+  const canCreateGroups = !isSuperAdmin || chatScope === 'company';
+
+  // Loaders
   const loadCompanies = useCallback(async () => {
     if (!isSuperAdmin) return;
     try {
@@ -210,18 +244,19 @@ export default function MessagesPage() {
       }
       return;
     }
-    if (isSuperAdmin && effectiveCompanyId == null) return;
+    if (isSuperAdmin && effectiveCompanyId == null) return; // requires company context
     try {
       const list = await getChatCompanyUsers(effectiveCompanyId);
       setCompanyUsers(list);
     } catch (e) {
-      if (e?.status === 400) setError('Company context required. Select a company if you are Super Admin.');
+      if (e?.status === 400)
+        setError('Company context required. Select a company if you are Super Admin.');
       else setError(e?.message ?? 'Failed to load team');
     }
   }, [isSuperAdmin, effectiveCompanyId, usePlatformDm]);
 
   const loadConversations = useCallback(async () => {
-    if (isSuperAdmin && !usePlatformDm && effectiveCompanyId == null) return;
+    if (isSuperAdmin && !usePlatformDm && effectiveCompanyId == null) return; // requires company context
     try {
       setError(null);
       const list = await getChatConversations(effectiveCompanyId);
@@ -235,11 +270,13 @@ export default function MessagesPage() {
   }, [isSuperAdmin, effectiveCompanyId, usePlatformDm]);
   loadConversationsRef.current = loadConversations;
 
+  // Initial loads
   useEffect(() => {
     loadCompanies();
   }, [loadCompanies]);
 
   useEffect(() => {
+    // If Super Admin and company scope without a selected company — show guard and skip loaders
     if (isSuperAdmin && !usePlatformDm && effectiveCompanyId == null) {
       setLoading(false);
       setCompanyUsers([]);
@@ -250,24 +287,34 @@ export default function MessagesPage() {
     loadConversations();
   }, [loadCompanyUsers, loadConversations, isSuperAdmin, effectiveCompanyId, usePlatformDm]);
 
-  const loadMessages = useCallback(async (convId, before) => {
-    if (!convId) return;
-    try {
-      const { messages: next, hasMore } = await getChatMessages(convId, {
-        before: before || undefined,
-        limit: 50,
-      }, effectiveCompanyId);
-      if (before) {
-        setMessages((prev) => [...next, ...prev]);
-      } else {
-        setMessages(next);
+  // Messages loader
+  const loadMessages = useCallback(
+    async (convId, before) => {
+      if (!convId) return;
+      try {
+        const { messages: next, hasMore } = await getChatMessages(
+          convId,
+          {
+            // "before" is used for paging older messages
+            before: before || undefined,
+            limit: 50,
+          },
+          effectiveCompanyId
+        );
+        if (before) {
+          setMessages((prev) => [...next, ...prev]);
+        } else {
+          setMessages(next);
+        }
+        setHasMoreMessages(hasMore);
+      } catch (e) {
+        setError(e?.message ?? 'Failed to load messages');
       }
-      setHasMoreMessages(hasMore);
-    } catch (e) {
-      setError(e?.message ?? 'Failed to load messages');
-    }
-  }, [effectiveCompanyId]);
+    },
+    [effectiveCompanyId]
+  );
 
+  // When a conversation is selected, load messages & mark read
   useEffect(() => {
     if (!selectedId) {
       setMessages([]);
@@ -277,15 +324,19 @@ export default function MessagesPage() {
     setMessages([]);
     loadMessages(selectedId);
     markChatRead(selectedId, effectiveCompanyId).catch(() => {});
+
+    // If socket is not connected, poll as a fallback
     if (wsConnected) return;
     const fallbackInterval = setInterval(() => loadMessages(selectedId), 30000);
     return () => clearInterval(fallbackInterval);
   }, [selectedId, loadMessages, effectiveCompanyId, wsConnected]);
 
+  // Auto-scroll to latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Close group info panel when clicking outside
   useEffect(() => {
     if (!groupInfoOpen) return;
     const handleClickOutside = (e) => {
@@ -297,12 +348,30 @@ export default function MessagesPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [groupInfoOpen]);
 
+  useEffect(() => {
+    const wanted = initialOpenIdRef.current;
+    if (!wanted) return;
+    if (!conversations || conversations.length === 0) return;
+
+    const found = conversations.find((c) => String(c.id) === String(wanted));
+    if (found) {
+      setSelectedId(found.id);
+      initialOpenIdRef.current = null;
+
+      // Optional: remove state from history so refresh doesn't re-trigger
+      if (window && window.history && window.history.replaceState) {
+        window.history.replaceState({}, document.title);
+      }
+    }
+  }, [conversations]);
+
+  // Actions
   const handleStartChat = async (otherUserId) => {
     try {
       const { id } = await createChatConversation(
         { type: 'dm', otherUserId: Number(otherUserId) },
         effectiveCompanyId,
-        usePlatformDm ? { platform: true } : {},
+        usePlatformDm ? { platform: true } : {}
       );
       await loadConversations();
       setSelectedId(id);
@@ -312,11 +381,16 @@ export default function MessagesPage() {
   };
 
   const handleCreateGroup = async ({ name, userIds }) => {
+    if (!canCreateGroups) {
+
+      return;
+    }
+
     setCreatingGroup(true);
     try {
       const { id } = await createChatConversation(
         { type: 'group', name, userIds },
-        effectiveCompanyId,
+        effectiveCompanyId
       );
       await loadConversations();
       setSelectedId(id);
@@ -336,8 +410,7 @@ export default function MessagesPage() {
       const msg = await sendChatMessage(selectedId, body, effectiveCompanyId);
       setMessages((prev) => [...prev, { ...msg, isOwn: true }]);
       setInput('');
-      await loadConversations();
-    } catch (e) {
+      await loadConversations(); 
       setError(e?.message ?? 'Failed to send');
     } finally {
       setSending(false);
@@ -349,7 +422,7 @@ export default function MessagesPage() {
     ? conversations.filter(
         (c) =>
           c.name?.toLowerCase().includes(searchChats.toLowerCase()) ||
-          c.participants?.some((p) => p.name?.toLowerCase().includes(searchChats.toLowerCase())),
+          c.participants?.some((p) => p.name?.toLowerCase().includes(searchChats.toLowerCase()))
       )
     : conversations;
 
@@ -363,15 +436,18 @@ export default function MessagesPage() {
               <select
                 value={chatScope}
                 onChange={(e) => {
-                  setChatScope(e.target.value);
+                  const next = e.target.value;
+                  setChatScope(next);
                   setSelectedId(null);
                   setError(null);
+                  if (next !== 'company') setCreateGroupOpen(false);
                 }}
                 className="messages-scope-select"
               >
                 <option value="company">Company employees</option>
                 <option value="all">All employees (any company)</option>
               </select>
+
               {chatScope === 'company' && (
                 <select
                   id="messages-company-select"
@@ -384,7 +460,7 @@ export default function MessagesPage() {
                   className="messages-company-select"
                 >
                   <option value="">Select company...</option>
-                  {(companies || []).map((c) => (
+                 {(companies || []).map((c) => (
                     <option key={c.id} value={c.id}>{c.name ?? `Company ${c.id}`}</option>
                   ))}
                 </select>
@@ -392,6 +468,7 @@ export default function MessagesPage() {
             </div>
           </div>
         )}
+
         <div className="messages-chat-list-header">
           <input
             type="search"
@@ -401,6 +478,7 @@ export default function MessagesPage() {
             className="messages-search-input"
           />
         </div>
+
         {companyUsers.length > 0 && (
           <div className="messages-start-chat">
             <span className="messages-start-chat-label">Start a chat</span>
@@ -409,7 +487,7 @@ export default function MessagesPage() {
               placeholder={usePlatformDm ? 'Search any employee...' : 'Search teammate...'}
               onSelect={(userId) => handleStartChat(userId)}
             />
-            {!usePlatformDm && (
+            {canCreateGroups && (
               <button
                 type="button"
                 className="messages-new-group-btn"
@@ -420,18 +498,24 @@ export default function MessagesPage() {
             )}
           </div>
         )}
-        <CreateGroupModal
-          open={createGroupOpen}
-          onClose={() => setCreateGroupOpen(false)}
-          employees={companyUsers}
-          onCreate={handleCreateGroup}
-          creating={creatingGroup}
-        />
+
+        {canCreateGroups && (
+          <CreateGroupModal
+            open={createGroupOpen}
+            onClose={() => setCreateGroupOpen(false)}
+            employees={companyUsers}
+            onCreate={handleCreateGroup}
+            creating={creatingGroup}
+          />
+        )}
+
         <div className="messages-conversation-list">
           {loading ? (
             <div className="messages-loading">Loading...</div>
           ) : isSuperAdmin && chatScope === 'company' && effectiveCompanyId == null ? (
-            <div className="messages-error">Select a company above to view and send messages.</div>
+            <div className="messages-error">
+              Select a company above to view and send messages.
+            </div>
           ) : error && !conversations.length ? (
             <div className="messages-error">{error}</div>
           ) : (
@@ -457,7 +541,9 @@ export default function MessagesPage() {
                     </div>
                   )}
                   <div className="messages-conv-meta">
-                    <span className="messages-conv-time">{formatTime(conv.lastMessage?.createdAt || conv.updatedAt)}</span>
+                    <span className="messages-conv-time">
+                      {formatTime(conv.lastMessage?.createdAt || conv.updatedAt)}
+                    </span>
                     {conv.unreadCount > 0 && (
                       <span className="messages-unread-badge">{conv.unreadCount}</span>
                     )}
@@ -488,7 +574,7 @@ export default function MessagesPage() {
                 <span className="messages-conv-header-role">
                   {selectedConv?.type === 'group'
                     ? `Group · ${(selectedConv?.participants?.length ?? 0) + 1} members`
-                    : (selectedConv?.participants?.[0]?.role?.replace('_', ' ') ?? '')}
+                    : selectedConv?.participants?.[0]?.role?.replace('_', ' ') ?? ''}
                 </span>
                 {selectedConv?.type !== 'group' && <span className="messages-online-badge">ONLINE</span>}
               </div>
@@ -542,9 +628,13 @@ export default function MessagesPage() {
                     className={`messages-message-row ${msg.isOwn ? 'messages-message-own' : ''}`}
                   >
                     <div className="messages-message-bubble">
-                      {!msg.isOwn && <div className="messages-message-sender">{msg.senderName}</div>}
+                      {!msg.isOwn && (
+                        <div className="messages-message-sender">{msg.senderName}</div>
+                      )}
                       <div className="messages-message-body">{msg.body}</div>
-                      <div className="messages-message-time">{formatMessageTime(msg.createdAt)}</div>
+                      <div className="messages-message-time">
+                        {formatMessageTime(msg.createdAt)}
+                      </div>
                     </div>
                   </div>
                 ))}
