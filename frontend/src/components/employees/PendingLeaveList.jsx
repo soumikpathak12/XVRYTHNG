@@ -43,10 +43,7 @@ const Item = ({ req, onApprove, onDecline }) => {
 
 export default function PendingLeaveList({ brand = '#146b6b' }) {
   // Dummy data (UI-only)
-  const [items, setItems] = useState([
-    { id: 1, name: 'Tom Wilson', type: 'Annual Leave', range: '15–19 Feb 2026', days: 5, status: 'pending' },
-    { id: 2, name: 'Alex Lee', type: 'Sick Leave', range: '6 Feb 2026', days: 1, status: 'pending' },
-  ]);
+  const [items, setItems] = useState([]);
 
   const pendingCount = useMemo(() => items.filter(i => i.status === 'pending').length, [items]);
 

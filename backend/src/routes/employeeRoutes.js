@@ -13,6 +13,11 @@ import {
   getEmploymentTypes,getDepartmentsForCompany
 } from '../controllers/employeeController.js';
 import * as employeeService from '../services/employeeService.js'
+import * as attendanceController from '../controllers/attendanceController.js';
+import * as attendanceEditController from '../controllers/attendanceEditController.js';
+import * as leaveController from '../controllers/leaveController.js';
+import * as expenseController from '../controllers/expenseController.js';
+import { receiptUpload } from '../controllers/expenseController.js';
 const router = Router();
 router.use(requireAuth, tenantContext);
 
@@ -22,6 +27,34 @@ router.use((req, res, next) => {
 });
 router.post('/', createEmployee);
 router.get('/', listEmployees);
+
+router.post('/attendance/check-in', attendanceController.checkIn);
+router.post('/attendance/check-out', attendanceController.checkOut);
+router.get('/attendance/today', attendanceController.todayStatus);
+router.get('/attendance/history', attendanceController.history);
+
+// Attendance edit requests (employee)
+router.post('/attendance/edit-request', attendanceEditController.submitEditRequest);
+router.get('/attendance/edit-requests', attendanceEditController.myEditRequests);
+
+// Attendance edit requests (manager / admin)
+router.get('/attendance/edit-requests/pending', attendanceEditController.pendingEditRequests);
+router.patch('/attendance/edit-requests/:id', attendanceEditController.reviewEditRequest);
+
+// Leave
+router.get('/leave/balances', leaveController.getBalances);
+router.post('/leave/request', leaveController.submitRequest);
+router.get('/leave/my-requests', leaveController.myRequests);
+router.get('/leave/pending', leaveController.pendingRequests);
+router.patch('/leave/:id/review', leaveController.reviewRequest);
+router.delete('/leave/:id/cancel', leaveController.cancelRequest);
+
+// Expenses
+router.post('/expenses', receiptUpload.single('receipt'), expenseController.submitExpense);
+router.get('/expenses/my', expenseController.myExpenses);
+router.get('/expenses/pending', expenseController.pendingExpenses);
+router.patch('/expenses/:id/review', expenseController.reviewExpense);
+router.delete('/expenses/:id/cancel', expenseController.cancelExpense);
 
 router.get('/preview/role-modules/:job_role_id', getRoleModulesPreview);
 router.get('/options/job-roles', getJobRolesForCompany);

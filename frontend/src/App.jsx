@@ -40,6 +40,9 @@ import EmployeesPage from './pages/EmployeesPage.jsx';
 import EmployeePage from './pages/employee/EmployeePage.jsx';
 import EmployeeCreatePage from './pages/EmployeeCreate.jsx';
 import EmployeeProfilePage from './pages/EmployeeProfilePage.jsx';
+import AttendancePage from './pages/employee/AttendancePage.jsx';
+import LeavePage from './pages/employee/LeavePage.jsx';
+import ExpensePage from './pages/employee/ExpensePage.jsx';
 
 import RequirePasswordUpdate from './components/auth/RequiredPasswordUpdate.jsx';
 import EmployeeChangePasswordPage from './pages/EmployeeChangePasswordPage.jsx';
@@ -48,6 +51,7 @@ import DashboardPage from './pages/admin/DashboardPage.jsx';
 import ProjectsPage from './pages/ProjectsPage.jsx';
 import TrialUsersPage from './pages/admin/TrialUsersPage.jsx';
 import AdminSupportTicketsPage from './pages/admin/AdminSupportTicketsPage.jsx';
+import ApprovalsPage from './pages/ApprovalsPage.jsx';
 function PlaceholderPage({ title, message, children }) {
   return (
     <div style={{ padding: '2rem', textAlign: 'center', color: '#1A1A2E' }}>
@@ -62,7 +66,6 @@ const AdminOverview = () => <PlaceholderPage title="Dashboard" message="Overview
 const AdminProjects = () => <PlaceholderPage title="Projects" message="In-house & retailer projects." />;
 const AdminOnField = () => <PlaceholderPage title="On-Field" message="Field schedules & activities." />;
 const AdminOperations = () => <PlaceholderPage title="Operations" message="Approvals, payroll, billing." />;
-const AdminAttendance = () => <PlaceholderPage title="Attendance" message="Time & attendance overview." />;
 
 // ---------- Login Page ----------
 function LoginPage() {
@@ -263,7 +266,7 @@ function App() {
             path="attendance"
             element={
               <RequirePermission resource="attendance" action="view">
-                <AdminAttendance />
+                <ApprovalsPage />
               </RequirePermission>
             }
           />
@@ -367,7 +370,7 @@ function App() {
           <Route path="leads" element={<PlaceholderPage title="Lead Pipeline" message="Manage and track leads." />} />
           <Route path="on-field" element={<PlaceholderPage title="On-Field" message="Field schedules & activities." />} />
           <Route path="operations" element={<PlaceholderPage title="Operations" message="Approvals, payroll, billing." />} />
-          <Route path="attendance" element={<PlaceholderPage title="Attendance" message="Time & attendance overview." />} />
+          <Route path="attendance" element={<ApprovalsPage />} />
           <Route path="referrals" element={<ReferralsPage />} />
           <Route path="messages" element={<MessagesPage />} />
           <Route path="support-tickets" element={<RequirePermission resource="support" action="view"><AdminSupportTicketsPage /></RequirePermission>} />
@@ -443,10 +446,16 @@ function App() {
             path="attendance"
             element={
               <RequirePermission resource="attendance" action="view">
-                <PlaceholderPage title="Attendance" message="Time & attendance (Employee)" />
+                <AttendancePage />
               </RequirePermission>
             }
           />
+
+          {/* Leave */}
+          <Route path="leave" element={<LeavePage />} />
+
+          {/* Expenses */}
+          <Route path="expenses" element={<ExpensePage />} />
 
           {/* Operations */}
           <Route
