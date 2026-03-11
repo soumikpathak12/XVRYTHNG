@@ -20,7 +20,7 @@ import RolesPage from './pages/admin/RolesPage.jsx';
 import CompanySettingsPage from './pages/company/CompanySettingPage.jsx';
 import CompanyPage from './pages/company/CompanyPage.jsx';
 
-import LeadsPage from './pages/LeadsPAge.jsx';
+import LeadsPage from './pages/LeadsPage.jsx';
 import LeadDetailPage from './pages/LeadDetailPage.jsx';
 import LeadsCalendarPage from './pages/admin/LeadsCalendarPage.jsx';
 import MessagesPage from './pages/MessagesPage.jsx';

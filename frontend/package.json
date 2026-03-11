@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "date-fns": "^4.1.0",
     "express-fileupload": "^1.5.2",
     "jsonwebtoken": "^9.0.3",
     "jspdf": "^4.2.0",
