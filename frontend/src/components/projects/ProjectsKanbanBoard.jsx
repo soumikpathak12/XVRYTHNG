@@ -3,22 +3,47 @@ import React, { useMemo, useState, useRef, useEffect } from 'react';
 import KanbanColumn from '../leads/KanbanColumn.jsx';
 import ProjectCard from './ProjectCard.jsx';
 
-// Project pipeline stages
+// ---- Project pipeline stages (12 columns in display order) ----
 export const PROJECT_STAGES = [
-  { key: 'new', label: 'New' },
-  { key: 'pre_approval', label: 'Pre-Approval' },
-  { key: 'design_engineering', label: 'Design & Engineering' },
-  { key: 'scheduled', label: 'Scheduled' },
-  { key: 'installation_in_progress', label: 'Installation In Progress' },
-  { key: 'installation_completed', label: 'Installation Completed' },
-  { key: 'rebate_stc_claims', label: 'Rebate & STC Claims' },
-  { key: 'project_completed', label: 'Project Completed' },
+  { key: 'new',                        label: 'New' },
+  { key: 'pre_approval',               label: 'Pre-Approval' },
+  { key: 'state_rebate',               label: 'State Rebate' },
+  { key: 'design_engineering',         label: 'Design & Engineering' },
+  { key: 'procurement',                label: 'Procurement' },
+  { key: 'scheduled',                  label: 'Scheduled' },
+  { key: 'installation_in_progress',   label: 'Installation In Progress' },
+  { key: 'installation_completed',     label: 'Installation Completed' },
+  { key: 'compliance_check',           label: 'Compliance Check' },
+  { key: 'inspection_grid_connection', label: 'Inspection & Grid Connection' },
+  { key: 'rebate_stc_claims',          label: 'Rebate & STC Claims' },
+  { key: 'project_completed',          label: 'Project Completed' },
 ];
 
 const COL_WIDTH = 300;
 const COL_GAP = 20;
 const BOARD_PADDING = 28;
 
+const LEGACY_TO_NEW_STAGE_KEY = {
+  new: 'new',
+  pre_approval: 'pre_approval',
+  design_engineering: 'design_engineering',
+  scheduled: 'scheduled',
+  installation_in_progress: 'installation_in_progress',
+  installation_completed: 'installation_completed',
+  rebate_stc_claims: 'rebate_stc_claims',
+  project_completed: 'project_completed',
+
+  
+};
+
+const STAGE_KEYS_SET = new Set(PROJECT_STAGES.map(s => s.key));
+
+function normalizeStageKey(input) {
+  if (!input) return null;
+  if (STAGE_KEYS_SET.has(input)) return input;
+  const mapped = LEGACY_TO_NEW_STAGE_KEY[input];
+  return STAGE_KEYS_SET.has(mapped) ? mapped : null;
+}
 
 export default function ProjectsKanbanBoard({
   projects = [],
@@ -35,7 +60,8 @@ export default function ProjectsKanbanBoard({
   const byStage = useMemo(() => {
     const map = Object.fromEntries(PROJECT_STAGES.map((s) => [s.key, []]));
     for (const p of projects) {
-      const key = p.stage && map[p.stage] ? p.stage : 'new';
+      const normalized = normalizeStageKey(p.stage);
+      const key = normalized && map[normalized] ? normalized : 'new';
       map[key].push(p);
     }
     return map;
@@ -197,11 +223,11 @@ export default function ProjectsKanbanBoard({
                     data={{
                       id: item.id,
                       customerName: item.customerName,
-                      address: item.address,               // e.g. "45 Battery Dr, Hawthorn"
-                      systemSummary: item.systemSummary,   // e.g. "6.6 kW + Battery"
-                      value: item.value,                   // e.g. 18900
-                      marginPct: item.marginPct,           // e.g. 18
-                      assignees: item.assignees,           // e.g. ["JD","MK"]
+                      address: item.address,               
+                      systemSummary: item.systemSummary,  
+                      value: item.value,                   
+                      marginPct: item.marginPct,          
+                      assignees: item.assignees,         
                     }}
                     {...handlers}
                   />

@@ -1,5 +1,5 @@
 import React from 'react';
-import './project-card.css'; 
+import './project-card.css';
 
 function formatMoney(value) {
   if (value == null || value === '') return '';
@@ -23,11 +23,11 @@ function formatMoney(value) {
  * - data: {
  *     id: string|number,
  *     customerName: string,
- *     address?: string,          // e.g. "45 Battery Dr, Hawthorn"
- *     systemSummary?: string,    // e.g. "6.6 kW + Battery"
- *     value?: number|string,     // contract value
- *     marginPct?: number|string, // e.g. 18 (renders "Margin: 18%")
- *     assignees?: string[],      // initials, e.g. ["JD", "MK"]
+ *     address?: string,
+ *     systemSummary?: string,
+ *     value?: number|string,
+ *     marginPct?: number|string,
+ *     assignees?: string[],
  *   }
  * - onClick?: () => void
  * - onDragStart?: (e: DragEvent) => void
@@ -65,7 +65,6 @@ export default function ProjectCard({ data, onClick, onDragStart, onDragEnd }) {
             viewBox="0 0 24 24"
             className="pcard__addressIcon"
           >
-            {/* Simple map-pin glyph */}
             <path
               fill="currentColor"
               d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5Z"
@@ -84,13 +83,10 @@ export default function ProjectCard({ data, onClick, onDragStart, onDragEnd }) {
       {/* Divider */}
       <div className="pcard__divider" />
 
-      {/* Footer: margin pill (left) + assignee initials (right) */}
+      {/* Footer: margin pill (left) + assignee initials (right) + view button */}
       <div className="pcard__footer">
         {marginPct != null && (
-          <span className="pcard__margin">
-            {/* Keep text strictly as in sample: "Margin: 18%" */}
-            Margin: {String(marginPct).replace('%', '')}%
-          </span>
+          <span className="pcard__margin">Margin: {String(marginPct).replace('%', '')}%</span>
         )}
 
         {assignees?.length > 0 && (
@@ -100,7 +96,6 @@ export default function ProjectCard({ data, onClick, onDragStart, onDragEnd }) {
                 {abbr}
               </span>
             ))}
-            {/* Optional: +N more indicator if more than 3 assignees */}
             {assignees.length > 3 && (
               <span className="pcard__chip pcard__chip--muted" title={`${assignees.length - 3} more`}>
                 +{assignees.length - 3}
@@ -108,6 +103,30 @@ export default function ProjectCard({ data, onClick, onDragStart, onDragEnd }) {
             )}
           </div>
         )}
+
+       <button
+          style={{
+            backgroundColor: '#1A7B7B',  
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '8px',
+            padding: '6px 12px',
+            fontSize: '12px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#1A7B7B')}   
+          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#1A7B7B')}  
+          onMouseDown={(e) => (e.currentTarget.style.transform = 'translateY(1px)')}  
+          onMouseUp={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick?.();
+          }}
+        >
+          View details
+        </button>
       </div>
     </div>
   );

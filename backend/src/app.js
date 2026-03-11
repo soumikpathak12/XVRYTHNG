@@ -36,6 +36,9 @@ import employeeRoutes from './routes/employeeRoutes.js';
 import employeeDocumentRoutes from './routes/employeeDocumentRoutes.js';
 import trialUserRoutes from './routes/trialUserRoutes.js';
 
+import projectRoutes from './routes/projectRoutes.js';
+
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -100,6 +103,8 @@ app.use('/api/employees', employeeRoutes);
 app.use('/api', employeeDocumentRoutes);
 
 app.use('/api/trial-users', trialUserRoutes);
+
+app.use('/api/projects', projectRoutes);
 
 // ---------------------------------------------------------------------------
 // Cron Jobs

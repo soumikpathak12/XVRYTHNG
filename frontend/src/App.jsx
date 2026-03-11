@@ -232,14 +232,32 @@ function App() {
           <Route path="employees/:id" element={<EmployeeProfilePage />} />
           <Route path="employees/new" element={<EmployeeCreatePage />} />
 
+        
           <Route
             path="projects"
             element={
               <RequirePermission resource="projects" action="view">
-                <ProjectsPage />
+                <ProjectsPage />  
               </RequirePermission>
             }
           />
+
+          <Route
+            path="projects/dashboard"
+            element={
+              <RequirePermission resource="projects" action="view">
+              </RequirePermission>
+            }
+          />
+
+          <Route
+            path="projects/retailer"
+            element={
+              <RequirePermission resource="projects" action="view">
+              </RequirePermission>
+            }
+          />
+
 
           <Route
             path="on-field"

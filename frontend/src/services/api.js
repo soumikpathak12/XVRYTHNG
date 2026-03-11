@@ -1333,6 +1333,18 @@ export async function getEmployee(id, params = {}) {
   return data; // { success:true, data:{...} }
 }
 
+export async function getCompanyEmployees(params = {}) {
+  const q = new URLSearchParams();
+  if (params.companyId) q.set('companyId', String(params.companyId));
+
+  const res = await authFetch(`/api/employees${q.toString() ? `?${q}` : ''}`, {
+    method: 'GET'
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message ?? 'Failed to load employees');
+  return data; // { success:true, data:[...] }
+}
 
 // PUT /api/employees/:id (?companyId= for super_admin)
 export async function updateEmployee(id, payload, params = {}) {
@@ -1610,4 +1622,90 @@ export async function deleteTrialUser(id) {
     throw err;
   }
   return data; // { success:true, message:'Trial user deleted.' }
+}
+
+
+
+export async function getProjects(params = {}) {
+  const q = new URLSearchParams();
+  if (params.stage) q.set('stage', params.stage);
+  if (params.search) q.set('search', params.search);
+  if (typeof params.limit === 'number') q.set('limit', String(params.limit));
+  if (typeof params.offset === 'number') q.set('offset', String(params.offset));
+  const url = `/api/projects${q.toString() ? `?${q.toString()}` : ''}`;
+
+  const res = await authFetch(url, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to load projects');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data; // { success:true, data:[...] }
+}
+
+export async function updateProjectStage(projectId, stage) {
+  const res = await authFetch(`/api/projects/${encodeURIComponent(projectId)}/stage`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stage }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to update project stage');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data; // { success:true, data:{...project} }
+}
+
+
+
+export async function getProjectInspection(projectId) {
+  const res = await authFetch(`/api/projects/${encodeURIComponent(projectId)}/inspection`, {
+    method: 'GET',
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to load site inspection');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data; // { success:true, data: {...} | null }
+}
+
+
+
+export async function saveProjectScheduleAssign(projectId, payload) {
+  const res = await authFetch(`/api/projects/${encodeURIComponent(projectId)}/schedule-assign`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload), // { status, date, time, assignees, notes? }
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to save schedule & assignees');
+    err.status = res.status; err.body = data;
+    throw err;
+  }
+  return data; // { success:true, data:{ schedule?, assignees? } }
+}
+
+
+
+
+export async function getProjectScheduleAssign(projectId) {
+  const res = await authFetch(`/api/projects/${encodeURIComponent(projectId)}/schedule-assign`, {
+    method: 'GET',
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to load project schedule');
+    err.status = res.status; err.body = data;
+    throw err;
+  }
+  return data;
 }

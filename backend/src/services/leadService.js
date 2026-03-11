@@ -1,4 +1,3 @@
-// src/services/leadsService.js
 import db from '../config/db.js';
 
 const STAGES = new Set([
@@ -89,7 +88,17 @@ export async function createLead(payload) {
     err.statusCode = 500;
     throw err;
   }
-  return rows[0];
+
+  const created = rows[0];
+  if (created.is_won) {
+    try {
+      await ensureProjectForLead(created.id);
+    } catch (e) {
+      console.error('ensureProjectForLead after createLead failed:', e);
+    }
+  }
+
+  return created;
 }
 
 /**
@@ -183,7 +192,6 @@ export async function getLeadsByDateRange(startDate, endDate) {
   }
   const startDt = `${startDate} 00:00:00`;
 
-  // endNext = endDate + 1
   const endNext = new Date(endDate + 'T12:00:00Z');
   endNext.setUTCDate(endNext.getUTCDate() + 1);
   const endNextStr = endNext.toISOString().slice(0, 10);
@@ -300,13 +308,13 @@ export async function updateLead(leadId, payload) {
   const updates = [];
   const params = [];
 
-  // Stage (nếu hợp lệ)
+  // Stage (if valid)
   if (stage !== undefined && STAGES.has(stage)) {
     const { is_closed, is_won } = deriveFlags(stage);
     updates.push('stage = ?', 'is_closed = ?', 'is_won = ?');
     params.push(stage, is_closed ? 1 : 0, is_won ? 1 : 0);
 
-    // ✅ set contacted_at khi vào contacted (nếu chưa có)
+    // set contacted_at when entering 'contacted' (if null)
     updates.push(
       'contacted_at = CASE WHEN ? = "contacted" AND contacted_at IS NULL THEN NOW() ELSE contacted_at END'
     );
@@ -395,7 +403,7 @@ export async function updateLead(leadId, payload) {
     params.push(payload.meter_number ?? null);
   }
 
-  // Không có gì để cập nhật -> trả về hiện trạng
+  // No fields to update -> return current row
   if (updates.length === 0) {
     const [updated] = await db.execute('SELECT * FROM leads WHERE id = ? LIMIT 1', [leadId]);
     return updated[0];
@@ -437,7 +445,7 @@ export async function updateLeadStage(leadId, nextStage) {
   const enteringClosed = !current.is_closed && is_closed;
   const leavingClosed = current.is_closed && !is_closed;
 
-  let wonLostSql = 'won_lost_at = won_lost_at'; // default: unchanged
+  let wonLostSql = 'won_lost_at = won_lost_at';
   if (enteringClosed) {
     wonLostSql = 'won_lost_at = NOW()';
   } else if (leavingClosed) {
@@ -461,7 +469,20 @@ export async function updateLeadStage(leadId, nextStage) {
 
   await db.execute(sql, params);
   const [updated] = await db.execute('SELECT * FROM leads WHERE id = ? LIMIT 1', [leadId]);
-  return updated[0];
+  const lead = updated[0];
+
+  let project = null;
+  if (nextStage === 'closed_won') {
+    try {
+      project = await ensureProjectForLead(leadId);
+    } catch (e) {
+      console.error('ensureProjectForLead after updateLeadStage failed:', e);
+    }
+  }
+  if (project?.id && !lead.project_id) {
+    lead.project_id = project.id;
+  }
+  return lead;
 }
 
 /** -------------------- NOTES -------------------- */
@@ -471,14 +492,12 @@ export async function addLeadNote(leadId, { body, followUpAt = null, createdBy =
     err.statusCode = 400;
     throw err;
   }
-  // Ensure lead exists
   const [rows] = await db.execute('SELECT id FROM leads WHERE id = ? LIMIT 1', [leadId]);
   if (!rows?.[0]) {
     const err = new Error('Lead not found');
     err.statusCode = 404;
     throw err;
   }
-
   const sql = `
     INSERT INTO lead_notes (lead_id, body, follow_up_at, created_by)
     VALUES (?, ?, ?, ?)
@@ -490,10 +509,7 @@ export async function addLeadNote(leadId, { body, followUpAt = null, createdBy =
     err.statusCode = 500;
     throw err;
   }
-
-  // Touch last_activity_at on the lead
   await db.execute('UPDATE leads SET last_activity_at = NOW() WHERE id = ?', [leadId]);
-
   const insertedId = ins.insertId;
   const [noteRows] = await db.execute(
     'SELECT id, lead_id, body, follow_up_at, created_by, created_at FROM lead_notes WHERE id = ? LIMIT 1',
@@ -532,7 +548,6 @@ export async function getLeadById(leadId) {
     throw err;
   }
 
-  // Pull notes as activities for the timeline
   const notes = await getLeadNotes(leadId);
   const activities = notes.map((n) => ({
     id: `note-${n.id}`,
@@ -542,7 +557,6 @@ export async function getLeadById(leadId) {
     body: n.body + (n.follow_up_at ? `\n\nNext follow-up: ${String(n.follow_up_at).slice(0, 10)}` : ''),
   }));
 
-  // If this lead was referred by a customer, fetch referrer info for CRM display
   let referredBy = null;
   const refLeadId = lead.referred_by_lead_id;
   if (refLeadId != null && Number(refLeadId)) {
@@ -569,7 +583,6 @@ export async function getLeadById(leadId) {
   };
 }
 
-// --- add to src/services/leadService.js ---
 export async function countLeads({ stage, search } = {}) {
   const where = [];
   const args = [];
@@ -591,4 +604,38 @@ export async function countLeads({ stage, search } = {}) {
   `;
   const [rows] = await db.execute(sql, args);
   return rows?.[0]?.total ?? 0;
+}
+
+async function ensureProjectForLead(leadId) {
+  const [rows] = await db.execute(
+    'SELECT id, customer_name, email, phone, suburb, system_size_kw, value_amount FROM leads WHERE id = ? LIMIT 1',
+    [leadId]
+  );
+  const lead = rows?.[0];
+  if (!lead) {
+    const err = new Error('Lead not found for project creation');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const sqlInsert = `
+    INSERT INTO projects (lead_id, stage, customer_name, email, phone, suburb, system_size_kw, value_amount)
+    VALUES (?, 'new', ?, ?, ?, ?, ?, ?)
+  `;
+  try {
+    await db.execute(sqlInsert, [
+      lead.id,
+      lead.customer_name,
+      lead.email ?? null,
+      lead.phone ?? null,
+      lead.suburb ?? null,
+      lead.system_size_kw == null ? null : Number(lead.system_size_kw),
+      lead.value_amount == null ? null : Number(lead.value_amount),
+    ]);
+  } catch (e) {
+    if (e.code !== 'ER_DUP_ENTRY') throw e;
+  }
+
+  const [projRows] = await db.execute('SELECT * FROM projects WHERE lead_id = ? LIMIT 1', [leadId]);
+  return projRows?.[0] ?? null;
 }
