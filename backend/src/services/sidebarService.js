@@ -34,6 +34,9 @@ export async function getSidebarForUserRoleOnly(userId, companyId = null) {
       [job_role_id]
     );
     (mods ?? []).forEach(m => allowSet.add(m.module_key));
+    allowSet.add('attendance'); // Add attendance for all employees
+    allowSet.add('leave');     // Add leave for all employees
+    allowSet.add('expenses'); // Add expenses for all employees
   }
 
   if (role === 'company_admin' || role === 'manager') {

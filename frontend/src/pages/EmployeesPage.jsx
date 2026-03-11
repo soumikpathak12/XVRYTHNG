@@ -23,7 +23,6 @@ import {
 import OverviewStatCards from '../components/employees/OverviewStatCards.jsx';
 import FiltersBar from '../components/employees/FiltersBar.jsx';
 import QuickCheckIn from '../components/employees/QuickCheckIn.jsx';
-import PendingLeaveList from '../components/employees/PendingLeaveList.jsx';
 
 /* ----------------------------- Small UI bits ----------------------------- */
 function Badge({ children, tone = 'success' }) {
@@ -47,10 +46,9 @@ function Badge({ children, tone = 'success' }) {
         borderRadius: 999,
         fontSize: 12,
         fontWeight: 700,
-        textTransform: 'lowercase',
       }}
     >
-      {String(children).toLowerCase()}
+      {children}
     </span>
   );
 }
@@ -651,12 +649,10 @@ export default function EmployeesPage() {
             <thead>
               <tr>
                 <th style={tableHeadStyle}>Employee</th>
-                <th style={tableHeadStyle}>Code</th>
                 <th style={tableHeadStyle}>Role</th>
                 <th style={tableHeadStyle}>Department</th>
                 <th style={tableHeadStyle}>Contact</th>
                 <th style={tableHeadStyle}>Status</th>
-                <th style={tableHeadStyle}>Last check-in</th>
                 <th style={tableHeadStyle}>Actions</th>
               </tr>
             </thead>
@@ -665,13 +661,14 @@ export default function EmployeesPage() {
                 <tr key={r.id}>
                   <td style={cellStyle}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ width: 28, height: 28, borderRadius: 999, background: '#E5E7EB' }} />
-                      <div style={{ fontWeight: 800 }}>
-                        {(r.first_name ?? '') + ' ' + (r.last_name ?? '')}
+                      <div>
+                        <div style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                          {(r.first_name ?? '') + ' ' + (r.last_name ?? '')}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#9CA3AF' }}>{r.employee_code ?? ''}</div>
                       </div>
                     </div>
                   </td>
-                  <td style={cellStyle}>{r.employee_code ?? '-'}</td>
                   <td style={cellStyle}>{r.role ?? '-'}</td>
                   <td style={cellStyle}>{r.department ?? '-'}</td>
                   <td style={cellStyle}>
@@ -680,51 +677,45 @@ export default function EmployeesPage() {
                   </td>
                   <td style={cellStyle}>
                     <Badge tone={r.status === 'active' ? 'success' : r.status === 'on_leave' ? 'warning' : 'gray'}>
-                      {r.status}
+                      {(r.status ?? '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
                     </Badge>
                   </td>
-                  <td style={cellStyle}>—</td>
-                  <td style={cellStyle}>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      
-                     
+                  <td style={{ ...cellStyle, whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'nowrap', alignItems: 'center' }}>
                       <button
-                         onClick={() => navigate(`${r.id}${qs}`, { relative: 'path' })}
-                         style={{
-                           padding: '6px 10px', height: 32, lineHeight: '20px',
-                           background: '#fff', color: '#374151', border: '1px solid #D1D5DB',
-                           borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer',
-                         }}
-                         title="View Profile"
-                       >
-                         View Profile
-                     </button>
-
+                        onClick={() => navigate(`${r.id}${qs}`, { relative: 'path' })}
+                        style={{
+                          padding: '5px 10px',
+                          background: '#fff', color: '#374151', border: '1px solid #D1D5DB',
+                          borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap',
+                        }}
+                      >
+                        View
+                      </button>
 
                       <button
                         onClick={() => openEditModal(r.id)}
                         style={{
-                          padding: '6px 10px', height: 32, lineHeight: '20px',
-                          background: '#fff', color: brand, border: '1px solid #8fb3b3',
-                          borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer',
+                          padding: '5px 10px',
+                          background: '#fff', color: brand, border: `1px solid ${brand}`,
+                          borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap',
                         }}
                       >
                         Edit
                       </button>
 
                       {r.user_id ? (
-                        <Badge tone="info">has login</Badge>
+                        <Badge tone="info">Login ✓</Badge>
                       ) : (
                         <button
                           onClick={() => openCreateLogin(r.id)}
                           style={{
-                            padding: '6px 10px', height: 32, lineHeight: '20px',
+                            padding: '5px 10px',
                             background: '#fff', color: '#1D4ED8', border: '1px solid #93C5FD',
-                            borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer',
+                            borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap',
                           }}
-                          title="Create Login"
                         >
-                          Create Login
+                          + Login
                         </button>
                       )}
 
@@ -732,16 +723,15 @@ export default function EmployeesPage() {
                         <button
                           onClick={() => handleDeactivate(r.id)}
                           style={{
-                            padding: '6px 10px', height: 32, lineHeight: '20px',
-                            background: '#fff', color: '#B91C1C', border: '1px solid #FCA5A5',
-                            borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer',
+                            padding: '5px 10px',
+                            background: '#FEF2F2', color: '#B91C1C', border: '1px solid #FCA5A5',
+                            borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap',
                           }}
-                          title="Deactivate"
                         >
                           Deactivate
                         </button>
                       ) : (
-                        <Badge tone="gray">(inactive)</Badge>
+                        <Badge tone="gray">Inactive</Badge>
                       )}
                     </div>
                   </td>
@@ -749,7 +739,7 @@ export default function EmployeesPage() {
               ))}
               {filtered.length === 0 && !loading && (
                 <tr>
-                  <td style={{ ...cellStyle, color: '#6B7280' }} colSpan={8}>
+                  <td style={{ ...cellStyle, color: '#6B7280' }} colSpan={6}>
                     (no data)
                   </td>
                 </tr>
@@ -768,7 +758,6 @@ export default function EmployeesPage() {
           }}
           brand={brand}
         />
-        <PendingLeaveList brand={brand} />
       </div>
 
       

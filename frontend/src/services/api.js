@@ -318,7 +318,7 @@ export async function authFetch(url, options = {}) {
   return res;
 }
 
-async function authFetchJSON(url, options = {}) {
+export async function authFetchJSON(url, options = {}) {
   const res = await authFetch(url, options);
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {

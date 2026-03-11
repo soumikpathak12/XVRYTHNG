@@ -13,6 +13,8 @@ import {
   Building2,
   Gift,
   LayoutDashboard,
+  PalmtreeIcon,
+  Receipt,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getCompanySidebar } from '../../services/api.js';
@@ -27,6 +29,8 @@ const EMP_MODULE_NAV = {
   messages:   { to: '/employee/messages',   label: 'Messages',       icon: MessageSquare },
   settings:   { to: '/employee/settings',   label: 'Settings',       icon: Settings },
   attendance: { to: '/employee/attendance', label: 'Attendance',     icon: ClipboardList },
+  leave:      { to: '/employee/leave',      label: 'Leave',          icon: PalmtreeIcon },
+  expenses:   { to: '/employee/expenses',   label: 'Expenses',       icon: Receipt },
   operations: { to: '/employee/operations', label: 'Operations',     icon: Briefcase },
   projects:   { to: '/employee/projects',   label: 'Projects',       icon: Building2 },
   referrals:  { to: '/employee/referrals',  label: 'Referrals',      icon: Gift },
