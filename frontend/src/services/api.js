@@ -1709,3 +1709,167 @@ export async function getProjectScheduleAssign(projectId) {
   }
   return data;
 }
+
+// ==============================
+// Retailer Projects (new table)
+// ==============================
+
+/**
+ * Fetch retailer projects list with optional filters.
+ * - Accepts: { search?: string, stage?: string, limit?: number, offset?: number }
+ * - Returns: { success: true, data: [...] }
+ *
+ * The querystring format matches your existing getProjects() style.
+ */
+export async function getRetailerProjects(params = {}) {
+  // Build querystring from params (keeps parity with getProjects)
+  const q = new URLSearchParams();
+  if (params.stage) q.set('stage', params.stage);
+  if (params.search) q.set('search', params.search);
+  if (typeof params.limit === 'number') q.set('limit', String(params.limit));
+  if (typeof params.offset === 'number') q.set('offset', String(params.offset));
+
+  // Compose URL based on whether querystring is empty or not
+  const url = `/api/retailer-projects${q.toString() ? `?${q.toString()}` : ''}`;
+
+  // Use the same authFetch wrapper already used across your app
+  const res = await authFetch(url, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+
+  // Normalize error handling to your existing convention
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to load retailer projects');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data; // { success:true, data:[...] }
+}
+
+/**
+ * Create a new retailer project.
+ * - Payload: {
+ *     customer_name: string (required),
+ *     stage?: string ('new' by default),
+ *     address?: string | null,
+ *     suburb?: string | null,
+ *     system_size_kw?: number | null,
+ *     value_amount?: number | null,
+ *     notes?: string | null
+ *   }
+ * - Backend will auto-generate `code` (e.g., PRJ-01) from the new row's auto-increment id.
+ * - Returns: { success:true, data:{ ...createdRowWithCode } }
+ */
+export async function createRetailerProject(payload) {
+  const res = await authFetch('/api/retailer-projects', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    // IMPORTANT: Keep the payload keys as backend expects (snake_case)
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to create retailer project');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data; // { success:true, data:{...} }
+}
+
+/**
+ * Update retailer project's stage by id.
+ * - Args: (projectId: number|string, stage: string)
+ * - Returns: { success:true, data:{ ...updatedRow } }
+ *
+ * NOTE: Stages should match the 14-stage pipeline keys:
+ *   'new', 'site_inspection', 'stage_one', 'stage_two', 'full_system',
+ *   'cancelled', 'scheduled', 'to_be_rescheduled', 'installation_in_progress',
+ *   'installation_completed', 'ces_certificate_applied', 'ces_certificate_received',
+ *   'ces_certificate_submitted', 'done'
+ */
+export async function updateRetailerProjectStage(projectId, stage) {
+  const res = await authFetch(`/api/retailer-projects/${encodeURIComponent(projectId)}/stage`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stage }),
+  });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to update retailer project stage');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data; // { success:true, data:{...} }
+}
+
+export async function getRetailerProjectSchedule(projectId) {
+  const res = await authFetch(`/api/retailer-projects/${encodeURIComponent(projectId)}/schedule`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to load retailer project schedule');
+    err.status = res.status; err.body = data; throw err;
+  }
+  return data;
+}
+
+/**
+ * Save/Upsert retailer project schedule.
+ * Payload: { job_type, date, time?, notes?, assignees? }
+ * Returns: { success:true, data:{ schedule } }
+ */
+export async function saveRetailerProjectSchedule(projectId, payload) {
+  const res = await authFetch(`/api/retailer-projects/${encodeURIComponent(projectId)}/schedule`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to save retailer project schedule');
+    err.status = res.status; err.body = data; throw err;
+  }
+  return data;
+}
+
+export async function getRetailerProjectAssignees(projectId) {
+  const res = await authFetch(`/api/retailer-projects/${encodeURIComponent(projectId)}/assignees`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to load assignees'); err.status = res.status; err.body = data; throw err;
+  }
+  return data; // { success, data: { assignees: number[] } }
+}
+
+export async function saveRetailerProjectAssignees(projectId, assignees) {
+  const res = await authFetch(`/api/retailer-projects/${encodeURIComponent(projectId)}/assignees`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ assignees }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to save assignees'); err.status = res.status; err.body = data; throw err;
+  }
+  return data; // { success, data: { assignees: number[] } }
+}
+
+
+export async function getPmDashboard(params = {}) {
+  const usp = new URLSearchParams(params).toString();
+  const res = await authFetch(`/api/pm-dashboard?${usp}`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { const err = new Error(data.message || 'Failed to load PM dashboard'); err.status = res.status; throw err; }
+  return data; // { success, data: {...} }
+}
+
+export async function getPmDashboardDrilldown(params = {}) {
+  const usp = new URLSearchParams(params).toString();
+  const res = await authFetch(`/api/pm-dashboard/drilldown?${usp}`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { const err = new Error(data.message || 'Failed to load drilldown'); err.status = res.status; throw err; }
+  return data; // { success, data: [...] }
+}

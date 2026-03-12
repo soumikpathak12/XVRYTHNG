@@ -3,54 +3,49 @@ import React, { useMemo, useState, useRef, useEffect } from 'react';
 import KanbanColumn from '../leads/KanbanColumn.jsx';
 import ProjectCard from './ProjectCard.jsx';
 
-// ---- Project pipeline stages (12 columns in display order) ----
-export const PROJECT_STAGES = [
-  { key: 'new',                        label: 'New' },
-  { key: 'pre_approval',               label: 'Pre-Approval' },
-  { key: 'state_rebate',               label: 'State Rebate' },
-  { key: 'design_engineering',         label: 'Design & Engineering' },
-  { key: 'procurement',                label: 'Procurement' },
-  { key: 'scheduled',                  label: 'Scheduled' },
-  { key: 'installation_in_progress',   label: 'Installation In Progress' },
-  { key: 'installation_completed',     label: 'Installation Completed' },
-  { key: 'compliance_check',           label: 'Compliance Check' },
+// ---- DEFAULT project pipeline stages (12 columns – existing board) ----
+export const DEFAULT_PROJECT_STAGES = [
+  { key: 'new', label: 'New' },
+  { key: 'pre_approval', label: 'Pre-Approval' },
+  { key: 'state_rebate', label: 'State Rebate' },
+  { key: 'design_engineering', label: 'Design & Engineering' },
+  { key: 'procurement', label: 'Procurement' },
+  { key: 'scheduled', label: 'Scheduled' },
+  { key: 'installation_in_progress', label: 'Installation In Progress' },
+  { key: 'installation_completed', label: 'Installation Completed' },
+  { key: 'compliance_check', label: 'Compliance Check' },
   { key: 'inspection_grid_connection', label: 'Inspection & Grid Connection' },
-  { key: 'rebate_stc_claims',          label: 'Rebate & STC Claims' },
-  { key: 'project_completed',          label: 'Project Completed' },
+  { key: 'rebate_stc_claims', label: 'Rebate & STC Claims' },
+  { key: 'project_completed', label: 'Project Completed' },
 ];
 
 const COL_WIDTH = 300;
 const COL_GAP = 20;
 const BOARD_PADDING = 28;
 
-const LEGACY_TO_NEW_STAGE_KEY = {
-  new: 'new',
-  pre_approval: 'pre_approval',
-  design_engineering: 'design_engineering',
-  scheduled: 'scheduled',
-  installation_in_progress: 'installation_in_progress',
-  installation_completed: 'installation_completed',
-  rebate_stc_claims: 'rebate_stc_claims',
-  project_completed: 'project_completed',
+function makeStageSet(stages) {
+  return new Set((stages ?? []).map((s) => s.key));
+}
 
-  
-};
-
-const STAGE_KEYS_SET = new Set(PROJECT_STAGES.map(s => s.key));
-
-function normalizeStageKey(input) {
+function normalizeStageKey(input, stageSet, legacyMap) {
   if (!input) return null;
-  if (STAGE_KEYS_SET.has(input)) return input;
-  const mapped = LEGACY_TO_NEW_STAGE_KEY[input];
-  return STAGE_KEYS_SET.has(mapped) ? mapped : null;
+  if (stageSet.has(input)) return input;
+  const mapped = legacyMap?.[input];
+  return stageSet.has(mapped) ? mapped : null;
 }
 
 export default function ProjectsKanbanBoard({
   projects = [],
+  stages,            // NEW: optional custom stages list
+  legacyStageMap,    // NEW: optional mapping from legacy -> new keys
   onStageChange,
   onFocusSearch,
   onSelectProject,
 }) {
+  const PROJECT_STAGES = stages && stages.length ? stages : DEFAULT_PROJECT_STAGES;
+  const STAGE_KEYS_SET = makeStageSet(PROJECT_STAGES);
+  const LEGACY_TO_NEW_STAGE_KEY = legacyStageMap ?? {};
+
   const [dragItem, setDragItem] = useState(null);
   const scrollRef = useRef(null);
   const [scrollState, setScrollState] = useState({ canScrollLeft: false, canScrollRight: false });
@@ -60,12 +55,12 @@ export default function ProjectsKanbanBoard({
   const byStage = useMemo(() => {
     const map = Object.fromEntries(PROJECT_STAGES.map((s) => [s.key, []]));
     for (const p of projects) {
-      const normalized = normalizeStageKey(p.stage);
+      const normalized = normalizeStageKey(p.stage, STAGE_KEYS_SET, LEGACY_TO_NEW_STAGE_KEY);
       const key = normalized && map[normalized] ? normalized : 'new';
       map[key].push(p);
     }
     return map;
-  }, [projects]);
+  }, [projects, PROJECT_STAGES, STAGE_KEYS_SET, LEGACY_TO_NEW_STAGE_KEY]);
 
   // Drag handlers
   function handleDragStart(e, item) {
@@ -119,7 +114,7 @@ export default function ProjectsKanbanBoard({
       el.removeEventListener('scroll', updateScrollState);
       ro.disconnect();
     };
-  }, [projects]);
+  }, [projects, PROJECT_STAGES.length]);
 
   // Smooth scroll to a column and brief highlight
   const [highlightedStage, setHighlightedStage] = useState(null);
@@ -215,19 +210,17 @@ export default function ProjectsKanbanBoard({
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}
                 onFocusSearch={onFocusSearch}
-                // NOTE: reusing onSelectLead prop name to avoid changing KanbanColumn API
                 onSelectLead={onSelectProject}
-                // Render ProjectCard instead of the default LeadCard
                 renderItem={(item, handlers) => (
                   <ProjectCard
                     data={{
                       id: item.id,
                       customerName: item.customerName,
-                      address: item.address,               
-                      systemSummary: item.systemSummary,  
-                      value: item.value,                   
-                      marginPct: item.marginPct,          
-                      assignees: item.assignees,         
+                      address: item.address,
+                      systemSummary: item.systemSummary,
+                      value: item.value,
+                      marginPct: item.marginPct,
+                      assignees: item.assignees,
                     }}
                     {...handlers}
                   />

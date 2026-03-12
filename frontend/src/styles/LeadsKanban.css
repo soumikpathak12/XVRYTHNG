@@ -1013,3 +1013,86 @@
     background: #f0fdfa;
     border-color: #99f6e4;
 }
+/* =============================================
+   Centered Modal (Backdrop + Card)
+   ============================================= */
+
+/* Fullscreen backdrop with blur + dim */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2300;                         /* above board/header */
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(2px);            /* subtle background blur */
+  display: flex;
+  align-items: center;                   /* center vertically */
+  justify-content: center;               /* center horizontally */
+  padding: 20px;                         /* allow margins on small screens */
+}
+
+/* Modal card container */
+.modal-card {
+  width: 760px;                          /* similar to the screenshot */
+  max-width: 96vw;
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.35);
+  overflow: hidden;
+  transform: translateY(6px);
+  animation: modalIn 140ms ease-out forwards;
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.995); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Modal header */
+.modal-header {
+  position: sticky; top: 0; z-index: 1;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px;
+  padding: 14px 18px;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+}
+.modal-header h2 {
+  margin: 0; font-size: 1rem; font-weight: 700; color: #0f172a;
+}
+.modal-close-btn {
+  border: none; background: #f1f5f9; color: #0f172a;
+  width: 28px; height: 28px; border-radius: 8px; cursor: pointer;
+}
+.modal-close-btn:hover { background: #e2e8f0; }
+
+/* Modal body */
+.modal-body {
+  padding: 16px 18px;
+  overflow: auto;                        /* independent scroll inside card */
+  display: grid; gap: 12px;
+  background: #fff;
+}
+
+/* Modal footer */
+.modal-footer {
+  display: flex; justify-content: flex-end; gap: 12px;
+  padding: 12px 18px; background: #fff; border-top: 1px solid #e5e7eb;
+}
+
+/* Optional: reuse existing primary/secondary button styles if any */
+.leads-save-btn {
+  background: #0d9488; border: 1px solid #0d9488; color: #fff;
+  padding: 10px 14px; border-radius: 10px; font-weight: 600; cursor: pointer;
+}
+.leads-save-btn:hover { background: #0f766e; border-color: #0f766e; }
+.leads-save-btn:disabled { opacity: .6; cursor: not-allowed; }
+
+.leads-cancel-btn {
+  background: #fff; border: 1px solid #e2e8f0; color: #0f172a;
+  padding: 10px 14px; border-radius: 10px; font-weight: 600; cursor: pointer;
+}
+.leads-cancel-btn:hover { background: #f8fafc; }

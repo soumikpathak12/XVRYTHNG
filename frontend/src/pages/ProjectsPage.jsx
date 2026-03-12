@@ -1,26 +1,23 @@
 // src/pages/ProjectsPage.jsx
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import ProjectsKanbanBoard from '../components/projects/ProjectsKanbanBoard.jsx';
+import ProjectsKanbanBoard, { DEFAULT_PROJECT_STAGES } from '../components/projects/ProjectsKanbanBoard.jsx';
 import ProjectDetailsPanel from '../components/projects/ProjectDetailsPanel.jsx';
 import ProjectsTable from '../components/projects/ProjectsTable.jsx';
 import ProjectsCalendar from '../components/projects/ProjectCalendar.jsx';
-
 import {
   getProjects,
   updateProjectStage,
   getProjectInspection,
   getCompanyEmployees,
   saveProjectScheduleAssign,
-  getProjectScheduleAssign, //
+  getProjectScheduleAssign,
 } from '../services/api.js';
-
 import '../styles/LeadsKanban.css';
 
 function normalizeProject(row) {
   const sizeKw = row.lead_system_size_kw ?? row.system_size_kw;
   const sysType = row.lead_system_type ?? row.system_type;
   const value = row.lead_value_amount ?? row.value_amount ?? row.value;
-
   let systemSummary;
   if (sizeKw != null && !Number.isNaN(Number(sizeKw))) {
     const kw = Number(sizeKw);
@@ -28,13 +25,10 @@ function normalizeProject(row) {
   } else if (row.systemSummary) {
     systemSummary = row.systemSummary;
   }
-
   const suburb = row.lead_suburb ?? row.suburb ?? '';
-  const source = row.lead_source ?? row.source ?? ''; 
+  const source = row.lead_source ?? row.source ?? '';
   const lastActivity = row.lead_last_activity_at ?? row.last_activity_at ?? row.updated_at ?? null;
-
   const address = row.address ?? row.lead_suburb ?? row.suburb ?? undefined;
-
   return {
     id: row.id,
     stage: row.stage,
@@ -72,7 +66,6 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [searchStage, setSearchStage] = useState(null);
-
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
   const [inspection, setInspection] = useState(null);
@@ -81,7 +74,6 @@ export default function ProjectsPage() {
   // NEW: Calendar state for schedules
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [scheduleMap, setScheduleMap] = useState(new Map()); // Map<projectId, { scheduled_at, status?, notes? }>
-
   const searchInputRef = useRef(null);
 
   // View state (kanban/table/calendar)
@@ -117,21 +109,25 @@ export default function ProjectsPage() {
   const filteredProjects = useMemo(() => projects, [projects]);
 
   const handleStageChange = useCallback(async (projectId, nextStage) => {
-    setProjects(prev =>
-      prev.map(p => (String(p.id) === String(projectId) ? { ...p, stage: nextStage, _reverting: p.stage } : p))
+    setProjects((prev) =>
+      prev.map((p) =>
+        String(p.id) === String(projectId) ? { ...p, stage: nextStage, _reverting: p.stage } : p
+      )
     );
     try {
       await updateProjectStage(projectId, nextStage);
     } catch (err) {
-      setProjects(prev =>
-        prev.map(p =>
-          String(p.id) === String(projectId) ? { ...p, stage: p._reverting ?? p.stage, _reverting: undefined } : p
+      setProjects((prev) =>
+        prev.map((p) =>
+          String(p.id) === String(projectId)
+            ? { ...p, stage: p._reverting ?? p.stage, _reverting: undefined }
+            : p
         )
       );
       setToast(err.message || 'Failed to update stage');
       setTimeout(() => setToast(''), 3000);
     } finally {
-      setProjects(prev => prev.map(p => ({ ...p, _reverting: undefined })));
+      setProjects((prev) => prev.map((p) => ({ ...p, _reverting: undefined })));
     }
   }, []);
 
@@ -141,9 +137,8 @@ export default function ProjectsPage() {
   }, []);
 
   const openDetails = useCallback(async (id) => {
-    const p = projects.find(x => String(x.id) === String(id));
+    const p = projects.find((x) => String(x.id) === String(id));
     if (!p) return;
-
     setSelectedProject(p);
     setDetailsOpen(true);
     setInspection(null);
@@ -179,13 +174,24 @@ export default function ProjectsPage() {
       if (empResp.status === 'fulfilled') {
         const { value } = empResp;
         const rows = Array.isArray(value?.data) ? value.data : [];
-        const mapped = rows.map(r => {
+        const mapped = rows.map((r) => {
           const builtName = [r.first_name, r.last_name].filter(Boolean).join(' ').trim();
-          const name = (r.full_name && r.full_name.trim()) || builtName || r.email || r.employee_code || 'Unknown';
+          const name =
+            (r.full_name && r.full_name.trim()) ||
+            builtName ||
+            r.email ||
+            r.employee_code ||
+            'Unknown';
           const safeInitials =
             r.initials ||
             (name
-              ? name.split(/\s+/).filter(Boolean).map(s => s[0]).join('').slice(0, 3).toUpperCase()
+              ? name
+                  .split(/\s+/)
+                  .filter(Boolean)
+                  .map((s) => s[0])
+                  .join('')
+                  .slice(0, 3)
+                  .toUpperCase()
               : 'NA');
           return { id: r.id, name, initials: safeInitials };
         });
@@ -203,11 +209,12 @@ export default function ProjectsPage() {
   const handleSaveSchedule = useCallback(async ({ id, status, date, time, assignees, notes }) => {
     try {
       await saveProjectScheduleAssign(id, { status, date, time, assignees, notes });
-      const current = projects.find(p => String(p.id) === String(id))?.stage;
+
+      const current = projects.find((p) => String(p.id) === String(id))?.stage;
       if (status && current && status !== current) {
         // Optimistic UI + keep _raw.stage in sync
-        setProjects(prev =>
-          prev.map(p =>
+        setProjects((prev) =>
+          prev.map((p) =>
             String(p.id) === String(id)
               ? { ...p, stage: status, _raw: { ...(p._raw ?? {}), stage: status } }
               : p
@@ -216,8 +223,8 @@ export default function ProjectsPage() {
         try {
           await updateProjectStage(id, status);
         } catch (err) {
-          setProjects(prev =>
-            prev.map(p =>
+          setProjects((prev) =>
+            prev.map((p) =>
               String(p.id) === String(id)
                 ? { ...p, stage: current, _raw: { ...(p._raw ?? {}), stage: current } }
                 : p
@@ -232,7 +239,7 @@ export default function ProjectsPage() {
           const resp = await getProjectScheduleAssign(id);
           const payload = resp?.data ?? resp ?? {};
           const schedule = payload.schedule ?? null;
-          setScheduleMap(prev => {
+          setScheduleMap((prev) => {
             const next = new Map(prev);
             if (schedule?.scheduled_at) {
               next.set(id, {
@@ -267,14 +274,14 @@ export default function ProjectsPage() {
   /** Export projects to CSV (basic) – visible in table view */
   const exportProjectsCsv = useCallback(() => {
     const headers = ['Customer', 'Stage', 'Address', 'System', 'Value'];
-    const rows = filteredProjects.map(p => [
+    const rows = filteredProjects.map((p) => [
       p.customerName || '',
       p.stage || '',
       p.address || '',
       p.systemSummary || '',
       p.value != null ? String(p.value) : '',
     ]);
-    const csv = [headers.join(','), ...rows.map(r => r.map(s => {
+    const csv = [headers.join(','), ...rows.map((r) => r.map((s) => {
       const v = (s ?? '').toString();
       return /[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
     }).join(','))].join('\n');
@@ -291,12 +298,11 @@ export default function ProjectsPage() {
   useEffect(() => {
     if (view !== 'calendar') return;
     let alive = true;
-
     (async () => {
       try {
         setCalendarLoading(true);
         const results = await Promise.allSettled(
-          projects.map(p => getProjectScheduleAssign(p.id))
+          projects.map((p) => getProjectScheduleAssign(p.id))
         );
         const next = new Map();
         results.forEach((res, idx) => {
@@ -320,13 +326,12 @@ export default function ProjectsPage() {
         if (alive) setCalendarLoading(false);
       }
     })();
-
     return () => { alive = false; };
   }, [projects, view]);
 
   const calendarProjects = useMemo(() => {
     if (!scheduleMap || scheduleMap.size === 0) return [];
-    return projects.filter(p => !!scheduleMap.get(p.id)?.scheduled_at);
+    return projects.filter((p) => !!scheduleMap.get(p.id)?.scheduled_at);
   }, [projects, scheduleMap]);
 
   return (
@@ -446,6 +451,7 @@ export default function ProjectsPage() {
         ) : (
           <ProjectsKanbanBoard
             projects={filteredProjects}
+            // Using DEFAULT_PROJECT_STAGES (12 columns) implicitly
             onStageChange={handleStageChange}
             onFocusSearch={focusSearch}
             onSelectProject={(id) => openDetails(id)}

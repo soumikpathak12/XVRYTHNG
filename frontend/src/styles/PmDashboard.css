@@ -1,0 +1,40 @@
+.pmdb-page { padding: 16px; display: grid; gap: 16px; }
+.pmdb-header { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; }
+.pmdb-filters { display:flex; gap:8px; }
+.pmdb-loading { padding: 24px; }
+.pmdb-alert { padding:10px 12px; border-radius:8px; font-weight:600; }
+.pmdb-alert--error { background:#DC3545; color:#fff; }
+
+.pmdb-cards { display:grid; grid-template-columns: repeat(4, 1fr); gap:12px; }
+.pmdb-metric { text-align:left; border:1px solid #e5e7eb; background:#fff; border-radius:12px; padding:12px; cursor:pointer; }
+.pmdb-metric:hover { outline:2px solid #1A7B7B22; }
+.pmdb-metric-title { color:#555; font-weight:700; }
+.pmdb-metric-value { font-size:24px; font-weight:800; color:#1A1A2E; }
+.pmdb-metric-sub { color:#555; }
+
+.pmdb-grid { display:grid; grid-template-columns: 1.2fr 1fr 1fr; gap:16px; }
+.pmdb-card { border:1px solid #e5e7eb; background:#fff; border-radius:12px; padding:12px; }
+.pmdb-card-title { font-weight:800; margin-bottom:8px; color:#1A1A2E; }
+
+.pmdb-list { display:grid; gap:8px; }
+.pmdb-attention { display:flex; align-items:center; gap:10px; border:1px solid #e5e7eb; background:#F5F5F5; border-radius:10px; padding:8px; text-align:left; }
+.pmdb-attention--blocked { border-color:#DC3545; }
+.pmdb-attention--overdue { border-color:#FFC107; }
+.pmdb-attention--pending_approval { border-color:#17A2B8; }
+.pmdb-attn-reason { font-size:10px; font-weight:800; color:#1A1A2E; }
+.pmdb-code { font-weight:700; }
+.pmdb-sub { color:#555; }
+
+.pmdb-status-list { display:grid; gap:6px; }
+.pmdb-status-row { display:flex; align-items:center; justify-content:space-between; padding:8px; border:1px solid #e5e7eb; border-radius:8px; background:#fff; cursor:pointer; }
+.pmdb-status-row:hover { background:#F5F5F5; }
+.pmdb-count { font-weight:800; }
+
+.pmdb-actions { margin-top:8px; display:flex; justify-content:flex-end; }
+.pmdb-btn { background:#1A7B7B; border:1px solid #1A7B7B; color:#fff; padding:8px 10px; border-radius:8px; cursor:pointer; }
+
+.pmdb-profit .pmdb-row{ display:flex; align-items:center; justify-content:space-between; padding:6px 0; border-bottom:1px dashed #eee; }
+.pmdb-profit .pmdb-row:last-child{ border-bottom:none; }
+
+.pmdb-table { width:100%; border-collapse: collapse; }
+.pmdb-table th, .pmdb-table td{ border-bottom:1px solid #eee; padding:8px; text-align:left; }

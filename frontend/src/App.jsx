@@ -52,6 +52,8 @@ import ProjectsPage from './pages/ProjectsPage.jsx';
 import TrialUsersPage from './pages/admin/TrialUsersPage.jsx';
 import AdminSupportTicketsPage from './pages/admin/AdminSupportTicketsPage.jsx';
 import ApprovalsPage from './pages/ApprovalsPage.jsx';
+import RetailerProjectsPage from './pages/RetailerProjectsPage.jsx';
+import ProjectManagementDashboard from './pages/ProjectManagementDashboard.jsx'
 function PlaceholderPage({ title, message, children }) {
   return (
     <div style={{ padding: '2rem', textAlign: 'center', color: '#1A1A2E' }}>
@@ -249,6 +251,7 @@ function App() {
             path="projects/dashboard"
             element={
               <RequirePermission resource="projects" action="view">
+                <ProjectManagementDashboard/>
               </RequirePermission>
             }
           />
@@ -257,6 +260,7 @@ function App() {
             path="projects/retailer"
             element={
               <RequirePermission resource="projects" action="view">
+                <RetailerProjectsPage/>
               </RequirePermission>
             }
           />
