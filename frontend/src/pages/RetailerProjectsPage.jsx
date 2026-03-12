@@ -1,5 +1,6 @@
 // src/pages/RetailerProjectsPage.jsx
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import ProjectsKanbanBoard from '../components/projects/ProjectsKanbanBoard.jsx';
 import ProjectsTable from '../components/projects/ProjectsTable.jsx';
 import ProjectsCalendar from '../components/projects/ProjectCalendar.jsx';
@@ -128,7 +129,17 @@ function formatLocalTimeLabel(dateLike) {
   }
 }
 
+function getBaseFromPathname(pathname) {
+  if (pathname.startsWith('/admin')) return '/admin';
+  if (pathname.startsWith('/employee')) return '/employee';
+  return '/dashboard';
+}
+
 export default function RetailerProjectsPage() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const base = getBaseFromPathname(location.pathname);
+
   // Core list state
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -224,74 +235,10 @@ export default function RetailerProjectsPage() {
     setTimeout(() => searchInputRef.current?.focus(), 50);
   }, []);
 
-  /**
-   * Open details modal; load inspection (optional), employees (for assignees),
-   * retailer schedule and retailer assignees for this project.
-   */
-  const openDetails = useCallback(async (id) => {
-    const p = projects.find((x) => String(x.id) === String(id));
-    if (!p) return;
-    setSelectedProject(p);
-    setDetailsOpen(true);
-    setInspection(null);
-    setCompanyUsers([]);
-    setDetailsSchedule(null);
-    setDetailsAssignees([]);
-
-    try {
-      const [inspResp, empResp, schResp, asgResp] = await Promise.allSettled([
-        getProjectInspection(p.id),       // optional
-        getCompanyEmployees(),
-        getRetailerProjectSchedule(p.id),
-        getRetailerProjectAssignees(p.id), // NEW
-      ]);
-
-      if (inspResp.status === 'fulfilled') {
-        setInspection(inspResp.value?.data ?? null);
-      } else {
-        setInspection(null);
-      }
-
-      if (empResp.status === 'fulfilled') {
-        const rows = Array.isArray(empResp.value?.data) ? empResp.value.data : [];
-        const mapped = rows.map((r) => {
-          const name =
-            (r.full_name && r.full_name.trim()) ||
-            [r.first_name, r.last_name].filter(Boolean).join(' ').trim() ||
-            r.email ||
-            r.employee_code ||
-            'Unknown';
-          const initials =
-            r.initials ||
-            (name
-              ? name.split(/\s+/).filter(Boolean).map(s => s[0]).join('').slice(0, 3).toUpperCase()
-              : 'NA');
-          return { id: r.id, name, initials };
-        });
-        setCompanyUsers(mapped);
-      } else {
-        setCompanyUsers([]);
-      }
-
-      if (schResp.status === 'fulfilled') {
-        setDetailsSchedule(schResp.value?.data ?? null);
-      } else {
-        setDetailsSchedule(null);
-      }
-
-      if (asgResp.status === 'fulfilled') {
-        const ids = Array.isArray(asgResp.value?.data?.assignees) ? asgResp.value.data.assignees : [];
-        setDetailsAssignees(ids.map(Number));
-      } else {
-        setDetailsAssignees([]);
-      }
-    } catch {
-      setInspection(null);
-      setCompanyUsers([]);
-      setDetailsSchedule(null);
-      setDetailsAssignees([]);
-    }
-  }, [projects]);
+  /** Open details full page */
+  const openDetails = useCallback((id) => {
+    navigate(`${base}/projects/retailer/${id}`);
+  }, [navigate, base]);
 
   // Prefer user's chosen Status (nextStage) over job_type mapping.
   // If nextStage is provided, set that stage and patch to backend.
@@ -555,19 +502,6 @@ export default function RetailerProjectsPage() {
           />
         )}
       </div>
-
-      {/* Retailer details modal (centered) */}
-      <RetailerProjectDetailsPanel
-        visible={detailsOpen}
-        project={selectedProject}
-        schedule={detailsSchedule}          // pass schedule loaded via getRetailerProjectSchedule
-        users={companyUsers}                // [{id,name,initials}]
-        assignees={detailsAssignees}        // NEW: preload chips
-        onClose={() => setDetailsOpen(false)}
-        onSaveSchedule={handleSaveSchedule} // calls saveRetailerProjectSchedule + final stage logic
-        onUpdateStage={(id, next) => updateRetailerProjectStage(id, next)}
-        onAssign={handleAssign}
-      />
 
       {/* Creation modal: backend generates project `code` */}
       <RetailerProjectCreatePanel

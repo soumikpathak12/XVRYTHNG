@@ -7,7 +7,8 @@ import {
   retailerCreate,
   retailerUpdateStage,
   retailerGetSchedule,
-  retailerPatchSchedule,retailerGetAssignees,retailerPatchAssignees
+  retailerPatchSchedule,retailerGetAssignees,retailerPatchAssignees,
+  retailerGetById
 } from '../controllers/retailerProjectController.js';
 
 const router = Router();
@@ -17,6 +18,9 @@ router.use(requireAuth, tenantContext);
 
 // List
 router.get('/', retailerList);
+
+// Get By ID
+router.get('/:id', retailerGetById);
 
 // Create (project + schedule in one go)
 router.post('/', retailerCreate);

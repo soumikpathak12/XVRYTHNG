@@ -1645,6 +1645,22 @@ export async function getProjects(params = {}) {
   return data; // { success:true, data:[...] }
 }
 
+/**
+ * Fetch a single project by ID
+ */
+export async function getProject(projectId) {
+  const res = await authFetch(`/api/projects/${encodeURIComponent(projectId)}`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to load project');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data; // { success:true, data:{...} }
+}
+
 export async function updateProjectStage(projectId, stage) {
   const res = await authFetch(`/api/projects/${encodeURIComponent(projectId)}/stage`, {
     method: 'PATCH',
@@ -1744,6 +1760,22 @@ export async function getRetailerProjects(params = {}) {
     throw err;
   }
   return data; // { success:true, data:[...] }
+}
+
+/**
+ * Fetch a single retailer project by ID
+ */
+export async function getRetailerProject(projectId) {
+  const res = await authFetch(`/api/retailer-projects/${encodeURIComponent(projectId)}`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to load retailer project');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data; // { success:true, project:{...} }
 }
 
 /**

@@ -8,6 +8,36 @@ function Currency({ value }) {
   catch { return <>{value}</>; }
 }
 
+const STAGE_LABELS = {
+  new: 'New',
+  pre_approval: 'Pre-approval',
+  state_rebate: 'State rebate',
+  design_engineering: 'Design & engineering',
+  procurement: 'Procurement',
+  scheduled: 'Scheduled',
+  installation_in_progress: 'Installation in progress',
+  installation_completed: 'Installation completed',
+  compliance_check: 'Compliance check',
+  inspection_grid_connection: 'Inspection & grid connection',
+  rebate_stc_claims: 'Rebate & STC claims',
+  site_inspection: 'Site inspection',
+  stage_one: 'Stage One',
+  stage_two: 'Stage Two',
+  full_system: 'Full System',
+  cancelled: 'Cancelled',
+  project_completed: 'Project Completed',
+  done: 'Done',
+  to_be_rescheduled: 'To be rescheduled',
+  ces_certificate_applied: 'CES certificate applied',
+  ces_certificate_received: 'CES certificate received',
+  ces_certificate_submitted: 'CES certificate submitted',
+};
+
+function formatStage(stage) {
+  if (!stage) return '—';
+  return STAGE_LABELS[stage] || stage.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
 export default function PmDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [dash, setDash] = useState(null);
@@ -78,28 +108,34 @@ export default function PmDashboardPage() {
       {/* Metric Cards */}
       <section className="pmdb-cards">
         <MetricCard
-          title="ACTIVE PROJECTS"
+          title="ACTIVE PROJECTS (ALL)"
           value={dash?.summaryCards?.activeProjects?.value ?? 0}
           subtitle={dash?.summaryCards?.activeProjects?.extra ?? ''}
-          onClick={()=>handleDrill('active')}
+        />
+        <MetricCard
+          title="ACTIVE RETAILER PROJECTS"
+          value={dash?.summaryCards?.activeRetailerProjects?.value ?? 0}
+          subtitle=""
+        />
+        <MetricCard
+          title="ACTIVE CLASSIC PROJECTS"
+          value={dash?.summaryCards?.activeClassicProjects?.value ?? 0}
+          subtitle=""
         />
         <MetricCard
           title="UPCOMING INSTALLATIONS"
           value={dash?.summaryCards?.upcomingInstallations?.value ?? 0}
           subtitle="Next 7 days"
-          onClick={()=>handleDrill('upcoming')}
         />
         <MetricCard
           title="COMPLIANCE ALERTS"
           value={dash?.summaryCards?.complianceAlerts?.value ?? 0}
           subtitle="Requires attention"
-          onClick={()=>handleDrill('compliance')}
         />
         <MetricCard
           title="TOTAL PROJECT VALUE"
           value={<Currency value={dash?.summaryCards?.totalProjectValue?.value ?? 0} />}
           subtitle="Active pipeline"
-          onClick={()=>handleDrill('revenue')}
         />
       </section>
 
@@ -109,13 +145,13 @@ export default function PmDashboardPage() {
           <div className="pmdb-card-title">Compliance Alerts</div>
           <div className="pmdb-list">
             {(dash?.attentionList ?? []).slice(0,6).map(r => (
-              <button key={`${r.type}-${r.id}`} className={`pmdb-attention pmdb-attention--${r.attention_reason}`} onClick={()=>handleDrill('attention', r.attention_reason)}>
+              <div key={`${r.type}-${r.id}`} className={`pmdb-attention pmdb-attention--${r.attention_reason}`}>
                 <div className="pmdb-attn-reason">{r.attention_reason?.toUpperCase()}</div>
                 <div className="pmdb-attn-text">
                   <div className="pmdb-code">{r.type === 'retailer' ? `PRU-${r.id}` : r.code}</div>
-                  <div className="pmdb-sub">Stage: {r.stage}</div>
+                  <div className="pmdb-sub">Stage: {formatStage(r.stage)}</div>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         </div>
@@ -125,14 +161,11 @@ export default function PmDashboardPage() {
           <div className="pmdb-card-title">Projects by Status</div>
           <div className="pmdb-status-list">
             {statusData.map(s => (
-              <button key={s.label} className="pmdb-status-row" onClick={()=>handleDrill('status', s.label)}>
+              <div key={s.label} className="pmdb-status-row">
                 <span>{s.label}</span>
                 <span className="pmdb-count">{s.count}</span>
-              </button>
+              </div>
             ))}
-          </div>
-          <div className="pmdb-actions">
-            <button className="pmdb-btn" onClick={()=>navigate('/retailer-projects')}>View Kanban Board</button>
           </div>
         </div>
 
@@ -161,34 +194,55 @@ export default function PmDashboardPage() {
       </section>
 
       {/* Recent Projects */}
-      <section className="pmdb-card">
-        <div className="pmdb-card-title">Recent Projects</div>
-        <table className="pmdb-table">
-          <thead>
-            <tr><th>PROJECT ID</th><th>STAGE</th><th>SCHEDULED</th><th>VALUE</th></tr>
-          </thead>
-          <tbody>
-            {(dash?.recentProjects ?? []).map(r => (
-              <tr key={`${r.type}-${r.id}`}>
-                <td>{r.code || (r.type === 'retailer' ? `PRU-${r.id}` : r.id)}</td>
-                <td>{r.stage}</td>
-                <td>{r.scheduled_at ? new Date(r.scheduled_at).toLocaleString() : '—'}</td>
-                <td><Currency value={r.revenue} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <section className="pmdb-recent-grid">
+        <div className="pmdb-card">
+          <div className="pmdb-card-title">Recent Retailer Projects</div>
+          <table className="pmdb-table">
+            <thead>
+              <tr><th>PROJECT ID</th><th>STAGE</th><th>SCHEDULED</th><th>VALUE</th></tr>
+            </thead>
+            <tbody>
+              {(dash?.recentRetailerProjects ?? (dash?.recentProjects ?? []).filter(r => r.type === 'retailer')).map(r => (
+                <tr key={`retailer-${r.id}`}>
+                  <td>{r.code || `PRU-${r.id}`}</td>
+                  <td>{formatStage(r.stage)}</td>
+                  <td>{r.scheduled_date ? new Date(r.scheduled_date).toLocaleString() : '—'}</td>
+                  <td><Currency value={r.revenue} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="pmdb-card">
+          <div className="pmdb-card-title">Recent Classic Projects</div>
+          <table className="pmdb-table">
+            <thead>
+              <tr><th>PROJECT ID</th><th>STAGE</th><th>SCHEDULED</th><th>VALUE</th></tr>
+            </thead>
+            <tbody>
+              {(dash?.recentClassicProjects ?? (dash?.recentProjects ?? []).filter(r => r.type === 'project')).map(r => (
+                <tr key={`project-${r.id}`}>
+                  <td>{r.code || r.id}</td>
+                  <td>{formatStage(r.stage)}</td>
+                  <td>{r.scheduled_date ? new Date(r.scheduled_date).toLocaleString() : '—'}</td>
+                  <td><Currency value={r.revenue} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   );
 }
 
-function MetricCard({ title, value, subtitle, onClick }) {
+function MetricCard({ title, value, subtitle }) {
   return (
-    <button className="pmdb-metric" onClick={onClick} title={`Drill down: ${title}`}>
+    <div className="pmdb-metric">
       <div className="pmdb-metric-title">{title}</div>
       <div className="pmdb-metric-value">{value}</div>
       {subtitle && <div className="pmdb-metric-sub">{subtitle}</div>}
-    </button>
+    </div>
   );
 }

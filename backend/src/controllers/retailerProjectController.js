@@ -7,7 +7,8 @@ import {
   listRetailerProjects,
   updateRetailerProjectStage,
   getRetailerProjectSchedule,
-  saveRetailerProjectSchedule,getRetailerProjectAssignees,saveRetailerProjectAssignees
+  saveRetailerProjectSchedule,getRetailerProjectAssignees,saveRetailerProjectAssignees,
+  getRetailerProjectById
 } from '../services/retailerProjectService.js';
 
 function resolveCompanyId(req) {
@@ -37,6 +38,20 @@ export async function retailerList(req, res) {
   } catch (err) {
     const status = err.statusCode ?? err.status ?? 500;
     return res.status(status).json({ success: false, message: err.message ?? 'Failed to load retailer projects.' });
+  }
+}
+
+export async function retailerGetById(req, res) {
+  try {
+    const companyId = resolveCompanyId(req);
+    if (!companyId) return res.status(400).json({ success: false, message: 'Missing company context' });
+
+    const projectId = Number(req.params.id);
+    const project = await getRetailerProjectById(companyId, projectId);
+    return res.status(200).json({ success: true, project });
+  } catch (err) {
+    const status = err.statusCode ?? err.status ?? 500;
+    return res.status(status).json({ success: false, message: err.message ?? 'Failed to load project.' });
   }
 }
 

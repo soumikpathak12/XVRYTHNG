@@ -53,6 +53,8 @@ import TrialUsersPage from './pages/admin/TrialUsersPage.jsx';
 import AdminSupportTicketsPage from './pages/admin/AdminSupportTicketsPage.jsx';
 import ApprovalsPage from './pages/ApprovalsPage.jsx';
 import RetailerProjectsPage from './pages/RetailerProjectsPage.jsx';
+import RetailerProjectDetailPage from './pages/RetailerProjectDetailPage.jsx';
+import ProjectDetailPage from './pages/ProjectDetailPage.jsx';
 import ProjectManagementDashboard from './pages/ProjectManagementDashboard.jsx'
 function PlaceholderPage({ title, message, children }) {
   return (
@@ -84,7 +86,7 @@ function LoginPage() {
     clearSessionExpiredMessage?.();
     try {
       await login(credentials);
-    } catch {}
+    } catch { }
   };
 
   if (isAuthenticated) {
@@ -173,13 +175,13 @@ function App() {
           <Route
             path="overview"
             element={
-              <RequirePermission resource="overview" action="view"> 
+              <RequirePermission resource="overview" action="view">
                 <DashboardPage />
               </RequirePermission>
             }
           />
 
-          
+
           <Route
             path="trial-users"
             element={
@@ -237,12 +239,19 @@ function App() {
           <Route path="employees/:id" element={<EmployeeProfilePage />} />
           <Route path="employees/new" element={<EmployeeCreatePage />} />
 
-        
           <Route
             path="projects"
             element={
               <RequirePermission resource="projects" action="view">
-                <ProjectsPage />  
+                <ProjectsPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="projects/:id"
+            element={
+              <RequirePermission resource="projects" action="view">
+                <ProjectDetailPage />
               </RequirePermission>
             }
           />
@@ -251,7 +260,7 @@ function App() {
             path="projects/dashboard"
             element={
               <RequirePermission resource="projects" action="view">
-                <ProjectManagementDashboard/>
+                <ProjectManagementDashboard />
               </RequirePermission>
             }
           />
@@ -260,7 +269,16 @@ function App() {
             path="projects/retailer"
             element={
               <RequirePermission resource="projects" action="view">
-                <RetailerProjectsPage/>
+                <RetailerProjectsPage />
+              </RequirePermission>
+            }
+          />
+
+          <Route
+            path="projects/retailer/:id"
+            element={
+              <RequirePermission resource="projects" action="view">
+                <RetailerProjectDetailPage />
               </RequirePermission>
             }
           />
@@ -427,14 +445,14 @@ function App() {
             }
           />
 
-            <Route
-          path="leads/:id"
-          element={
-            <RequirePermission resource="leads" action="view">
-              <LeadDetailPage />
-            </RequirePermission>
-          }
-        />
+          <Route
+            path="leads/:id"
+            element={
+              <RequirePermission resource="leads" action="view">
+                <LeadDetailPage />
+              </RequirePermission>
+            }
+          />
 
           <Route
             path="leads/calendar"
@@ -537,8 +555,8 @@ function App() {
             }
           />
         </Route>
-        
-      
+
+
 
         {/* Mobile placeholder */}
         <Route

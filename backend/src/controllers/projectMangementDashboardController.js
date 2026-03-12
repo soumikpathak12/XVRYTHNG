@@ -34,8 +34,11 @@ export async function getPmDashboard(req, res) {
       allCompanies  = '0', // ignore retailer company filter when '1' (debug)
     } = req.query;
 
+    // Frontend đôi khi gửi chuỗi 'undefined' -> coi như không filter stage
+    const effectiveStage = !stage || stage === 'undefined' ? null : stage;
+
     const data = await buildDashboard(companyId, {
-      range, from, to, stage,
+      range, from, to, stage: effectiveStage,
       includeClosed: includeClosed === '1',
       allCompanies:  allCompanies === '1',
     });

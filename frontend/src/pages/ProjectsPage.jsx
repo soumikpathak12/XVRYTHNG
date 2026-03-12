@@ -1,7 +1,7 @@
 // src/pages/ProjectsPage.jsx
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import ProjectsKanbanBoard, { DEFAULT_PROJECT_STAGES } from '../components/projects/ProjectsKanbanBoard.jsx';
-import ProjectDetailsPanel from '../components/projects/ProjectDetailsPanel.jsx';
 import ProjectsTable from '../components/projects/ProjectsTable.jsx';
 import ProjectsCalendar from '../components/projects/ProjectCalendar.jsx';
 import {
@@ -60,16 +60,13 @@ function formatLocalTimeLabel(dateLike) {
 }
 
 export default function ProjectsPage() {
+  const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState('');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [searchStage, setSearchStage] = useState(null);
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [selectedProject, setSelectedProject] = useState(null);
-  const [inspection, setInspection] = useState(null);
-  const [companyUsers, setCompanyUsers] = useState([]);
 
   // NEW: Calendar state for schedules
   const [calendarLoading, setCalendarLoading] = useState(false);
@@ -136,136 +133,9 @@ export default function ProjectsPage() {
     setTimeout(() => searchInputRef.current?.focus(), 50);
   }, []);
 
-  const openDetails = useCallback(async (id) => {
-    const p = projects.find((x) => String(x.id) === String(id));
-    if (!p) return;
-    setSelectedProject(p);
-    setDetailsOpen(true);
-    setInspection(null);
-    setCompanyUsers([]);
-
-    try {
-      const [inspResp, empResp] = await Promise.allSettled([
-        getProjectInspection(p.id),
-        getCompanyEmployees(),
-      ]);
-
-      // Inspection
-      if (inspResp.status === 'fulfilled') {
-        const resp = inspResp.value;
-        if (resp?.data) {
-          setInspection(resp.data);
-        } else {
-          const tried = resp?.meta?.leadIdTried;
-          const count = resp?.meta?.rowCount;
-          const fallbackLeadId = p?._raw?.lead_id;
-          if ((!resp?.data || count === 0) && fallbackLeadId && Number(fallbackLeadId) !== Number(tried)) {
-            const resp2 = await getProjectInspection(`${p.id}?leadId=${encodeURIComponent(fallbackLeadId)}`);
-            setInspection(resp2?.data ?? null);
-          } else {
-            setInspection(resp?.data ?? null);
-          }
-        }
-      } else {
-        setInspection(null);
-      }
-
-      // Employees
-      if (empResp.status === 'fulfilled') {
-        const { value } = empResp;
-        const rows = Array.isArray(value?.data) ? value.data : [];
-        const mapped = rows.map((r) => {
-          const builtName = [r.first_name, r.last_name].filter(Boolean).join(' ').trim();
-          const name =
-            (r.full_name && r.full_name.trim()) ||
-            builtName ||
-            r.email ||
-            r.employee_code ||
-            'Unknown';
-          const safeInitials =
-            r.initials ||
-            (name
-              ? name
-                  .split(/\s+/)
-                  .filter(Boolean)
-                  .map((s) => s[0])
-                  .join('')
-                  .slice(0, 3)
-                  .toUpperCase()
-              : 'NA');
-          return { id: r.id, name, initials: safeInitials };
-        });
-        setCompanyUsers(mapped);
-      } else {
-        setCompanyUsers([]);
-      }
-    } catch (err) {
-      setInspection(null);
-      setCompanyUsers([]);
-    }
-  }, [projects]);
-
-  /** Save schedule + assignees, then update stage if changed */
-  const handleSaveSchedule = useCallback(async ({ id, status, date, time, assignees, notes }) => {
-    try {
-      await saveProjectScheduleAssign(id, { status, date, time, assignees, notes });
-
-      const current = projects.find((p) => String(p.id) === String(id))?.stage;
-      if (status && current && status !== current) {
-        // Optimistic UI + keep _raw.stage in sync
-        setProjects((prev) =>
-          prev.map((p) =>
-            String(p.id) === String(id)
-              ? { ...p, stage: status, _raw: { ...(p._raw ?? {}), stage: status } }
-              : p
-          )
-        );
-        try {
-          await updateProjectStage(id, status);
-        } catch (err) {
-          setProjects((prev) =>
-            prev.map((p) =>
-              String(p.id) === String(id)
-                ? { ...p, stage: current, _raw: { ...(p._raw ?? {}), stage: current } }
-                : p
-            )
-          );
-          throw err;
-        }
-      }
-
-      if (view === 'calendar') {
-        try {
-          const resp = await getProjectScheduleAssign(id);
-          const payload = resp?.data ?? resp ?? {};
-          const schedule = payload.schedule ?? null;
-          setScheduleMap((prev) => {
-            const next = new Map(prev);
-            if (schedule?.scheduled_at) {
-              next.set(id, {
-                scheduled_at: schedule.scheduled_at,
-                status: schedule.status ?? null,
-                notes: schedule.notes ?? null,
-              });
-            } else {
-              next.delete(id);
-            }
-            return next;
-          });
-        } catch {
-          // ignore
-        }
-      }
-    } catch (err) {
-      console.error('[DEBUG] Save schedule/assignees or stage update error:', err);
-      setToast(err.message || 'Failed to save schedule');
-      setTimeout(() => setToast(''), 3000);
-    }
-  }, [projects, view]);
-
-  const handleAssign = useCallback(({ id, assignees }) => {
-    console.log('[DEBUG] Assign (live state):', { projectId: id, assignees });
-  }, []);
+  const openDetails = useCallback((id) => {
+    navigate(`/admin/projects/${id}`);
+  }, [navigate]);
 
   const switchView = useCallback((next) => {
     setView(next);
@@ -458,16 +328,6 @@ export default function ProjectsPage() {
           />
         )}
       </div>
-
-      <ProjectDetailsPanel
-        visible={detailsOpen}
-        project={selectedProject}
-        inspection={inspection}
-        onClose={() => setDetailsOpen(false)}
-        onSaveSchedule={handleSaveSchedule}
-        onAssign={handleAssign}
-        users={companyUsers}
-      />
     </div>
   );
 }

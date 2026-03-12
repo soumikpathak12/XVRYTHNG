@@ -16,6 +16,17 @@ export async function listProjects(req, res) {
   }
 }
 
+export async function getProject(req, res) {
+  try {
+    const projectId = req.params.id;
+    const project = await projectService.getProjectById(projectId);
+    return res.status(200).json({ success: true, data: project });
+  } catch (err) {
+    const status = err.statusCode ?? err.status ?? 500;
+    return res.status(status).json({ success: false, message: err.message ?? 'Failed to load project.' });
+  }
+}
+
 export async function updateProjectStage(req, res) {
   try {
     const projectId = req.params.id;

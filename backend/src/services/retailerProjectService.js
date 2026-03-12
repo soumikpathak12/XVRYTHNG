@@ -202,6 +202,21 @@ export async function createRetailerProject(companyId, payload = {}, userId = nu
   }
 }
 
+/** Get a single retailer project by ID */
+export async function getRetailerProjectById(companyId, projectId) {
+  if (!Number.isFinite(Number(projectId))) {
+    const err = new Error('Invalid project id'); err.statusCode = 400; throw err;
+  }
+  const [[project]] = await db.execute(
+    'SELECT * FROM retailer_projects WHERE id = ? AND company_id = ? LIMIT 1',
+    [Number(projectId), Number(companyId)]
+  );
+  if (!project) {
+    const err = new Error('Retailer project not found'); err.statusCode = 404; throw err;
+  }
+  return project;
+}
+
 /** List retailer projects (optional filters: stage, search, job_type; pagination) */
 export async function listRetailerProjects(companyId, filters = {}) {
   if (!companyId || !Number.isFinite(Number(companyId))) {

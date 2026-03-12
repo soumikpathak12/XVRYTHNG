@@ -57,7 +57,7 @@ function rangeToSql({ range, from, to }) {
   }
   if (range === '30d') return { where: ' AND p.updated_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) ', params: [] };
   if (range === '90d') return { where: ' AND p.updated_at >= DATE_SUB(NOW(), INTERVAL 90 DAY) ', params: [] };
-  if (range === 'fy')  return { where: ' AND YEAR(p.updated_at) = YEAR(DATE_SUB(CURDATE(), INTERVAL (MONTH(CURDATE())<7) YEAR)) ', params: [] };
+  if (range === 'fy') return { where: ' AND YEAR(p.updated_at) = YEAR(DATE_SUB(CURDATE(), INTERVAL (MONTH(CURDATE())<7) YEAR)) ', params: [] };
   return { where: '', params: [] };
 }
 
@@ -77,13 +77,10 @@ function baseUnionSql({ companyId, stageKey, allCompanies }) {
   const retailerParams = [];
 
   const applyRetailerCompanyFilter = REQUIRE_COMPANY_FOR_RETAILER && !allCompanies;
-  if (applyRetailerCompanyFilter) {
-    if (companyId == null) {
-      retailerWhereParts.push('1=0'); // hard block when company is required but missing
-    } else {
-      retailerWhereParts.push('rp.company_id = ?');
-      retailerParams.push(companyId);
-    }
+  // Nếu không có companyId, vẫn cho lấy tất cả retailer_projects (không chặn 1=0)
+  if (applyRetailerCompanyFilter && companyId != null) {
+    retailerWhereParts.push('rp.company_id = ?');
+    retailerParams.push(companyId);
   }
   if (stageKey) { retailerWhereParts.push('rp.stage = ?'); retailerParams.push(stageKey); }
   const retailerWhere = retailerWhereParts.length ? `WHERE ${retailerWhereParts.join(' AND ')}` : 'WHERE 1=1';
@@ -106,7 +103,7 @@ function baseUnionSql({ companyId, stageKey, allCompanies }) {
       NULL             AS cost,           -- cost not used in current DB
       NULL             AS pm_user_id,     -- no PM column on retailer in current DB
       rp.updated_at    AS updated_at,
-      rps.scheduled_at AS scheduled_at,
+      rps.scheduled_date AS scheduled_date,
       rps.job_type     AS job_type,
       NULL             AS compliance_due_at,
       NULL             AS compliance_flags
@@ -128,7 +125,7 @@ function baseUnionSql({ companyId, stageKey, allCompanies }) {
       NULL             AS cost,         -- no cost column yet
       NULL             AS pm_user_id,   -- if you add this column later, wire it here
       p.updated_at     AS updated_at,
-      ps.scheduled_at  AS scheduled_at,
+      ps.scheduled_at  AS scheduled_date,
       NULL             AS job_type,
       NULL             AS compliance_due_at,
       NULL             AS compliance_flags
@@ -144,7 +141,7 @@ function baseUnionSql({ companyId, stageKey, allCompanies }) {
 
 /* ---------------- Helpers ---------------- */
 function summarizeActivePhases(activeRows) {
-  const installPhase = activeRows.filter(r => ['installation_in_progress','full_system','scheduled'].includes(r.stage)).length;
+  const installPhase = activeRows.filter(r => ['installation_in_progress', 'full_system', 'scheduled'].includes(r.stage)).length;
   return installPhase ? `${installPhase} in installation phase` : '';
 }
 
@@ -186,18 +183,36 @@ export async function buildDashboard(
     dlog('Active count:', totalActive, 'Histogram (ACTIVE):', histActive);
   }
 
-  // Upcoming in next 7 days
-  const now = Date.now();
-  const in7d = now + 7*24*3600*1000;
-  const upcoming = active.filter(r => r.scheduled_at && new Date(r.scheduled_at).getTime() <= in7d);
+  // Split active rows by source type
+  const activeRetailer = active.filter(r => r.type === 'retailer');
+  const activeClassic = active.filter(r => r.type === 'project');
+  const totalActiveRetailer = activeRetailer.length;
+  const totalActiveClassic = activeClassic.length;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Start of today
+  const startMs = today.getTime();
+
+  // End of 7th day from today (today + 7 days, set to 23:59:59)
+  const endOf7thDay = new Date(today);
+  endOf7thDay.setDate(endOf7thDay.getDate() + 7);
+  endOf7thDay.setHours(23, 59, 59, 999);
+  const endMs = endOf7thDay.getTime();
+  const upcoming = active.filter(r => {
+    if (!r.scheduled_date) return false;
+    const t = new Date(r.scheduled_date).getTime();
+    return t >= startMs && t <= endMs;
+  });
 
   // Compliance alerts: skipped for now (no due/flags in your DB)
   const complianceAlerts = [];
 
   // Revenue / Costs (cost is 0 until columns exist)
   const revenue = active.reduce((s, r) => s + (Number(r.revenue) || 0), 0);
-  const cost    = 0;
-  const margin  = revenue - cost;
+  const revenueRetailer = activeRetailer.reduce((s, r) => s + (Number(r.revenue) || 0), 0);
+  const revenueClassic = activeClassic.reduce((s, r) => s + (Number(r.revenue) || 0), 0);
+  const cost = 0;
+  const margin = revenue - cost;
   const avgProjectValue = totalActive ? revenue / totalActive : 0;
 
   // Projects by Status (group by raw stage, render label where available)
@@ -208,12 +223,13 @@ export async function buildDashboard(
   });
   const byStatus = Array.from(rawCount.entries())
     .map(([raw, count]) => ({ raw, label: STAGE_GROUPS[raw] ?? raw, count }))
-    .sort((a,b) => a.label.localeCompare(b.label));
+    .sort((a, b) => a.label.localeCompare(b.label));
 
   // Attention flags (basic heuristic)
+  const nowMs = Date.now();
   const needsAttention = active
     .map(r => {
-      const overdue = r.scheduled_at && new Date(r.scheduled_at).getTime() < now;
+      const overdue = r.scheduled_date && new Date(r.scheduled_date).getTime() < nowMs;
       const blocked = String(r.stage || '').toLowerCase().includes('blocked');
       const pending = ['pre_approval', 'state_rebate'].includes(r.stage);
       let reason = null;
@@ -224,24 +240,30 @@ export async function buildDashboard(
     })
     .filter(r => r.attention_reason);
 
-  const recent = [...rows].sort((a,b) => new Date(b.updated_at) - new Date(a.updated_at)).slice(0, 5);
+  const recent = [...rows].sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)).slice(0, 5);
+  const recentRetailer = recent.filter(r => r.type === 'retailer');
+  const recentClassic = recent.filter(r => r.type === 'project');
 
   return {
     summaryCards: {
-      activeProjects:        { value: totalActive, extra: summarizeActivePhases(active) },
+      activeProjects: { value: totalActive, extra: summarizeActivePhases(active) },
+      activeRetailerProjects: { value: totalActiveRetailer },
+      activeClassicProjects: { value: totalActiveClassic },
       upcomingInstallations: { value: upcoming.length, extra: 'Next 7 days' },
-      complianceAlerts:      { value: complianceAlerts.length, extra: 'Requires attention' },
-      totalProjectValue:     { value: revenue, currency: 'AUD' },
+      complianceAlerts: { value: complianceAlerts.length, extra: 'Requires attention' },
+      totalProjectValue: { value: revenue, currency: 'AUD' },
     },
     complianceList: [],
     projectsByStatus: byStatus,
     profitability: {
       totalRevenue: revenue,
-      totalCosts:   cost,
-      grossMargin:  margin,
+      totalCosts: cost,
+      grossMargin: margin,
       avgProjectValue,
     },
     recentProjects: recent,
+    recentRetailerProjects: recentRetailer,
+    recentClassicProjects: recentClassic,
     attentionList: needsAttention.slice(0, 10),
   };
 }
@@ -261,8 +283,9 @@ export async function getDrilldown(companyId, { kind, key, range, from, to, allC
       break;
     case 'upcoming':
       where += ` AND t.stage NOT IN ('installation_completed','done','project_completed','cancelled')
-                 AND t.scheduled_at IS NOT NULL
-                 AND t.scheduled_at <= DATE_ADD(NOW(), INTERVAL 7 DAY) `;
+                 AND t.scheduled_date IS NOT NULL
+                 AND DATE(t.scheduled_date) >= CURDATE()
+                 AND DATE(t.scheduled_date) <= DATE_ADD(CURDATE(), INTERVAL 7 DAY) `;
       break;
     case 'compliance':
       where += ` AND 1=0 `;
@@ -271,7 +294,7 @@ export async function getDrilldown(companyId, { kind, key, range, from, to, allC
       having = `
         HAVING
           CASE
-            WHEN (t.scheduled_at IS NOT NULL AND t.scheduled_at < NOW()
+            WHEN (t.scheduled_date IS NOT NULL AND t.scheduled_date < NOW()
                   AND t.stage NOT IN ('installation_completed','done','project_completed','cancelled')) THEN 'overdue'
             WHEN (t.stage LIKE '%blocked%') THEN 'blocked'
             WHEN (t.stage IN ('pre_approval','state_rebate')) THEN 'pending_approval'
@@ -283,7 +306,7 @@ export async function getDrilldown(companyId, { kind, key, range, from, to, allC
     case 'status': {
       // key can be a label (e.g., "Scheduled") or raw (e.g., "scheduled")
       const raws = REVERSE_STAGE_GROUPS[key] || [key];
-      where += ` AND t.stage IN (${raws.map(()=>'?').join(',')}) `;
+      where += ` AND t.stage IN (${raws.map(() => '?').join(',')}) `;
       p.push(...raws);
       break;
     }
@@ -291,7 +314,7 @@ export async function getDrilldown(companyId, { kind, key, range, from, to, allC
       where += ` AND t.stage NOT IN ('cancelled','done','project_completed') `;
       break;
     default:
-      // no-op
+    // no-op
   }
 
   const q = `
