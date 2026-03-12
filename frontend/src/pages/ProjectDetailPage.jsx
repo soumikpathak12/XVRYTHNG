@@ -6,12 +6,104 @@ import {
   getCompanyEmployees,
   saveProjectScheduleAssign,
   getProjectScheduleAssign,
-  getLead
+  getLead,
+  listInstallationJobs,
 } from '../services/api.js';
 import '../styles/LeadDetailModal.css'; // Reuse lead detail styles
 import RetailerProjectDetailDetails from '../components/projects/RetailerProjectDetailDetails.jsx';
 import LeadDetailActivity from '../components/leads/LeadDetailActivity.jsx';
 import LeadDetailDocuments from '../components/leads/LeadDetailDocuments.jsx';
+
+// ─── brand tokens (local, no import needed) ──────────────────────────────────
+const INST_BRAND    = '#146b6b';
+const INST_BRAND_BG = '#E6F4F1';
+
+const INST_STATUS_CFG = {
+  scheduled:   { label: 'Scheduled',   bg: '#EFF6FF', color: '#1D4ED8', dot: '#2563EB' },
+  in_progress: { label: 'In Progress', bg: '#FFF7ED', color: '#C2410C', dot: '#EA580C' },
+  paused:      { label: 'Paused',      bg: '#FEF9C3', color: '#92400E', dot: '#D97706' },
+  completed:   { label: 'Completed',   bg: '#F0FDF4', color: '#15803D', dot: '#16A34A' },
+};
+
+function InstallationJobsPanel({ jobs, navigate }) {
+  if (!jobs.length) {
+    return (
+      <div style={{ textAlign: 'center', padding: '48px 24px', background: '#F9FAFB', borderRadius: 12, border: '1px dashed #E5E7EB' }}>
+        <div style={{ fontSize: 32, marginBottom: 12 }}>🔧</div>
+        <div style={{ fontWeight: 700, fontSize: 15, color: '#374151', marginBottom: 6 }}>No installation jobs yet</div>
+        <div style={{ fontSize: 13, color: '#9CA3AF' }}>Installation jobs linked to this project will appear here.</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      {jobs.map(job => {
+        const cfg = INST_STATUS_CFG[job.status] ?? INST_STATUS_CFG.scheduled;
+        return (
+          <div
+            key={job.id}
+            onClick={() => navigate(`/admin/installation/${job.id}`)}
+            style={{
+              background: '#fff', border: '1px solid #E5E7EB', borderRadius: 14,
+              padding: '16px 18px', cursor: 'pointer',
+              display: 'flex', alignItems: 'flex-start', gap: 14,
+              transition: 'box-shadow 0.15s, border-color 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'; e.currentTarget.style.borderColor = INST_BRAND; }}
+            onMouseLeave={e => { e.currentTarget.style.boxShadow = ''; e.currentTarget.style.borderColor = '#E5E7EB'; }}
+          >
+            <div style={{
+              width: 40, height: 40, borderRadius: 10, background: INST_BRAND_BG,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <span style={{ fontSize: 18 }}>🔧</span>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                <div style={{ fontWeight: 800, fontSize: 15, color: '#111827' }}>
+                  {job.customer_name || `Job #${job.id}`}
+                </div>
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px',
+                  borderRadius: 20, fontSize: 11, fontWeight: 700,
+                  background: cfg.bg, color: cfg.color, flexShrink: 0,
+                }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: cfg.dot }} />
+                  {cfg.label}
+                </span>
+              </div>
+
+              {(job.address || job.suburb) && (
+                <div style={{ fontSize: 13, color: '#6B7280', marginTop: 4 }}>
+                  📍 {[job.address, job.suburb].filter(Boolean).join(', ')}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 8 }}>
+                {job.scheduled_date && (
+                  <div style={{ fontSize: 12, color: '#374151', fontWeight: 600 }}>
+                    📅 {new Date(job.scheduled_date).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                    {job.scheduled_time ? ` · ${job.scheduled_time.slice(0,5)}` : ''}
+                  </div>
+                )}
+                {job.system_size_kw && (
+                  <div style={{ fontSize: 12, color: '#6B7280' }}>⚡ {job.system_size_kw} kW {job.system_type ?? ''}</div>
+                )}
+                {job.team_count > 0 && (
+                  <div style={{ fontSize: 12, color: '#6B7280' }}>
+                    👥 {job.team_names ?? `${job.team_count} team member${job.team_count > 1 ? 's' : ''}`}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div style={{ color: '#D1D5DB', fontSize: 18, flexShrink: 0, marginTop: 2 }}>›</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 const PROJECT_STAGE_LABELS = {
   new: 'New',
@@ -36,8 +128,9 @@ export default function ProjectDetailPage() {
   const [schedule, setSchedule] = useState(null);
   const [assignees, setAssignees] = useState([]);
   const [users, setUsers] = useState([]);
-  const [activities, setActivities] = useState([]);
-  const [documents, setDocuments] = useState([]);
+  const [activities,        setActivities]        = useState([]);
+  const [documents,         setDocuments]         = useState([]);
+  const [installationJobs,  setInstallationJobs]  = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -95,6 +188,12 @@ export default function ProjectDetailPage() {
         });
         setUsers(mappedUsers);
       }
+
+      // Fetch installation jobs linked to this project
+      try {
+        const ijResp = await listInstallationJobs({ project_id: projectId, limit: 50 });
+        if (ijResp?.success && Array.isArray(ijResp.data)) setInstallationJobs(ijResp.data);
+      } catch (_) {}
 
       // Fetch lead activities/documents if lead_id exists
       const currentProject = pResp.status === 'fulfilled' ? pResp.value.data : null;
@@ -280,10 +379,11 @@ export default function ProjectDetailPage() {
         {/* TABS */}
         <div className="lead-detail-tabs">
           {[
-            { key: 'details', label: 'Project Info' },
-            { key: 'schedule', label: 'Schedule & Assign' },
-            { key: 'activity', label: 'Activities' },
-            { key: 'documents', label: 'Documents' },
+            { key: 'details',      label: 'Project Info' },
+            { key: 'schedule',     label: 'Schedule & Assign' },
+            { key: 'activity',     label: 'Activities' },
+            { key: 'documents',    label: 'Documents' },
+            { key: 'installation', label: `Installation${installationJobs.length ? ` (${installationJobs.length})` : ''}` },
           ].map((tab) => {
             const isActive = activeTab === tab.key;
             return (
@@ -333,6 +433,10 @@ export default function ProjectDetailPage() {
                 documents={documents} 
                 leadId={project?.lead_id} 
               />
+            </div>
+          ) : activeTab === 'installation' ? (
+            <div className="fade-in">
+              <InstallationJobsPanel jobs={installationJobs} navigate={navigate} />
             </div>
           ) : null}
         </div>

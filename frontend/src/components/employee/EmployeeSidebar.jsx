@@ -15,6 +15,7 @@ import {
   LayoutDashboard,
   PalmtreeIcon,
   Receipt,
+  Wrench,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getCompanySidebar } from '../../services/api.js';
@@ -25,7 +26,8 @@ const EMP_MODULE_NAV = {
 
   // Module-driven items
   leads:      { to: '/employee/leads',      label: 'Lead Pipeline', icon: UsersRound },
-  on_field:   { to: '/employee/on-field',   label: 'On-Field',       icon: HardHat },
+  on_field:     { to: '/employee/on-field',       label: 'On-Field',         icon: HardHat },
+  installation: { to: '/employee/installation',   label: 'Installation Day', icon: Wrench },
   messages:   { to: '/employee/messages',   label: 'Messages',       icon: MessageSquare },
   settings:   { to: '/employee/settings',   label: 'Settings',       icon: Settings },
   attendance: { to: '/employee/attendance', label: 'Attendance',     icon: ClipboardList },

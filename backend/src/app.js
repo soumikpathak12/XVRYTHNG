@@ -39,7 +39,8 @@ import trialUserRoutes from './routes/trialUserRoutes.js';
 import projectRoutes from './routes/projectRoutes.js';
 
 import retailerProjectRoutes from './routes/retailerProjectRoutes.js';
-import ProjectManagementDashboardRoutes from './routes/ProjectManagementDashboardRoutes.js'
+import ProjectManagementDashboardRoutes from './routes/ProjectManagementDashboardRoutes.js';
+import installationRoutes from './routes/installationRoutes.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -109,6 +110,7 @@ app.use('/api/projects', projectRoutes);
 
 app.use('/api/retailer-projects', retailerProjectRoutes);
 app.use('/api/pm-dashboard', ProjectManagementDashboardRoutes);
+app.use('/api/installation-jobs', installationRoutes);
 // ---------------------------------------------------------------------------
 // Cron Jobs
 // ---------------------------------------------------------------------------
