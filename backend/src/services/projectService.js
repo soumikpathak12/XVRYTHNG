@@ -127,17 +127,31 @@ export async function updateProjectStage(projectId, nextStage) {
     throw err;
   }
   if (!PROJECT_STAGES.has(nextStage)) {
-    const err = new Error('Invalid stage');
-    err.statusCode = 400;
+    const err = new Error('Invalid stage transition');
+    err.statusCode = 422;
     throw err;
   }
-  const [rows] = await db.execute('SELECT id FROM projects WHERE id = ? LIMIT 1', [projectId]);
-  if (!rows?.[0]) {
-    const err = new Error('Project not found');
-    err.statusCode = 404;
-    throw err;
+  return updateProject(projectId, { stage: nextStage });
+}
+
+export async function updateProject(projectId, updates = {}) {
+  // Extract only allowed fields
+  const allowed = ['expected_completion_date', 'stage'];
+  const sets = [];
+  const params = [];
+  for (const k of allowed) {
+    if (updates[k] !== undefined) {
+      sets.push(`${k} = ?`);
+      params.push(updates[k] === '' ? null : updates[k]);
+    }
   }
-  await db.execute('UPDATE projects SET stage = ?, updated_at = NOW() WHERE id = ?', [nextStage, projectId]);
+
+  if (sets.length === 0) return getProjectById(projectId);
+
+  sets.push('updated_at = NOW()');
+  params.push(projectId);
+
+  await db.execute(`UPDATE projects SET ${sets.join(', ')} WHERE id = ?`, params);
   const [updated] = await db.execute('SELECT * FROM projects WHERE id = ? LIMIT 1', [projectId]);
   return updated[0];
 }

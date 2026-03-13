@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import ProjectsKanbanBoard, { DEFAULT_PROJECT_STAGES } from '../components/projects/ProjectsKanbanBoard.jsx';
 import ProjectsTable from '../components/projects/ProjectsTable.jsx';
 import ProjectsCalendar from '../components/projects/ProjectCalendar.jsx';
+import ProjectsTimeline from '../components/projects/ProjectsTimeline.jsx';
 import {
   getProjects,
   updateProjectStage,
@@ -67,6 +68,7 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [searchStage, setSearchStage] = useState(null);
+  const [daysFilter, setDaysFilter] = useState('');
 
   // NEW: Calendar state for schedules
   const [calendarLoading, setCalendarLoading] = useState(false);
@@ -103,7 +105,20 @@ export default function ProjectsPage() {
     return () => { alive = false; };
   }, [debouncedSearch, searchStage]);
 
-  const filteredProjects = useMemo(() => projects, [projects]);
+  const filteredProjects = useMemo(() => {
+    let list = projects;
+    if (daysFilter) {
+      const maxDays = Number(daysFilter);
+      const now = new Date();
+      list = list.filter((p) => {
+        if (!p.lastActivity) return false;
+        const d = new Date(p.lastActivity);
+        const diff = (now - d) / (1000 * 3600 * 24);
+        return diff <= maxDays;
+      });
+    }
+    return list;
+  }, [projects, daysFilter]);
 
   const handleStageChange = useCallback(async (projectId, nextStage) => {
     setProjects((prev) =>
@@ -237,6 +252,13 @@ export default function ProjectsPage() {
               >
                 Calendar
               </button>
+              <button
+                type="button"
+                className={`leads-view-tab ${view === 'timeline' ? 'active' : ''}`}
+                onClick={() => switchView('timeline')}
+              >
+                Timeline
+              </button>
             </div>
           </div>
         </div>
@@ -268,6 +290,18 @@ export default function ProjectsPage() {
               </button>
             )}
           </div>
+          
+          <select
+            className="leads-filter-select"
+            value={daysFilter}
+            onChange={(e) => setDaysFilter(e.target.value)}
+            aria-label="Filter by last activity"
+          >
+            <option value="">Any time</option>
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+          </select>
 
           <span className="leads-result-count">
             {filteredProjects.length} project{filteredProjects.length !== 1 ? 's' : ''}
@@ -318,6 +352,8 @@ export default function ProjectsPage() {
               />
             )}
           </div>
+        ) : view === 'timeline' ? (
+          <ProjectsTimeline projects={filteredProjects} />
         ) : (
           <ProjectsKanbanBoard
             projects={filteredProjects}

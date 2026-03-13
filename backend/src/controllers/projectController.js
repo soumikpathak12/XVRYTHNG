@@ -42,6 +42,28 @@ export async function updateProjectStage(req, res) {
   }
 }
 
+export async function updateProject(req, res) {
+  try {
+    const projectId = req.params.id;
+    const body = req.body ?? {};
+    
+    // currently we only allow expected_completion_date and stage in service
+    const allowedUpdates = {};
+    if ('expected_completion_date' in body) {
+      allowedUpdates.expected_completion_date = body.expected_completion_date;
+    }
+    if ('stage' in body) {
+      allowedUpdates.stage = body.stage;
+    }
+
+    const updated = await projectService.updateProject(projectId, allowedUpdates);
+    return res.status(200).json({ success: true, data: updated });
+  } catch (err) {
+    const status = err.statusCode ?? err.status ?? 500;
+    return res.status(status).json({ success: false, message: err.message ?? 'Failed to update project.' });
+  }
+}
+
 
 export async function getProjectInspection(req, res) {
   try {

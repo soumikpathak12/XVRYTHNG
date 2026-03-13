@@ -8,7 +8,8 @@ import {
   retailerUpdateStage,
   retailerGetSchedule,
   retailerPatchSchedule,retailerGetAssignees,retailerPatchAssignees,
-  retailerGetById
+  retailerGetById,
+  retailerUpdate
 } from '../controllers/retailerProjectController.js';
 
 const router = Router();
@@ -21,6 +22,9 @@ router.get('/', retailerList);
 
 // Get By ID
 router.get('/:id', retailerGetById);
+
+// Update general fields
+router.put('/:id', retailerUpdate);
 
 // Create (project + schedule in one go)
 router.post('/', retailerCreate);

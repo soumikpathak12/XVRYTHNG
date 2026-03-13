@@ -8,13 +8,14 @@ import {
   saveRetailerProjectSchedule,
   getCompanyEmployees,
   getRetailerProjectAssignees,
-  saveRetailerProjectAssignees
+  saveRetailerProjectAssignees,
+  updateRetailerProjectApi
 } from '../services/api.js';
 
 import RetailerProjectDetailDetails from '../components/projects/RetailerProjectDetailDetails.jsx';
-// If you want standard Activity/Documents tabs, you can import them here if they support retailer context
-// import LeadDetailActivity from '../components/leads/LeadDetailActivity.jsx'; 
-// import LeadDetailDocuments from '../components/leads/LeadDetailDocuments.jsx';
+import ProjectDocuments from '../components/projects/ProjectDocuments.jsx';
+import ProjectCommunication from '../components/projects/ProjectCommunication.jsx';
+import ProjectMilestoneProgress from '../components/projects/ProjectMilestoneProgress.jsx';
 
 import '../styles/LeadDetailModal.css'; // Re-use the layout styles from Lead Details
 
@@ -62,10 +63,11 @@ export default function RetailerProjectDetailPage() {
   const [schedule, setSchedule] = useState(null);
   const [assignees, setAssignees] = useState([]);
   const [companyUsers, setCompanyUsers] = useState([]);
+  const [expectedCompletionDate, setExpectedCompletionDate] = useState('');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState('details'); // details, schedule
+  const [activeTab, setActiveTab] = useState('overview'); // overview, schedule, financials, documents, communication
   const [toast, setToast] = useState('');
 
   const loadData = useCallback(async () => {
@@ -82,7 +84,14 @@ export default function RetailerProjectDetailPage() {
       ]);
 
       if (projRes.status === 'fulfilled') {
-        setProject(projRes.value?.project ?? null);
+        const p = projRes.value?.project ?? null;
+        setProject(p);
+        if (p?.expected_completion_date) {
+          const d = p.expected_completion_date;
+          setExpectedCompletionDate(d.includes('T') ? d.split('T')[0] : d);
+        } else {
+          setExpectedCompletionDate('');
+        }
       } else {
         throw new Error(projRes.reason?.message || 'Failed to load project details');
       }
@@ -125,6 +134,18 @@ export default function RetailerProjectDetailPage() {
     }
   }, [projectId]);
 
+  const handleSaveExpectedCompletionDate = async (newVal) => {
+    try {
+      setExpectedCompletionDate(newVal);
+      await updateRetailerProjectApi(projectId, { expected_completion_date: newVal || null });
+      setToast('Expected completion date updated');
+      setTimeout(() => setToast(''), 3000);
+      loadData();
+    } catch (err) {
+      setError(err.message || 'Failed to save expected completion date');
+    }
+  };
+
   useEffect(() => {
     if (projectId) loadData();
     else setProject(null);
@@ -137,6 +158,22 @@ export default function RetailerProjectDetailPage() {
       await updateRetailerProjectStage(projectId, 'cancelled');
       navigate(`${base}/projects/retailer`);
     } catch (err) {
+      setError(err.message || 'Failed to update stage');
+    }
+  };
+
+  const handleChangeStage = async (nextStage) => {
+    // Optimistic UI update
+    const previousStage = project?.stage;
+    setProject((prev) => prev ? { ...prev, stage: nextStage } : prev);
+
+    try {
+      await updateRetailerProjectStage(projectId, nextStage);
+      setToast(`Stage updated to ${nextStage.replace(/_/g, ' ')}`);
+      setTimeout(() => setToast(''), 3000);
+    } catch (err) {
+      // Revert on error
+      setProject((prev) => prev ? { ...prev, stage: previousStage } : prev);
       setError(err.message || 'Failed to update stage');
     }
   };
@@ -245,29 +282,16 @@ export default function RetailerProjectDetailPage() {
 
         {project && (
           <>
-            {/* SUMMARY CARDS */}
-            <div className="lead-detail-cards">
-              <div className="lead-detail-card">
-                <span className="lead-detail-card-label">Location</span>
-                <span className="lead-detail-card-value">{project.suburb || '—'}</span>
-              </div>
-              <div className="lead-detail-card">
-                <span className="lead-detail-card-label">Est. Value</span>
-                <span className="lead-detail-card-value">{fmtAUD(project.value_amount)}</span>
-              </div>
-              <div className="lead-detail-card">
-                <span className="lead-detail-card-label">System Size</span>
-                <span className="lead-detail-card-value">{project.system_size_kw != null ? `${project.system_size_kw} kW` : '—'}</span>
-              </div>
-            </div>
-
             {/* TABS */}
             <div className="lead-detail-tabs">
-              {['details', 'schedule'].map((tab) => {
+              {['overview', 'schedule', 'financials', 'documents', 'communication'].map((tab) => {
                 const isActive = activeTab === tab;
                 const labels = {
-                  'details': 'Project Details',
-                  'schedule': 'Schedule & Assignees'
+                  'overview': 'Overview',
+                  'schedule': 'Schedule & Assignees',
+                  'financials': 'Financials',
+                  'documents': 'Documents',
+                  'communication': 'Communication'
                 };
                 return (
                   <button
@@ -284,18 +308,67 @@ export default function RetailerProjectDetailPage() {
 
             {/* TAB CONTENT PANEL */}
             <div className="lead-detail-panel">
-              <RetailerProjectDetailDetails
-                project={project}
-                schedule={schedule}
-                assignees={assignees}
-                users={companyUsers}
-                activeTab={activeTab}
-                onSaveSchedule={handleSaveSchedule}
-                onSaveAssignees={handleSaveAssignees}
-                onSaveProjectDetails={async (payload) => {
-                  // In the future, you could add an endpoint to update retailer project details
-                }}
-              />
+              {activeTab === 'overview' ? (
+                <div className="fade-in">
+                  <ProjectMilestoneProgress stages={RETAILER_STAGES} currentStage={project.stage} />
+                  <div className="lead-detail-cards" style={{ margin: '0 0 32px 0' }}>
+                    <div className="lead-detail-card">
+                      <span className="lead-detail-card-label">Location</span>
+                      <span className="lead-detail-card-value">{project.suburb || '—'}</span>
+                    </div>
+                    <div className="lead-detail-card">
+                      <span className="lead-detail-card-label">Est. Value</span>
+                      <span className="lead-detail-card-value">{fmtAUD(project.value_amount)}</span>
+                    </div>
+                    <div className="lead-detail-card">
+                      <span className="lead-detail-card-label">System Size</span>
+                      <span className="lead-detail-card-value">{project.system_size_kw != null ? `${project.system_size_kw} kW` : '—'}</span>
+                    </div>
+                  </div>
+                  <RetailerProjectDetailDetails
+                    project={project}
+                    schedule={schedule}
+                    assignees={assignees}
+                    users={companyUsers}
+                    activeTab="details"
+                    onSaveSchedule={handleSaveSchedule}
+                    onSaveAssignees={handleSaveAssignees}
+                    onChangeStage={handleChangeStage}
+                    expectedCompletionDate={expectedCompletionDate}
+                    onChangeExpectedCompletionDate={handleSaveExpectedCompletionDate}
+                  />
+                </div>
+              ) : activeTab === 'schedule' ? (
+                <RetailerProjectDetailDetails
+                  project={project}
+                  schedule={schedule}
+                  assignees={assignees}
+                  users={companyUsers}
+                  activeTab={activeTab}
+                  onSaveSchedule={handleSaveSchedule}
+                  onSaveAssignees={handleSaveAssignees}
+                  onChangeStage={handleChangeStage}
+                  expectedCompletionDate={expectedCompletionDate}
+                  onChangeExpectedCompletionDate={handleSaveExpectedCompletionDate}
+                />
+              ) : activeTab === 'financials' ? (
+                <div className="fade-in" style={{ padding: '24px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <h3 style={{ marginTop: 0 }}>Financial Overview</h3>
+                  <p>
+                    <strong>Estimated Value: </strong> 
+                    {project?.value_amount ? new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(project.value_amount) : 'Not specified'}
+                  </p>
+                </div>
+              ) : activeTab === 'documents' ? (
+                <div className="fade-in" style={{ padding: '24px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <h3 style={{ marginTop: 0, marginBottom: '16px' }}>Project Documents</h3>
+                  <ProjectDocuments projectId={projectId} apiBasePath="/api/retailer-projects" />
+                </div>
+              ) : activeTab === 'communication' ? (
+                <div className="fade-in" style={{ padding: '24px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <ProjectCommunication projectId={projectId} apiBasePath="/api/retailer-projects" />
+                </div>
+              ) : null}
             </div>
           </>
         )}
