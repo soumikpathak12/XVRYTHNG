@@ -136,8 +136,6 @@ export default function ProjectDetailPage() {
   const [activities, setActivities] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [expectedCompletionDate, setExpectedCompletionDate] = useState('');
-  const [activities, setActivities] = useState([]);
-  const [documents, setDocuments] = useState([]);
   const [installationJobs, setInstallationJobs] = useState([]);
 
   const [loading, setLoading] = useState(true);
@@ -387,10 +385,6 @@ export default function ProjectDetailPage() {
             { key: 'documents', label: 'Documents' },
             { key: 'communication', label: 'Communication' },
             { key: 'activity', label: 'Activity Log' },
-            { key: 'details', label: 'Project Info' },
-            { key: 'schedule', label: 'Schedule & Assign' },
-            { key: 'activity', label: 'Activities' },
-            { key: 'documents', label: 'Documents' },
             { key: 'installation', label: `Installation${installationJobs.length ? ` (${installationJobs.length})` : ''}` },
           ].map((tab) => {
             const isActive = activeTab === tab.key;
