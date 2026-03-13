@@ -1960,3 +1960,96 @@ export async function getPmDashboardDrilldown(params = {}) {
   if (!res.ok) { const err = new Error(data.message || 'Failed to load drilldown'); err.status = res.status; throw err; }
   return data; // { success, data: [...] }
 }
+
+// ---------------------------------------------------------------------------
+// Installation Day
+// ---------------------------------------------------------------------------
+export async function listInstallationJobs(params = {}) {
+  const q = new URLSearchParams(params).toString();
+  return authFetchJSON(`/api/installation-jobs${q ? `?${q}` : ''}`, { method: 'GET' });
+}
+
+export async function getInstallationJob(id) {
+  return authFetchJSON(`/api/installation-jobs/${id}`, { method: 'GET' });
+}
+
+export async function createInstallationJob(payload) {
+  return authFetchJSON('/api/installation-jobs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateInstallationJobStatus(id, status) {
+  return authFetchJSON(`/api/installation-jobs/${id}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function tickInstallationChecklist(jobId, itemId, { checked, note }) {
+  return authFetchJSON(`/api/installation-jobs/${jobId}/checklist/${itemId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ checked, note }),
+  });
+}
+
+export async function submitInstallationSignoff(jobId, { customer_name, signature_url, notes }) {
+  return authFetchJSON(`/api/installation-jobs/${jobId}/signoff`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ customer_name, signature_url, notes }),
+  });
+}
+
+// Checklist item template management (T-236 company customisation)
+export async function listInstallationChecklistItems() {
+  return authFetchJSON('/api/installation-jobs/checklist-items', { method: 'GET' });
+}
+
+export async function createInstallationChecklistItem(payload) {
+  return authFetchJSON('/api/installation-jobs/checklist-items', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateInstallationChecklistItem(itemId, payload) {
+  return authFetchJSON(`/api/installation-jobs/checklist-items/${itemId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteInstallationChecklistItem(itemId) {
+  return authFetchJSON(`/api/installation-jobs/checklist-items/${itemId}`, {
+    method: 'DELETE',
+  });
+}
+
+// Installation photos (T-245/246/247/248)
+export async function uploadInstallationPhoto(jobId, formData) {
+  // formData is a FormData object containing: photo (file), section, caption, lat, lng, taken_at
+  const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+  const res = await fetch(`/api/installation-jobs/${jobId}/photos`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+  return res.json();
+}
+
+export async function deleteInstallationPhoto(jobId, photoId) {
+  return authFetchJSON(`/api/installation-jobs/${jobId}/photos/${photoId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function getInstallationPhotoRequirements() {
+  return authFetchJSON('/api/installation-jobs/photo-requirements', { method: 'GET' });
+}

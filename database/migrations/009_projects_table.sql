@@ -15,7 +15,7 @@ CREATE TABLE `projects` (
   UNIQUE KEY `uniq_projects_lead_id` (`lead_id`),
   KEY `idx_projects_stage` (`stage`),
   CONSTRAINT `fk_projects_lead` FOREIGN KEY (`lead_id`) REFERENCES `leads` (`id`) ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `project_assignees` (
   `project_id` bigint(20) unsigned NOT NULL,
@@ -28,7 +28,7 @@ CREATE TABLE `project_assignees` (
   KEY `fk_pa_employee` (`employee_id`),
   CONSTRAINT `fk_pa_employee` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_pa_project` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 
@@ -47,7 +47,7 @@ CREATE TABLE `project_schedules` (
   UNIQUE KEY `uniq_project` (`project_id`),
   KEY `idx_company_project` (`company_id`,`project_id`),
   CONSTRAINT `fk_ps_project` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 CREATE TABLE `retailer_projects` (
@@ -81,7 +81,7 @@ CREATE TABLE `retailer_projects` (
   UNIQUE KEY `uk_retailer_projects_code` (`code`),
   KEY `idx_retailer_projects_company` (`company_id`),
   KEY `idx_retailer_projects_stage` (`stage`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `retailer_project_assignees` (
   `project_id` bigint(20) unsigned NOT NULL,
@@ -116,4 +116,4 @@ CREATE TABLE `retailer_project_schedules` (
   KEY `idx_retailer_project_schedule_date` (`scheduled_date`),
   KEY `fk_rps_project` (`project_id`),
   CONSTRAINT `fk_rps_project` FOREIGN KEY (`project_id`) REFERENCES `retailer_projects` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci  

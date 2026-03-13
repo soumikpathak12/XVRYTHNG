@@ -55,7 +55,9 @@ import ApprovalsPage from './pages/ApprovalsPage.jsx';
 import RetailerProjectsPage from './pages/RetailerProjectsPage.jsx';
 import RetailerProjectDetailPage from './pages/RetailerProjectDetailPage.jsx';
 import ProjectDetailPage from './pages/ProjectDetailPage.jsx';
-import ProjectManagementDashboard from './pages/ProjectManagementDashboard.jsx'
+import ProjectManagementDashboard from './pages/ProjectManagementDashboard.jsx';
+import InstallationJobCard from './pages/InstallationJobCard.jsx';
+import InstallationJobList from './pages/InstallationJobList.jsx';
 function PlaceholderPage({ title, message, children }) {
   return (
     <div style={{ padding: '2rem', textAlign: 'center', color: '#1A1A2E' }}>
@@ -284,6 +286,24 @@ function App() {
           />
 
 
+          {/* Installation Day */}
+          <Route
+            path="installation"
+            element={
+              <RequirePermission resource="installation" action="view">
+                <InstallationJobList />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="installation/:id"
+            element={
+              <RequirePermission resource="installation" action="view">
+                <InstallationJobCard />
+              </RequirePermission>
+            }
+          />
+
           <Route
             path="on-field"
             element={
@@ -413,6 +433,8 @@ function App() {
           <Route path="attendance" element={<ApprovalsPage />} />
           <Route path="referrals" element={<ReferralsPage />} />
           <Route path="messages" element={<MessagesPage />} />
+          <Route path="installation" element={<InstallationJobList />} />
+          <Route path="installation/:id" element={<InstallationJobCard />} />
           <Route path="support-tickets" element={<RequirePermission resource="support" action="view"><AdminSupportTicketsPage /></RequirePermission>} />
           <Route path="support-tickets/:ticketId" element={<RequirePermission resource="support" action="view"><AdminSupportTicketsPage /></RequirePermission>} />
           <Route path="settings" element={<CompanySettingsPage />} />
@@ -506,6 +528,10 @@ function App() {
               </RequirePermission>
             }
           />
+
+          {/* Installation Day */}
+          <Route path="installation" element={<InstallationJobList />} />
+          <Route path="installation/:id" element={<InstallationJobCard />} />
 
           {/* Projects */}
           <Route
