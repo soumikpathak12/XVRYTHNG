@@ -12,6 +12,7 @@ export default function JobRoleModulesPanel() {
   const [modules, setModules] = useState([]);
   const [savingId, setSavingId] = useState(null);
   const [error, setError] = useState(null);
+  const [toast, setToast] = useState('');
 
   useEffect(() => {
     Promise.all([api.getJobRoles(), api.getCompanyModules()])
@@ -41,13 +42,20 @@ export default function JobRoleModulesPanel() {
   };
 
   const save = async roleId => {
+    const role = jobRoles.find(r => r.id === roleId);
+    const roleName = role?.name ?? 'this role';
+    const ok = window.confirm(`Save module access changes for ${roleName}?`);
+    if (!ok) return;
+
     setSavingId(roleId);
     setError(null);
-    const role = jobRoles.find(r => r.id === roleId);
-    const moduleKeys = role.modules.map(m => m.key);
+    setToast('');
+    const moduleKeys = (role?.modules ?? []).map(m => m.key);
 
     try {
       await api.setJobRoleModules(roleId, { moduleKeys });
+      setToast('Saved successfully.');
+      window.setTimeout(() => setToast(''), 2500);
     } catch (e) {
       setError(e.message || 'Failed to save');
     } finally {
@@ -57,6 +65,19 @@ export default function JobRoleModulesPanel() {
 
   return (
     <div style={{ marginTop: 10 }}>
+      {toast && (
+        <div style={{
+          marginBottom: 12,
+          padding: '10px 14px',
+          background: '#ECFDF5',
+          color: '#047857',
+          borderRadius: 8,
+          fontWeight: 700,
+          border: '1px solid #A7F3D0',
+        }}>
+          {toast}
+        </div>
+      )}
       {error && (
         <div style={{ 
           marginBottom: 12,

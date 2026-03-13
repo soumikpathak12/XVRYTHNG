@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { listInstallationJobs } from '../services/api.js';
 import ProjectsCalendar from '../components/projects/ProjectCalendar.jsx';
+import CreateInstallationJobModal from '../components/installation/CreateInstallationJobModal.jsx';
 
 // ─── brand tokens ─────────────────────────────────────────────────────────────
 const BRAND    = '#146b6b';
@@ -131,13 +132,14 @@ export default function InstallationJobList() {
   const navigate    = useNavigate();
   const jobCardBase = useJobCardBase();
 
-  const [jobs,     setJobs]     = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState('');
-  const [view,     setView]     = useState('list');   // 'list' | 'calendar'
-  const [search,   setSearch]   = useState('');
-  const [status,   setStatus]   = useState('');       // '' = all
-  const searchRef  = useRef(null);
+  const [jobs,       setJobs]       = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState('');
+  const [view,       setView]       = useState('list');   // 'list' | 'calendar'
+  const [search,     setSearch]     = useState('');
+  const [status,     setStatus]     = useState('');       // '' = all
+  const [showCreate, setShowCreate] = useState(false);
+  const searchRef = useRef(null);
 
   // Load all jobs once
   useEffect(() => {
@@ -152,6 +154,12 @@ export default function InstallationJobList() {
 
   const openJob = useCallback((job) => {
     navigate(`${jobCardBase}/${job.id}`);
+  }, [navigate, jobCardBase]);
+
+  const handleJobCreated = useCallback((newJob) => {
+    setJobs(prev => [newJob, ...prev]);
+    // Navigate straight to the new job card
+    navigate(`${jobCardBase}/${newJob.id}`);
   }, [navigate, jobCardBase]);
 
   // Filter for list view
@@ -208,23 +216,45 @@ export default function InstallationJobList() {
           </div>
         </div>
 
-        {/* View toggle */}
-        <div style={{ display: 'flex', gap: 4, background: '#F3F4F6', borderRadius: 12, padding: 4 }}>
-          {[{ v: 'list', Icon: List }, { v: 'calendar', Icon: CalendarDays }].map(({ v, Icon }) => (
-            <button key={v} onClick={() => setView(v)} style={{
-              padding: '8px 16px', borderRadius: 9, border: 'none', cursor: 'pointer',
-              background: view === v ? '#fff' : 'transparent',
-              color: view === v ? BRAND : '#6B7280',
-              fontWeight: view === v ? 800 : 600,
-              fontSize: 13,
-              display: 'flex', alignItems: 'center', gap: 6,
-              boxShadow: view === v ? '0 1px 4px rgba(0,0,0,0.09)' : 'none',
-            }}>
-              <Icon size={15} /> {v.charAt(0).toUpperCase() + v.slice(1)}
-            </button>
-          ))}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* New Job button */}
+          <button
+            onClick={() => setShowCreate(true)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 7,
+              padding: '10px 18px', borderRadius: 12, border: 'none', cursor: 'pointer',
+              background: BRAND, color: '#fff', fontWeight: 800, fontSize: 14,
+              boxShadow: `0 2px 8px ${BRAND}44`,
+            }}
+          >
+            <Plus size={16} strokeWidth={2.5} /> New Job
+          </button>
+
+          {/* View toggle */}
+          <div style={{ display: 'flex', gap: 4, background: '#F3F4F6', borderRadius: 12, padding: 4 }}>
+            {[{ v: 'list', Icon: List }, { v: 'calendar', Icon: CalendarDays }].map(({ v, Icon }) => (
+              <button key={v} onClick={() => setView(v)} style={{
+                padding: '8px 16px', borderRadius: 9, border: 'none', cursor: 'pointer',
+                background: view === v ? '#fff' : 'transparent',
+                color: view === v ? BRAND : '#6B7280',
+                fontWeight: view === v ? 800 : 600,
+                fontSize: 13,
+                display: 'flex', alignItems: 'center', gap: 6,
+                boxShadow: view === v ? '0 1px 4px rgba(0,0,0,0.09)' : 'none',
+              }}>
+                <Icon size={15} /> {v.charAt(0).toUpperCase() + v.slice(1)}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+
+      {/* Create Job modal */}
+      <CreateInstallationJobModal
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+        onCreated={handleJobCreated}
+      />
 
       {/* ── Calendar view ── */}
       {view === 'calendar' && (
