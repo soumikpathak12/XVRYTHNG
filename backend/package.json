@@ -10,7 +10,8 @@
     "seed": "node database/seed.js",
     "migrate:tenants": "node database/migrate-multi-tenant.js",
     "migrate:profile": "node database/migrate-user-profile.js",
-    "migrate:rbac": "node database/migrate-rbac.js"
+    "migrate:rbac": "node database/migrate-rbac.js",
+    "sanity": "node scripts/sanity-test.js"
   },
   "engines": {
     "node": ">=18"

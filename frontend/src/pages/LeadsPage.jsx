@@ -35,6 +35,7 @@ export default function LeadsPage() {
   const [showImport, setShowImport] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [toast, setToast] = useState('');
+  const [toastVariant, setToastVariant] = useState('error'); // 'success' | 'error'
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
 
@@ -44,20 +45,27 @@ export default function LeadsPage() {
   const [sourceFilter, setSourceFilter] = useState('');
   const [daysFilter, setDaysFilter] = useState('');
 
+  const isEmployeeView = base === '/employee';
   const getInitialView = () => {
+    if (isEmployeeView) return 'calendar';
     const params = new URLSearchParams(location.search);
     const v = (params.get('view') || '').toLowerCase();
     return ['kanban', 'table', 'calendar'].includes(v) ? v : 'kanban';
   };
   const [view, setView] = useState(getInitialView());
+  const [calendarViewMode, setCalendarViewMode] = useState('month'); // day | week | month (employee only)
 
   useEffect(() => {
+    if (isEmployeeView) {
+      if (view !== 'calendar') setView('calendar');
+      return;
+    }
     const params = new URLSearchParams(location.search);
     const v = (params.get('view') || '').toLowerCase();
     if (['kanban', 'table', 'calendar'].includes(v) && v !== view) {
       setView(v);
     }
-  }, [location.search]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [location.search, isEmployeeView]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const switchView = useCallback(
     (next) => {
@@ -153,6 +161,7 @@ export default function LeadsPage() {
             String(l.id) === String(leadId) ? { ...l, stage: l._raw?.stage || l.stage } : l
           )
         );
+        setToastVariant('error');
         setToast(err.message || 'Failed to update stage');
         setTimeout(() => setToast(''), 3000);
       }
@@ -295,39 +304,47 @@ export default function LeadsPage() {
       <header className="leads-kanban-header">
         <div className="leads-kanban-header-top">
           <div className="leads-kanban-title">
-            <h1>Sales Pipeline</h1>
-            <p>Manage leads across stages. Search, filter, and drag cards between columns.</p>
+            <h1>{base === '/employee' ? 'Site Inspection' : 'Sales Pipeline'}</h1>
+            <p>
+              {base === '/employee'
+                ? 'Your scheduled inspections. View Kanban, Table, or Calendar.'
+                : 'Manage leads across stages. Search, filter, and drag cards between columns.'}
+            </p>
           </div>
           <div className="leads-kanban-actions">
-            <div className="leads-view-tabs">
-              <button
-                type="button"
-                className={`leads-view-tab ${view === 'kanban' ? 'active' : ''}`}
-                onClick={() => switchView('kanban')}
-              >
-                Kanban
+            {!isEmployeeView && (
+              <div className="leads-view-tabs">
+                <button
+                  type="button"
+                  className={`leads-view-tab ${view === 'kanban' ? 'active' : ''}`}
+                  onClick={() => switchView('kanban')}
+                >
+                  Kanban
+                </button>
+                <button
+                  type="button"
+                  className={`leads-view-tab ${view === 'table' ? 'active' : ''}`}
+                  onClick={() => switchView('table')}
+                >
+                  Table
+                </button>
+                <button
+                  type="button"
+                  className={`leads-view-tab ${view === 'calendar' ? 'active' : ''}`}
+                  onClick={() => switchView('calendar')}
+                >
+                  Calendar
+                </button>
+              </div>
+            )}
+            {!isEmployeeView && (
+              <button type="button" className="leads-add-btn" onClick={() => setOpenAdd(true)}>
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                Add Lead
               </button>
-              <button
-                type="button"
-                className={`leads-view-tab ${view === 'table' ? 'active' : ''}`}
-                onClick={() => switchView('table')}
-              >
-                Table
-              </button>
-              <button
-                type="button"
-                className={`leads-view-tab ${view === 'calendar' ? 'active' : ''}`}
-                onClick={() => switchView('calendar')}
-              >
-                Calendar
-              </button>
-            </div>
-            <button type="button" className="leads-add-btn" onClick={() => setOpenAdd(true)}>
-              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-              </svg>
-              Add Lead
-            </button>
+            )}
           </div>
         </div>
 
@@ -393,54 +410,56 @@ export default function LeadsPage() {
           <span className="leads-result-count">
             {boardLeads.length} lead{boardLeads.length !== 1 ? 's' : ''}
           </span>
-          {view === 'table' && (
+          {!isEmployeeView && view === 'table' && (
             <div className="leads-filter-bar-right">
               <button type="button" className="leads-export-csv-btn" onClick={exportLeadsCsv} disabled={boardLeads.length === 0}>
                 Export CSV
               </button>
             </div>
           )}
-          <div
-            className="leads-filter-bar-right"
-            style={{ marginLeft: view === 'table' ? '8px' : 'auto', display: 'flex', gap: '8px' }}
-          >
-            <button
-              type="button"
-              className="leads-add-btn bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-              onClick={() => setShowImport(true)}
-              style={{ backgroundColor: '#fff', color: '#374151', border: '1px solid #d1d5db' }}
+          {!isEmployeeView && (
+            <div
+              className="leads-filter-bar-right"
+              style={{ marginLeft: view === 'table' ? '8px' : 'auto', display: 'flex', gap: '8px' }}
             >
-              <svg
-                width="16"
-                height="16"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth="2"
-                className="mr-1"
+              <button
+                type="button"
+                className="leads-add-btn bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+                onClick={() => setShowImport(true)}
+                style={{ backgroundColor: '#fff', color: '#374151', border: '1px solid #d1d5db' }}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                />
-              </svg>
-              Import CSV
-            </button>
-            <button
-              type="button"
-              className="leads-add-btn"
-              style={{ backgroundColor: '#f59e0b', borderColor: '#f59e0b' }}
-              onClick={handleImportSolarQuotes}
-              title="Fetch latest leads from SolarQuotes"
-            >
-              Sync SolarQuotes
-            </button>
-          </div>
+                <svg
+                  width="16"
+                  height="16"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  className="mr-1"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                  />
+                </svg>
+                Import CSV
+              </button>
+              <button
+                type="button"
+                className="leads-add-btn"
+                style={{ backgroundColor: '#f59e0b', borderColor: '#f59e0b' }}
+                onClick={handleImportSolarQuotes}
+                title="Fetch latest leads from SolarQuotes"
+              >
+                Sync SolarQuotes
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
-      {toast && <div className="leads-toast">{toast}</div>}
+      {toast && <div className={`leads-toast ${toastVariant === 'success' ? 'leads-toast-success' : ''}`}>{toast}</div>}
 
       <div className="leads-page-content">
         {loading ? (
@@ -455,6 +474,21 @@ export default function LeadsPage() {
           />
         ) : view === 'calendar' ? (
           <div className="leads-calendar-wrap">
+            {isEmployeeView && (
+              <div className="leads-calendar-view-tabs" style={{ marginBottom: 12, display: 'flex', gap: 8 }}>
+                {['day', 'week', 'month'].map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className={`leads-view-tab ${calendarViewMode === mode ? 'active' : ''}`}
+                    onClick={() => setCalendarViewMode(mode)}
+                    style={{ textTransform: 'capitalize' }}
+                  >
+                    {mode === 'day' ? 'Daily' : mode === 'week' ? 'Weekly' : 'Monthly'}
+                  </button>
+                ))}
+              </div>
+            )}
             <LeadsCalendar
               leads={calendarLeads}
               getDate={(l) => l._raw?.site_inspection_date ?? null}
@@ -462,6 +496,7 @@ export default function LeadsPage() {
               subtitleForLead={(l) => [l.suburb, l.stage].filter(Boolean).join(' • ') || ''}
               onLeadClick={(lead) => navigate(`${base}/leads/${lead.id}/site-inspection`)}
               weekStartsOn={1}
+              viewMode={isEmployeeView ? calendarViewMode : 'month'}
             />
           </div>
         ) : (
@@ -568,8 +603,17 @@ export default function LeadsPage() {
       {showImport && (
         <ImportLeadsModal
           onClose={() => setShowImport(false)}
-          onSuccess={() => {
+          onSuccess={(result) => {
             setRefreshTrigger((p) => p + 1);
+            const imported = result?.imported ?? 0;
+            setToastVariant('success');
+            setToast(imported > 0 ? `Imported ${imported} lead(s) successfully` : 'Import complete');
+            setTimeout(() => setToast(''), 3000);
+          }}
+          onError={(msg) => {
+            setToastVariant('error');
+            setToast(msg);
+            setTimeout(() => setToast(''), 4000);
           }}
         />
       )}

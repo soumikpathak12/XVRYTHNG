@@ -22,7 +22,7 @@ const OPTIONAL_FIELDS = [
 
 const ALL_FIELDS = [...REQUIRED_FIELDS, ...OPTIONAL_FIELDS];
 
-export default function ImportLeadsModal({ onClose, onSuccess }) {
+export default function ImportLeadsModal({ onClose, onSuccess, onError }) {
     const [step, setStep] = useState(1); // 1: Upload, 2: Map, 3: Preview, 4: Result
     const [file, setFile] = useState(null);
     const [csvData, setCsvData] = useState([]);
@@ -59,7 +59,8 @@ export default function ImportLeadsModal({ onClose, onSuccess }) {
                     setStep(2);
                 },
                 error: (err) => {
-                    alert('Failed to parse CSV: ' + err.message);
+                    if (onError) onError('Failed to parse CSV: ' + err.message);
+                    else alert('Failed to parse CSV: ' + err.message);
                 }
             });
         }
@@ -116,7 +117,8 @@ export default function ImportLeadsModal({ onClose, onSuccess }) {
 
     const handleImport = async () => {
         if (validationResult.validCount === 0) {
-            alert("No valid rows to import.");
+            if (onError) onError('No valid rows to import.');
+            else alert("No valid rows to import.");
             return;
         }
 
@@ -153,9 +155,10 @@ export default function ImportLeadsModal({ onClose, onSuccess }) {
             const resp = await importLeads(leadsToImport);
             setResult(resp.data); // { imported, failed, errors }
             setStep(4);
-            if (onSuccess) onSuccess();
+            if (onSuccess) onSuccess(resp.data);
         } catch (err) {
-            alert(err.message);
+            if (onError) onError(err?.message ?? 'Import failed');
+            else alert(err?.message ?? 'Import failed');
         } finally {
             setImporting(false);
         }

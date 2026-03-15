@@ -493,6 +493,8 @@ function App() {
             }
           />
 
+          <Route path="settings/inspection-templates" element={<AdminTemplatesPage />} />
+
           {/* Messages */}
           <Route
             path="messages"

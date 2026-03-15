@@ -46,6 +46,8 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
   const siteInspectionDateIso =
     lead?.site_inspection_date ?? lead?._raw?.site_inspection_date ?? '';
 
+  const inspectorId = lead?.inspector_id ?? lead?._raw?.inspector_id ?? '';
+
   const initialValues = useMemo(
     () =>
       lead
@@ -59,9 +61,10 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
             source: lead?.source ?? lead?._raw?.source ?? '',
             stage,
             site_inspection_date: formatDateTimeLocal(siteInspectionDateIso),
+            inspector_id: inspectorId,
           }
         : null,
-    [lead, email, phone, suburb, systemSizeKw, valueAmount, stage, siteInspectionDateIso],
+    [lead, email, phone, suburb, systemSizeKw, valueAmount, stage, siteInspectionDateIso, inspectorId],
   );
 
   const SYSTEM_TYPE_OPTS  = ['PV only', 'PV + Battery', 'Only Battery', 'Only EV Charger', 'PV + Battery + EV Charger', 'Battery + EV Charger','PV + EV Chargers'];

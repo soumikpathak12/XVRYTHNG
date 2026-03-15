@@ -13,6 +13,8 @@ const STAGES = [
   'closed_lost',
 ];
 
+import { listEmployees } from '../../services/api';
+
 const STAGE_LABELS = {
   new: 'New',
   contacted: 'Contacted',
@@ -79,7 +81,22 @@ export default function LeadForm({
     source: '',
     stage: 'new',
     site_inspection_date: '',
+    inspector_id: '',
   });
+
+  const [inspectors, setInspectors] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    listEmployees({ status: 'active' })
+      .then((res) => {
+        if (active) setInspectors(res.data || []);
+      })
+      .catch((err) => console.error('Failed to load inspectors', err));
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (initialValues) {
@@ -102,6 +119,7 @@ export default function LeadForm({
           initialValues.site_inspection_date ||
             initialValues.siteInspectionDate
         ),
+        inspector_id: initialValues.inspector_id || '',
       });
     }
   }, [initialValues]);
@@ -210,6 +228,7 @@ export default function LeadForm({
       value_amount: Number(form.value_amount),
       source: sourceFinal || null,
       site_inspection_date: inspectionDate,
+      inspector_id: form.inspector_id || undefined,
     };
 
     setSubmitting(true);
@@ -229,6 +248,7 @@ export default function LeadForm({
           sourceOther: '',
           stage: 'new',
           site_inspection_date: '',
+          inspector_id: '',
         });
       }
     } catch (err) {
@@ -426,6 +446,21 @@ export default function LeadForm({
             style={styles.input}
           />
           <small style={{ color: COLORS.subtext }}>Leave empty if not scheduled yet.</small>
+        </Field>
+
+        <Field label="Inspector" error={fieldErrors.inspector_id}>
+          <select
+            value={form.inspector_id}
+            onChange={(e) => update('inspector_id', e.target.value)}
+            style={styles.input}
+          >
+            <option value="">Select Inspector</option>
+            {inspectors.map((emp) => (
+              <option key={emp.id} value={emp.id}>
+                {emp.first_name} {emp.last_name}
+              </option>
+            ))}
+          </select>
         </Field>
 
         {!hideActions && (

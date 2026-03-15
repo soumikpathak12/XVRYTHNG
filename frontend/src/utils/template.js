@@ -32,8 +32,16 @@ export function isVisible(field, formData) {
   switch (v.operator || 'eq') {
     case 'eq': return cur === v.value;
     case 'ne': return cur !== v.value;
-    case 'in': return Array.isArray(cur) && cur.some(x => (v.value || []).includes(x));
-    case 'notin': return !(Array.isArray(cur) && cur.some(x => (v.value || []).includes(x)));
+    case 'in': {
+      const vals = v.value || [];
+      if (Array.isArray(cur)) return cur.some(x => vals.includes(x));
+      return vals.includes(cur);
+    }
+    case 'notin': {
+      const vals = v.value || [];
+      if (Array.isArray(cur)) return !cur.some(x => vals.includes(x));
+      return !vals.includes(cur);
+    }
     case 'truthy': return !!cur;
     case 'falsy': return !cur;
     default: return true;

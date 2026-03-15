@@ -1,0 +1,134 @@
+/* Schedule Inspection Modal – overlay & card */
+.inspection-schedule-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2300;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.inspection-schedule-modal {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.25);
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+  animation: inspectionModalIn 160ms ease-out forwards;
+}
+
+@keyframes inspectionModalIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.inspection-schedule-modal h2 {
+  margin: 0;
+  padding: 18px 20px;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #0f172a;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.inspection-schedule-modal form {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.inspection-schedule-modal label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 4px;
+}
+
+.inspection-schedule-modal input[type="date"],
+.inspection-schedule-modal input[type="time"],
+.inspection-schedule-modal select {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 0.9375rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+}
+
+.inspection-schedule-modal input:focus,
+.inspection-schedule-modal select:focus {
+  outline: none;
+  border-color: #0d9488;
+  box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.2);
+}
+
+.inspection-schedule-modal .inspection-schedule-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.inspection-schedule-modal .inspection-schedule-actions button {
+  padding: 10px 18px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.inspection-schedule-modal .inspection-schedule-cancel {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+}
+
+.inspection-schedule-modal .inspection-schedule-cancel:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.inspection-schedule-modal .inspection-schedule-submit {
+  background: #0d9488;
+  border: 1px solid #0d9488;
+  color: #fff;
+}
+
+.inspection-schedule-modal .inspection-schedule-submit:hover:not(:disabled) {
+  background: #0f766e;
+  border-color: #0f766e;
+}
+
+.inspection-schedule-modal .inspection-schedule-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.inspection-schedule-modal .inspection-schedule-error {
+  font-size: 0.8125rem;
+  color: #b91c1c;
+  background: #fef2f2;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #fecaca;
+}
+
+.inspection-schedule-modal .inspection-schedule-warning {
+  font-size: 0.8125rem;
+  color: #92400e;
+  background: #fffbeb;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #fde68a;
+}

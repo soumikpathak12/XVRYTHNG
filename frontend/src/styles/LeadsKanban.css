@@ -311,6 +311,12 @@
     border: 1px solid #fecaca;
 }
 
+.leads-toast.leads-toast-success {
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #86efac;
+}
+
 .leads-error-box {
     background: #fef2f2;
     color: #991b1b;

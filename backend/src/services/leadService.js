@@ -153,7 +153,18 @@ export async function getLeads(filters = {}) {
     params.push(q, q, q);
   }
 
+  // When inspector_id is set, only return leads assigned to that inspector (join lead_site_inspections).
+  const joinInspector =
+    filters.inspector_id != null && Number.isInteger(Number(filters.inspector_id));
+  if (joinInspector) {
+    where.push('lsi.inspector_id = ?');
+    params.push(Number(filters.inspector_id));
+  }
+
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  const joinSql = joinInspector
+    ? ' INNER JOIN lead_site_inspections lsi ON lsi.lead_id = leads.id '
+    : '';
   let limitSql = '';
   if (typeof filters.limit === 'number' && filters.limit > 0) {
     limitSql = 'LIMIT ?';
@@ -165,10 +176,11 @@ export async function getLeads(filters = {}) {
   }
 
   const sql = `
-    SELECT *
+    SELECT leads.*
     FROM leads
+    ${joinSql}
     ${whereSql}
-    ORDER BY last_activity_at DESC, created_at DESC
+    ORDER BY leads.last_activity_at DESC, leads.created_at DESC
     ${limitSql}
   `;
   const [rows] = await db.execute(sql, params);
@@ -177,11 +189,13 @@ export async function getLeads(filters = {}) {
 
 /**
  * Get leads with site_inspection_date in the given date range (inclusive of start/end).
+ * When inspectorId is set, only return leads assigned to that inspector.
  * @param {string} startDate - YYYY-MM-DD
  * @param {string} endDate - YYYY-MM-DD
+ * @param {number|null} [inspectorId] - optional; filter by lead_site_inspections.inspector_id
  * @returns {Promise<Array>}
  */
-export async function getLeadsByDateRange(startDate, endDate) {
+export async function getLeadsByDateRange(startDate, endDate, inspectorId = null) {
   if (
     !startDate ||
     !endDate ||
@@ -197,11 +211,18 @@ export async function getLeadsByDateRange(startDate, endDate) {
   const endNextStr = endNext.toISOString().slice(0, 10);
   const endDt = `${endNextStr} 00:00:00`;
 
+  const joinInspector = inspectorId != null && Number.isInteger(Number(inspectorId));
+  const joinSql = joinInspector
+    ? ' INNER JOIN lead_site_inspections lsi ON lsi.lead_id = leads.id AND lsi.inspector_id = ? '
+    : '';
+  const whereSql =
+    ' WHERE leads.site_inspection_date IS NOT NULL AND leads.site_inspection_date >= ? AND leads.site_inspection_date < ? ';
+  const params = joinInspector ? [Number(inspectorId), startDt, endDt] : [startDt, endDt];
+
   const [rows] = await db.execute(
-    `SELECT * FROM leads
-     WHERE site_inspection_date IS NOT NULL AND site_inspection_date >= ? AND site_inspection_date < ?
-     ORDER BY site_inspection_date ASC, last_activity_at DESC`,
-    [startDt, endDt]
+    `SELECT leads.* FROM leads ${joinSql} ${whereSql}
+     ORDER BY leads.site_inspection_date ASC, leads.last_activity_at DESC`,
+    params
   );
   return rows;
 }
@@ -403,6 +424,12 @@ export async function updateLead(leadId, payload) {
     params.push(payload.meter_number ?? null);
   }
 
+  // Handle inline assignment of inspector
+  if (payload.inspector_id !== undefined) {
+    // inspector_id will be saved down below or we can update `lead_site_inspections` here
+    await saveLeadInspector(leadId, payload.inspector_id);
+  }
+
   // No fields to update -> return current row
   if (updates.length === 0) {
     const [updated] = await db.execute('SELECT * FROM leads WHERE id = ? LIMIT 1', [leadId]);
@@ -485,6 +512,110 @@ export async function updateLeadStage(leadId, nextStage) {
   return lead;
 }
 
+async function saveLeadInspector(leadId, inspectorId) {
+  if (!inspectorId) return;
+
+  // Get inspector_name
+  const [empRows] = await db.execute('SELECT first_name, last_name FROM employees WHERE id = ? LIMIT 1', [inspectorId]);
+  if (!empRows[0]) {
+    const err = new Error('Inspector not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  const inspectorName = `${empRows[0].first_name} ${empRows[0].last_name}`.trim();
+
+  const [inspRows] = await db.execute('SELECT id FROM lead_site_inspections WHERE lead_id = ? LIMIT 1', [leadId]);
+  if (inspRows[0]) {
+    await db.execute(
+      'UPDATE lead_site_inspections SET inspector_id = ?, inspector_name = ? WHERE lead_id = ?',
+      [inspectorId, inspectorName, leadId]
+    );
+  } else {
+    await db.execute(
+      'INSERT INTO lead_site_inspections (lead_id, inspector_id, inspector_name, status) VALUES (?, ?, ?, ?)',
+      [leadId, inspectorId, inspectorName, 'draft']
+    );
+  }
+}
+
+/** -------------------- SCHEDULE INSPECTION -------------------- */
+export async function scheduleLeadInspection(leadId, payload) {
+  const { scheduledDate, scheduledTime, inspectorId } = payload;
+  if (!leadId || !scheduledDate || !scheduledTime || !inspectorId) {
+    const err = new Error('Missing required scheduling fields');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // 1. Get inspector_name
+  const [empRows] = await db.execute('SELECT first_name, last_name FROM employees WHERE id = ? LIMIT 1', [inspectorId]);
+  if (!empRows[0]) {
+    const err = new Error('Inspector not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  const inspectorName = `${empRows[0].first_name} ${empRows[0].last_name}`.trim();
+
+  const site_inspection_date = `${scheduledDate} ${scheduledTime}:00`;
+
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // 2. Update leads table: site_inspection_date, stage='inspection_booked'
+    const [current] = await conn.execute('SELECT stage FROM leads WHERE id = ? LIMIT 1', [leadId]);
+    if (!current[0]) {
+      const err = new Error('Lead not found');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    // Only set to inspection_booked if the stage is before it or contacted/qualified etc (unless closed)
+    // For simplicity, we just set the site_inspection_date, and update stage to 'inspection_booked'
+    await conn.execute(
+      `UPDATE leads 
+       SET site_inspection_date = ?, 
+           stage = 'inspection_booked', 
+           last_activity_at = NOW() 
+       WHERE id = ? AND stage NOT IN ('closed_won', 'closed_lost')`,
+      [site_inspection_date, leadId]
+    );
+    // If it was closed, we still want to set the date, just not change the stage:
+    await conn.execute(
+      `UPDATE leads 
+       SET site_inspection_date = ?, 
+           last_activity_at = NOW() 
+       WHERE id = ? AND stage IN ('closed_won', 'closed_lost')`,
+      [site_inspection_date, leadId]
+    );
+
+    // 3. Update or Insert lead_site_inspections (store scheduled_at = date+time)
+    const [inspRows] = await conn.execute('SELECT id FROM lead_site_inspections WHERE lead_id = ? LIMIT 1', [leadId]);
+    if (inspRows[0]) {
+      await conn.execute(
+        'UPDATE lead_site_inspections SET inspector_id = ?, inspector_name = ?, scheduled_at = ? WHERE lead_id = ?',
+        [inspectorId, inspectorName, site_inspection_date, leadId]
+      );
+    } else {
+      await conn.execute(
+        'INSERT INTO lead_site_inspections (lead_id, inspector_id, inspector_name, scheduled_at, status) VALUES (?, ?, ?, ?, ?)',
+        [leadId, inspectorId, inspectorName, site_inspection_date, 'draft']
+      );
+    }
+
+    await conn.commit();
+  } catch (error) {
+    await conn.rollback();
+    throw error;
+  } finally {
+    conn.release();
+  }
+
+  // Fetch updated lead
+  const [updatedLead] = await db.execute('SELECT * FROM leads WHERE id = ? LIMIT 1', [leadId]);
+  return updatedLead[0];
+}
+
 /** -------------------- NOTES -------------------- */
 export async function addLeadNote(leadId, { body, followUpAt = null, createdBy = null }) {
   if (!leadId || Number.isNaN(Number(leadId))) {
@@ -546,6 +677,12 @@ export async function getLeadById(leadId) {
     const err = new Error('Lead not found');
     err.statusCode = 404;
     throw err;
+  }
+
+  const [inspRows] = await db.execute('SELECT inspector_id, inspector_name FROM lead_site_inspections WHERE lead_id = ? LIMIT 1', [leadId]);
+  if (inspRows[0]) {
+    if (inspRows[0].inspector_name) lead.inspector_name = inspRows[0].inspector_name;
+    if (inspRows[0].inspector_id != null) lead.inspector_id = inspRows[0].inspector_id;
   }
 
   const notes = await getLeadNotes(leadId);

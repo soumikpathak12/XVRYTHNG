@@ -187,6 +187,20 @@ export async function listLeads(req, res) {
       offset: req.query.offset ? Number(req.query.offset) : undefined,
     };
 
+    // When the user is an employee, restrict to leads where they are the assigned inspector (Site Inspection view).
+    const companyId = req.tenantId ?? req.user?.companyId ?? null;
+    if (companyId != null && req.user?.id) {
+      try {
+        const { getEmployeeIdByUserId } = await import('../services/attendanceService.js');
+        const employeeId = await getEmployeeIdByUserId(companyId, req.user.id);
+        if (employeeId != null) {
+          filters.inspector_id = employeeId;
+        }
+      } catch (e) {
+        // ignore: user may not have an employee record
+      }
+    }
+
     const rows = await leadService.getLeads(filters);
 
     if (!grouped) {
@@ -314,6 +328,35 @@ export async function updateLeadStage(req, res) {
   }
 }
 
+// -------------------- SCHEDULE INSPECTION --------------------
+export async function scheduleInspection(req, res) {
+  try {
+    const leadId = req.params.id;
+    const { scheduledDate, scheduledTime, inspectorId } = req.body || {};
+
+    if (!scheduledDate || !scheduledTime || !inspectorId) {
+      return res.status(422).json({
+        success: false,
+        errors: { schedule: 'Date, time, and inspector are required.' },
+      });
+    }
+
+    const updated = await leadService.scheduleLeadInspection(leadId, {
+      scheduledDate,
+      scheduledTime,
+      inspectorId,
+    });
+
+    return res.status(200).json({ success: true, data: updated });
+  } catch (err) {
+    console.error('Schedule inspection error:', err);
+    const status = err.statusCode || err.status || 500;
+    return res.status(status).json({
+      success: false,
+      message: err.message || 'Failed to schedule inspection.',
+    });
+  }
+}
 
 export async function addLeadNote(req, res) {
   try {

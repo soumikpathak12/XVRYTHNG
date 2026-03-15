@@ -100,7 +100,7 @@ export async function updateProfile(req, res) {
 
 export async function changePassword(req, res) {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.id ?? req.user?.userId;
     const { currentPassword, newPassword } = req.body ?? {};
     if (!userId) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
