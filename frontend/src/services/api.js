@@ -1998,3 +1998,13 @@ export async function deleteInstallationPhoto(jobId, photoId) {
 export async function getInstallationPhotoRequirements() {
   return authFetchJSON('/api/installation-jobs/photo-requirements', { method: 'GET' });
 }
+
+// ---------------------------------------------------------------------------
+// On-Field (employee calendar: inspections + installations)
+// ---------------------------------------------------------------------------
+/** GET /api/on-field/calendar?from=YYYY-MM-DD&to=YYYY-MM-DD – events for current employee */
+export async function getOnFieldCalendar(params = {}) {
+  const q = new URLSearchParams(params).toString();
+  return authFetchJSON(`/api/on-field/calendar${q ? `?${q}` : ''}`, { method: 'GET' });
+}
+

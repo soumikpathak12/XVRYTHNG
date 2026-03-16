@@ -58,6 +58,7 @@ import ProjectDetailPage from './pages/ProjectDetailPage.jsx';
 import ProjectManagementDashboard from './pages/ProjectManagementDashboard.jsx';
 import InstallationJobCard from './pages/InstallationJobCard.jsx';
 import InstallationJobList from './pages/InstallationJobList.jsx';
+import OnFieldPage from './pages/employee/OnFieldPage.jsx';
 function PlaceholderPage({ title, message, children }) {
   return (
     <div style={{ padding: '2rem', textAlign: 'center', color: '#1A1A2E' }}>
@@ -534,6 +535,9 @@ function App() {
           {/* Installation Day */}
           <Route path="installation" element={<InstallationJobList />} />
           <Route path="installation/:id" element={<InstallationJobCard />} />
+
+          {/* On-Field: calendar + route (US-053, US-054) */}
+          <Route path="on-field" element={<RequirePermission resource="on_field" action="view"><OnFieldPage /></RequirePermission>} />
 
           {/* Projects */}
           <Route
