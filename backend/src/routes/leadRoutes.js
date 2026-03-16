@@ -10,7 +10,8 @@ import {
   addLeadNote,
   listLeadNotes,
   sendCustomerCredentials,
-  getCustomerPortalTestLink,getLeadsCount
+  getCustomerPortalTestLink,getLeadsCount,
+  scheduleInspection // NEW
 } from '../controllers/leadController.js';
 import { tenantContext } from '../middleware/tenantContext.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -33,6 +34,7 @@ router.post('/:id/send-customer-credentials', sendCustomerCredentials);
 router.get('/:id', getLeadById);
 router.put('/:id', updateLead);
 router.patch('/:id/stage', updateLeadStage);
+router.patch('/:id/schedule', scheduleInspection); // NEW
 
 
 export default router;

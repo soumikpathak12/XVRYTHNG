@@ -128,11 +128,12 @@ const S = {
 const LABELS = {
   core: "Core Details",
   job: "Job Details",
-  switchboard: "Switchboard",
+  switchboard: "Switchboard / Main MSB",
   subBoard: "Sub‑Board",
-  inverter: "Inverter",
+  inverter: "Inverter Installation Location",
+  battery: "Battery Details",
   monitor: "Monitoring & Existing",
-  roof: "Roof Profile",
+  roof: "Roof Type",
   mudmap: "Mud Map",
   final: "Final Checks",
 };
@@ -403,15 +404,21 @@ export default function AdminTemplatesPage() {
   /** Toggle a top-level section on/off */
   function toggleSection(secKey) {
     const enabled = new Set(form.meta?.enabledSections ?? []);
-    if (enabled.has(secKey)) enabled.delete(secKey);
+    const wasEnabled = enabled.has(secKey);
+    if (wasEnabled) enabled.delete(secKey);
     else enabled.add(secKey);
     const next = [...enabled];
     setForm((f) => ({
       ...f,
       meta: { ...f.meta, enabledSections: next }
     }));
-    // If current active section becomes disabled, jump to first enabled
-    if (!enabled.has(activeSectionKey) && next.length) setActiveSectionKey(next[0]);
+    if (wasEnabled) {
+      // Section disabled: if it was active, jump to first enabled
+      if (activeSectionKey === secKey && next.length) setActiveSectionKey(next[0]);
+    } else {
+      // Section enabled: select it immediately so user can edit content in one go
+      setActiveSectionKey(secKey);
+    }
   }
 
   /** Example step guard */
@@ -498,6 +505,15 @@ export default function AdminTemplatesPage() {
   function resetSectionToDefaults(secKey) {
     const def = buildDefaultFieldConfigFromCatalog()[secKey];
     setFieldConfig((cfg) => ({ ...cfg, [secKey]: def }));
+  }
+
+  /** Sync this template's fields to the latest section catalog (all sections). */
+  function syncFromCatalog() {
+    const nextCfg = buildDefaultFieldConfigFromCatalog();
+    setFieldConfig(nextCfg);
+    // Clear custom steps so the next save fully regenerates them from catalog
+    setForm((f) => ({ ...f, steps: [] }));
+    setMsg("Synced fields from latest catalog. Click Save Draft to apply.");
   }
 
   /** Save (draft) */
@@ -719,7 +735,16 @@ export default function AdminTemplatesPage() {
 
         {/* Sections toggle */}
         <hr style={{ margin: "20px 0" }} />
-        <div style={{ fontWeight: 700, marginBottom: 10, color: BRAND.textPrimary }}>Sections to show</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <div style={{ fontWeight: 700, color: BRAND.textPrimary }}>Sections to show</div>
+          <Btn
+            onClick={syncFromCatalog}
+            variant="ghost"
+            title="Rebuild all sections from latest catalog"
+          >
+            Sync from latest catalog
+          </Btn>
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10 }}>
           {SECTION_KEYS.map((k) => (
             <label

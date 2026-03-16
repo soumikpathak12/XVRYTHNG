@@ -1,6 +1,6 @@
 // src/pages/admin/SiteInspectionPage.jsx
 import React, { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import {
   getLead,
   getSiteInspection,
@@ -106,7 +106,10 @@ function TemplateToolbar({ templates, selectedId, onSelect, onRefresh }) {
 
       <button
         type="button"
-        onClick={() => window.open('/admin/settings/inspection-templates', '_blank')}
+        onClick={() => {
+          const base = window.location.pathname.startsWith('/employee') ? '/employee' : '/admin';
+          window.open(`${base}/settings/inspection-templates`, '_blank');
+        }}
         style={{ border: '1px solid #cbd5e1', borderRadius: 8, padding: '8px 10px', background: '#fff', cursor: 'pointer' }}
       >
         Edit Template
@@ -151,6 +154,37 @@ function stepPassesGuards(template, stepId, form) {
   const rule = guards.find((g) => g.stepId === stepId);
   if (!rule || !Array.isArray(rule.fields) || rule.fields.length === 0) return true;
   return rule.fields.every((fkey) => isFilled(getValueFlex(form, fkey)));
+}
+
+// Build a human-readable media summary from all photo/file fields in the template.
+function buildMediaSummary(template, form) {
+  if (!template) return '';
+  const steps = Array.isArray(template.steps) ? template.steps : JSON.parse(template.steps || '[]');
+  const lines = [];
+  for (const st of steps) {
+    for (const sec of st.sections || []) {
+      for (const f of sec.fields || []) {
+        if (f.type !== 'photo' && f.type !== 'file') continue;
+        const v = form?.[f.key];
+        if (!v) continue;
+
+        let count = 0;
+        if (Array.isArray(v)) {
+          count = v.filter(
+            (it) => it && (it.filename || it.storage_url || it.preview_data_url)
+          ).length;
+        } else if (v.filename || v.storage_url || v.preview_data_url) {
+          count = 1;
+        }
+
+        if (count > 0) {
+          const suffix = count > 1 ? ` (${count} files)` : '';
+          lines.push(`- ${sec.label}: ${f.label}${suffix}`);
+        }
+      }
+    }
+  }
+  return lines.join('\n');
 }
 
 // ================= Page =================
@@ -298,6 +332,31 @@ const meta = base?.meta && typeof base.meta === 'string'
     const filled = keys.reduce((acc, k) => acc + (form[k] && String(form[k]).trim() !== '' ? 1 : 0), 0);
     return Math.round((filled / (keys.length || 1)) * 100);
   }, [form, requiredKeys]);
+
+  // -------- Keep Media Summary in sync (live in form) --------
+  useEffect(() => {
+    if (!template) return;
+    const summary = buildMediaSummary(template, form);
+    const currentNested = form?.mediaSummary?.note || '';
+    const currentFlat = form?.['mediaSummary.note'] || '';
+    const current = currentFlat || currentNested;
+    if (summary === current) return;
+    setForm((prev) => {
+      const base = prev || {};
+      const existingNoteNested = base.mediaSummary?.note || '';
+      const existingNoteFlat = base['mediaSummary.note'] || '';
+      const existingNote = existingNoteFlat || existingNoteNested;
+      if (summary === existingNote) return base;
+      return {
+        ...base,
+        mediaSummary: {
+          ...(base.mediaSummary || {}),
+          note: summary,
+        },
+        'mediaSummary.note': summary,
+      };
+    });
+  }, [template, form]);
 
   // -------- Lists --------
   async function loadInspectionLists(limit = 20) {

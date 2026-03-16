@@ -25,7 +25,7 @@ const EMP_MODULE_NAV = {
   dashboard: { to: '/employee', label: 'Dashboard', icon: LayoutDashboard },
 
   // Module-driven items
-  leads:      { to: '/employee/leads',      label: 'Lead Pipeline', icon: UsersRound },
+  leads:      { to: '/employee/leads',      label: 'Site Inspection', icon: UsersRound },
   on_field:     { to: '/employee/on-field',       label: 'On-Field',         icon: HardHat },
   installation: { to: '/employee/installation',   label: 'Installation Day', icon: Wrench },
   messages:   { to: '/employee/messages',   label: 'Messages',       icon: MessageSquare },

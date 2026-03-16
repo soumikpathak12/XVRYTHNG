@@ -127,6 +127,41 @@ export default function LeadDetailOverview({ lead, onEdit }) {
         </div>
       </section>
 
+      {lead?.site_inspection_date && (
+        <section className="lead-detail-overview-section" style={{ marginTop: 20 }}>
+          <h3 className="lead-detail-section-title">INSPECTION DETAILS</h3>
+          <div
+            className="lead-detail-big-card"
+            style={{
+              background: "#F5F8FA",
+              padding: 18,
+              borderRadius: 12,
+              display: "flex",
+              gap: 32
+            }}
+          >
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#087E8B" }}>
+                <IconLightning />
+                <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.8 }}>DATE & TIME</span>
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, marginTop: 4 }}>
+                {new Date(lead.site_inspection_date).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+              </div>
+            </div>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#087E8B" }}>
+                <IconLightning />
+                <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.8 }}>INSPECTOR</span>
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, marginTop: 4 }}>
+                {lead.inspector_name || "—"}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
       <button type="button" className="lead-detail-edit-btn" onClick={() => setShowForm(true)}>
         Edit details
       </button>

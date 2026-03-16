@@ -314,37 +314,79 @@ function EmploymentStep({ form, onChange, inputStyle, labelStyle, roleOptions, e
   );
 }
 
+/** Generate a random password (12 chars: letters + numbers + symbols). */
+function generatePassword() {
+  const lower = 'abcdefghjkmnpqrstuvwxyz';
+  const upper = 'ABCDEFGHJKMNPQRSTUVWXYZ';
+  const num = '23456789';
+  const sym = '!@#$%&*';
+  const all = lower + upper + num + sym;
+  let out = '';
+  out += lower[Math.floor(Math.random() * lower.length)];
+  out += upper[Math.floor(Math.random() * upper.length)];
+  out += num[Math.floor(Math.random() * num.length)];
+  out += sym[Math.floor(Math.random() * sym.length)];
+  for (let i = 0; i < 8; i++) out += all[Math.floor(Math.random() * all.length)];
+  return out.split('').sort(() => Math.random() - 0.5).join('');
+}
+
 function AccountStep({ form, onChange, inputStyle, labelStyle }) {
+  const handleEnableLoginChange = (checked) => {
+    onChange(['account', 'enable_login'], checked);
+    if (checked) {
+      const pwd = generatePassword();
+      onChange(['account', 'password'], pwd);
+      onChange(['account', 'password_confirm'], pwd);
+    } else {
+      onChange(['account', 'password'], '');
+      onChange(['account', 'password_confirm'], '');
+    }
+  };
+
+  const handleRegenerate = () => {
+    const pwd = generatePassword();
+    onChange(['account', 'password'], pwd);
+    onChange(['account', 'password_confirm'], pwd);
+  };
+
+  const handleCopy = () => {
+    if (form.account.password) {
+      navigator.clipboard.writeText(form.account.password);
+    }
+  };
+
   return (
     <div style={{ display: 'grid', gap: 10 }}>
       <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <input
           type="checkbox"
           checked={form.account.enable_login}
-          onChange={e => onChange(['account', 'enable_login'], e.target.checked)}
+          onChange={e => handleEnableLoginChange(e.target.checked)}
         />
         Enable login for this employee
       </label>
       {form.account.enable_login && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div style={{ display: 'grid', gap: 10 }}>
           <div style={{ display: 'grid', gap: 6 }}>
-            <label style={labelStyle}>Password</label>
-            <input
-              type="password"
-              style={inputStyle}
-              value={form.account.password}
-              onChange={e => onChange(['account', 'password'], e.target.value)}
-              placeholder="At least 8 characters"
-            />
-          </div>
-          <div style={{ display: 'grid', gap: 6 }}>
-            <label style={labelStyle}>Confirm password</label>
-            <input
-              type="password"
-              style={inputStyle}
-              value={form.account.password_confirm}
-              onChange={e => onChange(['account', 'password_confirm'], e.target.value)}
-            />
+            <label style={labelStyle}>Generated password</label>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                readOnly
+                style={{ ...inputStyle, flex: '1 1 200px', fontFamily: 'monospace' }}
+                value={form.account.password}
+                aria-label="Generated password"
+              />
+              <button type="button" onClick={handleRegenerate} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', cursor: 'pointer', fontWeight: 600 }}>
+                Regenerate
+              </button>
+              <button type="button" onClick={handleCopy} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', cursor: 'pointer', fontWeight: 600 }}>
+                Copy
+              </button>
+            </div>
+            <p style={{ fontSize: 12, color: '#6B7280', margin: 0 }}>
+              This password will be sent to the employee by email. They must change it on first login.
+            </p>
           </div>
         </div>
       )}

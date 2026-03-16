@@ -1,6 +1,7 @@
 /**
  * Calendar API: leads by date range (site_inspection_date).
  * GET /api/calendar/leads?start=YYYY-MM-DD&end=YYYY-MM-DD
+ * When the user is an employee, only returns leads where they are the assigned inspector.
  */
 import * as leadService from '../services/leadService.js';
 
@@ -30,7 +31,18 @@ export async function getCalendarLeads(req, res) {
       [start, end] = [end, start];
     }
 
-    const rows = await leadService.getLeadsByDateRange(start, end);
+    let inspectorId = null;
+    const companyId = req.tenantId ?? req.user?.companyId ?? null;
+    if (companyId != null && req.user?.id) {
+      try {
+        const { getEmployeeIdByUserId } = await import('../services/attendanceService.js');
+        inspectorId = await getEmployeeIdByUserId(companyId, req.user.id);
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    const rows = await leadService.getLeadsByDateRange(start, end, inspectorId);
     return res.status(200).json({ success: true, data: rows });
   } catch (err) {
     console.error('Calendar leads error:', err);

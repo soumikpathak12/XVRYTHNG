@@ -26,6 +26,7 @@ export default function LeadsCalendar({
   maxMonth,
   style,
   className,
+  viewMode = 'month', // 'day' | 'week' | 'month'
 }) {
   if (typeof getDate !== 'function') {
     throw new Error('LeadsCalendar: getDate prop is required and must be a function.');
@@ -37,33 +38,33 @@ export default function LeadsCalendar({
   // "Today" (Melbourne) as YYYY-MM-DD key
   const todayKey = toKeyInTz(new Date(), TZ) || safeTodayKey();
 
-  // Determine initial month (Melbourne) based on earliest event or today
-  const initialMonthKey = useMemo(() => {
+  // Single focus key (YYYY-MM-DD) for navigation; month view shows month containing it
+  const initialFocusKey = useMemo(() => {
     const eventKeys = leads
       .map((l) => normalizeToKeyInTz(getDate(l), TZ))
       .filter(Boolean)
-      .sort(); // lexicographic sorts YYYY-MM-DD correctly
-
-    const startKey = eventKeys[0] || todayKey;
-    return keyStartOfMonth(startKey);
+      .sort();
+    return eventKeys[0] || todayKey;
   }, [leads, getDate, todayKey]);
 
-  // Enforce min/max month (if provided) in Melbourne TZ
-  const [viewMonthKey, setViewMonthKey] = useState(initialMonthKey);
+  const [viewFocusKey, setViewFocusKey] = useState(initialFocusKey);
+  const viewMonthKey = keyStartOfMonth(viewFocusKey);
 
   const canGoPrev = useMemo(() => {
     if (!minMonth) return true;
-    const limit = keyStartOfMonth(toKeyInTz(minMonth, TZ) || safeTodayKey());
-    const prev = keyAddMonths(viewMonthKey, -1);
-    return prev >= limit;
-  }, [minMonth, viewMonthKey]);
+    const limit = toKeyInTz(minMonth, TZ) || safeTodayKey();
+    if (viewMode === 'month') return keyAddMonths(viewMonthKey, -1) >= keyStartOfMonth(limit);
+    if (viewMode === 'week') return keyAddDays(viewFocusKey, -7) >= limit;
+    return keyAddDays(viewFocusKey, -1) >= limit;
+  }, [minMonth, viewMode, viewMonthKey, viewFocusKey]);
 
   const canGoNext = useMemo(() => {
     if (!maxMonth) return true;
-    const limit = keyStartOfMonth(toKeyInTz(maxMonth, TZ) || safeTodayKey());
-    const next = keyAddMonths(viewMonthKey, 1);
-    return next <= limit;
-  }, [maxMonth, viewMonthKey]);
+    const limit = toKeyInTz(maxMonth, TZ) || safeTodayKey();
+    if (viewMode === 'month') return keyAddMonths(viewMonthKey, 1) <= keyStartOfMonth(limit);
+    if (viewMode === 'week') return keyAddDays(viewFocusKey, 7) <= limit;
+    return keyAddDays(viewFocusKey, 1) <= limit;
+  }, [maxMonth, viewMode, viewMonthKey, viewFocusKey]);
 
   // Group leads by Melbourne day key
   const byDay = useMemo(() => {
@@ -85,14 +86,24 @@ export default function LeadsCalendar({
     return map;
   }, [leads, getDate, titleForLead]);
 
-  // Build a 6×7 grid of keys (Melbourne), plus a display date for each cell
+  // Grid: month 6×7, week 1×7, day 1×1
   const days = useMemo(() => {
+    if (viewMode === 'day') {
+      return [{ key: viewFocusKey, outside: false, date: dateFromKeyAtNoonUTC(viewFocusKey) }];
+    }
+    if (viewMode === 'week') {
+      const startKey = keyStartOfWeekContaining(viewFocusKey, weekStartsOn);
+      return Array.from({ length: 7 }, (_, i) => {
+        const key = keyAddDays(startKey, i);
+        return { key, outside: false, date: dateFromKeyAtNoonUTC(key) };
+      });
+    }
     return buildMonthGridKeys(viewMonthKey, weekStartsOn).map((key) => ({
       key,
-      outside: key.slice(0, 7) !== viewMonthKey.slice(0, 7), // different YYYY-MM
-      date: dateFromKeyAtNoonUTC(key), // stable display Date
+      outside: key.slice(0, 7) !== viewMonthKey.slice(0, 7),
+      date: dateFromKeyAtNoonUTC(key),
     }));
-  }, [viewMonthKey, weekStartsOn]);
+  }, [viewMode, viewFocusKey, viewMonthKey, weekStartsOn]);
 
   // Formatters (in Melbourne)
   const fmtMonth = useMemo(() => {
@@ -115,22 +126,50 @@ export default function LeadsCalendar({
   }, [sysLocale]);
 
   const weekdayLabels = useMemo(() => {
-    const startKey = keyStartOfWeek(viewMonthKey, weekStartsOn);
+    const startKey = viewMode === 'week'
+      ? keyStartOfWeekContaining(viewFocusKey, weekStartsOn)
+      : keyStartOfWeek(viewMonthKey, weekStartsOn);
     return Array.from({ length: 7 }, (_, i) => {
       const k = keyAddDays(startKey, i);
       return fmtWeekday(dateFromKeyAtNoonUTC(k));
     });
-  }, [fmtWeekday, viewMonthKey, weekStartsOn]);
+  }, [fmtWeekday, viewMode, viewFocusKey, viewMonthKey, weekStartsOn]);
 
-  const goPrevMonth = useCallback(() => {
-    if (canGoPrev) setViewMonthKey((k) => keyAddMonths(k, -1));
-  }, [canGoPrev]);
+  const fmtDateLong = useMemo(() => {
+    const fmt = new Intl.DateTimeFormat(sysLocale, {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: TZ,
+    });
+    return (d) => fmt.format(d);
+  }, [sysLocale]);
 
-  const goNextMonth = useCallback(() => {
-    if (canGoNext) setViewMonthKey((k) => keyAddMonths(k, 1));
-  }, [canGoNext]);
+  const headerTitle = useMemo(() => {
+    if (viewMode === 'day') return fmtDateLong(dateFromKeyAtNoonUTC(viewFocusKey));
+    if (viewMode === 'week') {
+      const startKey = keyStartOfWeekContaining(viewFocusKey, weekStartsOn);
+      const endKey = keyAddDays(startKey, 6);
+      const fmtShort = new Intl.DateTimeFormat(sysLocale, {
+        weekday: 'short', day: 'numeric', month: 'short', timeZone: TZ,
+      });
+      return `Week of ${fmtShort.format(dateFromKeyAtNoonUTC(startKey))} – ${fmtShort.format(dateFromKeyAtNoonUTC(endKey))}`;
+    }
+    return fmtMonth(viewMonthKey);
+  }, [viewMode, viewFocusKey, viewMonthKey, weekStartsOn, fmtMonth, fmtDateLong, sysLocale]);
 
-  const goToday = useCallback(() => setViewMonthKey(keyStartOfMonth(todayKey)), [todayKey]);
+  const goPrev = useCallback(() => {
+    if (!canGoPrev) return;
+    if (viewMode === 'month') setViewFocusKey((k) => keyAddDays(keyAddMonths(keyStartOfMonth(k), -1), 14));
+    else if (viewMode === 'week') setViewFocusKey((k) => keyAddDays(k, -7));
+    else setViewFocusKey((k) => keyAddDays(k, -1));
+  }, [canGoPrev, viewMode]);
+
+  const goNext = useCallback(() => {
+    if (!canGoNext) return;
+    if (viewMode === 'month') setViewFocusKey((k) => keyAddDays(keyAddMonths(keyStartOfMonth(k), 1), 14));
+    else if (viewMode === 'week') setViewFocusKey((k) => keyAddDays(k, 7));
+    else setViewFocusKey((k) => keyAddDays(k, 1));
+  }, [canGoNext, viewMode]);
+
+  const goToday = useCallback(() => setViewFocusKey(todayKey), [todayKey]);
 
   return (
     <>
@@ -298,16 +337,15 @@ export default function LeadsCalendar({
           <button
             type="button"
             className="lc2-chevron"
-            onClick={goPrevMonth}
+            onClick={goPrev}
             disabled={!canGoPrev}
-            aria-label="Previous month"
+            aria-label={viewMode === 'month' ? 'Previous month' : viewMode === 'week' ? 'Previous week' : 'Previous day'}
           >
             ‹
           </button>
 
           <div className="lc2-titleWrap">
-            {/* Pass YYYY-MM-01; fmtMonth creates a mid-month date internally */}
-            <h3 className="lc2-title">{fmtMonth(viewMonthKey)}</h3>
+            <h3 className="lc2-title">{headerTitle}</h3>
             <button type="button" className="lc2-todayLink" onClick={goToday}>
               GO TO TODAY
             </button>
@@ -316,23 +354,33 @@ export default function LeadsCalendar({
           <button
             type="button"
             className="lc2-chevron"
-            onClick={goNextMonth}
+            onClick={goNext}
             disabled={!canGoNext}
-            aria-label="Next month"
+            aria-label={viewMode === 'month' ? 'Next month' : viewMode === 'week' ? 'Next week' : 'Next day'}
           >
             ›
           </button>
         </div>
 
-        {/* Weekday header row */}
-        <div className="lc2-weekbar" aria-hidden="true">
-          {weekdayLabels.map((w, i) => (
-            <div key={i} className="lc2-weekday">{w.toUpperCase()}</div>
-          ))}
-        </div>
+        {/* Weekday header row (hide for day view) */}
+        {viewMode !== 'day' && (
+          <div className="lc2-weekbar" aria-hidden="true">
+            {weekdayLabels.map((w, i) => (
+              <div key={i} className="lc2-weekday">{w.toUpperCase()}</div>
+            ))}
+          </div>
+        )}
 
-        {/* 6×7 grid */}
-        <div className="lc2-grid" role="grid" aria-label="Month grid">
+        {/* Grid: 1 col (day), 7 cols (week/month) */}
+        <div
+          className="lc2-grid"
+          role="grid"
+          aria-label={viewMode === 'day' ? 'Day' : viewMode === 'week' ? 'Week' : 'Month'}
+          style={{
+            gridTemplateColumns: `repeat(${viewMode === 'day' ? 1 : 7}, 1fr)`,
+            gridAutoRows: viewMode === 'day' ? 'minmax(200px, 1fr)' : undefined,
+          }}
+        >
           {days.map((d, idx) => {
             const items = byDay.get(d.key) || [];
             const isToday = d.key === todayKey;
@@ -448,12 +496,19 @@ function keyWeekday(key, tz) {
   return map[short] ?? 0;
 }
 
-/** Start-of-week key for a month key (aligns to weekStartsOn). */
+/** Start-of-week key for a month key (aligns to weekStartsOn). Used for month grid. */
 function keyStartOfWeek(monthKey, weekStartsOn) {
   const firstOfMonth = keyStartOfMonth(monthKey);
-  const wd = keyWeekday(firstOfMonth, TZ); // 0..6 (Sun..Sat) in Melbourne
+  const wd = keyWeekday(firstOfMonth, TZ);
   const offset = ((wd - weekStartsOn) + 7) % 7;
   return keyAddDays(firstOfMonth, -offset);
+}
+
+/** Start of week that contains the given day key (for week view navigation). */
+function keyStartOfWeekContaining(key, weekStartsOn) {
+  const wd = keyWeekday(key, TZ);
+  const offset = ((wd - weekStartsOn) + 7) % 7;
+  return keyAddDays(key, -offset);
 }
 
 /** Add n days to a YYYY-MM-DD key using calendar arithmetic (handles month/year rollover). */

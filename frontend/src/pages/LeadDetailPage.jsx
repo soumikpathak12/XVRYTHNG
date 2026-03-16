@@ -17,6 +17,7 @@ import LeadDetailDocuments from '../components/leads/LeadDetailDocuments.jsx';
 import LeadDetailCommunications from '../components/leads/LeadDetailCommunications.jsx';
 import LeadDetailSolarQuotes from '../components/leads/LeadDetailSolarQuotes.jsx';
 import CredentialsSentModal from '../components/leads/CredentialsSentModal.jsx';
+import InspectionScheduleModal from '../components/leads/InspectionScheduleModal.jsx';
 import '../styles/LeadDetailModal.css';
 
 const STAGE_LABELS = {
@@ -52,6 +53,8 @@ export default function LeadDetailPage() {
   const [sendingCredentials, setSendingCredentials] = useState(false);
   const [loadingTestLink, setLoadingTestLink] = useState(false);
   const [creatingProposal, setCreatingProposal] = useState(false); // NEW
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [toast, setToast] = useState({ text: '', type: 'success' }); // success | error
 
   const loadLead = useCallback(async () => {
     if (!leadId) return;
@@ -88,8 +91,16 @@ export default function LeadDetailPage() {
       source: payload.source || null,
       site_inspection_date: payload.site_inspection_date || null,
     };
-    await updateLead(leadId, dbPayload);
-    loadLead();
+    try {
+      setError('');
+      await updateLead(leadId, dbPayload);
+      await loadLead();
+      setToast({ text: 'Lead updated successfully', type: 'success' });
+      setTimeout(() => setToast({ text: '', type: 'success' }), 3000);
+    } catch (err) {
+      setToast({ text: err?.message || 'Failed to update lead', type: 'error' });
+      setTimeout(() => setToast({ text: '', type: 'success' }), 4000);
+    }
   };
 
   const handleMarkLost = async () => {
@@ -151,6 +162,14 @@ export default function LeadDetailPage() {
       setCreatingProposal(false);
     }
   }, [leadId, loadLead]);
+
+  const handleScheduleInspection = useCallback(() => {
+    setScheduleModalOpen(true);
+  }, []);
+
+  const handleInspectionScheduled = useCallback(() => {
+    loadLead(); // refresh lead details
+  }, [loadLead]);
 
   const lead = data?.lead;
   const referredBy = data?.referredBy;
@@ -223,7 +242,7 @@ export default function LeadDetailPage() {
                     {sendingCredentials ? 'Sending…' : 'Send Credentials'}
                   </button>
                 )}
-                <button type="button" className="lead-detail-btn primary">Schedule Inspection</button>
+                <button type="button" className="lead-detail-btn primary" onClick={handleScheduleInspection}>Schedule Inspection</button>
 
                 {/* UPDATED: Create Proposal */}
                 <button
@@ -245,6 +264,16 @@ export default function LeadDetailPage() {
             </div>
           ) : null}
         </header>
+
+        {toast.text && (
+          <div
+            className={`lead-detail-toast ${toast.type === 'success' ? 'lead-detail-toast-success' : ''}`}
+            style={toast.type === 'error' ? { background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b' } : undefined}
+            role="alert"
+          >
+            {toast.text}
+          </div>
+        )}
 
         {credentialsSent && (
           <CredentialsSentModal
@@ -318,7 +347,7 @@ export default function LeadDetailPage() {
             </div>
 
             <div className="lead-detail-footer-actions">
-              <button type="button" className="lead-detail-footer-btn primary">Schedule Site Inspection</button>
+              <button type="button" className="lead-detail-footer-btn primary" onClick={handleScheduleInspection}>Schedule Site Inspection</button>
 
               {/* UPDATED footer button */}
               <button
@@ -337,6 +366,14 @@ export default function LeadDetailPage() {
           </>
         )}
       </div>
+
+      <InspectionScheduleModal
+        open={scheduleModalOpen}
+        onClose={() => setScheduleModalOpen(false)}
+        leadId={leadId}
+        lead={lead}
+        onScheduled={handleInspectionScheduled}
+      />
     </div>
   );
 }
