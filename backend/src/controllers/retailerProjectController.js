@@ -6,6 +6,7 @@ import {
   createRetailerProject,
   listRetailerProjects,
   updateRetailerProjectStage,
+  updateRetailerProject,
   getRetailerProjectSchedule,
   saveRetailerProjectSchedule,getRetailerProjectAssignees,saveRetailerProjectAssignees,
   getRetailerProjectById
@@ -68,6 +69,20 @@ export async function retailerCreate(req, res) {
   } catch (err) {
     const status = err.statusCode ?? err.status ?? 500;
     return res.status(status).json({ success: false, message: err.message ?? 'Failed to create retailer project.' });
+  }
+}
+
+export async function retailerUpdate(req, res) {
+  try {
+    const companyId = resolveCompanyId(req);
+    if (!companyId) return res.status(400).json({ success: false, message: 'Missing company context' });
+
+    const projectId = Number(req.params.id);
+    const updated = await updateRetailerProject(companyId, projectId, req.body ?? {});
+    return res.status(200).json({ success: true, data: updated });
+  } catch (err) {
+    const status = err.statusCode ?? err.status ?? 500;
+    return res.status(status).json({ success: false, message: err.message ?? 'Failed to update retailer project.' });
   }
 }
 

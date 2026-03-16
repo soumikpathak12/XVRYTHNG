@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import ProjectsKanbanBoard from '../components/projects/ProjectsKanbanBoard.jsx';
 import ProjectsTable from '../components/projects/ProjectsTable.jsx';
 import ProjectsCalendar from '../components/projects/ProjectCalendar.jsx';
+import ProjectsTimeline from '../components/projects/ProjectsTimeline.jsx';
 
 // Retailer-specific APIs
 import {
@@ -149,6 +150,7 @@ export default function RetailerProjectsPage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [searchStage, setSearchStage] = useState(null);
+  const [daysFilter, setDaysFilter] = useState('');
   const searchInputRef = useRef(null);
 
   // Details modal state
@@ -196,7 +198,20 @@ export default function RetailerProjectsPage() {
     return () => { alive = false; };
   }, [debouncedSearch, searchStage]);
 
-  const filteredProjects = useMemo(() => projects, [projects]);
+  const filteredProjects = useMemo(() => {
+    let list = projects;
+    if (daysFilter) {
+      const maxDays = Number(daysFilter);
+      const now = new Date();
+      list = list.filter((p) => {
+        if (!p.lastActivity) return false;
+        const d = new Date(p.lastActivity);
+        const diff = (now - d) / (1000 * 3600 * 24);
+        return diff <= maxDays;
+      });
+    }
+    return list;
+  }, [projects, daysFilter]);
 
   /**
    * Handle stage change when dragging a card between columns in the Kanban board.
@@ -297,8 +312,15 @@ export default function RetailerProjectsPage() {
     setDetailsAssignees((assignees || []).map(Number));
   }, []);
 
-  /** Switch main view between Kanban/Table/Calendar */
-  const switchView = useCallback((next) => setView(next), []);
+  /** View mode switcher */
+  const switchView = useCallback((next) => {
+    setView(next);
+    // Clear filters unless moving back to kanban
+    if (next !== 'kanban') {
+      setSearch('');
+      setSearchStage(null);
+    }
+  }, []);
 
   /** Export (table view): includes project code to make CSV more informative */
   const exportProjectsCsv = useCallback(() => {
@@ -397,6 +419,13 @@ export default function RetailerProjectsPage() {
               >
                 Calendar
               </button>
+              <button
+                type="button"
+                className={`leads-view-tab ${view === 'timeline' ? 'active' : ''}`}
+                onClick={() => switchView('timeline')}
+              >
+                Timeline
+              </button>
             </div>
 
             {/* "Add New Project" button that opens the creation modal */}
@@ -440,6 +469,18 @@ export default function RetailerProjectsPage() {
               </button>
             )}
           </div>
+
+          <select
+            className="leads-filter-select"
+            value={daysFilter}
+            onChange={(e) => setDaysFilter(e.target.value)}
+            aria-label="Filter by last activity"
+          >
+            <option value="">Any time</option>
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+          </select>
 
           <span className="leads-result-count">
             {filteredProjects.length} project{filteredProjects.length !== 1 ? 's' : ''}
@@ -491,6 +532,8 @@ export default function RetailerProjectsPage() {
               />
             )}
           </div>
+        ) : view === 'timeline' ? (
+          <ProjectsTimeline projects={filteredProjects} />
         ) : (
           <ProjectsKanbanBoard
             projects={filteredProjects}

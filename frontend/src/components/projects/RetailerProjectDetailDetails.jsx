@@ -192,7 +192,11 @@ export default function RetailerProjectDetailDetails({
   users,
   activeTab,
   onSaveSchedule,
-  onSaveAssignees
+  onSaveAssignees,
+  expectedCompletionDate,
+  onChangeExpectedCompletionDate,
+  hideJobType,
+  projectStages,
 }) {
   const [status, setStatus] = useState(project?.stage ?? '');
   const [jobType, setJobType] = useState('');
@@ -234,17 +238,19 @@ export default function RetailerProjectDetailDetails({
             <label style={labelStyle}>Status</label>
             <select style={inputStyle} value={status} onChange={(e) => setStatus(e.target.value)}>
               <option value="">Select status</option>
-              {RETAILER_STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+              {(projectStages || RETAILER_STAGES).map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
             </select>
           </div>
 
-          <div>
-            <label style={labelStyle}>Job Type</label>
-            <select style={inputStyle} value={jobType} onChange={(e) => setJobType(e.target.value)}>
-              <option value="">Select job type</option>
-              {JOB_TYPES.map(k => <option key={k.key} value={k.key}>{k.label}</option>)}
-            </select>
-          </div>
+          {!hideJobType && (
+            <div>
+              <label style={labelStyle}>Job Type</label>
+              <select style={inputStyle} value={jobType} onChange={(e) => setJobType(e.target.value)}>
+                <option value="">Select job type</option>
+                {JOB_TYPES.map(k => <option key={k.key} value={k.key}>{k.label}</option>)}
+              </select>
+            </div>
+          )}
 
           <div>
             <label style={labelStyle}>Scheduled Date</label>
@@ -253,7 +259,7 @@ export default function RetailerProjectDetailDetails({
 
           <div>
             <label style={labelStyle}>Scheduled Time</label>
-            <input style={inputStyle} type="time" value={time} onChange={(e) => setTime(e.target.value)} disabled={jobType !== 'site_inspection'} />
+            <input style={inputStyle} type="time" value={time} onChange={(e) => setTime(e.target.value)} disabled={!hideJobType && jobType !== 'site_inspection'} />
           </div>
         </div>
 
@@ -271,7 +277,7 @@ export default function RetailerProjectDetailDetails({
           <button 
             type="button" 
             className="lead-detail-btn primary"
-            onClick={() => onSaveSchedule({ job_type: jobType, date, time: jobType === 'site_inspection' ? time : null, notes, nextStage: status })}
+            onClick={() => onSaveSchedule({ job_type: hideJobType ? undefined : jobType, date, time: hideJobType || jobType === 'site_inspection' ? time : null, notes, nextStage: status })}
           >
             Save Schedule Updates
           </button>
@@ -311,6 +317,27 @@ export default function RetailerProjectDetailDetails({
         <KV label="Location URL" value={project.location_url} />
         <KV label="Client Name" value={project.client_name} />
         <KV label="Scheduled Date" value={schedule?.scheduled_date || schedule?.scheduled_at ? new Date(schedule?.scheduled_date || schedule?.scheduled_at).toLocaleDateString() : '—'} />
+        {expectedCompletionDate !== undefined && (
+          <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+            <label className="lead-detail-label" style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+              Expected Completion
+            </label>
+            {onChangeExpectedCompletionDate ? (
+              <input 
+                type="date" 
+                value={expectedCompletionDate || ''}
+                onChange={(e) => onChangeExpectedCompletionDate(e.target.value)}
+                style={{
+                  padding: '6px 8px', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.9rem', outline: 'none'
+                }}
+              />
+            ) : (
+              <div style={{ fontSize: '0.9375rem', fontWeight: '600', color: '#0F172A', minHeight: '1.5rem' }}>
+                {expectedCompletionDate ? new Date(expectedCompletionDate).toLocaleDateString() : '—'}
+              </div>
+            )}
+          </div>
+        )}
       </SectionCard>
 
       <SectionCard title="Customer Details" icon={Icons.user}>

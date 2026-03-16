@@ -186,7 +186,7 @@ export default function KanbanBoard({ leads = [], onStageChange, onFocusSearch, 
             onClick={() => scrollToColumn(i)}
             title={`Go to ${s.label}`}
           >
-            {s.label.length > 14 ? s.label.slice(0, 12) + '…' : s.label}
+            {s.label}
           </button>
         ))}
       </div>

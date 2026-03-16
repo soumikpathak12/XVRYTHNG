@@ -55,7 +55,7 @@ router.put('/', async (req, res) => {
           WHERE lead_id=?`,
         [
           inspected_at, inspector_name, roof_type,
-          roof_pitch_deg == null ? null : Number(roof_pitch_deg),
+          !roof_pitch_deg ? null : Number(roof_pitch_deg),
           house_storey, meter_phase, inverter_location, msb_condition,
           shading, addNotes, template_key, template_version, leadId
         ]
@@ -70,7 +70,7 @@ router.put('/', async (req, res) => {
            (?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
         [
           leadId, inspected_at, inspector_name, roof_type,
-          roof_pitch_deg == null ? null : Number(roof_pitch_deg),
+          !roof_pitch_deg ? null : Number(roof_pitch_deg),
           house_storey, meter_phase, inverter_location, msb_condition,
           shading, addNotes, template_key, template_version
         ]
@@ -122,7 +122,7 @@ router.post('/submit', async (req, res) => {
           WHERE lead_id=?`,
         [
           inspected_at, inspector_name, roof_type,
-          roof_pitch_deg == null ? null : Number(roof_pitch_deg),
+          !roof_pitch_deg ? null : Number(roof_pitch_deg),
           house_storey, meter_phase, inverter_location, msb_condition,
           shading, addNotes, template_key, template_version, leadId
         ]
@@ -137,7 +137,7 @@ router.post('/submit', async (req, res) => {
            (?, 'submitted', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
         [
           leadId, inspected_at, inspector_name, roof_type,
-          roof_pitch_deg == null ? null : Number(roof_pitch_deg),
+          !roof_pitch_deg ? null : Number(roof_pitch_deg),
           house_storey, meter_phase, inverter_location, msb_condition,
           shading, addNotes, template_key, template_version
         ]

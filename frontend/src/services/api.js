@@ -1037,9 +1037,12 @@ export async function getChatPlatformUsers() {
   return data.data ?? [];
 }
 
-export async function getChatConversations(companyId) {
-  const q = chatQuery(companyId);
-  const url = `/api/chats${q ? `?${q}` : ''}`;
+export async function getChatConversations(companyId, searchQuery = '') {
+  const q = new URLSearchParams();
+  if (companyId != null) q.set('companyId', String(companyId));
+  if (searchQuery) q.set('q', searchQuery);
+  
+  const url = `/api/chats${q.toString() ? `?${q.toString()}` : ''}`;
   const data = await authFetchJSON(url, { method: 'GET' });
   return data.data ?? [];
 }
@@ -1070,21 +1073,44 @@ export async function getChatMessages(conversationId, params = {}, companyId) {
   const q = new URLSearchParams();
   if (params.before) q.set('before', params.before);
   if (params.limit) q.set('limit', String(params.limit));
+  if (params.jump) q.set('jump', String(params.jump));
   if (companyId != null) q.set('companyId', String(companyId));
   const url = `/api/chats/${encodeURIComponent(conversationId)}/messages${q.toString() ? `?${q.toString()}` : ''}`;
   const data = await authFetchJSON(url, { method: 'GET' });
   return { messages: data.data ?? [], hasMore: data.hasMore ?? false };
 }
 
-export async function sendChatMessage(conversationId, body, companyId) {
+export async function sendChatMessage(conversationId, body, attachments = [], companyId) {
   const q = chatQuery(companyId);
   const url = `/api/chats/${encodeURIComponent(conversationId)}/messages${q ? `?${q}` : ''}`;
   const data = await authFetchJSON(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ body }),
+    body: JSON.stringify({ body, attachments }),
   });
   return data.data;
+}
+
+export async function uploadChatAttachment(conversationId, file, companyId) {
+  const q = chatQuery(companyId);
+  const url = `/api/chats/${encodeURIComponent(conversationId)}/upload${q ? `?${q}` : ''}`;
+  const formData = new FormData();
+  formData.append('attachment', file);
+
+  const res = await authFetch(url, {
+    method: 'POST',
+    body: formData,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message ?? 'Failed to upload attachment');
+  return data.data;
+}
+
+export async function getChatAttachments(conversationId, companyId) {
+  const q = chatQuery(companyId);
+  const url = `/api/chats/${encodeURIComponent(conversationId)}/attachments${q ? `?${q}` : ''}`;
+  const data = await authFetchJSON(url, { method: 'GET' });
+  return data.data ?? [];
 }
 
 export async function markChatRead(conversationId, companyId) {
@@ -1677,6 +1703,22 @@ export async function updateProjectStage(projectId, stage) {
   return data; // { success:true, data:{...project} }
 }
 
+export async function updateProjectApi(projectId, payload) {
+  const res = await authFetch(`/api/projects/${encodeURIComponent(projectId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to update project');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data; // { success:true, data:{...project} }
+}
+
 
 
 export async function getProjectInspection(projectId) {
@@ -1776,6 +1818,19 @@ export async function getRetailerProject(projectId) {
     throw err;
   }
   return data; // { success:true, project:{...} }
+}
+
+export async function updateRetailerProjectApi(projectId, fields = {}) {
+  const res = await authFetch(`/api/retailer-projects/${encodeURIComponent(projectId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(fields),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.message || 'Failed to update retailer project');
+  }
+  return data;
 }
 
 /**

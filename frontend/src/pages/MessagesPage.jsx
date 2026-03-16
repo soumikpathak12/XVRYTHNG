@@ -103,6 +103,8 @@ import {
   createChatConversation,
   getChatMessages,
   sendChatMessage,
+  uploadChatAttachment,
+  getChatAttachments,
   markChatRead,
   listCompanies,
   getToken,
@@ -148,6 +150,7 @@ function formatMessageTime(iso) {
 export default function MessagesPage() {
   const { user } = useAuth();
   const isSuperAdmin = user?.role?.toLowerCase() === 'super_admin';
+  const API_URL = import.meta.env.VITE_API_URL || '';
 
   // Deep-link state from navigation (comes from AdminHeader -> AdminPage -> navigate state)
   const location = useLocation();
@@ -179,7 +182,18 @@ export default function MessagesPage() {
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [input, setInput] = useState('');
   const [searchChats, setSearchChats] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [selectedJumpId, setSelectedJumpId] = useState(null);
+  const [attachment, setAttachment] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [showMediaTab, setShowMediaTab] = useState(false);
+  const [mediaItems, setMediaItems] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchChats), 400);
+    return () => clearTimeout(timer);
+  }, [searchChats]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
@@ -259,7 +273,7 @@ export default function MessagesPage() {
     if (isSuperAdmin && !usePlatformDm && effectiveCompanyId == null) return; // requires company context
     try {
       setError(null);
-      const list = await getChatConversations(effectiveCompanyId);
+      const list = await getChatConversations(effectiveCompanyId, debouncedSearch);
       setConversations(list);
     } catch (e) {
       if (e?.status === 400) setError('Company context required.');
@@ -267,7 +281,7 @@ export default function MessagesPage() {
     } finally {
       setLoading(false);
     }
-  }, [isSuperAdmin, effectiveCompanyId, usePlatformDm]);
+  }, [isSuperAdmin, effectiveCompanyId, usePlatformDm, debouncedSearch]);
   loadConversationsRef.current = loadConversations;
 
   // Initial loads
@@ -298,6 +312,7 @@ export default function MessagesPage() {
             // "before" is used for paging older messages
             before: before || undefined,
             limit: 50,
+            jump: !before && selectedJumpId ? selectedJumpId : undefined,
           },
           effectiveCompanyId
         );
@@ -313,6 +328,16 @@ export default function MessagesPage() {
     },
     [effectiveCompanyId]
   );
+  
+  const loadMedia = useCallback(async (convId) => {
+    if (!convId) return;
+    try {
+      const items = await getChatAttachments(convId, effectiveCompanyId);
+      setMediaItems(items);
+    } catch (e) {
+      console.error('Failed to load media', e);
+    }
+  }, [effectiveCompanyId]);
 
   // When a conversation is selected, load messages & mark read
   useEffect(() => {
@@ -322,7 +347,10 @@ export default function MessagesPage() {
       return;
     }
     setMessages([]);
+    setMediaItems([]);
+    setShowMediaTab(false);
     loadMessages(selectedId);
+    loadMedia(selectedId);
     markChatRead(selectedId, effectiveCompanyId).catch(() => {});
 
     // If socket is not connected, poll as a fallback
@@ -331,10 +359,18 @@ export default function MessagesPage() {
     return () => clearInterval(fallbackInterval);
   }, [selectedId, loadMessages, effectiveCompanyId, wsConnected]);
 
-  // Auto-scroll to latest message
+  // Auto-scroll to latest message or to jumped message
   useEffect(() => {
+    if (selectedJumpId) {
+      const el = document.getElementById(`msg-${selectedJumpId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Optional highlight effect handled via CSS if needed
+        return;
+      }
+    }
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, selectedJumpId]);
 
   // Close group info panel when clicking outside
   useEffect(() => {
@@ -404,27 +440,45 @@ export default function MessagesPage() {
 
   const handleSend = async () => {
     const body = input.trim();
-    if (!body || !selectedId || sending) return;
+    if ((!body && !attachment) || !selectedId || sending || uploading) return;
     setSending(true);
+    let uploadedData = null;
     try {
-      const msg = await sendChatMessage(selectedId, body, effectiveCompanyId);
+      if (attachment) {
+        setUploading(true);
+        uploadedData = await uploadChatAttachment(selectedId, attachment, effectiveCompanyId);
+        setUploading(false);
+      }
+      
+      const atts = uploadedData ? [uploadedData] : [];
+      const msg = await sendChatMessage(selectedId, body, atts, effectiveCompanyId);
       setMessages((prev) => [...prev, { ...msg, isOwn: true }]);
       setInput('');
-      await loadConversations(); 
+      setAttachment(null);
+      await loadConversations();
+      if (uploadedData) await loadMedia(selectedId);
+      setError(null);
+    } catch (e) {
       setError(e?.message ?? 'Failed to send');
     } finally {
       setSending(false);
+      setUploading(false);
     }
   };
 
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 50 * 1024 * 1024) {
+        setError('File must be smaller than 50MB');
+        return;
+      }
+      setAttachment(file);
+    }
+    e.target.value = null; // clear the file input
+  };
+
   const selectedConv = conversations.find((c) => c.id === selectedId);
-  const filteredConversations = searchChats.trim()
-    ? conversations.filter(
-        (c) =>
-          c.name?.toLowerCase().includes(searchChats.toLowerCase()) ||
-          c.participants?.some((p) => p.name?.toLowerCase().includes(searchChats.toLowerCase()))
-      )
-    : conversations;
 
   return (
     <div className="messages-page">
@@ -519,12 +573,15 @@ export default function MessagesPage() {
           ) : error && !conversations.length ? (
             <div className="messages-error">{error}</div>
           ) : (
-            filteredConversations.map((conv) => (
+            conversations.map((conv) => (
               <button
                 key={conv.id}
                 type="button"
                 className={`messages-conv-item ${selectedId === conv.id ? 'messages-conv-item-active' : ''}`}
-                onClick={() => setSelectedId(conv.id)}
+                onClick={() => {
+                  setSelectedId(conv.id);
+                  setSelectedJumpId(conv.lastMessage?.isSearchMatch ? conv.lastMessage.id : null);
+                }}
               >
                 <div
                   className="messages-conv-avatar"
@@ -536,8 +593,15 @@ export default function MessagesPage() {
                   <div className="messages-conv-name">{conv.name}</div>
                   {conv.lastMessage && (
                     <div className="messages-conv-preview">
-                      {conv.lastMessage.senderName}: {conv.lastMessage.body?.slice(0, 40)}
-                      {conv.lastMessage.body?.length > 40 ? '…' : ''}
+                      {conv.lastMessage.isSearchMatch ? (
+                        <span style={{ color: '#0d9488', fontWeight: 600, marginRight: '4px' }}>🔍 {conv.lastMessage.senderName}:</span>
+                      ) : (
+                        <span>{conv.lastMessage.senderName}: </span>
+                      )}
+                      <span>
+                        {conv.lastMessage.body?.slice(0, 40)}
+                        {conv.lastMessage.body?.length > 40 ? '…' : ''}
+                      </span>
                     </div>
                   )}
                   <div className="messages-conv-meta">
@@ -577,6 +641,12 @@ export default function MessagesPage() {
                     : selectedConv?.participants?.[0]?.role?.replace('_', ' ') ?? ''}
                 </span>
                 {selectedConv?.type !== 'group' && <span className="messages-online-badge">ONLINE</span>}
+                <button 
+                  className={`messages-media-toggle ${showMediaTab ? 'active' : ''}`}
+                  onClick={() => setShowMediaTab(!showMediaTab)}
+                >
+                  {showMediaTab ? 'Chat' : 'Media'}
+                </button>
               </div>
               <div className="messages-conv-header-actions-wrap" ref={groupInfoAnchorRef}>
                 <button
@@ -608,63 +678,110 @@ export default function MessagesPage() {
               </div>
             </header>
 
-            <div className="messages-messages-wrap" ref={messagesContainerRef}>
-              {hasMoreMessages && (
-                <button
-                  type="button"
-                  className="messages-load-more"
-                  onClick={() => {
-                    const first = messages[0];
-                    if (first) loadMessages(selectedId, first.id);
-                  }}
-                >
-                  Load older messages
-                </button>
-              )}
-              <div className="messages-messages">
-                {messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`messages-message-row ${msg.isOwn ? 'messages-message-own' : ''}`}
+            {showMediaTab ? (
+              <div className="messages-media-tab">
+                <h3>Conversation Media</h3>
+                {mediaItems.length === 0 ? (
+                  <p className="messages-media-empty">No media shared yet.</p>
+                ) : (
+                  <div className="messages-media-grid">
+                    {mediaItems.map(item => (
+                      <div key={item.id} className="messages-media-item">
+                        {item.mimetype.startsWith('image/') ? (
+                          <img src={`${API_URL}${item.storageUrl}`} alt={item.filename} />
+                        ) : (
+                          <a href={`${API_URL}${item.storageUrl}`} target="_blank" rel="noreferrer" className="messages-media-file-link">
+                            📄 {item.filename}
+                          </a>
+                        )}
+                        <span className="messages-media-sender">{item.senderName}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="messages-messages-wrap" ref={messagesContainerRef}>
+                {hasMoreMessages && (
+                  <button
+                    type="button"
+                    className="messages-load-more"
+                    onClick={() => {
+                      const first = messages[0];
+                      if (first) loadMessages(selectedId, first.id);
+                    }}
                   >
-                    <div className="messages-message-bubble">
-                      {!msg.isOwn && (
-                        <div className="messages-message-sender">{msg.senderName}</div>
-                      )}
-                      <div className="messages-message-body">{msg.body}</div>
-                      <div className="messages-message-time">
-                        {formatMessageTime(msg.createdAt)}
+                    Load older messages
+                  </button>
+                )}
+                <div className="messages-messages">
+                  {messages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      id={`msg-${msg.id}`}
+                      className={`messages-message-row ${msg.isOwn ? 'messages-message-own' : ''} ${msg.id === selectedJumpId ? 'messages-message-highlight' : ''}`}
+                    >
+                      <div className="messages-message-bubble">
+                        {!msg.isOwn && (
+                          <div className="messages-message-sender">{msg.senderName}</div>
+                        )}
+                        {msg.attachments && msg.attachments.length > 0 && (
+                          <div className="messages-message-attachments">
+                            {msg.attachments.map(att => (
+                              att.mimetype.startsWith('image/') ? (
+                                <img key={att.id} src={`${API_URL}${att.storageUrl}`} alt={att.filename} className="messages-message-image" />
+                              ) : (
+                                <a key={att.id} href={`${API_URL}${att.storageUrl}`} target="_blank" rel="noreferrer" className="messages-message-file">
+                                  📄 {att.filename}
+                                </a>
+                              )
+                            ))}
+                          </div>
+                        )}
+                        {msg.body && <div className="messages-message-body">{msg.body}</div>}
+                        <div className="messages-message-time">
+                          {formatMessageTime(msg.createdAt)}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-                <div ref={messagesEndRef} />
+                  ))}
+                  <div ref={messagesEndRef} />
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="messages-input-row">
-              <button type="button" className="messages-attach-btn" aria-label="Attach">
-                +
-              </button>
-              <input
-                type="text"
-                placeholder="Type a message..."
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                className="messages-message-input"
-                disabled={sending}
-              />
-              <button
-                type="button"
-                className="messages-send-btn"
-                onClick={handleSend}
-                disabled={sending || !input.trim()}
-                aria-label="Send"
-              >
-                ⚡
-              </button>
-            </div>
+            {!showMediaTab && (
+              <div className="messages-input-row">
+                {attachment && (
+                  <div className="messages-attachment-preview">
+                    <span className="messages-attachment-name">📎 {attachment.name}</span>
+                    <button className="messages-attachment-remove" onClick={() => setAttachment(null)}>×</button>
+                  </div>
+                )}
+                <label className="messages-attach-btn" aria-label="Attach">
+                  +
+                  <input type="file" onChange={handleFileChange} style={{ display: 'none' }} />
+                </label>
+                <input
+                  type="text"
+                  placeholder="Type a message..."
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+                  className="messages-message-input"
+                  disabled={sending || uploading}
+                />
+                <button
+                  type="button"
+                  className="messages-send-btn"
+                  onClick={handleSend}
+                  disabled={sending || uploading || (!input.trim() && !attachment)}
+                  aria-label="Send"
+                >
+                  {uploading ? '⌛' : '⚡'}
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>

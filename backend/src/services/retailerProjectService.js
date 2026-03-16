@@ -261,6 +261,35 @@ export async function listRetailerProjects(companyId, filters = {}) {
   return rows;
 }
 
+/** Update a retailer project's general fields */
+export async function updateRetailerProject(companyId, projectId, updates = {}) {
+  if (!Number.isFinite(Number(projectId))) {
+    const err = new Error('Invalid project id'); err.statusCode = 400; throw err;
+  }
+
+  // Extract only allowed fields
+  const allowed = ['expected_completion_date', 'stage'];
+  const sets = [];
+  const params = [];
+  for (const k of allowed) {
+    if (updates[k] !== undefined) {
+      sets.push(`${k} = ?`);
+      params.push(updates[k] === '' ? null : updates[k]);
+    }
+  }
+
+  if (sets.length === 0) return getRetailerProjectById(companyId, projectId);
+
+  sets.push('updated_at = NOW()');
+  params.push(Number(projectId), Number(companyId));
+
+  await db.execute(
+    `UPDATE retailer_projects SET ${sets.join(', ')} WHERE id = ? AND company_id = ?`,
+    params
+  );
+  return getRetailerProjectById(companyId, projectId);
+}
+
 /** Update a retailer project's stage (company-scoped) */
 export async function updateRetailerProjectStage(companyId, projectId, nextStage) {
   if (!Number.isFinite(Number(projectId))) {

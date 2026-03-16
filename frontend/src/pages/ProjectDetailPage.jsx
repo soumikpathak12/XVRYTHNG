@@ -7,22 +7,25 @@ import {
   saveProjectScheduleAssign,
   getProjectScheduleAssign,
   getLead,
+  updateProjectApi,
   listInstallationJobs,
 } from '../services/api.js';
 import '../styles/LeadDetailModal.css'; // Reuse lead detail styles
 import RetailerProjectDetailDetails from '../components/projects/RetailerProjectDetailDetails.jsx';
 import LeadDetailActivity from '../components/leads/LeadDetailActivity.jsx';
-import LeadDetailDocuments from '../components/leads/LeadDetailDocuments.jsx';
+import ProjectDocuments from '../components/projects/ProjectDocuments.jsx';
+import ProjectCommunication from '../components/projects/ProjectCommunication.jsx';
+import ProjectMilestoneProgress from '../components/projects/ProjectMilestoneProgress.jsx';
 
 // ─── brand tokens (local, no import needed) ──────────────────────────────────
-const INST_BRAND    = '#146b6b';
+const INST_BRAND = '#146b6b';
 const INST_BRAND_BG = '#E6F4F1';
 
 const INST_STATUS_CFG = {
-  scheduled:   { label: 'Scheduled',   bg: '#EFF6FF', color: '#1D4ED8', dot: '#2563EB' },
+  scheduled: { label: 'Scheduled', bg: '#EFF6FF', color: '#1D4ED8', dot: '#2563EB' },
   in_progress: { label: 'In Progress', bg: '#FFF7ED', color: '#C2410C', dot: '#EA580C' },
-  paused:      { label: 'Paused',      bg: '#FEF9C3', color: '#92400E', dot: '#D97706' },
-  completed:   { label: 'Completed',   bg: '#F0FDF4', color: '#15803D', dot: '#16A34A' },
+  paused: { label: 'Paused', bg: '#FEF9C3', color: '#92400E', dot: '#D97706' },
+  completed: { label: 'Completed', bg: '#F0FDF4', color: '#15803D', dot: '#16A34A' },
 };
 
 function InstallationJobsPanel({ jobs, navigate }) {
@@ -84,7 +87,7 @@ function InstallationJobsPanel({ jobs, navigate }) {
                 {job.scheduled_date && (
                   <div style={{ fontSize: 12, color: '#374151', fontWeight: 600 }}>
                     📅 {new Date(job.scheduled_date).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
-                    {job.scheduled_time ? ` · ${job.scheduled_time.slice(0,5)}` : ''}
+                    {job.scheduled_time ? ` · ${job.scheduled_time.slice(0, 5)}` : ''}
                   </div>
                 )}
                 {job.system_size_kw && (
@@ -120,6 +123,8 @@ const PROJECT_STAGE_LABELS = {
   project_completed: 'Project completed',
 };
 
+const DIRECT_PROJECT_STAGES = Object.entries(PROJECT_STAGE_LABELS).map(([key, label]) => ({ key, label }));
+
 export default function ProjectDetailPage() {
   const { id: projectId } = useParams();
   const navigate = useNavigate();
@@ -128,13 +133,14 @@ export default function ProjectDetailPage() {
   const [schedule, setSchedule] = useState(null);
   const [assignees, setAssignees] = useState([]);
   const [users, setUsers] = useState([]);
-  const [activities,        setActivities]        = useState([]);
-  const [documents,         setDocuments]         = useState([]);
-  const [installationJobs,  setInstallationJobs]  = useState([]);
+  const [activities, setActivities] = useState([]);
+  const [documents, setDocuments] = useState([]);
+  const [expectedCompletionDate, setExpectedCompletionDate] = useState('');
+  const [installationJobs, setInstallationJobs] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('details'); // details, schedule, activity, documents
+  const [activeTab, setActiveTab] = useState('overview'); // overview, schedule, financials, documents, activity, communication
   const [toast, setToast] = useState('');
 
   const loadData = useCallback(async () => {
@@ -170,6 +176,10 @@ export default function ProjectDetailPage() {
           access_to_inverter: raw.lead_access_to_inverter ? 'Yes' : 'No',
         };
         setProject(mapped);
+        if (raw.expected_completion_date) {
+          // ensure yyyy-mm-dd format
+          setExpectedCompletionDate(raw.expected_completion_date.split('T')[0]);
+        }
       } else if (pResp.status === 'rejected') {
         throw new Error(pResp.reason?.message || 'Failed to load project');
       }
@@ -184,7 +194,7 @@ export default function ProjectDetailPage() {
         const rows = Array.isArray(uResp.value.data) ? uResp.value.data : [];
         const mappedUsers = rows.map((r) => {
           const name = [r.first_name, r.last_name].filter(Boolean).join(' ').trim() || r.email || 'Unknown';
-          return { id: r.id, name, initials: r.initials || name.slice(0,2).toUpperCase() };
+          return { id: r.id, name, initials: r.initials || name.slice(0, 2).toUpperCase() };
         });
         setUsers(mappedUsers);
       }
@@ -193,7 +203,7 @@ export default function ProjectDetailPage() {
       try {
         const ijResp = await listInstallationJobs({ project_id: projectId, limit: 50 });
         if (ijResp?.success && Array.isArray(ijResp.data)) setInstallationJobs(ijResp.data);
-      } catch (_) {}
+      } catch (_) { }
 
       // Fetch lead activities/documents if lead_id exists
       const currentProject = pResp.status === 'fulfilled' ? pResp.value.data : null;
@@ -229,12 +239,12 @@ export default function ProjectDetailPage() {
     try {
       // Direct projects backend expect 'status' instead of 'nextStage'
       // And we must send everything to avoid nulling out fields in the DB (full upsert)
-      const { date: schDate, time: schTime } = schedule?.scheduled_at 
-        ? (function() {
-            const s = schedule.scheduled_at.replace('T', ' ');
-            const [d, tFull] = s.split(' ');
-            return { date: d, time: (tFull || '').slice(0, 5) };
-          })()
+      const { date: schDate, time: schTime } = schedule?.scheduled_at
+        ? (function () {
+          const s = schedule.scheduled_at.replace('T', ' ');
+          const [d, tFull] = s.split(' ');
+          return { date: d, time: (tFull || '').slice(0, 5) };
+        })()
         : { date: '', time: '' };
 
       const finalPayload = {
@@ -248,21 +258,33 @@ export default function ProjectDetailPage() {
       await saveProjectScheduleAssign(projectId, finalPayload);
       setToast('Schedule updated successfully!');
       setTimeout(() => setToast(''), 3000);
-      loadData(); 
+      loadData();
     } catch (err) {
       setToast(err.message || 'Failed to save schedule');
       setTimeout(() => setToast(''), 3000);
     }
   };
 
+  const handleSaveExpectedCompletionDate = async (newDate) => {
+    setExpectedCompletionDate(newDate);
+    try {
+      await updateProjectApi(projectId, { expected_completion_date: newDate || null });
+      setToast('Expected completion date updated!');
+      setTimeout(() => setToast(''), 3000);
+    } catch (err) {
+      console.error(err);
+      setToast(err.message || 'Failed to update expected completion date');
+    }
+  };
+
   const handleSaveAssignees = async (newAssigneeIds) => {
     try {
-      const { date: schDate, time: schTime } = schedule?.scheduled_at 
-        ? (function() {
-            const s = schedule.scheduled_at.replace('T', ' ');
-            const [d, tFull] = s.split(' ');
-            return { date: d, time: (tFull || '').slice(0, 5) };
-          })()
+      const { date: schDate, time: schTime } = schedule?.scheduled_at
+        ? (function () {
+          const s = schedule.scheduled_at.replace('T', ' ');
+          const [d, tFull] = s.split(' ');
+          return { date: d, time: (tFull || '').slice(0, 5) };
+        })()
         : { date: '', time: '' };
 
       const finalPayload = {
@@ -325,7 +347,7 @@ export default function ProjectDetailPage() {
   return (
     <div className="lead-detail-page-wrap" style={{ padding: '24px' }}>
       <div className="lead-detail-page" style={{ overflow: 'visible' }}>
-        
+
         {/* HEADER SECTION */}
         <header className="lead-detail-header">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
@@ -354,35 +376,15 @@ export default function ProjectDetailPage() {
           </div>
         </header>
 
-        {/* SUMMARY CARDS */}
-        {project && (
-          <div className="lead-detail-cards">
-            <div className="lead-detail-card">
-              <span className="lead-detail-card-label">Location</span>
-              <span className="lead-detail-card-value">{project.lead_suburb || project.suburb || '—'}</span>
-            </div>
-            <div className="lead-detail-card">
-              <span className="lead-detail-card-label">Est. Value</span>
-              <span className="lead-detail-card-value">
-                {project.lead_value_amount != null 
-                  ? new Intl.NumberFormat(undefined, { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(Number(project.lead_value_amount))
-                  : '—'}
-              </span>
-            </div>
-            <div className="lead-detail-card">
-              <span className="lead-detail-card-label">System Size</span>
-              <span className="lead-detail-card-value">{project.system_size_kw != null ? `${project.system_size_kw} kW` : '—'}</span>
-            </div>
-          </div>
-        )}
-
         {/* TABS */}
         <div className="lead-detail-tabs">
           {[
-            { key: 'details',      label: 'Project Info' },
-            { key: 'schedule',     label: 'Schedule & Assign' },
-            { key: 'activity',     label: 'Activities' },
-            { key: 'documents',    label: 'Documents' },
+            { key: 'overview', label: 'Overview' },
+            { key: 'schedule', label: 'Schedule & Assign' },
+            { key: 'financials', label: 'Financials' },
+            { key: 'documents', label: 'Documents' },
+            { key: 'communication', label: 'Communication' },
+            { key: 'activity', label: 'Activity Log' },
             { key: 'installation', label: `Installation${installationJobs.length ? ` (${installationJobs.length})` : ''}` },
           ].map((tab) => {
             const isActive = activeTab === tab.key;
@@ -401,7 +403,42 @@ export default function ProjectDetailPage() {
 
         {/* TAB CONTENT */}
         <div className="lead-detail-panel">
-          {activeTab === 'details' || activeTab === 'schedule' ? (
+          {activeTab === 'overview' ? (
+            <div className="fade-in">
+              <ProjectMilestoneProgress stages={DIRECT_PROJECT_STAGES} currentStage={project.stage} />
+              <div className="lead-detail-cards" style={{ margin: '0 0 32px 0' }}>
+                <div className="lead-detail-card">
+                  <span className="lead-detail-card-label">Location</span>
+                  <span className="lead-detail-card-value">{project.lead_suburb || project.suburb || '—'}</span>
+                </div>
+                <div className="lead-detail-card">
+                  <span className="lead-detail-card-label">Est. Value</span>
+                  <span className="lead-detail-card-value">
+                    {project.lead_value_amount != null
+                      ? new Intl.NumberFormat(undefined, { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(Number(project.lead_value_amount))
+                      : '—'}
+                  </span>
+                </div>
+                <div className="lead-detail-card">
+                  <span className="lead-detail-card-label">System Size</span>
+                  <span className="lead-detail-card-value">{project.system_size_kw != null ? `${project.system_size_kw} kW` : '—'}</span>
+                </div>
+              </div>
+              <RetailerProjectDetailDetails
+                project={project}
+                schedule={schedule}
+                assignees={assignees}
+                users={users}
+                activeTab="details"
+                onSaveSchedule={handleSaveSchedule}
+                onSaveAssignees={handleSaveAssignees}
+                expectedCompletionDate={expectedCompletionDate}
+                onChangeExpectedCompletionDate={handleSaveExpectedCompletionDate}
+                hideJobType={true}
+                projectStages={DIRECT_PROJECT_STAGES}
+              />
+            </div>
+          ) : activeTab === 'schedule' ? (
             <RetailerProjectDetailDetails
               project={project}
               schedule={schedule}
@@ -410,12 +447,24 @@ export default function ProjectDetailPage() {
               activeTab={activeTab}
               onSaveSchedule={handleSaveSchedule}
               onSaveAssignees={handleSaveAssignees}
+              expectedCompletionDate={expectedCompletionDate}
+              onChangeExpectedCompletionDate={handleSaveExpectedCompletionDate}
+              hideJobType={true}
+              projectStages={DIRECT_PROJECT_STAGES}
             />
+          ) : activeTab === 'financials' ? (
+            <div className="fade-in" style={{ padding: '24px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <h3 style={{ marginTop: 0 }}>Financial Overview</h3>
+              <p>
+                <strong>Estimated Value: </strong>
+                {project?.value_amount ? new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(project.value_amount) : 'Not specified'}
+              </p>
+            </div>
           ) : activeTab === 'activity' ? (
             <div className="fade-in">
-              <LeadDetailActivity 
-                activities={activities} 
-                leadId={project?.lead_id} 
+              <LeadDetailActivity
+                activities={activities}
+                leadId={project?.lead_id}
                 onAddNote={async ({ leadId, body, followUpAt }) => {
                   // Re-use logic or call API directly
                   const { addLeadNote } = await import('../services/api.js');
@@ -423,16 +472,18 @@ export default function ProjectDetailPage() {
                   // Refresh activities after add
                   const lResp = await getLead(leadId);
                   if (lResp.success) setActivities(lResp.activities || []);
-                  return res.data; 
+                  return res.data;
                 }}
               />
             </div>
           ) : activeTab === 'documents' ? (
-            <div className="fade-in">
-              <LeadDetailDocuments 
-                documents={documents} 
-                leadId={project?.lead_id} 
-              />
+            <div className="fade-in" style={{ padding: '24px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <h3 style={{ marginTop: 0, marginBottom: '16px' }}>Project Documents</h3>
+              <ProjectDocuments projectId={projectId} apiBasePath="/api/projects" />
+            </div>
+          ) : activeTab === 'communication' ? (
+            <div className="fade-in" style={{ padding: '24px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <ProjectCommunication projectId={projectId} apiBasePath="/api/projects" />
             </div>
           ) : activeTab === 'installation' ? (
             <div className="fade-in">

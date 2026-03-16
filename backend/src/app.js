@@ -40,6 +40,12 @@ import projectRoutes from './routes/projectRoutes.js';
 
 import retailerProjectRoutes from './routes/retailerProjectRoutes.js';
 import ProjectManagementDashboardRoutes from './routes/ProjectManagementDashboardRoutes.js';
+
+import projectDocumentRoutes from './routes/projectDocumentRoutes.js';
+import projectNoteRoutes from './routes/projectNoteRoutes.js';
+import retailerProjectDocumentRoutes from './routes/retailerProjectDocumentRoutes.js';
+import retailerProjectNoteRoutes from './routes/retailerProjectNoteRoutes.js';
+
 import installationRoutes from './routes/installationRoutes.js';
 import onFieldRoutes from './routes/onFieldRoutes.js';
 const __filename = fileURLToPath(import.meta.url);
@@ -111,6 +117,12 @@ app.use('/api/projects', projectRoutes);
 
 app.use('/api/retailer-projects', retailerProjectRoutes);
 app.use('/api/pm-dashboard', ProjectManagementDashboardRoutes);
+
+app.use('/api/projects/:id/documents', projectDocumentRoutes);
+app.use('/api/projects/:id/notes', projectNoteRoutes);
+app.use('/api/retailer-projects/:id/documents', retailerProjectDocumentRoutes);
+app.use('/api/retailer-projects/:id/notes', retailerProjectNoteRoutes);
+
 app.use('/api/installation-jobs', installationRoutes);
 app.use('/api/on-field', onFieldRoutes);
 // ---------------------------------------------------------------------------

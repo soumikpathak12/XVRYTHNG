@@ -14,6 +14,31 @@ const STAGE_PASTELS = {
   negotiation: '#fff7ed',         // very light peach
   closed_won: '#f0fdf4',          // very light green
   closed_lost: '#fef2f2',         // very light rose
+  
+  // Projects
+  pre_approval: '#f0fdf4',        // light green
+  state_rebate: '#ecfeff',        // light cyan
+  design_engineering: '#fdf4ff',  // light fuchsia
+  procurement: '#fff1f2',         // light rose
+  scheduled: '#eef2ff',           // light indigo
+  installation_in_progress: '#fffbeb', // light amber
+  installation_completed: '#f0fdf4', // light green
+  compliance_check: '#fef2f2',    // light rose
+  inspection_grid_connection: '#f5f3ff', // light violet
+  rebate_stc_claims: '#ecfdf9',   // light teal
+  project_completed: '#f0fdf4',   // light green
+
+  // Retailer Projects
+  site_inspection: '#f3f0ff',     // light purple
+  stage_one: '#e8f6fc',           // light blue
+  stage_two: '#ecfdf9',           // light teal
+  full_system: '#f5f3ff',         // light violet
+  cancelled: '#fef2f2',           // light rose
+  to_be_rescheduled: '#fff7ed',   // light peach
+  ces_certificate_applied: '#fffbeb', // light amber
+  ces_certificate_received: '#f0fdf4', // light green
+  ces_certificate_submitted: '#eef2ff', // light indigo
+  done: '#f0fdf4',                // light green
 };
 
 /** Returns the pastel header background color for a given stage */
