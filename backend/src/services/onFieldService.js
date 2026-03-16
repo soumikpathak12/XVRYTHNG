@@ -27,7 +27,12 @@ export async function getOnFieldCalendar(companyId, employeeId, fromDate, toDate
 
   // 1) Site inspections: lead_site_inspections where inspector_id = employeeId, scheduled_at in range (or fallback to lead.site_inspection_date)
   const [inspections] = await db.execute(
-    `SELECT lsi.id AS inspection_id, lsi.lead_id, lsi.scheduled_at, lsi.status AS inspection_status,
+    `SELECT
+            lsi.id AS inspection_id,
+            lsi.lead_id,
+            DATE_FORMAT(lsi.scheduled_at, '%Y-%m-%dT%H:%i:%s') AS scheduled_at_local,
+            DATE_FORMAT(l.site_inspection_date, '%Y-%m-%d') AS site_inspection_date_only,
+            lsi.status AS inspection_status,
             l.customer_name, l.suburb
      FROM lead_site_inspections lsi
      INNER JOIN leads l ON l.id = lsi.lead_id
@@ -41,9 +46,12 @@ export async function getOnFieldCalendar(companyId, employeeId, fromDate, toDate
   );
 
   for (const row of inspections) {
-    const start = row.scheduled_at
-      ? (row.scheduled_at instanceof Date ? row.scheduled_at : new Date(row.scheduled_at)).toISOString()
-      : `${row.lead_id}-${fromDate}T09:00:00.000Z`;
+    // IMPORTANT: Don't use toISOString() here (it shifts to UTC and can move date back a day).
+    // We return a timezone-less local datetime string so the browser renders the same wall-clock time.
+    const start = row.scheduled_at_local
+      ? `${row.scheduled_at_local}`
+      : (row.site_inspection_date_only ? `${row.site_inspection_date_only}T09:00:00` : null);
+    if (!start) continue;
     const address = [row.suburb].filter(Boolean).join(', ') || undefined;
     events.push({
       id: `inspection-${row.inspection_id}`,
@@ -59,7 +67,10 @@ export async function getOnFieldCalendar(companyId, employeeId, fromDate, toDate
 
   // 2) Installation jobs: jobs where this employee is assignee, scheduled_date in range
   const [jobs] = await db.execute(
-    `SELECT ij.id, ij.customer_name, ij.address, ij.suburb, ij.scheduled_date, ij.scheduled_time,
+    `SELECT
+            ij.id, ij.customer_name, ij.address, ij.suburb,
+            DATE_FORMAT(ij.scheduled_date, '%Y-%m-%d') AS scheduled_date_only,
+            TIME_FORMAT(ij.scheduled_time, '%H:%i:%s') AS scheduled_time_only,
             ij.status, ij.system_type
      FROM installation_jobs ij
      INNER JOIN installation_job_assignees ija ON ija.job_id = ij.id AND ija.employee_id = ?
@@ -69,13 +80,10 @@ export async function getOnFieldCalendar(companyId, employeeId, fromDate, toDate
   );
 
   for (const row of jobs) {
-    const dateStr = row.scheduled_date instanceof Date
-      ? row.scheduled_date.toISOString().slice(0, 10)
-      : String(row.scheduled_date).slice(0, 10);
-    const timeStr = row.scheduled_time != null
-      ? (typeof row.scheduled_time === 'string' ? row.scheduled_time : String(row.scheduled_time)).slice(0, 8)
-      : '09:00:00';
-    const start = `${dateStr}T${timeStr.replace(/^(\d{2}):(\d{2}).*/, '$1:$2:00')}.000Z`;
+    const dateStr = row.scheduled_date_only ? String(row.scheduled_date_only).slice(0, 10) : null;
+    const timeStr = row.scheduled_time_only ? String(row.scheduled_time_only).slice(0, 8) : '09:00:00';
+    const start = dateStr ? `${dateStr}T${timeStr}` : null;
+    if (!start) continue;
     const address = [row.address, row.suburb].filter(Boolean).join(', ') || undefined;
     events.push({
       id: `installation-${row.id}`,

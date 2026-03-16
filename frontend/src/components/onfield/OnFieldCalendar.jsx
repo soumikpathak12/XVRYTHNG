@@ -244,7 +244,7 @@ export default function OnFieldCalendar({
         .ofc-weekbar { display:grid; grid-template-columns:repeat(7,1fr); border:1px solid #E5E7EB; border-radius:10px 10px 0 0; overflow:hidden; }
         .ofc-weekday { padding:10px 8px; font-size:11px; font-weight:800; color:#6B7280; text-transform:uppercase; border-right:1px solid #E5E7EB; }
         .ofc-weekday:last-child { border-right:none; }
-        .ofc-grid { display:grid; grid-template-columns:repeat(7,1fr); grid-auto-rows:110px; border:1px solid #E5E7EB; border-radius:0 0 10px 10px; overflow:hidden; }
+        .ofc-grid { display:grid; grid-template-columns:repeat(7,1fr); grid-auto-rows:minmax(110px, auto); border:1px solid #E5E7EB; border-radius:0 0 10px 10px; overflow:hidden; }
         .ofc-cell { position:relative; background:#fff; border-right:1px solid #E5E7EB; border-bottom:1px solid #E5E7EB; padding:8px; display:flex; flex-direction:column; gap:6px; }
         .ofc-cell:nth-child(7n) { border-right:none; }
         .ofc-dateNum { font-weight:800; color:#0f1a2b; font-size:12px; }
@@ -256,6 +256,18 @@ export default function OnFieldCalendar({
         .ofc-chipTitle { font-weight:700; color:#0f1a2b; font-size:12px; line-height:1.2; }
         .ofc-chipSub { color:#6B7280; font-size:11px; }
         .ofc-more { font-size:12px; color:#374151; padding-left:2px; }
+
+        /* ---- Day timeline ---- */
+        .ofc-dayWrap { border:1px solid #E5E7EB; border-radius: 12px; overflow: hidden; }
+        .ofc-dayScroll { max-height: 520px; overflow: auto; background: #fff; }
+        .ofc-dayGrid { position: relative; display: grid; grid-template-columns: 62px 1fr; }
+        .ofc-timeCol { border-right: 1px solid #E5E7EB; background: #F9FAFB; }
+        .ofc-timeRow { height: 60px; border-bottom: 1px solid #F3F4F6; padding: 8px 8px 0; font-size: 11px; color: #6B7280; font-weight: 700; }
+        .ofc-trackCol { position: relative; }
+        .ofc-trackRow { height: 60px; border-bottom: 1px solid #F3F4F6; }
+        .ofc-eventBlock { position: absolute; left: 10px; right: 10px; border-radius: 12px; border: 1px solid; padding: 10px 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); cursor: pointer; }
+        .ofc-nowLine { position: absolute; left: 0; right: 0; height: 2px; background: rgba(239,68,68,0.7); }
+        .ofc-nowDot { position: absolute; left: -4px; width: 10px; height: 10px; border-radius: 50%; background: #EF4444; top: -4px; }
       `}</style>
 
       <div className="ofc-root" role="region" aria-label="On-field calendar">
@@ -284,60 +296,142 @@ export default function OnFieldCalendar({
           </div>
         )}
 
-        <div
-          className="ofc-grid"
-          style={{
-            gridTemplateColumns: `repeat(${viewMode === 'day' ? 1 : 7}, 1fr)`,
-            gridAutoRows: viewMode === 'day' ? 'minmax(200px, 1fr)' : undefined,
-          }}
-        >
-          {days.map((d, idx) => {
-            const items = byDay.get(d.key) || [];
-            const isToday = d.key === todayKey;
-            const visible = items.slice(0, 3);
-            const overflow = items.length - visible.length;
+        {viewMode === 'day' ? (
+          (() => {
+            const dayKey = viewFocusKey;
+            const items = byDay.get(dayKey) || [];
+            const isToday = dayKey === todayKey;
+
+            const START_HOUR = 6;
+            const END_HOUR = 20;
+            const PX_PER_MIN = 1; // 60px per hour
+            const totalMins = (END_HOUR - START_HOUR) * 60;
+            const hours = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
+
+            const now = new Date();
+            const nowKey = toKeyInTz(now, TZ) || safeTodayKey();
+            const nowMinutes = now.getHours() * 60 + now.getMinutes();
+            const nowOffset = (nowMinutes - START_HOUR * 60) * PX_PER_MIN;
+
+            const blocks = items.map((ev) => {
+              const d = new Date(ev.start);
+              const mins = d.getHours() * 60 + d.getMinutes();
+              const top = (mins - START_HOUR * 60) * PX_PER_MIN;
+              const dur = 60; // default 60m
+              const height = Math.max(44, dur * PX_PER_MIN);
+              const colors = JOB_TYPE_COLORS[ev.type] || JOB_TYPE_COLORS.site_inspection;
+              return { ev, top, height, colors };
+            }).filter(b => b.top + b.height > 0 && b.top < totalMins);
 
             return (
-              <div
-                key={idx}
-                className={`ofc-cell ${isToday ? 'ofc-today' : ''} ${d.outside ? 'ofc-outside' : ''}`}
-              >
-                <div className="ofc-dateNum">{d.date.getDate()}</div>
-                {visible.map((ev, i) => {
-                  const colors = JOB_TYPE_COLORS[ev.type] || JOB_TYPE_COLORS.site_inspection;
-                  return (
-                    <div
-                      key={ev.id || i}
-                      className="ofc-chip"
-                      style={{
-                        background: colors.bg,
-                        borderColor: colors.border,
-                      }}
-                      onClick={() => handleEventClick(ev)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ')
-                          handleEventClick(ev);
-                      }}
-                      role="button"
-                      tabIndex={0}
-                      title={ev.title}
-                    >
-                      <span className="ofc-dot" style={{ background: colors.dot }} aria-hidden />
-                      <div>
-                        <div className="ofc-chipTitle">{ev.title}</div>
-                        <div className="ofc-chipSub">
-                          {getEventTimeLabel(ev)}
-                          {ev.address ? ` · ${ev.address}` : ''}
+              <div className="ofc-dayWrap" style={{ marginTop: 12 }}>
+                <div className="ofc-dayScroll">
+                  <div className="ofc-dayGrid" style={{ height: totalMins * PX_PER_MIN }}>
+                    <div className="ofc-timeCol">
+                      {hours.map((h) => (
+                        <div key={h} className="ofc-timeRow">
+                          {String(h).padStart(2, '0')}:00
                         </div>
-                      </div>
+                      ))}
                     </div>
-                  );
-                })}
-                {overflow > 0 && <div className="ofc-more">+{overflow} more</div>}
+                    <div className="ofc-trackCol">
+                      {hours.map((h) => (
+                        <div key={h} className="ofc-trackRow" aria-hidden="true" />
+                      ))}
+
+                      {isToday && nowKey === dayKey && nowOffset >= 0 && nowOffset <= totalMins * PX_PER_MIN && (
+                        <div className="ofc-nowLine" style={{ top: nowOffset }}>
+                          <span className="ofc-nowDot" aria-hidden />
+                        </div>
+                      )}
+
+                      {blocks.map(({ ev, top, height, colors }) => (
+                        <div
+                          key={ev.id}
+                          className="ofc-eventBlock"
+                          style={{
+                            top,
+                            height,
+                            background: colors.bg,
+                            borderColor: colors.border,
+                          }}
+                          onClick={() => handleEventClick(ev)}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') handleEventClick(ev);
+                          }}
+                          title={ev.title}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span className="ofc-dot" style={{ background: colors.dot }} aria-hidden />
+                            <div style={{ fontWeight: 800, color: '#0f1a2b', fontSize: 13, lineHeight: 1.2 }}>
+                              {ev.title}
+                            </div>
+                          </div>
+                          <div style={{ marginTop: 4, fontSize: 12, color: '#6B7280', fontWeight: 600 }}>
+                            {getEventTimeLabel(ev)}{ev.address ? ` · ${ev.address}` : ''}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
             );
-          })}
-        </div>
+          })()
+        ) : (
+          <div
+            className="ofc-grid"
+            style={{
+              gridTemplateColumns: `repeat(${7}, 1fr)`,
+            }}
+          >
+            {days.map((d, idx) => {
+              const items = byDay.get(d.key) || [];
+              const isToday = d.key === todayKey;
+
+              return (
+                <div
+                  key={idx}
+                  className={`ofc-cell ${isToday ? 'ofc-today' : ''} ${d.outside ? 'ofc-outside' : ''}`}
+                >
+                  <div className="ofc-dateNum">{d.date.getDate()}</div>
+                  {items.map((ev, i) => {
+                    const colors = JOB_TYPE_COLORS[ev.type] || JOB_TYPE_COLORS.site_inspection;
+                    return (
+                      <div
+                        key={ev.id || i}
+                        className="ofc-chip"
+                        style={{
+                          background: colors.bg,
+                          borderColor: colors.border,
+                        }}
+                        onClick={() => handleEventClick(ev)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ')
+                            handleEventClick(ev);
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        title={ev.title}
+                      >
+                        <span className="ofc-dot" style={{ background: colors.dot }} aria-hidden />
+                        <div>
+                          <div className="ofc-chipTitle">{ev.title}</div>
+                          <div className="ofc-chipSub">
+                            {getEventTimeLabel(ev)}
+                            {ev.address ? ` · ${ev.address}` : ''}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Legend */}
