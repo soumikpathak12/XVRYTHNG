@@ -59,6 +59,7 @@ import ProjectManagementDashboard from './pages/ProjectManagementDashboard.jsx';
 import InstallationJobCard from './pages/InstallationJobCard.jsx';
 import InstallationJobList from './pages/InstallationJobList.jsx';
 import OnFieldPage from './pages/employee/OnFieldPage.jsx';
+import PayrollPage from './pages/PayrollPage.jsx';
 function PlaceholderPage({ title, message, children }) {
   return (
     <div style={{ padding: '2rem', textAlign: 'center', color: '#1A1A2E' }}>
@@ -324,6 +325,15 @@ function App() {
           />
 
           <Route
+            path="payroll"
+            element={
+              <RequirePermission resource="payroll" action="view">
+                <PayrollPage />
+              </RequirePermission>
+            }
+          />
+
+          <Route
             path="attendance"
             element={
               <RequirePermission resource="attendance" action="view">
@@ -432,6 +442,7 @@ function App() {
           <Route path="on-field" element={<PlaceholderPage title="On-Field" message="Field schedules & activities." />} />
           <Route path="operations" element={<PlaceholderPage title="Operations" message="Approvals, payroll, billing." />} />
           <Route path="attendance" element={<ApprovalsPage />} />
+          <Route path="payroll" element={<PayrollPage />} />
           <Route path="referrals" element={<ReferralsPage />} />
           <Route path="messages" element={<MessagesPage />} />
           <Route path="installation" element={<InstallationJobList />} />

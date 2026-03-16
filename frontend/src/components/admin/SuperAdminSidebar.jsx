@@ -19,6 +19,7 @@ import {
   UserPlus,
   UserCog,
   Wrench,
+  Calculator,
 } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -52,6 +53,7 @@ const RAW_NAV = [
   { to: '/admin/installation', label: 'Installation Day', icon: Wrench, permission: { resource: 'installation', action: 'view' } },
   { to: '/admin/on-field', label: 'On-Field', icon: HardHat, permission: { resource: 'on_field', action: 'view' } },
   { to: '/admin/operations', label: 'Operations', icon: Factory, permission: { resource: 'operations', action: 'view' } },
+  { to: '/admin/payroll', label: 'Payroll', icon: Calculator, permission: { resource: 'payroll', action: 'view' } },
   { to: '/admin/attendance', label: 'Attendance', icon: Clock3, permission: { resource: 'attendance', action: 'view' } },
   { to: '/admin/referrals', label: 'Referrals', icon: Share2, permission: { resource: 'referrals', action: 'view' } },
   { to: '/admin/messages', label: 'Messages', icon: MessageSquare, permission: { resource: 'messages', action: 'view' } },
