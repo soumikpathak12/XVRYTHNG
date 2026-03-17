@@ -496,7 +496,7 @@ export default function ApprovalsPage() {
   const totalPending  = counts.pending ?? 0;
 
   return (
-    <div style={{ padding: '1.5rem', maxWidth: 900, margin: '0 auto' }}>
+    <div style={{ padding: '1.5rem', width: '100%', boxSizing: 'border-box' }}>
 
       {/* ── Page header ── */}
       <div style={{
