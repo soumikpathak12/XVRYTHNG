@@ -1,0 +1,246 @@
+/* Backdrop covers the full viewport and centers the modal */
+.pdet__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: grid;
+  place-items: center;
+  z-index: 1000;
+  padding: 24px;
+}
+
+/* Modal card (smaller, centered) */
+.pdet__modal {
+  width: min(720px, 92vw);
+  max-height: min(90vh, 100%);
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.25);
+  border: 1px solid #e5e7eb;
+  overflow: auto;
+  padding: 20px 24px;
+}
+
+/* Header */
+.pdet__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.pdet__title { font-size: 20px; font-weight: 700; color: #0f172a; }
+.pdet__close { border: none; background: #0f172a0d; width: 36px; height: 36px; border-radius: 8px; cursor: pointer; font-size: 20px; }
+
+/* Sections, grid, labels */
+.pdet__section { border: 1px solid #177d7d; border-radius: 10px; padding: 16px; margin: 16px 0; }
+.pdet__sectionTitle { font-weight: 700; color: #177d7d; margin-bottom: 12px; }
+.pdet__grid { display: grid; gap: 12px; }
+.pdet__grid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pdet__lv { display: grid; grid-template-columns: 1fr; gap: 6px; }
+.pdet__lvLabel { font-size: 12px; color: #177d7d; }
+.pdet__lvValue { font-weight: 600; color: #0f172a; min-height: 20px; }
+.pdet__btn { background: #177d7d; color: #fff; border: none; border-radius: 8px; padding: 10px 14px; cursor: pointer; }
+.pdet__assignees select { width: 100%; }
+.pdet__chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.pdet__chip { display: inline-flex; align-items: center; gap: 6px; background: #0f172a0f; border: 1px solid #e5e7eb; padding: 4px 8px; border-radius: 999px; font-size: 12px; }
+.pdet__chipClose { border: none; background: transparent; cursor: pointer; font-size: 14px; line-height: 1; }
+.pdet__hint { font-size: 12px; color: #6b7280; margin-top: 8px; }
+
+/* Responsive: single column forms on narrow screens */
+@media (max-width: 640px) {
+  .pdet__grid--2 { grid-template-columns: 1fr; }
+}
+
+/* ---------- Panel container & sections ---------- */
+.pdet__backdrop {
+  /* If you want a soft dim background */
+  /* background: rgba(17, 24, 39, 0.35); */
+}
+
+.pdet__modal {
+  background: #ffffff;
+  border-radius: 16px;                /* Round the modal corners */
+  box-shadow:
+    0 10px 15px -3px rgba(16, 24, 40, 0.1),
+    0 4px 6px -2px rgba(16, 24, 40, 0.06);
+}
+
+.pdet__section {
+  background: #fff;
+  border: 1px solid #e8eef0;
+  border-radius: 16px;                /* Round the section card */
+  padding: 16px 18px;
+  margin: 16px 0;
+}
+
+.pdet__sectionTitle {
+  font-weight: 700;
+  color: #0f6b63;                     /* Teal-ish headline */
+  margin-bottom: 12px;
+}
+
+/* ---------- Grid ---------- */
+.pdet__grid--2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 24px;                     /* row-gap / column-gap */
+}
+
+@media (max-width: 900px) {
+  .pdet__grid--2 {
+    grid-template-columns: 1fr;       /* Stack on small screens */
+    gap: 14px;
+  }
+}
+
+/* ---------- LabelValue ---------- */
+.pdet__lv { display: flex; flex-direction: column; gap: 8px; }
+.pdet__lvLabel {
+  font-size: 12px;
+  color: #0f6b63;
+  font-weight: 600;
+}
+.pdet__lvValue {}
+
+/* ---------- Controls (inputs/selects/textarea) ---------- */
+.pdet__control {
+  width: 100%;
+  border-radius: 10px;                /* Rounded corners */
+  border: 1px solid #c9dad7;
+  background: #ffffff;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: #0b3a34;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s;
+  outline: none;
+  appearance: none;                   /* Hide default arrows for some browsers */
+}
+
+.pdet__control:hover {
+  border-color: #94c2bb;
+}
+
+.pdet__control:focus {
+  border-color: #0f766e;              /* Teal focus border */
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.18);
+}
+
+/* Tweak placeholder color for textarea/inputs */
+.pdet__control::placeholder {
+  color: #7a8a88;
+}
+
+/* Make date/time/select look consistent across browsers */
+.pdet__control[type="date"] {
+  /* You can keep native date picker but style container */
+}
+
+/* Add a light custom chevron to selects (optional) */
+select.pdet__control {
+  background-image:
+    linear-gradient(45deg, transparent 50%, #0b3a34 50%),
+    linear-gradient(135deg, #0b3a34 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% - 2px),
+    calc(100% - 12px) calc(50% - 2px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 36px;
+}
+
+/* ---------- Primary button ---------- */
+.pdet__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 10px 16px;
+  border-radius: 10px;                /* Rounded button */
+  background: #117a6b;                /* Teal primary */
+  color: #ffffff;
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.05s ease;
+}
+
+.pdet__btn:hover {
+  background: #0e6f61;
+}
+
+.pdet__btn:active {
+  transform: translateY(1px);
+}
+
+.pdet__btn:disabled {
+  background: #a1c8c0;
+  cursor: not-allowed;
+}
+
+/* ---------- Chips for assignees ---------- */
+.pdet__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.pdet__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #ecfdf5;                /* mint-ish pill bg */
+  color: #0f6b63;
+  border: 1px solid #b7e5dc;
+  padding: 6px 10px;
+  border-radius: 999px;               /* fully rounded pill */
+  font-size: 12px;
+  line-height: 1;
+}
+
+.pdet__chipClose {
+  border: none;
+  background: transparent;
+  color: #0f6b63;
+  cursor: pointer;
+  line-height: 1;
+  font-size: 14px;
+  margin: 0 -2px 0 2px;
+}
+
+.pdet__chipClose:hover {
+  color: #0d5b54;
+}
+
+/* ---------- Header tweaks ---------- */
+.pdet__header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 4px 8px 4px;
+}
+
+.pdet__title {
+  font-weight: 800;
+  font-size: 18px;
+  color: #0b3a34;
+}
+
+.pdet__close {
+  background: transparent;
+  border: none;
+  color: #0b3a34;
+  font-size: 22px;
+  cursor: pointer;
+}
+.pdet__close:hover { color: #0e6f61; }
+
+/* ---------- Hint text ---------- */
+.pdet__hint {
+  font-size: 12px;
+  color: #6b7f7c;
+  margin-top: 6px;
+}
+
+/* ---------- Optional: soften the section corners join ---------- */
+.pdet__section:first-of-type {
+  margin-top: 8px;
+}

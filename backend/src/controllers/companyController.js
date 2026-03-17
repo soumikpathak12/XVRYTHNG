@@ -77,3 +77,40 @@ export async function listCompanies(req, res) {
     return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 }
+
+export async function getCompany(req, res) {
+  try {
+    const { id } = req.params;
+    const data = await companyService.getCompanyWithAdmin(id);
+    if (!data) return res.status(404).json({ success: false, message: 'Company not found' });
+    return res.json({ success: true, data });
+  } catch (err) {
+    console.error('getCompany error', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}
+export async function updateCompany(req, res) {
+  try {
+    const { id } = req.params;
+    const data = req.body;
+    await companyService.updateCompany(id, data);
+    return res.json({ success: true, message: 'Company updated' });
+  } catch (err) {
+    console.error('updateCompany error', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}
+
+export async function deleteCompany(req, res) {
+  try {
+    const { id } = req.params;
+    await companyService.deleteCompany(id);
+    return res.json({ success: true, message: 'Company deleted' });
+  } catch (err) {
+    if (String(err?.message || '').includes('foreign key constraint')) {
+      return res.status(409).json({ success: false, message: 'Cannot delete company with active users/data.' });
+    }
+    console.error('deleteCompany error', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}

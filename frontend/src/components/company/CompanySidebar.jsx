@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, UsersRound, Boxes, HardHat, Factory,
-  Clock3, Share2, MessageSquare, Settings, ChevronLeft, ChevronRight
+  Clock3, Share2, MessageSquare, MessageCircle, Settings, ChevronLeft, ChevronRight, Wrench
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
@@ -15,6 +15,8 @@ const MODULE_NAV = {
   attendance: { to: '/dashboard/attendance', label: 'Attendance',    icon: Clock3 },
   referrals:  { to: '/dashboard/referrals',  label: 'Referrals',     icon: Share2 },
   messages:   { to: '/dashboard/messages',   label: 'Messages',      icon: MessageSquare },
+  support:       { to: '/dashboard/support-tickets',    label: 'Support Tickets',  icon: MessageCircle },
+  installation:  { to: '/dashboard/installation',       label: 'Installation Day', icon: Wrench },
 };
 
 function getRoleFixedItems(role) {
@@ -37,11 +39,10 @@ export default function CompanySidebar({ apiBase = '/api', logoSrc }) {
     (async () => {
       try {
         setLoading(true);
-        const res = await fetch(`${apiBase}/me/sidebar`, {
-          headers: { 'x-dev-user-id': '3' }, 
-        });
-        if (!res.ok) { setRole(null); setModules([]); return; }
-        const data = await res.json();
+        //const res = await fetch(`${apiBase}/me/sidebar`);
+        //if (!res.ok) { setRole(null); setModules([]); return; }
+        //const data = await res.json();
+        const data = await getCompanySidebar();
         if (!alive) return;
         setRole(data?.role ?? null);
         setModules(Array.isArray(data?.modules) ? data.modules : []);
@@ -71,7 +72,7 @@ export default function CompanySidebar({ apiBase = '/api', logoSrc }) {
   };
   const brandRow = { display: 'flex', alignItems: 'center', gap: 12, padding: '8px 8px 16px 8px' };
   const brandText = { display: collapsed ? 'none' : 'block' };
-  const navStyle = { display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, flex: 1 };
+  const navStyle = { display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, flex: 1, minHeight: 0, overflowY: 'auto' };
   const linkBase = {
     display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
     borderRadius: 14, fontWeight: 600, color: '#556070', textDecoration: 'none',

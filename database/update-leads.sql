@@ -1,0 +1,4 @@
+
+ALTER TABLE leads
+  ADD COLUMN email VARCHAR(255) NOT NULL AFTER customer_name,
+  ADD COLUMN phone VARCHAR(50)  NOT NULL AFTER email;

@@ -6,6 +6,8 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import * as profileService from '../services/profileService.js';
+import * as permissionService from '../services/permissionService.js';
+import * as authService from '../services/authService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,6 +24,17 @@ export async function getProfile(req, res) {
     return res.json({ success: true, data: profile });
   } catch (err) {
     console.error('getProfile error', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}
+
+/** GET /api/users/me/permissions */
+export async function getMyPermissions(req, res) {
+  try {
+    const permissions = await permissionService.getPermissionsForUser(req.user.id);
+    return res.json({ success: true, data: permissions });
+  } catch (err) {
+    console.error('getMyPermissions error', err);
     return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 }
@@ -84,15 +97,37 @@ export async function updateProfile(req, res) {
   }
 }
 
-/** PUT /api/users/me/password - body: { currentPassword, newPassword } */
+
 export async function changePassword(req, res) {
   try {
-    const { currentPassword, newPassword } = req.body || {};
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ success: false, message: 'Current password and new password are required' });
-    }
-    await profileService.changePassword(req.user.id, currentPassword, newPassword);
-    return res.json({ success: true, message: 'Password updated' });
+    const userId = req.user?.id ?? req.user?.userId;
+    const { currentPassword, newPassword } = req.body ?? {};
+    if (!userId) return res.status(401).json({ success: false, message: 'Unauthorized' });
+
+    await authService.changePassword(userId, currentPassword, newPassword); 
+  //give new tokens
+    const userRow = await authService.findUserById(userId);
+    const { accessToken, expiresIn } = authService.createAccessToken(userRow);
+    const { refreshToken, refreshExpiresIn } = await authService.createRefreshToken(userId);
+    const permissions = await permissionService.getPermissionsForUser(userId);
+
+    return res.json({
+      success: true,
+      accessToken,
+      refreshToken,
+      expiresIn,
+      refreshExpiresIn,
+      user: {
+        id: userRow.id,
+        name: userRow.name,
+        email: userRow.email,
+        role: userRow.role_name,
+        roleId: userRow.role_id,
+        companyId: userRow.company_id,
+      },
+      permissions,
+      needsPasswordChange: false,
+    });
   } catch (err) {
     const msg = err?.message || '';
     if (msg.includes('incorrect')) {

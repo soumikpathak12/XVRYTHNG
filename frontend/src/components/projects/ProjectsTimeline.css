@@ -1,0 +1,189 @@
+.projects-timeline-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+
+.projects-timeline-controls {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #475569;
+}
+
+.projects-timeline-scroll-area {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+}
+
+.projects-timeline-grid {
+  min-width: 800px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header Grid Row */
+.projects-timeline-header-row {
+  display: flex;
+  border-bottom: 2px solid #e2e8f0;
+  background: #f1f5f9;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.projects-timeline-header-cell {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  padding: 8px 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  border-left: 1px solid #e2e8f0;
+  text-align: center;
+}
+
+.projects-timeline-label-col {
+  width: 200px;
+  min-width: 200px;
+  max-width: 200px;
+  padding: 12px 16px;
+  background: #fff;
+  border-right: 2px solid #e2e8f0;
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.projects-timeline-header-row .projects-timeline-label-col {
+  background: #f1f5f9;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  padding: 8px 16px;
+  cursor: default;
+}
+
+.projects-timeline-chart-col {
+  flex: 1;
+  position: relative;
+  min-height: 48px;
+}
+
+/* Data Row */
+.projects-timeline-row {
+  display: flex;
+  border-bottom: 1px solid #f1f5f9;
+  position: relative;
+}
+
+.projects-timeline-row:hover .projects-timeline-label-col {
+  background: #f8fafc;
+}
+
+.pt-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pt-stage {
+  font-size: 0.75rem;
+  color: #64748b;
+  text-transform: capitalize;
+  margin-top: 2px;
+}
+
+/* Grid Lines */
+.pt-grid-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: #f1f5f9;
+  z-index: 1;
+}
+
+/* Project Duration Bar */
+.pt-bar-wrapper {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 24px;
+  z-index: 2;
+  border-radius: 4px;
+  cursor: help;
+}
+
+.pt-bar {
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projects-timeline-row.overdue .pt-name {
+  color: #ef4444;
+}
+
+/* Milestone Indicator */
+.pt-milestone {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pt-milestone-diamond {
+  width: 10px;
+  height: 10px;
+  background: #f59e0b;
+  transform: rotate(45deg);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+/* Today Indicator */
+.pt-today-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #ef4444;
+  z-index: 4;
+  opacity: 0.4;
+}

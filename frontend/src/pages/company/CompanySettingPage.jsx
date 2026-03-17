@@ -1,6 +1,7 @@
 // src/pages/company/CompanySettingsPage.jsx
 import { useEffect, useRef, useState } from 'react';
 import { getCompanyProfile, updateCompanyProfile } from '../../services/api.js';
+import ChangePasswordCard from '../../components/settings/ChangePasswordCard.jsx';
 
 import {
   Building2,
@@ -10,7 +11,7 @@ import {
   Share2,
   PlugZap,
   Bell,
-  ImagePlus,
+  ImagePlus,Lock
 } from 'lucide-react';
 
 const palette = {
@@ -64,6 +65,8 @@ const sections = [
   { key: 'referrals', label: 'Referral Program', icon: Share2 },
   { key: 'integrations', label: 'Integrations', icon: PlugZap },
   { key: 'notifications', label: 'Notifications', icon: Bell },
+    { key: 'security', label: 'Security', icon: Lock },
+
 ];
 
 export default function SettingsPage() {
@@ -79,7 +82,8 @@ export default function SettingsPage() {
           {/* Right content */}
           <div style={{ padding: 12 }}>
             {active === 'company' && <CompanyProfileForm />}
-            {active !== 'company' && (
+             {active === 'security'  && <ChangePasswordCard />}
+            {active !== 'company' && active !== 'security' && (
               <PlaceholderSection
                 title={sections.find((s) => s.key === active)?.label || 'Settings'}
                 message="This section will be available in the next phase."

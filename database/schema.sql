@@ -68,5 +68,46 @@ CREATE TABLE IF NOT EXISTS users (
 -- ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------------
+-- Internal messaging: conversations (DM + group), participants, messages.
+-- company_id = tenant-scoped (same company only); company_id NULL = platform (cross-company) DM.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS conversations (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  company_id INT UNSIGNED DEFAULT NULL,
+  type ENUM('dm', 'group') NOT NULL DEFAULT 'dm',
+  name VARCHAR(255) DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_conversations_company (company_id),
+  FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- If table already existed with NOT NULL, run: ALTER TABLE conversations MODIFY company_id INT UNSIGNED DEFAULT NULL;
+
+CREATE TABLE IF NOT EXISTS conversation_participants (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  conversation_id INT UNSIGNED NOT NULL,
+  user_id INT UNSIGNED NOT NULL,
+  last_read_at TIMESTAMP NULL DEFAULT NULL,
+  joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_conv_participant (conversation_id, user_id),
+  INDEX idx_conv_participants_user (user_id),
+  FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS messages (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  conversation_id INT UNSIGNED NOT NULL,
+  sender_id INT UNSIGNED NOT NULL,
+  body TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_messages_conversation (conversation_id),
+  INDEX idx_messages_created (conversation_id, created_at),
+  FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+  FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------------
 -- Seed: run backend/database/seed.js to create Super Admin user.
 -- ---------------------------------------------------------------------------

@@ -1,0 +1,11 @@
+INSERT INTO `employees` (`id`, `company_id`, `user_id`, `employee_code`, `first_name`, `last_name`, `date_of_birth`, `gender`, `email`, `phone`, `address_line1`, `address_line2`, `city`, `state`, `postal_code`, `country`, `department_id`, `job_role_id`, `employment_type_id`, `start_date`, `end_date`, `rate_type`, `rate_amount`, `status`, `avatar_url`, `created_at`, `updated_at`) VALUES
+(3, 1, 5, 'XTR-DIR-001', 'Ashley', 'Bronson', '0000-00-00', 'Male', 'ashley@xtechsrenewable.com', '123456789', '', '', '', '', '', '', 3, 7, 1, NULL, NULL, 'monthly', 0.00, 'active', '', '2026-02-27 23:52:51', '2026-02-27 23:52:51');
+(4, 1, 6, 'XTR-DIR-002', 'Liam', 'Jackman', '0000-00-00', 'Male', 'liam@xtechsrenewable.com', '', '', '', '', '', '', '', 3, 7, NULL, NULL, NULL, 'monthly', 0.00, 'active', '', '2026-02-27 23:59:10', '2026-02-27 23:59:10'),
+(5, 1, 7, 'XTR-ELELEAD-001', 'Clarke', 'Dean', '0000-00-00', 'Male', 'clarke.dean123@gmail.com', '', '', '', '', '', '', '', 1, 1, 1, NULL, NULL, 'monthly', 0.00, 'active', '', '2026-02-28 00:00:48', '2026-02-28 00:01:24');
+
+
+INSERT INTO `users` (`id`, `company_id`, `role_id`, `custom_role_id`, `email`, `password_hash`, `name`, `phone`, `abn`, `image_url`, `status`, `must_change_password`, `last_login_at`, `created_at`, `updated_at`, `failed_attempts`, `lock_until`, `password_changed_at`, `department`, `notify_email`, `notify_sms`) VALUES
+(1, 1, 1, NULL, 'admin@xvrythng.com', '$2a$12$1PNIXU4FIwJ3KTad78XF3u8L5RTyJJUlMQVK7HiktoJaqDWF1SIiK', 'Super Admin', NULL, NULL, NULL, 'active', 0, '2026-02-27 23:46:18', '2026-02-08 23:02:54', '2026-02-27 23:46:18', 0, NULL, NULL, NULL, 1, 0),
+(5, 1, 4, NULL, 'ashley@xtechsrenewable.com', '$2a$10$0jE4EKMHuIEcKfYpE/DQXe3jjz9xqg3f5nj049xnv8PImY2ctuIYq', 'Ashley Bronson', NULL, NULL, NULL, 'active', 1, NULL, '2026-02-27 23:52:51', '2026-02-27 23:52:51', 0, NULL, NULL, NULL, 1, 0);
+(6, 1, 4, NULL, 'liam@xtechsrenewable.com', '$2a$10$TCPo.yS7xizvaxh4sxkZ.O867bteeqGRzhkWowahSDl9LgP5kWb0a', 'Liam Jackman', NULL, NULL, NULL, 'active', 1, NULL, '2026-02-27 23:59:10', '2026-02-27 23:59:10', 0, NULL, NULL, NULL, 1, 0),
+(7, 1, 4, NULL, 'clarke.dean123@gmail.com', '$2a$10$eJwpVMcBYOnlNlKz4yz.fuEHJb5VXGPTrp1S3foOj.kRqeo2hOHam', 'Clarke Dean', NULL, NULL, NULL, 'active', 1, NULL, '2026-02-28 00:00:48', '2026-02-28 00:00:48', 0, NULL, NULL, NULL, 1, 0);

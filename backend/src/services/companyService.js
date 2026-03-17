@@ -1,7 +1,7 @@
 /**
- * Company (tenant) service: create company, company admin, company types & modules.
- * All tenant data isolated by company_id.
- */
+* Company (tenant) service: create company, company admin, company types & modules.
+* All tenant data isolated by company_id.
+*/
 import bcrypt from 'bcryptjs';
 import db from '../config/db.js';
 
@@ -139,6 +139,33 @@ export async function listCompanies(options = {}) {
   return rows;
 }
 
+export async function getCompanyWithAdmin(id) {
+  // Fetch company
+  const [companies] = await db.execute(
+    `SELECT c.*, ct.name AS company_type_name
+     FROM companies c
+     LEFT JOIN company_types ct ON c.company_type_id = ct.id
+     WHERE c.id = ?`,
+    [id]
+  );
+  if (companies.length === 0) return null;
+  const company = companies[0];
+
+  // Fetch company admin user
+  // Assuming 'company_admin' role exists and we pick the first one created
+  const [users] = await db.execute(
+    `SELECT u.id, u.name, u.email, u.status
+     FROM users u
+     JOIN roles r ON u.role_id = r.id
+     WHERE u.company_id = ? AND r.name = 'company_admin'
+     ORDER BY u.created_at ASC LIMIT 1`,
+    [id]
+  );
+  const admin = users[0] || null;
+
+  return { company, admin };
+}
+
 /**
  * Get modules enabled for a company (by company_type_id).
  */
@@ -152,4 +179,71 @@ export async function getModulesForCompany(companyId) {
     [companyId]
   );
   return rows.map((r) => r.module_key);
+}
+export async function updateCompany(id, data) {
+  const fields = [];
+  const params = [];
+
+  const allowed = [
+    'name', 'status', 'abn', 'contact_email', 'contact_phone',
+    'address_line1', 'address_line2', 'city', 'state', 'postcode', 'country',
+    'company_type_id'
+  ];
+
+  for (const key of allowed) {
+    if (data[key] !== undefined) {
+      fields.push(`${key} = ?`);
+      params.push(data[key]);
+    }
+  }
+
+  if (fields.length > 0) {
+    params.push(id);
+    const sql = `UPDATE companies SET ${fields.join(', ')}, updated_at = NOW() WHERE id = ?`;
+    await db.execute(sql, params);
+  }
+
+  // Update admin user if admin data provided
+  if (data.admin) {
+    const { name, email, password } = data.admin;
+    const adminFields = [];
+    const adminParams = [];
+
+    if (name) {
+      adminFields.push('name = ?');
+      adminParams.push(name);
+    }
+    if (email) {
+      adminFields.push('email = ?');
+      adminParams.push(email);
+    }
+    if (password && password.length >= 8) {
+      const hash = await bcrypt.hash(password, 12);
+      adminFields.push('password_hash = ?');
+      adminParams.push(hash);
+    }
+
+    if (adminFields.length > 0) {
+      // Find the admin user ID
+      const [users] = await db.execute(
+        `SELECT u.id FROM users u
+         JOIN roles r ON u.role_id = r.id
+         WHERE u.company_id = ? AND r.name = 'company_admin'
+         ORDER BY u.created_at ASC LIMIT 1`,
+        [id]
+      );
+      if (users.length > 0) {
+        const adminId = users[0].id;
+        adminParams.push(adminId);
+        const adminSql = `UPDATE users SET ${adminFields.join(', ')}, updated_at = NOW() WHERE id = ?`;
+        await db.execute(adminSql, adminParams);
+      }
+    }
+  }
+}
+
+export async function deleteCompany(id) {
+  // Note: This might fail if there are foreign keys (users, etc.) linked to this company.
+  // We assume specific deletion logic or cascade is handled by DB or caller if needed.
+  await db.execute('DELETE FROM companies WHERE id = ?', [id]);
 }
