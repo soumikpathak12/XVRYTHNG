@@ -71,6 +71,7 @@ export default function LeadForm({
   formId,                      
   hideActions = false,           
 }) {
+  const SOURCE_OPTIONS = ['Website', 'Solar Quote', 'Facebook', 'Others'];
   const [form, setForm] = useState({
     customer_name: '',
     email: '',
@@ -100,6 +101,13 @@ export default function LeadForm({
 
   useEffect(() => {
     if (initialValues) {
+      const rawSource = (initialValues.source || '').trim();
+      const matchedSource = SOURCE_OPTIONS.find(
+        (s) => s.toLowerCase() === rawSource.toLowerCase()
+      );
+      const sourceSel = matchedSource ?? (rawSource ? 'Others' : '');
+      const sourceOther = matchedSource || !rawSource ? '' : rawSource;
+
       setForm({
         customer_name:
           initialValues.customerName ||
@@ -113,7 +121,8 @@ export default function LeadForm({
           : initialValues.system_size_kw || '',
         value_amount:
           initialValues.value || initialValues.value_amount || '',
-        source: initialValues.source || '',
+        source: sourceSel,
+        sourceOther,
         stage: initialValues.stage || 'new',
         site_inspection_date: formatDateTimeLocal(
           initialValues.site_inspection_date ||
