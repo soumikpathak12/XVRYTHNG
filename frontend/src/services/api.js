@@ -1557,6 +1557,35 @@ export async function getLeadsCount(params = {}) {
   return data.total ?? 0;
 }
 
+/**
+ * GET /api/leads/dashboard
+ * @param {{ range?: 'week'|'month'|'quarter'|'custom', from?: string, to?: string }} params
+ */
+export async function getSalesDashboard(params = {}) {
+  const q = new URLSearchParams();
+  if (params.range) q.set('range', params.range);
+  if (params.from)  q.set('from',  params.from);
+  if (params.to)    q.set('to',    params.to);
+  const res  = await authFetch(`/api/leads/dashboard${q.toString() ? `?${q}` : ''}`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message ?? 'Failed to load dashboard metrics');
+  return data.data ?? data;
+}
+
+// ---------------------------------------------------------------------------
+// Sales activity feed (recent team actions)
+// ---------------------------------------------------------------------------
+/** GET /api/sales/activity?limit=50&offset=0 */
+export async function getSalesActivity(params = {}) {
+  const q = new URLSearchParams();
+  if (params.limit != null)  q.set('limit', String(params.limit));
+  if (params.offset != null) q.set('offset', String(params.offset));
+  const res  = await authFetch(`/api/sales/activity${q.toString() ? `?${q}` : ''}`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message ?? 'Failed to load sales activity');
+  return data.data ?? [];
+}
+
 
 
  export async function getTrialUsers() {

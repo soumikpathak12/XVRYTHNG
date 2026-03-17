@@ -48,6 +48,7 @@ import retailerProjectNoteRoutes from './routes/retailerProjectNoteRoutes.js';
 
 import installationRoutes from './routes/installationRoutes.js';
 import onFieldRoutes from './routes/onFieldRoutes.js';
+import activityRoutes from './routes/activityRoutes.js';
 import approvalsRoutes from './routes/approvalsRoutes.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -127,6 +128,7 @@ app.use('/api/retailer-projects/:id/notes', retailerProjectNoteRoutes);
 app.use('/api/installation-jobs', installationRoutes);
 app.use('/api/on-field', onFieldRoutes);
 app.use('/api/approvals', approvalsRoutes);
+app.use('/api', activityRoutes);
 // ---------------------------------------------------------------------------
 // Cron Jobs
 // ---------------------------------------------------------------------------
