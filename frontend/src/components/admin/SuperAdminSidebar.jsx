@@ -21,8 +21,9 @@ import {
   Wrench,
   Calculator,
 } from 'lucide-react';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { getApprovalsPendingCount } from '../../services/api.js';
 
 /**
  * Top-level nav items.
@@ -78,6 +79,20 @@ export default function SuperAdminSidebar({
     : setInternalCollapsed;
 
   const { can } = useAuth();
+
+  const [pendingCount, setPendingCount] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    const fetchCount = async () => {
+      try {
+        const res = await getApprovalsPendingCount();
+        if (alive) setPendingCount(res?.pending ?? 0);
+      } catch (_) {}
+    };
+    fetchCount();
+    const interval = setInterval(fetchCount, 60000);
+    return () => { alive = false; clearInterval(interval); };
+  }, []);
 
   /**
    * Filter nav based on permission; also filter children (Projects submenu).
@@ -294,6 +309,7 @@ export default function SuperAdminSidebar({
           }
 
           // --- Normal single link ---
+          const showBadge = item.to === '/admin/attendance' && pendingCount > 0;
           return (
             <NavLink
               key={item.to}
@@ -303,7 +319,21 @@ export default function SuperAdminSidebar({
                 ...(isActive ? activeStyle : {}),
               })}
             >
-              <Icon size={20} />
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <Icon size={20} />
+                {showBadge && (
+                  <span style={{
+                    position: 'absolute', top: -6, right: -7,
+                    background: '#EF4444', color: '#fff',
+                    borderRadius: 999, minWidth: 16, height: 16, fontSize: 10,
+                    fontWeight: 800, display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', padding: '0 3px', lineHeight: 1,
+                    border: '1.5px solid #fff',
+                  }}>
+                    {pendingCount > 99 ? '99+' : pendingCount}
+                  </span>
+                )}
+              </div>
               <span style={textHide}>{item.label}</span>
             </NavLink>
           );

@@ -2063,3 +2063,53 @@ export async function getOnFieldCalendar(params = {}) {
   return authFetchJSON(`/api/on-field/calendar${q ? `?${q}` : ''}`, { method: 'GET' });
 }
 
+// ---------------------------------------------------------------------------
+// Approvals (unified: leave + expense + attendance)
+// ---------------------------------------------------------------------------
+/** GET /api/approvals?type=leave|expense|attendance&status=pending|approved|rejected */
+export async function listApprovals(params = {}) {
+  const q = new URLSearchParams(params).toString();
+  return authFetchJSON(`/api/approvals${q ? `?${q}` : ''}`, { method: 'GET' });
+}
+
+/** GET /api/approvals/count – returns { pending, by_type: { leave, expense, attendance } } */
+export async function getApprovalsPendingCount() {
+  return authFetchJSON('/api/approvals/count', { method: 'GET' });
+}
+
+/** PATCH /api/approvals/:type/:id/decision – body: { action, comment } */
+export async function decideApproval(type, id, body) {
+  return authFetchJSON(`/api/approvals/${encodeURIComponent(type)}/${encodeURIComponent(id)}/decision`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+/** PATCH /api/employees/attendance/edit-requests/:id */
+export async function reviewAttendanceEditRequest(id, body) {
+  return authFetchJSON(`/api/employees/attendance/edit-requests/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+/** PATCH /api/employees/leave/:id/review */
+export async function reviewLeaveRequest(id, body) {
+  return authFetchJSON(`/api/employees/leave/${id}/review`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+/** PATCH /api/employees/expenses/:id/review */
+export async function reviewExpenseClaim(id, body) {
+  return authFetchJSON(`/api/employees/expenses/${id}/review`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+

@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-import { getCompanySidebar } from '../../services/api.js';
+import { getCompanySidebar, getApprovalsPendingCount } from '../../services/api.js';
 
 const MODULE_NAV = {
   leads:      { to: '/dashboard/leads',      label: 'Lead Pipeline', icon: UsersRound },
@@ -33,15 +33,13 @@ export default function CompanySidebar({ apiBase = '/api', logoSrc }) {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null);
   const [modules, setModules] = useState([]);
+  const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         setLoading(true);
-        //const res = await fetch(`${apiBase}/me/sidebar`);
-        //if (!res.ok) { setRole(null); setModules([]); return; }
-        //const data = await res.json();
         const data = await getCompanySidebar();
         if (!alive) return;
         setRole(data?.role ?? null);
@@ -52,6 +50,20 @@ export default function CompanySidebar({ apiBase = '/api', logoSrc }) {
     })();
     return () => { alive = false; };
   }, [apiBase]);
+
+  // Poll pending approvals count for badge
+  useEffect(() => {
+    let alive = true;
+    const fetchCount = async () => {
+      try {
+        const res = await getApprovalsPendingCount();
+        if (alive) setPendingCount(res?.pending ?? 0);
+      } catch (_) {}
+    };
+    fetchCount();
+    const interval = setInterval(fetchCount, 60000);
+    return () => { alive = false; clearInterval(interval); };
+  }, []);
 
   const fixedItems = getRoleFixedItems(role);
   const moduleItems = (modules || []).map(k => MODULE_NAV[k]).filter(Boolean);
@@ -105,13 +117,28 @@ export default function CompanySidebar({ apiBase = '/api', logoSrc }) {
         ) : (
           navItems.map(item => {
             const Icon = item.icon;
+            const showBadge = item.to === '/dashboard/attendance' && pendingCount > 0;
             return (
               <NavLink
                 key={item.to}
                 to={item.to}
                 style={({ isActive }) => ({ ...linkBase, ...(isActive ? activeStyle : {}) })}
               >
-                <Icon size={20} />
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                  <Icon size={20} />
+                  {showBadge && (
+                    <span style={{
+                      position: 'absolute', top: -6, right: -7,
+                      background: '#EF4444', color: '#fff',
+                      borderRadius: 999, minWidth: 16, height: 16, fontSize: 10,
+                      fontWeight: 800, display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', padding: '0 3px', lineHeight: 1,
+                      border: '1.5px solid #fff',
+                    }}>
+                      {pendingCount > 99 ? '99+' : pendingCount}
+                    </span>
+                  )}
+                </div>
                 <span style={textHide}>{item.label}</span>
               </NavLink>
             );
