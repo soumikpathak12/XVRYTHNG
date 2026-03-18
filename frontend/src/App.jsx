@@ -442,7 +442,7 @@ function App() {
           <Route path="on-field" element={<PlaceholderPage title="On-Field" message="Field schedules & activities." />} />
           <Route path="operations" element={<PlaceholderPage title="Operations" message="Approvals, payroll, billing." />} />
           <Route path="attendance" element={<ApprovalsPage />} />
-          <Route path="payroll" element={<PayrollPage />} />
+          <Route path="payroll" element={<RequirePermission resource="payroll" action="view"><PayrollPage /></RequirePermission>} />
           <Route path="referrals" element={<ReferralsPage />} />
           <Route path="messages" element={<MessagesPage />} />
           <Route path="installation" element={<InstallationJobList />} />

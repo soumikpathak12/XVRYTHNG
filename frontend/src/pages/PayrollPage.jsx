@@ -1,9 +1,23 @@
 // src/pages/PayrollPage.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { authFetchJSON, authFetch } from '../services/api.js';
 import { formatCurrency, formatDate } from '../utils/formatters.js';
 
 export default function PayrollPage() {
+  const BRAND = useMemo(() => ({
+    primary: '#1A7B7B',
+    primaryHover: '#4DB8A8',
+    primaryLight: '#E8F5F5',
+    text: '#1A1A2E',
+    sub: '#6B7280',
+    muted: '#9CA3AF',
+    border: '#E5E7EB',
+    bg: '#F5F5F5',
+    white: '#FFFFFF',
+    success: '#16A34A',
+    danger: '#DC2626',
+  }), []);
+
   const [periodType, setPeriodType] = useState('monthly');
   const [periodStart, setPeriodStart] = useState('');
   const [periodEnd, setPeriodEnd] = useState('');
@@ -12,7 +26,10 @@ export default function PayrollPage() {
   const [payrollRuns, setPayrollRuns] = useState([]);
   const [selectedRun, setSelectedRun] = useState(null);
   const [generatingPayslips, setGeneratingPayslips] = useState(new Set());
+  const [emailingAll, setEmailingAll] = useState(false);
+  const [downloadingAll, setDownloadingAll] = useState(false);
   const [expandedRows, setExpandedRows] = useState(new Set());
+  const [toast, setToast] = useState(null); // { type, msg }
 
   const num = (v, fallback = 0) => (v != null && !Number.isNaN(Number(v)) ? Number(v) : fallback);
 
@@ -56,7 +73,8 @@ export default function PayrollPage() {
       }
     } catch (error) {
       console.error('Failed to generate payslip:', error);
-      alert('Failed to generate payslip');
+      setToast({ type: 'error', msg: error?.message || 'Failed to generate payslip' });
+      window.setTimeout(() => setToast(null), 3500);
     } finally {
       setGeneratingPayslips(prev => {
         const newSet = new Set(prev);
@@ -68,6 +86,7 @@ export default function PayrollPage() {
 
   const generateAllPayslips = async () => {
     if (!selectedRun) return;
+    setDownloadingAll(true);
 
     try {
       // Generate all payslips
@@ -90,7 +109,28 @@ export default function PayrollPage() {
       }
     } catch (error) {
       console.error('Failed to generate payslips:', error);
-      alert('Failed to generate payslips');
+      setToast({ type: 'error', msg: error?.message || 'Failed to generate payslips' });
+      window.setTimeout(() => setToast(null), 3500);
+    } finally {
+      setDownloadingAll(false);
+    }
+  };
+
+  const emailAllPayslips = async () => {
+    if (!selectedRun) return;
+    setEmailingAll(true);
+    try {
+      const res = await authFetchJSON(`/api/employees/payroll/runs/${selectedRun.id}/payslips/email-all`, {
+        method: 'POST',
+      });
+      setToast({ type: 'success', msg: `Payslips emailed. Sent: ${res?.data?.sent ?? 0}, Skipped: ${res?.data?.skipped ?? 0}, Failed: ${res?.data?.failed ?? 0}` });
+      window.setTimeout(() => setToast(null), 3500);
+    } catch (error) {
+      console.error('Failed to email payslips:', error);
+      setToast({ type: 'error', msg: error?.message || 'Failed to email payslips' });
+      window.setTimeout(() => setToast(null), 3500);
+    } finally {
+      setEmailingAll(false);
     }
   };
 
@@ -151,7 +191,8 @@ export default function PayrollPage() {
       setPayrollData(response.data);
     } catch (error) {
       console.error('Failed to calculate payroll:', error);
-      alert('Failed to calculate payroll');
+      setToast({ type: 'error', msg: error?.message || 'Failed to calculate payroll' });
+      window.setTimeout(() => setToast(null), 3500);
     } finally {
       setLoading(false);
     }
@@ -169,12 +210,15 @@ export default function PayrollPage() {
         })
       });
 
-      alert('Payroll run saved successfully');
+      setToast({ type: 'success', msg: 'Payroll run saved successfully.' });
+      window.setTimeout(() => setToast(null), 3500);
       // Reset form
       setPayrollData(null);
+      loadPayrollRuns();
     } catch (error) {
       console.error('Failed to save payroll run:', error);
-      alert('Failed to save payroll run');
+      setToast({ type: 'error', msg: error?.message || 'Failed to save payroll run' });
+      window.setTimeout(() => setToast(null), 3500);
     }
   };
 
@@ -189,19 +233,40 @@ export default function PayrollPage() {
   };
 
   return (
-    <div style={{ padding: '20px' }}>
-      <h1 style={{ marginBottom: '20px', color: '#1f2937' }}>Payroll Management</h1>
+    <div style={{ padding: '20px 24px', background: BRAND.bg, minHeight: 'calc(100vh - 60px)' }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{
+          background: BRAND.white, border: `1px solid ${BRAND.border}`, borderRadius: 16,
+          padding: '16px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12,
+          boxShadow: '0 2px 8px rgba(26,123,123,0.05)',
+        }}>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 900, color: BRAND.text }}>Payroll</div>
+            <div style={{ fontSize: 13, color: BRAND.sub, marginTop: 2 }}>Calculate runs, generate payslips, and email employees</div>
+          </div>
+        </div>
+
+        {toast && (
+          <div style={{
+            background: toast.type === 'success' ? '#DCFCE7' : '#FEE2E2',
+            border: `1px solid ${toast.type === 'success' ? '#86EFAC' : '#FCA5A5'}`,
+            color: toast.type === 'success' ? '#166534' : '#991B1B',
+            borderRadius: 12, padding: '10px 14px', fontWeight: 700, fontSize: 13,
+          }}>
+            {toast.msg}
+          </div>
+        )}
 
       {/* Existing Payroll Runs */}
       <div style={{
-        background: '#f9fafb',
-        padding: '20px',
-        borderRadius: '8px',
-        marginBottom: '20px',
-        border: '1px solid #e5e7eb'
+        background: BRAND.white,
+        padding: '18px',
+        borderRadius: 16,
+        border: `1px solid ${BRAND.border}`,
+        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
       }}>
-        <h2 style={{ marginBottom: '8px', color: '#374151' }}>Existing Payroll Runs</h2>
-        <p style={{ margin: 0, marginBottom: '12px', fontSize: 13, color: '#6B7280' }}>
+        <h2 style={{ marginBottom: 8, color: BRAND.text, fontSize: 16 }}>Existing Payroll Runs</h2>
+        <p style={{ margin: 0, marginBottom: 12, fontSize: 13, color: BRAND.sub }}>
           These are payrolls you&apos;ve already calculated and saved. To create a new run, choose a period below and click <strong>Calculate Payroll</strong>, then <strong>Save Payroll Run</strong>.
         </p>
 
@@ -223,8 +288,8 @@ export default function PayrollPage() {
               }}
               style={{
                 padding: '8px 12px',
-                border: '1px solid #d1d5db',
-                borderRadius: '6px',
+                border: `1px solid ${BRAND.border}`,
+                borderRadius: 10,
                 fontSize: '14px',
                 minWidth: '220px'
               }}
@@ -237,21 +302,41 @@ export default function PayrollPage() {
               ))}
             </select>
 
-                {selectedRun && (
+            {selectedRun && (
               <button
                 onClick={generateAllPayslips}
+                disabled={downloadingAll}
                 style={{
                   padding: '8px 16px',
-                  background: '#10b981',
+                  background: downloadingAll ? '#9CA3AF' : BRAND.success,
                   color: 'white',
                   border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
+                  borderRadius: 10,
+                  cursor: downloadingAll ? 'not-allowed' : 'pointer',
                   fontSize: '14px',
-                  fontWeight: '500'
+                  fontWeight: 700
                 }}
               >
-              Generate Payslips (ZIP)
+              {downloadingAll ? 'Preparing…' : 'Generate Payslips (ZIP)'}
+              </button>
+            )}
+
+            {selectedRun && (
+              <button
+                onClick={emailAllPayslips}
+                disabled={emailingAll}
+                style={{
+                  padding: '8px 16px',
+                  background: emailingAll ? '#9CA3AF' : BRAND.primary,
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 10,
+                  cursor: emailingAll ? 'not-allowed' : 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 800
+                }}
+              >
+                {emailingAll ? 'Emailing…' : 'Email Payslips (All)'}
               </button>
             )}
           </div>
@@ -427,18 +512,19 @@ export default function PayrollPage() {
                 {payrollData && !selectedRun && (
                   <button
                     onClick={savePayrollRun}
+                    disabled={loading}
                     style={{
                       padding: '8px 16px',
-                      background: '#059669',
+                      background: loading ? '#9CA3AF' : BRAND.primary,
                       color: 'white',
                       border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
+                      borderRadius: 10,
+                      cursor: loading ? 'not-allowed' : 'pointer',
                       fontSize: '14px',
-                      fontWeight: '500'
+                      fontWeight: 800
                     }}
                   >
-                    Save Payroll Run
+                    {loading ? 'Saving…' : 'Save Payroll Run'}
                   </button>
                 )}
               </div>
@@ -532,6 +618,7 @@ export default function PayrollPage() {
           )}
         </>
       )}
+      </div>
     </div>
   );
 }

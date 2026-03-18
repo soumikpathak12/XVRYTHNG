@@ -53,6 +53,7 @@ router.post('/payroll/runs/:payrollRunId/payslips/:employeeId/generate', payroll
 router.post('/payroll/runs/:payrollRunId/payslips/generate-all', payrollController.generateAllPayslips);
 router.get('/payroll/runs/:payrollRunId/payslips/:employeeId/download', payrollController.downloadPayslip);
 router.get('/payroll/runs/:payrollRunId/payslips/download-all', payrollController.downloadAllPayslips);
+router.post('/payroll/runs/:payrollRunId/payslips/email-all', payrollController.emailAllPayslips);
 
 // Leave
 router.get('/leave/balances', leaveController.getBalances);

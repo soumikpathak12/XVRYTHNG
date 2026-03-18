@@ -1,14 +1,29 @@
 import db from '../config/db.js';
 
-// Overtime rules (configurable)
-const OVERTIME_RULES = {
-  weekly_threshold: 40, // hours per week
-  overtime_multiplier: 1.5, // 1.5x for overtime
-  fortnight_threshold: 80, // hours per fortnight
-};
+async function getCompanyPayrollSettings(companyId) {
+  const [[row]] = await db.query(
+    `SELECT
+       flat_tax_rate,
+       weekly_threshold,
+       fortnight_threshold,
+       overtime_multiplier
+     FROM company_payroll_settings
+     WHERE company_id = ?
+     LIMIT 1`,
+    [companyId]
+  );
+
+  return {
+    flatTaxRate: Number(row?.flat_tax_rate ?? 0.20),
+    weeklyThreshold: Number(row?.weekly_threshold ?? 40),
+    fortnightThreshold: Number(row?.fortnight_threshold ?? 80),
+    overtimeMultiplier: Number(row?.overtime_multiplier ?? 1.5),
+  };
+}
 
 // Calculate payroll for a period
 export async function calculatePayroll(companyId, periodStart, periodEnd, periodType = 'monthly') {
+  const settings = await getCompanyPayrollSettings(companyId);
   // Get all active employees for the company
   const [employees] = await db.query(
     'SELECT id, first_name, last_name, rate_type, rate_amount FROM employees WHERE company_id = ? AND status = "active"',
@@ -18,7 +33,7 @@ export async function calculatePayroll(companyId, periodStart, periodEnd, period
   const payrollDetails = [];
 
   for (const employee of employees) {
-    const detail = await calculateEmployeePayroll(employee, companyId, periodStart, periodEnd, periodType);
+    const detail = await calculateEmployeePayroll(employee, companyId, periodStart, periodEnd, periodType, settings);
     if (detail) {
       payrollDetails.push(detail);
     }
@@ -43,7 +58,7 @@ export async function calculatePayroll(companyId, periodStart, periodEnd, period
 }
 
 // Calculate payroll for a single employee
-async function calculateEmployeePayroll(employee, companyId, periodStart, periodEnd, periodType) {
+async function calculateEmployeePayroll(employee, companyId, periodStart, periodEnd, periodType, settings) {
   // Get attendance records for the period
   const [attendanceRecords] = await db.query(
     `SELECT date, hours_worked
@@ -71,8 +86,8 @@ async function calculateEmployeePayroll(employee, companyId, periodStart, period
     });
 
     for (const week of Object.values(weeklyHours)) {
-      totalHours += Math.min(week, OVERTIME_RULES.weekly_threshold);
-      overtimeHours += Math.max(0, week - OVERTIME_RULES.weekly_threshold);
+      totalHours += Math.min(week, settings.weeklyThreshold);
+      overtimeHours += Math.max(0, week - settings.weeklyThreshold);
     }
   } else if (periodType === 'fortnightly') {
     // Group by fortnight
@@ -84,8 +99,8 @@ async function calculateEmployeePayroll(employee, companyId, periodStart, period
     });
 
     for (const fortnight of Object.values(fortnightHours)) {
-      totalHours += Math.min(fortnight, OVERTIME_RULES.fortnight_threshold);
-      overtimeHours += Math.max(0, fortnight - OVERTIME_RULES.fortnight_threshold);
+      totalHours += Math.min(fortnight, settings.fortnightThreshold);
+      overtimeHours += Math.max(0, fortnight - settings.fortnightThreshold);
     }
   } else {
     // Monthly - no overtime calculation for now
@@ -99,19 +114,19 @@ async function calculateEmployeePayroll(employee, companyId, periodStart, period
 
   if (employee.rate_type === 'hourly') {
     hourlyRate = parseFloat(employee.rate_amount);
-    overtimeRate = hourlyRate * OVERTIME_RULES.overtime_multiplier;
+    overtimeRate = hourlyRate * settings.overtimeMultiplier;
   } else if (employee.rate_type === 'daily') {
     // Assume 8 hours per day
     hourlyRate = parseFloat(employee.rate_amount) / 8;
-    overtimeRate = hourlyRate * OVERTIME_RULES.overtime_multiplier;
+    overtimeRate = hourlyRate * settings.overtimeMultiplier;
   } else if (employee.rate_type === 'monthly') {
     // Assume 160 hours per month (20 days * 8 hours)
     hourlyRate = parseFloat(employee.rate_amount) / 160;
-    overtimeRate = hourlyRate * OVERTIME_RULES.overtime_multiplier;
+    overtimeRate = hourlyRate * settings.overtimeMultiplier;
   } else if (employee.rate_type === 'annual') {
     // Assume 2080 hours per year (52 weeks * 40 hours)
     hourlyRate = parseFloat(employee.rate_amount) / 2080;
-    overtimeRate = hourlyRate * OVERTIME_RULES.overtime_multiplier;
+    overtimeRate = hourlyRate * settings.overtimeMultiplier;
   }
 
   // Calculate pay
@@ -119,8 +134,8 @@ async function calculateEmployeePayroll(employee, companyId, periodStart, period
   const overtimePay = overtimeHours * overtimeRate;
   const grossPay = regularPay + overtimePay;
 
-  // For now, simple tax calculation (placeholder)
-  const taxRate = 0.20; // 20% tax
+  // Flat tax (per-company configurable)
+  const taxRate = settings.flatTaxRate;
   const taxDeductions = grossPay * taxRate;
   const otherDeductions = 0; // No other deductions for now
   const netPay = grossPay - taxDeductions - otherDeductions;
