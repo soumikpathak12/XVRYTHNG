@@ -1,5 +1,6 @@
 // backend/src/services/emailService.js
 import { Resend } from 'resend';
+import fs from 'fs';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = process.env.RESEND_FROM || 'Sales <noreply@example.com>';
@@ -494,6 +495,108 @@ export async function sendTrialLinkEmail({
     html,
     text: `Start your trial: ${trialLink}`,
     headers: { 'X-Email-Type': 'trial-link', ...headers },
+  });
+
+  if (error) throw new Error(error?.message ?? 'Resend send failed');
+  return data?.id ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Payroll: payslip emailing
+// ---------------------------------------------------------------------------
+export function renderPayslipEmail({
+  employeeName,
+  companyName = 'XVRYTHNG',
+  periodStart,
+  periodEnd,
+  netPay,
+}) {
+  const title = `${companyName} — Your payslip`;
+  const safeName = (employeeName || '').trim() || 'there';
+  const net = netPay != null ? `$${Number(netPay).toFixed(2)}` : '—';
+
+  return `
+  <!doctype html>
+  <html>
+    <head>
+      <meta charset="utf-8"/>
+      <meta name="viewport" content="width=device-width,initial-scale=1"/>
+      <title>${title}</title>
+    </head>
+    <body style="margin:0;padding:0;background:#f6f9fc;font-family:Arial,sans-serif;color:#0f172a;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f6f9fc;">
+        <tr>
+          <td align="center" style="padding:24px">
+            <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb">
+              <tr>
+                <td style="background:#1A7B7B;color:#fff;padding:16px 20px;font-weight:700;font-size:16px;">
+                  ${companyName} — Payroll
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:20px;">
+                  <p style="margin:0 0 12px;">Hi ${safeName},</p>
+                  <p style="margin:0 0 12px;">
+                    Please find attached your payslip for the period <strong>${periodStart}</strong> to <strong>${periodEnd}</strong>.
+                  </p>
+                  <div style="margin:12px 0 16px;padding:12px 14px;border:1px solid #e5e7eb;border-radius:10px;background:#f9fafb;">
+                    <div style="font-size:12px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Net pay</div>
+                    <div style="font-size:20px;font-weight:900;color:#0f172a;">${net}</div>
+                  </div>
+                  <p style="margin:0;">Regards,<br/>${companyName} Payroll Team</p>
+                  <hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0"/>
+                  <p style="font-size:12px;color:#6b7280;margin:0;">This is an automated email. If you have questions, please contact your manager.</p>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:16px 20px;background:#f9fafb;border-top:1px solid #e5e7eb;color:#6b7280;font-size:12px;">
+                  © ${new Date().getFullYear()} ${companyName}
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+  </html>`;
+}
+
+/**
+ * Send a payslip email with a PDF attachment (best-effort attachment, depends on Resend support).
+ */
+export async function sendPayslipEmail({
+  to,
+  employeeName,
+  companyName,
+  periodStart,
+  periodEnd,
+  netPay,
+  attachmentPath,
+  attachmentFilename = 'payslip.pdf',
+  headers = {},
+}) {
+  if (!isValidEmail(to)) throw new Error(`Invalid recipient email: ${to}`);
+  if (!attachmentPath) throw new Error('Missing attachmentPath');
+
+  const subject = `${companyName || 'XVRYTHNG'} — Payslip (${periodStart} to ${periodEnd})`;
+  const html = renderPayslipEmail({ employeeName, companyName, periodStart, periodEnd, netPay });
+
+  const content = fs.readFileSync(attachmentPath);
+
+  const { data, error } = await resend.emails.send({
+    from: FROM,
+    to: [to],
+    subject,
+    html,
+    text: `Your payslip for ${periodStart} to ${periodEnd} is attached.`,
+    // Resend supports attachments in most SDK versions.
+    attachments: [
+      {
+        filename: attachmentFilename,
+        content,
+      },
+    ],
+    headers: { 'X-Email-Type': 'payslip', ...headers },
   });
 
   if (error) throw new Error(error?.message ?? 'Resend send failed');

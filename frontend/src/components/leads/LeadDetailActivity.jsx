@@ -154,7 +154,7 @@ export default function LeadDetailActivity({ activities = [], leadId, onAddNote 
               disabled={submitting || comment.trim() === ''}
               className="lead-comment-post-btn"
               style={{
-                backgroundColor: submitting || comment.trim() === '' ? '#94a3b8' : '#64748b',
+                backgroundColor: submitting || comment.trim() === '' ? '#94a3b8' : '#1A7B7B',
                 color: '#fff',
                 border: 'none',
                 borderRadius: 18,

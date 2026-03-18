@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: Mar 11, 2026 at 05:43 PM
+-- Generation Time: Mar 18, 2026 at 05:47 AM
 -- Server version: 10.4.28-MariaDB
 -- PHP Version: 8.1.17
 
@@ -20,6 +20,66 @@ SET time_zone = "+00:00";
 --
 -- Database: `xvrythng`
 --
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `activity_logs`
+--
+
+CREATE TABLE `activity_logs` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `company_id` int(10) UNSIGNED DEFAULT NULL,
+  `user_id` int(10) UNSIGNED DEFAULT NULL,
+  `lead_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `action_type` enum('lead_created','stage_changed','proposal_sent','call_logged') NOT NULL,
+  `description` varchar(255) NOT NULL,
+  `meta_json` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`meta_json`)),
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `approval_activity`
+--
+
+CREATE TABLE `approval_activity` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `company_id` int(10) UNSIGNED NOT NULL,
+  `approval_type` enum('leave','expense','attendance') NOT NULL,
+  `approval_id` int(10) UNSIGNED NOT NULL,
+  `employee_id` int(10) UNSIGNED NOT NULL,
+  `actor_user_id` int(10) UNSIGNED NOT NULL,
+  `action` enum('approved','rejected') NOT NULL,
+  `comment` text NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `attendance_edit_requests`
+--
+
+CREATE TABLE `attendance_edit_requests` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `company_id` int(10) UNSIGNED NOT NULL,
+  `employee_id` int(10) UNSIGNED NOT NULL,
+  `attendance_id` int(10) UNSIGNED NOT NULL,
+  `orig_check_in` datetime DEFAULT NULL,
+  `orig_check_out` datetime DEFAULT NULL,
+  `orig_hours` decimal(5,2) DEFAULT NULL,
+  `req_check_in` datetime NOT NULL,
+  `req_check_out` datetime NOT NULL,
+  `reason` text NOT NULL,
+  `status` enum('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  `reviewed_by` int(10) UNSIGNED DEFAULT NULL,
+  `reviewed_at` datetime DEFAULT NULL,
+  `reviewer_note` text DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -56,6 +116,34 @@ INSERT INTO `companies` (`id`, `name`, `slug`, `status`, `created_at`, `updated_
 (3, 'safsdfdf', 'safsdfdf', 'active', '2026-02-09 07:06:50', '2026-02-09 07:06:50', 'asdsa', 'dfsgfhfg@gma.com', '53465768', 'wretyut', 'asdfdghh', 'Sydney', 'NSW', '2000', 'Australia', 1),
 (4, 'Test ABC', 'test-abc', 'active', '2026-02-11 05:09:18', '2026-02-11 05:09:18', '32546576876987', 'testabc@gmail.com', '233534534', '12e M st', 'suite 100', 'Sydny', 'NSW', '1000', 'Australia', 1),
 (5, 'sadfg', 'sadfg', 'active', '2026-02-17 08:34:44', '2026-02-17 08:34:44', '234545y', 'dsaf', '4657', '243567', 'aerstdthf', 'Sydney', 'NSW', '1000', 'Australia', 2);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `company_payroll_settings`
+--
+
+CREATE TABLE `company_payroll_settings` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `company_id` int(10) UNSIGNED NOT NULL,
+  `flat_tax_rate` decimal(6,4) NOT NULL DEFAULT 0.2000,
+  `weekly_threshold` decimal(8,2) NOT NULL DEFAULT 40.00,
+  `fortnight_threshold` decimal(8,2) NOT NULL DEFAULT 80.00,
+  `overtime_multiplier` decimal(6,3) NOT NULL DEFAULT 1.500,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `company_payroll_settings`
+--
+
+INSERT INTO `company_payroll_settings` (`id`, `company_id`, `flat_tax_rate`, `weekly_threshold`, `fortnight_threshold`, `overtime_multiplier`, `created_at`, `updated_at`) VALUES
+(1, 1, 0.2000, 40.00, 80.00, 1.500, '2026-03-17 20:00:20', '2026-03-17 20:00:20'),
+(2, 2, 0.2000, 40.00, 80.00, 1.500, '2026-03-17 20:00:20', '2026-03-17 20:00:20'),
+(3, 3, 0.2000, 40.00, 80.00, 1.500, '2026-03-17 20:00:20', '2026-03-17 20:00:20'),
+(4, 4, 0.2000, 40.00, 80.00, 1.500, '2026-03-17 20:00:20', '2026-03-17 20:00:20'),
+(5, 5, 0.2000, 40.00, 80.00, 1.500, '2026-03-17 20:00:20', '2026-03-17 20:00:20');
 
 -- --------------------------------------------------------
 
@@ -97,6 +185,7 @@ CREATE TABLE `company_type_modules` (
 
 INSERT INTO `company_type_modules` (`company_type_id`, `module_key`, `created_at`) VALUES
 (1, 'attendance', '2026-02-08 17:46:09'),
+(1, 'installation', '2026-03-12 16:49:19'),
 (1, 'leads', '2026-02-08 17:46:09'),
 (1, 'messages', '2026-02-08 17:46:09'),
 (1, 'on_field', '2026-02-08 17:46:09'),
@@ -104,10 +193,12 @@ INSERT INTO `company_type_modules` (`company_type_id`, `module_key`, `created_at
 (1, 'projects', '2026-02-08 17:46:09'),
 (1, 'referrals', '2026-02-08 17:46:09'),
 (1, 'support', '2026-03-06 18:51:38'),
+(2, 'installation', '2026-03-12 16:49:19'),
 (2, 'on_field', '2026-02-08 17:46:09'),
 (2, 'operations', '2026-02-08 17:46:09'),
 (2, 'projects', '2026-02-08 17:46:09'),
 (3, 'attendance', '2026-02-08 17:46:09'),
+(3, 'installation', '2026-03-12 16:49:19'),
 (3, 'leads', '2026-02-08 17:46:09'),
 (3, 'messages', '2026-02-08 17:46:09'),
 (3, 'on_field', '2026-02-08 17:46:09'),
@@ -266,6 +357,28 @@ INSERT INTO `employees` (`id`, `company_id`, `user_id`, `employee_code`, `first_
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `employee_attendance`
+--
+
+CREATE TABLE `employee_attendance` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `company_id` int(10) UNSIGNED NOT NULL,
+  `employee_id` int(10) UNSIGNED NOT NULL,
+  `check_in_time` datetime NOT NULL,
+  `check_in_lat` decimal(10,8) DEFAULT NULL,
+  `check_in_lng` decimal(11,8) DEFAULT NULL,
+  `check_out_time` datetime DEFAULT NULL,
+  `check_out_lat` decimal(10,8) DEFAULT NULL,
+  `check_out_lng` decimal(11,8) DEFAULT NULL,
+  `hours_worked` decimal(5,2) DEFAULT NULL,
+  `date` date NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `employment_types`
 --
 
@@ -283,6 +396,278 @@ INSERT INTO `employment_types` (`id`, `name`, `created_at`) VALUES
 (1, 'Full-time', '2026-03-07 06:21:37'),
 (2, 'Part-time', '2026-03-07 06:21:37'),
 (3, 'Contractor', '2026-03-07 06:21:37');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `expense_claims`
+--
+
+CREATE TABLE `expense_claims` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `company_id` int(10) UNSIGNED NOT NULL,
+  `employee_id` int(10) UNSIGNED NOT NULL,
+  `project_name` varchar(255) DEFAULT NULL,
+  `category` enum('travel','materials','equipment','other') NOT NULL,
+  `amount` decimal(12,2) NOT NULL,
+  `currency` varchar(3) NOT NULL DEFAULT 'INR',
+  `expense_date` date NOT NULL,
+  `description` text NOT NULL,
+  `receipt_path` varchar(500) DEFAULT NULL,
+  `status` enum('pending','approved','rejected','cancelled') NOT NULL DEFAULT 'pending',
+  `reviewed_by` int(10) UNSIGNED DEFAULT NULL,
+  `reviewed_at` datetime DEFAULT NULL,
+  `reviewer_note` text DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `inspection_templates`
+--
+
+CREATE TABLE `inspection_templates` (
+  `id` bigint(20) NOT NULL,
+  `company_id` bigint(20) NOT NULL,
+  `key` varchar(64) NOT NULL,
+  `name` varchar(128) NOT NULL,
+  `version` int(11) NOT NULL DEFAULT 1,
+  `status` enum('draft','published') NOT NULL DEFAULT 'draft',
+  `applies_to` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`applies_to`)),
+  `steps` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`steps`)),
+  `validation` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`validation`)),
+  `meta` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`meta`)),
+  `published_at` datetime DEFAULT NULL,
+  `deleted_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `inspection_templates`
+--
+
+INSERT INTO `inspection_templates` (`id`, `company_id`, `key`, `name`, `version`, `status`, `applies_to`, `steps`, `validation`, `meta`, `published_at`, `deleted_at`, `created_at`, `updated_at`) VALUES
+(5, 1, 'PV', 'PV', 1, 'published', '[]', '[]', '{\"requiredFields\":[\"inspected_at\",\"inspector_name\",\"meter_phase\",\"inverter_location\",\"msb_condition\"]}', '{\"enabledSections\":[\"core\",\"job\",\"subBoard\",\"monitor\",\"mudmap\"]}', '2026-02-23 02:14:52', NULL, '2026-02-23 02:14:51', '2026-02-23 02:14:52'),
+(6, 1, 'default', 'Default (Full)', 1, 'published', '[\"*\"]', '[]', '{\"requiredFields\":[\"inspected_at\",\"inspector_name\",\"roof_type\",\"meter_phase\",\"inverter_location\",\"msb_condition\"]}', '{\"enabledSections\":[\"core\",\"job\",\"switchboard\",\"subBoard\",\"inverter\",\"monitor\",\"roof\",\"mudmap\",\"final\"],\"stepGuards\":[{\"stepId\":\"job\",\"fields\":[\"jobDetails.licenseSelfie\"]}]}', NULL, NULL, '2026-02-23 02:24:34', '2026-02-23 02:24:34');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `installation_checklist_items`
+--
+
+CREATE TABLE `installation_checklist_items` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `company_id` int(10) UNSIGNED DEFAULT NULL,
+  `section` varchar(100) NOT NULL DEFAULT 'general',
+  `label` varchar(255) NOT NULL,
+  `sort_order` smallint(6) NOT NULL DEFAULT 0,
+  `is_required` tinyint(1) NOT NULL DEFAULT 0,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `installation_checklist_items`
+--
+
+INSERT INTO `installation_checklist_items` (`id`, `company_id`, `section`, `label`, `sort_order`, `is_required`, `created_at`) VALUES
+(1, NULL, 'pre_install', 'Site arrival & safety briefing', 1, 1, '2026-03-12 22:19:19'),
+(2, NULL, 'pre_install', 'Confirm customer name & address', 2, 1, '2026-03-12 22:19:19'),
+(3, NULL, 'pre_install', 'Confirm system specs with customer', 3, 1, '2026-03-12 22:19:19'),
+(4, NULL, 'pre_install', 'Inspect roof / mounting area', 4, 1, '2026-03-12 22:19:19'),
+(5, NULL, 'pre_install', 'Check switchboard / MSB', 5, 1, '2026-03-12 22:19:19'),
+(6, NULL, 'pre_install', 'PPE checked for all team members', 6, 1, '2026-03-12 22:19:19'),
+(7, NULL, 'install', 'Mount rails / brackets', 1, 1, '2026-03-12 22:19:19'),
+(8, NULL, 'install', 'Install solar panels', 2, 1, '2026-03-12 22:19:19'),
+(9, NULL, 'install', 'Run DC cabling & conduit', 3, 1, '2026-03-12 22:19:19'),
+(10, NULL, 'install', 'Install & wire inverter', 4, 1, '2026-03-12 22:19:19'),
+(11, NULL, 'install', 'AC connection to switchboard', 5, 1, '2026-03-12 22:19:19'),
+(12, NULL, 'install', 'Battery installation (if applicable)', 6, 0, '2026-03-12 22:19:19'),
+(13, NULL, 'post_install', 'Commissioning & system test', 1, 1, '2026-03-12 22:19:19'),
+(14, NULL, 'post_install', 'Label all equipment', 2, 1, '2026-03-12 22:19:19'),
+(15, NULL, 'post_install', 'Clean up worksite', 3, 1, '2026-03-12 22:19:19'),
+(16, NULL, 'post_install', 'Brief customer on system operation', 4, 1, '2026-03-12 22:19:19'),
+(17, NULL, 'post_install', 'Take completion photos', 5, 1, '2026-03-12 22:19:19'),
+(18, NULL, 'post_install', 'Complete customer sign-off', 6, 1, '2026-03-12 22:19:19'),
+(19, NULL, 'pre_install', 'Site arrival & safety briefing', 1, 1, '2026-03-12 22:35:30'),
+(20, NULL, 'pre_install', 'Confirm customer name & address', 2, 1, '2026-03-12 22:35:30'),
+(21, NULL, 'pre_install', 'Confirm system specs with customer', 3, 1, '2026-03-12 22:35:30'),
+(22, NULL, 'pre_install', 'Inspect roof / mounting area', 4, 1, '2026-03-12 22:35:30'),
+(23, NULL, 'pre_install', 'Check switchboard / MSB', 5, 1, '2026-03-12 22:35:30'),
+(24, NULL, 'pre_install', 'PPE checked for all team members', 6, 1, '2026-03-12 22:35:30'),
+(25, NULL, 'install', 'Mount rails / brackets', 1, 1, '2026-03-12 22:35:30'),
+(26, NULL, 'install', 'Install solar panels', 2, 1, '2026-03-12 22:35:30'),
+(27, NULL, 'install', 'Run DC cabling & conduit', 3, 1, '2026-03-12 22:35:30'),
+(28, NULL, 'install', 'Install & wire inverter', 4, 1, '2026-03-12 22:35:30'),
+(29, NULL, 'install', 'AC connection to switchboard', 5, 1, '2026-03-12 22:35:30'),
+(30, NULL, 'install', 'Battery installation (if applicable)', 6, 0, '2026-03-12 22:35:30'),
+(31, NULL, 'post_install', 'Commissioning & system test', 1, 1, '2026-03-12 22:35:30'),
+(32, NULL, 'post_install', 'Label all equipment', 2, 1, '2026-03-12 22:35:30'),
+(33, NULL, 'post_install', 'Clean up worksite', 3, 1, '2026-03-12 22:35:30'),
+(34, NULL, 'post_install', 'Brief customer on system operation', 4, 1, '2026-03-12 22:35:30'),
+(35, NULL, 'post_install', 'Take completion photos', 5, 1, '2026-03-12 22:35:30'),
+(36, NULL, 'post_install', 'Complete customer sign-off', 6, 1, '2026-03-12 22:35:30'),
+(37, NULL, 'pre_install', 'Site arrival & safety briefing', 1, 1, '2026-03-12 23:57:47'),
+(38, NULL, 'pre_install', 'Confirm customer name & address', 2, 1, '2026-03-12 23:57:47'),
+(39, NULL, 'pre_install', 'Confirm system specs with customer', 3, 1, '2026-03-12 23:57:47'),
+(40, NULL, 'pre_install', 'Inspect roof / mounting area', 4, 1, '2026-03-12 23:57:47'),
+(41, NULL, 'pre_install', 'Check switchboard / MSB', 5, 1, '2026-03-12 23:57:47'),
+(42, NULL, 'pre_install', 'PPE checked for all team members', 6, 1, '2026-03-12 23:57:47'),
+(43, NULL, 'install', 'Mount rails / brackets', 1, 1, '2026-03-12 23:57:47'),
+(44, NULL, 'install', 'Install solar panels', 2, 1, '2026-03-12 23:57:47'),
+(45, NULL, 'install', 'Run DC cabling & conduit', 3, 1, '2026-03-12 23:57:47'),
+(46, NULL, 'install', 'Install & wire inverter', 4, 1, '2026-03-12 23:57:47'),
+(47, NULL, 'install', 'AC connection to switchboard', 5, 1, '2026-03-12 23:57:47'),
+(48, NULL, 'install', 'Battery installation (if applicable)', 6, 0, '2026-03-12 23:57:47'),
+(49, NULL, 'post_install', 'Commissioning & system test', 1, 1, '2026-03-12 23:57:47'),
+(50, NULL, 'post_install', 'Label all equipment', 2, 1, '2026-03-12 23:57:47'),
+(51, NULL, 'post_install', 'Clean up worksite', 3, 1, '2026-03-12 23:57:47'),
+(52, NULL, 'post_install', 'Brief customer on system operation', 4, 1, '2026-03-12 23:57:47'),
+(53, NULL, 'post_install', 'Take completion photos', 5, 1, '2026-03-12 23:57:47'),
+(54, NULL, 'post_install', 'Complete customer sign-off', 6, 1, '2026-03-12 23:57:47');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `installation_checklist_responses`
+--
+
+CREATE TABLE `installation_checklist_responses` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `job_id` bigint(20) UNSIGNED NOT NULL,
+  `item_id` int(10) UNSIGNED NOT NULL,
+  `checked` tinyint(1) NOT NULL DEFAULT 0,
+  `note` text DEFAULT NULL,
+  `checked_by` int(10) UNSIGNED DEFAULT NULL,
+  `checked_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `installation_jobs`
+--
+
+CREATE TABLE `installation_jobs` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `company_id` int(10) UNSIGNED NOT NULL,
+  `project_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `retailer_project_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `status` enum('scheduled','in_progress','paused','completed') NOT NULL DEFAULT 'scheduled',
+  `customer_name` varchar(150) NOT NULL DEFAULT '',
+  `customer_phone` varchar(50) DEFAULT NULL,
+  `customer_email` varchar(255) DEFAULT NULL,
+  `address` varchar(255) DEFAULT NULL,
+  `suburb` varchar(150) DEFAULT NULL,
+  `system_size_kw` decimal(10,2) DEFAULT NULL,
+  `system_type` varchar(100) DEFAULT NULL,
+  `panel_count` smallint(5) UNSIGNED DEFAULT NULL,
+  `inverter_model` varchar(150) DEFAULT NULL,
+  `battery_included` tinyint(1) NOT NULL DEFAULT 0,
+  `scheduled_date` date DEFAULT NULL,
+  `scheduled_time` time DEFAULT NULL,
+  `estimated_hours` decimal(4,1) DEFAULT NULL,
+  `started_at` datetime DEFAULT NULL,
+  `paused_at` datetime DEFAULT NULL,
+  `completed_at` datetime DEFAULT NULL,
+  `total_elapsed_seconds` int(10) UNSIGNED DEFAULT 0,
+  `notes` text DEFAULT NULL,
+  `created_by` int(10) UNSIGNED DEFAULT NULL,
+  `updated_by` int(10) UNSIGNED DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `installation_job_assignees`
+--
+
+CREATE TABLE `installation_job_assignees` (
+  `job_id` bigint(20) UNSIGNED NOT NULL,
+  `employee_id` int(10) UNSIGNED NOT NULL,
+  `company_id` int(10) UNSIGNED NOT NULL,
+  `role` varchar(80) DEFAULT NULL,
+  `assigned_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `assigned_by` int(10) UNSIGNED DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `installation_photos`
+--
+
+CREATE TABLE `installation_photos` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `job_id` bigint(20) UNSIGNED NOT NULL,
+  `company_id` int(10) UNSIGNED NOT NULL,
+  `section` enum('before','during','after','general') NOT NULL DEFAULT 'general',
+  `storage_url` varchar(512) NOT NULL,
+  `filename` varchar(255) NOT NULL,
+  `mime_type` varchar(80) DEFAULT NULL,
+  `size_bytes` int(10) UNSIGNED DEFAULT NULL,
+  `caption` varchar(255) DEFAULT NULL,
+  `lat` decimal(10,7) DEFAULT NULL,
+  `lng` decimal(10,7) DEFAULT NULL,
+  `taken_at` datetime DEFAULT NULL,
+  `device_info` varchar(255) DEFAULT NULL,
+  `uploaded_by` int(10) UNSIGNED DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `installation_photo_requirements`
+--
+
+CREATE TABLE `installation_photo_requirements` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `company_id` int(10) UNSIGNED NOT NULL,
+  `section` enum('before','during','after') NOT NULL,
+  `min_count` tinyint(3) UNSIGNED NOT NULL DEFAULT 1,
+  `is_required` tinyint(1) NOT NULL DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `installation_signoffs`
+--
+
+CREATE TABLE `installation_signoffs` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `job_id` bigint(20) UNSIGNED NOT NULL,
+  `customer_name` varchar(150) NOT NULL,
+  `signature_url` varchar(512) DEFAULT NULL,
+  `signed_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `signed_by_ip` varchar(45) DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `installation_time_records`
+--
+
+CREATE TABLE `installation_time_records` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `job_id` bigint(20) UNSIGNED NOT NULL,
+  `company_id` int(10) UNSIGNED NOT NULL,
+  `event` enum('start','pause','resume','end') NOT NULL,
+  `recorded_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `recorded_by` int(10) UNSIGNED DEFAULT NULL,
+  `note` varchar(255) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -362,12 +747,22 @@ INSERT INTO `job_role_modules` (`job_role_id`, `module_key`) VALUES
 (7, 'operations'),
 (7, 'projects'),
 (7, 'referrals'),
+(16, 'attendance'),
+(16, 'leads'),
+(16, 'messages'),
+(16, 'on_field'),
+(16, 'operations'),
+(16, 'projects'),
+(16, 'referrals'),
+(16, 'support'),
 (21, 'attendance'),
 (21, 'leads'),
 (21, 'messages'),
 (21, 'on_field'),
 (21, 'operations'),
-(21, 'projects');
+(21, 'projects'),
+(21, 'referrals'),
+(21, 'support');
 
 -- --------------------------------------------------------
 
@@ -526,7 +921,55 @@ INSERT INTO `leads` (`id`, `company_id`, `stage`, `customer_name`, `email`, `pho
 (102, NULL, 'new', 'Hamid Rezatofighi', 'hamid.rt63@gmail.com', '0404 518 200', 'Rowville', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-07 12:00:01', NULL, '2026-03-07 06:30:01', NULL, '1026978', '{\"id\":1026978,\"idLeadSupplier\":2297756,\"name\":\"Hamid\",\"lastName\":\"Rezatofighi\",\"phone\":\"0404 518 200\",\"email\":\"hamid.rt63@gmail.com\",\"supplierId\":14039,\"leadPrice\":60,\"claimed\":\"No\",\"size\":\"Fill my roof with solar panels\",\"systemPriceType\":\"A good mix of quality and price\",\"timeframe\":\"In the next 4 weeks\",\"quarterlyBill\":\"Less than $500\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Tile\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":3,\"features\":\"On Grid Solar\\nBattery System\",\"leadType\":\"On Grid Solar + Batteries\",\"submittedDate\":\"2026-03-07 11:45:17\",\"companyName\":\"\",\"address\":\"31 Reservoir Cres Rowville\",\"latitude\":-37.9430964,\"longitude\":145.2500245,\"installationAddressLineOne\":\"31 Reservoir Cres\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Rowville\",\"installationState\":\"VIC\",\"installationPostcode\":3178,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.This customer has indicated that they do not want the VIC rebate.Lead wants to pay cashRequired for: Lowest bills & almost instant changeover in a blackoutThis is an ORIGIN lead.Hamid has verified this phone number\",\"importantNotesSplit\":\"Lead has consented to discussion of energy plans.:This lead was submitted via the QuotesV3 form.:This customer has indicated that they do not want the VIC rebate.:Lead wants to pay cash:Required for: Lowest bills & almost instant changeover in a blackout:This is an ORIGIN lead.:Hamid has verified this phone number\",\"requestedQuotes\":2,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"No\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.This customer has indicated that they do not want the VIC rebate.Lead wants to pay cashRequired for: Lowest bills & almost instant changeover in a blackoutThis is an ORIGIN lead.Hamid has verified this phone number\\n\\nFeatures: On Grid Solar\\nBattery System\\n\\nHave Battery: No\\n\\nRoof Type: Tile\\n\\nStoreys: 3\\n\\nAddress: 31 Reservoir Cres Rowville, Rowville, VIC, 3178\",\"mappedRoofType\":\"Tile (Concrete)\",\"_imported_at\":\"2026-03-07T06:30:01.883Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
 (103, NULL, 'new', 'John Forshaw', 'lj_forshaw@hotmail.com', '0438 103 929', 'Langwarrin', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-07 12:00:01', NULL, '2026-03-07 06:30:01', NULL, '1026935', '{\"id\":1026935,\"idLeadSupplier\":2297699,\"name\":\"John\",\"lastName\":\"Forshaw\",\"phone\":\"0438 103 929\",\"email\":\"lj_forshaw@hotmail.com\",\"supplierId\":14039,\"leadPrice\":50,\"claimed\":\"No\",\"size\":\"\",\"systemPriceType\":\"\",\"timeframe\":\"Immediately\",\"quarterlyBill\":\"Less than $500\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":1,\"features\":\"Battery System\",\"leadType\":\"Batteries\",\"submittedDate\":\"2026-03-07 10:35:08\",\"companyName\":\"\",\"address\":\"44 Lyppards Rd Langwarrin\",\"latitude\":-38.1320792,\"longitude\":145.2225177,\"installationAddressLineOne\":\"44 Lyppards Rd\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Langwarrin\",\"installationState\":\"VIC\",\"installationPostcode\":3910,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"Home back upSingle battery stack Possible to add more panels in the futureAble to handle 15kwh max draw This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: GoodweRequired for: Quickest payback time, charge from solar in blackout & almost instant changeover in a blackoutJohn has verified this phone number\",\"importantNotesSplit\":\"Home back up::Single battery stack ::Possible to add more panels in the future::Able to handle 15kwh max draw :This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Existing inverter type: Goodwe:Required for: Quickest payback time, charge from solar in blackout & almost instant changeover in a blackout:John has verified this phone number\",\"requestedQuotes\":3,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: Home back upSingle battery stack Possible to add more panels in the futureAble to handle 15kwh max draw This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: GoodweRequired for: Quickest payback time, charge from solar in blackout & almost instant changeover in a blackoutJohn has verified this phone number\\n\\nFeatures: Battery System\\n\\nRoof Type: Yes\\n\\nStoreys: 1\\n\\nAddress: 44 Lyppards Rd Langwarrin, Langwarrin, VIC, 3910\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-07T06:30:01.887Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
 (104, NULL, 'new', 'Garry Yin', 'garry0228@gmail.com', '0434 500 238', 'Glen Waverley', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-07 18:00:01', NULL, '2026-03-07 12:30:01', NULL, '1027121', '{\"id\":1027121,\"idLeadSupplier\":2297981,\"name\":\"Garry\",\"lastName\":\"Yin\",\"phone\":\"0434 500 238\",\"email\":\"garry0228@gmail.com\",\"supplierId\":14039,\"leadPrice\":60,\"claimed\":\"No\",\"size\":\"Fill my roof with solar panels\",\"systemPriceType\":\"A good mix of quality and price\",\"timeframe\":\"In the next 4 weeks\",\"quarterlyBill\":\"$500-$1000\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Terracotta\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":1,\"features\":\"On Grid Solar\\nMicro Inverters or Power Optimisers\\nBattery System\",\"leadType\":\"On Grid Solar + Batteries\",\"submittedDate\":\"2026-03-07 18:10:24\",\"companyName\":\"\",\"address\":\"7 Joyce Ave Glen Waverley\",\"latitude\":-37.8905006,\"longitude\":145.1688366,\"installationAddressLineOne\":\"7 Joyce Ave\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Glen Waverley\",\"installationState\":\"VIC\",\"installationPostcode\":3150,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"This lead was submitted via the QuotesV3 form.This customer has indicated that they do not want the VIC rebate.Lead wants to pay cashRequired for: Lowest billsGarry has verified this phone number\",\"importantNotesSplit\":\"This lead was submitted via the QuotesV3 form.:This customer has indicated that they do not want the VIC rebate.:Lead wants to pay cash:Required for: Lowest bills:Garry has verified this phone number\",\"requestedQuotes\":3,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"No\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"Micro Inverters / Power Optimisers\",\"consolidatedNotes\":\"Important Notes: This lead was submitted via the QuotesV3 form.This customer has indicated that they do not want the VIC rebate.Lead wants to pay cashRequired for: Lowest billsGarry has verified this phone number\\n\\nFeatures: On Grid Solar\\nMicro Inverters or Power Optimisers\\nBattery System\\n\\nHave Battery: No\\n\\nRoof Type: Terracotta\\n\\nStoreys: 1\\n\\nAddress: 7 Joyce Ave Glen Waverley, Glen Waverley, VIC, 3150\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-07T12:30:01.834Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
-(105, NULL, 'new', 'Amanda Smith', 'ajsmith33@gmail.com', '0408 537 326', 'Heatherton', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-07 18:00:01', NULL, '2026-03-07 12:30:01', NULL, '1027114', '{\"id\":1027114,\"idLeadSupplier\":2297963,\"name\":\"Amanda\",\"lastName\":\"Smith\",\"phone\":\"0408 537 326\",\"email\":\"ajsmith33@gmail.com\",\"supplierId\":14039,\"leadPrice\":60,\"claimed\":\"No\",\"size\":\"Not Sure. Please help me decide\",\"systemPriceType\":\"\",\"timeframe\":\"In the next 3 months\",\"quarterlyBill\":\"Less than $500\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Tile\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":2,\"features\":\"Battery System\\nIncrease size of existing solar system\",\"leadType\":\"On Grid Solar + Batteries\",\"submittedDate\":\"2026-03-07 17:15:08\",\"companyName\":\"\",\"address\":\"30 St Andrews Dr Heatherton\",\"latitude\":-37.9588706,\"longitude\":145.0819048,\"installationAddressLineOne\":\"30 St Andrews Dr\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Heatherton\",\"installationState\":\"VIC\",\"installationPostcode\":3202,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Fronius primo 3.5-1 (1)Required for: Lowest billsAmanda has verified this phone number\",\"importantNotesSplit\":\"This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Existing inverter type: Fronius primo 3.5-1 (1):Required for: Lowest bills:Amanda has verified this phone number\",\"requestedQuotes\":3,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"No\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"Solar System Upgrade\",\"consolidatedNotes\":\"Important Notes: This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Fronius primo 3.5-1 (1)Required for: Lowest billsAmanda has verified this phone number\\n\\nFeatures: Battery System\\nIncrease size of existing solar system\\n\\nHave Battery: No\\n\\nRoof Type: Tile\\n\\nStoreys: 2\\n\\nAddress: 30 St Andrews Dr Heatherton, Heatherton, VIC, 3202\",\"mappedRoofType\":\"Tile (Concrete)\",\"_imported_at\":\"2026-03-07T12:30:01.839Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+(105, NULL, 'new', 'Amanda Smith', 'ajsmith33@gmail.com', '0408 537 326', 'Heatherton', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-07 18:00:01', NULL, '2026-03-07 12:30:01', NULL, '1027114', '{\"id\":1027114,\"idLeadSupplier\":2297963,\"name\":\"Amanda\",\"lastName\":\"Smith\",\"phone\":\"0408 537 326\",\"email\":\"ajsmith33@gmail.com\",\"supplierId\":14039,\"leadPrice\":60,\"claimed\":\"No\",\"size\":\"Not Sure. Please help me decide\",\"systemPriceType\":\"\",\"timeframe\":\"In the next 3 months\",\"quarterlyBill\":\"Less than $500\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Tile\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":2,\"features\":\"Battery System\\nIncrease size of existing solar system\",\"leadType\":\"On Grid Solar + Batteries\",\"submittedDate\":\"2026-03-07 17:15:08\",\"companyName\":\"\",\"address\":\"30 St Andrews Dr Heatherton\",\"latitude\":-37.9588706,\"longitude\":145.0819048,\"installationAddressLineOne\":\"30 St Andrews Dr\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Heatherton\",\"installationState\":\"VIC\",\"installationPostcode\":3202,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Fronius primo 3.5-1 (1)Required for: Lowest billsAmanda has verified this phone number\",\"importantNotesSplit\":\"This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Existing inverter type: Fronius primo 3.5-1 (1):Required for: Lowest bills:Amanda has verified this phone number\",\"requestedQuotes\":3,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"No\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"Solar System Upgrade\",\"consolidatedNotes\":\"Important Notes: This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Fronius primo 3.5-1 (1)Required for: Lowest billsAmanda has verified this phone number\\n\\nFeatures: Battery System\\nIncrease size of existing solar system\\n\\nHave Battery: No\\n\\nRoof Type: Tile\\n\\nStoreys: 2\\n\\nAddress: 30 St Andrews Dr Heatherton, Heatherton, VIC, 3202\",\"mappedRoofType\":\"Tile (Concrete)\",\"_imported_at\":\"2026-03-07T12:30:01.839Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(106, NULL, 'new', 'Mike Tsakmakis', 'Mike.tsakmakis@gmail.com', '0430 102 602', 'Bulleen', 10.00, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-12 00:00:01', NULL, '2026-03-11 18:30:01', NULL, '1029258', '{\"id\":1029258,\"idLeadSupplier\":2301752,\"name\":\"Mike\",\"lastName\":\"Tsakmakis\",\"phone\":\"0430 102 602\",\"email\":\"Mike.tsakmakis@gmail.com\",\"supplierId\":14039,\"leadPrice\":60,\"claimed\":\"No\",\"size\":\"10 to 15 kW\",\"systemPriceType\":\"A good mix of quality and price\",\"timeframe\":\"In the next 4 weeks\",\"quarterlyBill\":\"$500-$1000\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Tile\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":2,\"features\":\"On Grid Solar\\nMicro Inverters or Power Optimisers\\nBattery System\",\"leadType\":\"On Grid Solar + Batteries\",\"submittedDate\":\"2026-03-11 23:10:09\",\"companyName\":\"\",\"address\":\"4 Eama Ct Bulleen\",\"latitude\":-37.7739755,\"longitude\":145.0989954,\"installationAddressLineOne\":\"4 Eama Ct\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Bulleen\",\"installationState\":\"VIC\",\"installationPostcode\":3105,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"No\",\"availableForConversation\":\"\",\"importantNotes\":\"Email only please. I won\'t be able to receive calls.This lead was submitted via the QuotesV3 form.This customer has indicated that they do not want the VIC rebate.Lead wants to pay cashRequired for: Lowest bills, charge from solar in blackout, backups up 3-phase appliances & easily expandableThis is an ORIGIN lead.Mike has verified this phone number\",\"importantNotesSplit\":\"Email only please. I won\'t be able to receive calls.:This lead was submitted via the QuotesV3 form.:This customer has indicated that they do not want the VIC rebate.:Lead wants to pay cash:Required for: Lowest bills, charge from solar in blackout, backups up 3-phase appliances & easily expandable:This is an ORIGIN lead.:Mike has verified this phone number\",\"requestedQuotes\":3,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"No\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"Micro Inverters / Power Optimisers\",\"consolidatedNotes\":\"Important Notes: Email only please. I won\'t be able to receive calls.This lead was submitted via the QuotesV3 form.This customer has indicated that they do not want the VIC rebate.Lead wants to pay cashRequired for: Lowest bills, charge from solar in blackout, backups up 3-phase appliances & easily expandableThis is an ORIGIN lead.Mike has verified this phone number\\n\\nFeatures: On Grid Solar\\nMicro Inverters or Power Optimisers\\nBattery System\\n\\nHave Battery: No\\n\\nRoof Type: Tile\\n\\nStoreys: 2\\n\\nAddress: 4 Eama Ct Bulleen, Bulleen, VIC, 3105\",\"mappedRoofType\":\"Tile (Concrete)\",\"_imported_at\":\"2026-03-11T18:30:01.320Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(107, NULL, 'new', 'Michael Lazzarini', 'lazzarinim@hotmail.com', '0414 813 111', 'Box Hill South', 15.00, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-12 00:00:01', NULL, '2026-03-11 18:30:01', NULL, '1029095', '{\"id\":1029095,\"idLeadSupplier\":2301618,\"name\":\"Michael\",\"lastName\":\"Lazzarini\",\"phone\":\"0414 813 111\",\"email\":\"lazzarinim@hotmail.com\",\"supplierId\":14039,\"leadPrice\":60,\"claimed\":\"No\",\"size\":\"15 to 20 kW\",\"systemPriceType\":\"A good mix of quality and price\",\"timeframe\":\"In the next 4 weeks\",\"quarterlyBill\":\"Less than $500\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Tile\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":1,\"features\":\"On Grid Solar\\nBattery System\",\"leadType\":\"On Grid Solar + Batteries\",\"submittedDate\":\"2026-03-11 18:25:25\",\"companyName\":\"\",\"address\":\"24 Penrose St Box Hill South\",\"latitude\":-37.8415208,\"longitude\":145.130412,\"installationAddressLineOne\":\"24 Penrose St\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Box Hill South\",\"installationState\":\"VIC\",\"installationPostcode\":3128,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"No\",\"availableForConversation\":\"\",\"importantNotes\":\"I have an existing 1 kw system more than 16 years.Happy to replace or whatever you recommendLead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.This customer has indicated that they would like to receive the VIC rebate.Lead wants to pay cashRequired for: Blackout Protection & almost instant changeover in a blackoutMichael has verified this phone number\",\"importantNotesSplit\":\"I have an existing 1 kw system more than 16 years.::Happy to replace or whatever you recommend:Lead has consented to discussion of energy plans.:This lead was submitted via the QuotesV3 form.:This customer has indicated that they would like to receive the VIC rebate.:Lead wants to pay cash:Required for: Blackout Protection & almost instant changeover in a blackout:Michael has verified this phone number\",\"requestedQuotes\":3,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: I have an existing 1 kw system more than 16 years.Happy to replace or whatever you recommendLead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.This customer has indicated that they would like to receive the VIC rebate.Lead wants to pay cashRequired for: Blackout Protection & almost instant changeover in a blackoutMichael has verified this phone number\\n\\nFeatures: On Grid Solar\\nBattery System\\n\\nRoof Type: Tile\\n\\nStoreys: 1\\n\\nAddress: 24 Penrose St Box Hill South, Box Hill South, VIC, 3128\",\"mappedRoofType\":\"Tile (Concrete)\",\"_imported_at\":\"2026-03-11T18:30:01.330Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO `leads` (`id`, `company_id`, `stage`, `customer_name`, `email`, `phone`, `suburb`, `system_size_kw`, `value_amount`, `source`, `referred_by_lead_id`, `is_closed`, `is_won`, `won_lost_at`, `last_activity_at`, `site_inspection_date`, `created_at`, `updated_at`, `external_id`, `marketing_payload_json`, `system_type`, `house_storey`, `roof_type`, `meter_phase`, `access_to_second_storey`, `access_to_inverter`, `pre_approval_reference_no`, `energy_retailer`, `energy_distributor`, `solar_vic_eligibility`, `nmi_number`, `meter_number`, `contacted_at`, `assigned_user_id`) VALUES
+(108, NULL, 'new', 'Gloria Beggs', 'beggs72@gmail.com', '0400 685 889', 'Seaford', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-12 00:00:01', NULL, '2026-03-11 18:30:01', NULL, '1029086', '{\"id\":1029086,\"idLeadSupplier\":2301603,\"name\":\"Gloria\",\"lastName\":\"Beggs\",\"phone\":\"0400 685 889\",\"email\":\"beggs72@gmail.com\",\"supplierId\":14039,\"leadPrice\":50,\"claimed\":\"No\",\"size\":\"\",\"systemPriceType\":\"\",\"timeframe\":\"Immediately\",\"quarterlyBill\":\"Less than $500\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":1,\"features\":\"Battery System\",\"leadType\":\"Batteries\",\"submittedDate\":\"2026-03-11 18:05:06\",\"companyName\":\"\",\"address\":\"6 Mitchell St Seaford\",\"latitude\":-38.1053121,\"longitude\":145.1305864,\"installationAddressLineOne\":\"6 Mitchell St\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Seaford\",\"installationState\":\"VIC\",\"installationPostcode\":3198,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"Please call to talk through.Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: GoodweRequired for: Lowest bills & charge from solar in blackoutThis is an ORIGIN lead.Gloria  has verified this phone number\",\"importantNotesSplit\":\"Please call to talk through.:Lead has consented to discussion of energy plans.:This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Existing inverter type: Goodwe:Required for: Lowest bills & charge from solar in blackout:This is an ORIGIN lead.:Gloria  has verified this phone number\",\"requestedQuotes\":2,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: Please call to talk through.Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: GoodweRequired for: Lowest bills & charge from solar in blackoutThis is an ORIGIN lead.Gloria  has verified this phone number\\n\\nFeatures: Battery System\\n\\nRoof Type: Yes\\n\\nStoreys: 1\\n\\nAddress: 6 Mitchell St Seaford, Seaford, VIC, 3198\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-11T18:30:01.334Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(109, NULL, 'new', 'Gabriel Szalma', 'gabriel@acgabe.com.au', '0401 754 885', 'Emerald', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-12 00:00:01', NULL, '2026-03-11 18:30:01', NULL, '1028901', '{\"id\":1028901,\"idLeadSupplier\":2301324,\"name\":\"Gabriel\",\"lastName\":\"Szalma\",\"phone\":\"0401 754 885\",\"email\":\"gabriel@acgabe.com.au\",\"supplierId\":14039,\"leadPrice\":50,\"claimed\":\"No\",\"size\":\"\",\"systemPriceType\":\"\",\"timeframe\":\"Immediately\",\"quarterlyBill\":\"Don\'t know\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":1,\"features\":\"Battery System\",\"leadType\":\"Batteries\",\"submittedDate\":\"2026-03-11 13:20:16\",\"companyName\":\"\",\"address\":\"13 Holman Rd Emerald\",\"latitude\":-37.8975108,\"longitude\":145.4450303,\"installationAddressLineOne\":\"13 Holman Rd\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Emerald\",\"installationState\":\"VIC\",\"installationPostcode\":3782,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"No\",\"availableForConversation\":\"\",\"importantNotes\":\"G\'day,I\'m looking for a price for two stacks of Sigen batteries: Stack 1 — 30 kW controller, 3 × 8 kWh batteries, base; Stack 2 — 25 kW DC charger, 3 × 8 kWh batteries, base. I also need a 3-phase gateway.I have three SolarEdge HD-Wave inverters and 16 kWh of solar.Thanks,Gabe(I have 3 off solaredge HD wave inverters and 16kwh solar.)This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: 3 off Solaredge 7kw hd wave Required for: Blackout Protection, charge from solar in blackout, almost instant changeover in a blackout & easily expandableGabriel has verified this phone number\",\"importantNotesSplit\":\"G\'day,:::I\'m looking for a price for two stacks of Sigen batteries: Stack 1 — 30 kW controller, 3 × 8 kWh batteries, base; Stack 2 — 25 kW DC charger, 3 × 8 kWh batteries, base. I also need a 3-phase gateway.:::I have three SolarEdge HD-Wave inverters and 16 kWh of solar.::Thanks,::Gabe::(I have 3 off solaredge HD wave inverters and 16kwh solar.):This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Existing inverter type: 3 off Solaredge 7kw hd wave :Required for: Blackout Protection, charge from solar in blackout, almost instant changeover in a blackout & easily expandable:Gabriel has verified this phone number\",\"requestedQuotes\":3,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"appointment_booked\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: G\'day,I\'m looking for a price for two stacks of Sigen batteries: Stack 1 — 30 kW controller, 3 × 8 kWh batteries, base; Stack 2 — 25 kW DC charger, 3 × 8 kWh batteries, base. I also need a 3-phase gateway.I have three SolarEdge HD-Wave inverters and 16 kWh of solar.Thanks,Gabe(I have 3 off solaredge HD wave inverters and 16kwh solar.)This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: 3 off Solaredge 7kw hd wave Required for: Blackout Protection, charge from solar in blackout, almost instant changeover in a blackout & easily expandableGabriel has verified this phone number\\n\\nFeatures: Battery System\\n\\nRoof Type: Yes\\n\\nStoreys: 1\\n\\nAddress: 13 Holman Rd Emerald, Emerald, VIC, 3782\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-11T18:30:01.336Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(110, NULL, 'new', 'Kylie Blyth', 'kylie@pcts.net.au', '0400 308 745', 'Lysterfield', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-12 00:00:01', NULL, '2026-03-11 18:30:01', NULL, '1028767', '{\"id\":1028767,\"idLeadSupplier\":2301059,\"name\":\"Kylie\",\"lastName\":\"Blyth\",\"phone\":\"0400 308 745\",\"email\":\"kylie@pcts.net.au\",\"supplierId\":14039,\"leadPrice\":60,\"claimed\":\"No\",\"size\":\"Fill my roof with solar panels\",\"systemPriceType\":\"A good mix of quality and price\",\"timeframe\":\"In the next 4 weeks\",\"quarterlyBill\":\"over $2000\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Terracotta\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":2,\"features\":\"On Grid Solar\\nBattery System\",\"leadType\":\"On Grid Solar + Batteries\",\"submittedDate\":\"2026-03-11 10:26:00\",\"companyName\":\"\",\"address\":\"4 Regency Terrace Lysterfield\",\"latitude\":-37.9218652,\"longitude\":145.2729148,\"installationAddressLineOne\":\"4 Regency Terrace\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Lysterfield\",\"installationState\":\"VIC\",\"installationPostcode\":3156,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"No\",\"availableForConversation\":\"\",\"importantNotes\":\"We have recently install a pool that has increased our most recent electricity bill quite a lot.This lead was submitted via the QuotesV3 form.This customer has indicated that they would like to receive the VIC rebate.Lead wants to pay cashRequired for: Lowest bills, charge from solar in blackout & almost instant changeover in a blackoutKylie has verified this phone number\",\"importantNotesSplit\":\"We have recently install a pool that has increased our most recent electricity bill quite a lot.:This lead was submitted via the QuotesV3 form.:This customer has indicated that they would like to receive the VIC rebate.:Lead wants to pay cash:Required for: Lowest bills, charge from solar in blackout & almost instant changeover in a blackout:Kylie has verified this phone number\",\"requestedQuotes\":3,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"No\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: We have recently install a pool that has increased our most recent electricity bill quite a lot.This lead was submitted via the QuotesV3 form.This customer has indicated that they would like to receive the VIC rebate.Lead wants to pay cashRequired for: Lowest bills, charge from solar in blackout & almost instant changeover in a blackoutKylie has verified this phone number\\n\\nFeatures: On Grid Solar\\nBattery System\\n\\nHave Battery: No\\n\\nRoof Type: Terracotta\\n\\nStoreys: 2\\n\\nAddress: 4 Regency Terrace Lysterfield, Lysterfield, VIC, 3156\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-11T18:30:01.337Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(111, NULL, 'new', 'Stephen Patan', 'reflex.games@outlook.com', '0414 660 069', 'Wheelers Hill', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-12 00:00:01', NULL, '2026-03-11 18:30:01', NULL, '1028722', '{\"id\":1028722,\"idLeadSupplier\":2300958,\"name\":\"Stephen\",\"lastName\":\"Patan\",\"phone\":\"0414 660 069\",\"email\":\"reflex.games@outlook.com\",\"supplierId\":14039,\"leadPrice\":50,\"claimed\":\"No\",\"size\":\"\",\"systemPriceType\":\"\",\"timeframe\":\"In the next 4 weeks\",\"quarterlyBill\":\"Less than $500\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":2,\"features\":\"Battery System\",\"leadType\":\"Batteries\",\"submittedDate\":\"2026-03-11 08:50:24\",\"companyName\":\"\",\"address\":\"20 Garnett Rd Wheelers Hill\",\"latitude\":-37.9116209,\"longitude\":145.1971984,\"installationAddressLineOne\":\"20 Garnett Rd\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Wheelers Hill\",\"installationState\":\"VIC\",\"installationPostcode\":3150,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"No\",\"availableForConversation\":\"\",\"importantNotes\":\"This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Goodwe 5 KW 1PH DNS-30Required for: Lowest bills, charge from solar in blackout & almost instant changeover in a blackoutStephen has verified this phone number\",\"importantNotesSplit\":\"This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Existing inverter type: Goodwe 5 KW 1PH DNS-30:Required for: Lowest bills, charge from solar in blackout & almost instant changeover in a blackout:Stephen has verified this phone number\",\"requestedQuotes\":2,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"appointment_booked\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Goodwe 5 KW 1PH DNS-30Required for: Lowest bills, charge from solar in blackout & almost instant changeover in a blackoutStephen has verified this phone number\\n\\nFeatures: Battery System\\n\\nRoof Type: Yes\\n\\nStoreys: 2\\n\\nAddress: 20 Garnett Rd Wheelers Hill, Wheelers Hill, VIC, 3150\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-11T18:30:01.339Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(112, NULL, 'new', 'BENJAMIN BOWEN', 'bbowen1987@gmail.com', '0449 586 684', 'Williamstown', 3.00, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-12 00:00:01', NULL, '2026-03-11 18:30:01', NULL, '1028626', '{\"id\":1028626,\"idLeadSupplier\":2300639,\"name\":\"BENJAMIN\",\"lastName\":\"BOWEN\",\"phone\":\"0449 586 684\",\"email\":\"bbowen1987@gmail.com\",\"supplierId\":14039,\"leadPrice\":60,\"claimed\":\"No\",\"size\":\"3 to 5 kW\",\"systemPriceType\":\"A good mix of quality and price\",\"timeframe\":\"Immediately\",\"quarterlyBill\":\"Less than $500\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Tin / Colourbond\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":2,\"features\":\"On Grid Solar\\nMicro Inverters or Power Optimisers\\nBattery System\",\"leadType\":\"On Grid Solar + Batteries\",\"submittedDate\":\"2026-03-10 22:25:25\",\"companyName\":\"\",\"address\":\"123 Aitken St Williamstown\",\"latitude\":-37.8623621,\"longitude\":144.9012708,\"installationAddressLineOne\":\"123 Aitken St\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Williamstown\",\"installationState\":\"VIC\",\"installationPostcode\":3016,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"Small roof area, need high generation panelsThis lead was submitted via the QuotesV3 form.This customer has indicated that they do not want the VIC rebate.Lead wants to pay cashRequired for: Quickest payback time & backups up 3-phase appliancesBENJAMIN has verified this phone number\",\"importantNotesSplit\":\"Small roof area, need high generation panels:::This lead was submitted via the QuotesV3 form.:This customer has indicated that they do not want the VIC rebate.:Lead wants to pay cash:Required for: Quickest payback time & backups up 3-phase appliances:BENJAMIN has verified this phone number\",\"requestedQuotes\":3,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"No\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"Micro Inverters / Power Optimisers\",\"consolidatedNotes\":\"Important Notes: Small roof area, need high generation panelsThis lead was submitted via the QuotesV3 form.This customer has indicated that they do not want the VIC rebate.Lead wants to pay cashRequired for: Quickest payback time & backups up 3-phase appliancesBENJAMIN has verified this phone number\\n\\nFeatures: On Grid Solar\\nMicro Inverters or Power Optimisers\\nBattery System\\n\\nHave Battery: No\\n\\nRoof Type: Tin / Colourbond\\n\\nStoreys: 2\\n\\nAddress: 123 Aitken St Williamstown, Williamstown, VIC, 3016\",\"mappedRoofType\":\"Tin (Colorbond)\",\"_imported_at\":\"2026-03-11T18:30:01.341Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(113, NULL, 'new', 'Ellen Xin', 'ellenxin7@hotmail.com', '0409 224 188', 'Kew', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-13 00:00:01', NULL, '2026-03-12 18:30:01', NULL, '1029803', '{\"id\":1029803,\"idLeadSupplier\":2302849,\"name\":\"Ellen\",\"lastName\":\"Xin\",\"phone\":\"0409 224 188\",\"email\":\"ellenxin7@hotmail.com\",\"supplierId\":14039,\"leadPrice\":60,\"claimed\":\"No\",\"size\":\"Not Sure. Please help me decide\",\"systemPriceType\":\"\",\"timeframe\":\"In the next 4 weeks\",\"quarterlyBill\":\"Less than $500\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Tile\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":3,\"features\":\"Adding Batteries\\nIncrease size of existing solar system\",\"leadType\":\"On Grid Solar + Batteries\",\"submittedDate\":\"2026-03-12 23:40:09\",\"companyName\":\"\",\"address\":\"33 Mont Victor Rd Kew\",\"latitude\":-37.8071891,\"longitude\":145.0576466,\"installationAddressLineOne\":\"33 Mont Victor Rd\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Kew\",\"installationState\":\"VIC\",\"installationPostcode\":3101,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"remove the old panels, and install new onesLead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.Lead wants to pay cashCustomer wants a battery upgradeAmount of storage required: I don\'t knowExisting battery type: UnknownExisting inverter type: Sunny Boy SB1700 Required for: Lowest bills & charge from solar in blackoutEllen has verified this phone number\",\"importantNotesSplit\":\"remove the old panels, and install new ones:Lead has consented to discussion of energy plans.:This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Customer wants a battery upgrade:Amount of storage required: I don\'t know:Existing battery type: Unknown:Existing inverter type: Sunny Boy SB1700 :Required for: Lowest bills & charge from solar in blackout:Ellen has verified this phone number\",\"requestedQuotes\":3,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":[\"Solar System Upgrade\",\"Battery System Upgrade\"],\"consolidatedNotes\":\"Important Notes: remove the old panels, and install new onesLead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.Lead wants to pay cashCustomer wants a battery upgradeAmount of storage required: I don\'t knowExisting battery type: UnknownExisting inverter type: Sunny Boy SB1700 Required for: Lowest bills & charge from solar in blackoutEllen has verified this phone number\\n\\nFeatures: Adding Batteries\\nIncrease size of existing solar system\\n\\nRoof Type: Tile\\n\\nStoreys: 3\\n\\nAddress: 33 Mont Victor Rd Kew, Kew, VIC, 3101\",\"mappedRoofType\":\"Tile (Concrete)\",\"_imported_at\":\"2026-03-12T18:30:01.502Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(114, NULL, 'new', 'Aiden Chan', 'kssangx5@gmail.com', '0472 760 495', 'Lyndhurst', 5.00, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-13 00:00:01', NULL, '2026-03-12 18:30:01', NULL, '1029758', '{\"id\":1029758,\"idLeadSupplier\":2302788,\"name\":\"Aiden\",\"lastName\":\"Chan\",\"phone\":\"0472 760 495\",\"email\":\"kssangx5@gmail.com\",\"supplierId\":14039,\"leadPrice\":55,\"claimed\":\"No\",\"size\":\"5 to 10 kW\",\"systemPriceType\":\"A good mix of quality and price\",\"timeframe\":\"In the next 4 weeks\",\"quarterlyBill\":\"\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Tile\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":1,\"features\":\"On Grid Solar\",\"leadType\":\"On Grid Solar\",\"submittedDate\":\"2026-03-12 20:05:24\",\"companyName\":\"\",\"address\":\"21 Tea Tree Ct Lyndhurst\",\"latitude\":-38.0656147,\"longitude\":145.2488039,\"installationAddressLineOne\":\"21 Tea Tree Ct\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Lyndhurst\",\"installationState\":\"VIC\",\"installationPostcode\":3975,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"No\",\"availableForConversation\":\"\",\"importantNotes\":\"This lead was submitted via the QuotesV3 form.This customer has indicated that they would like to receive the VIC rebate.Lead wants to pay cashAiden has verified this phone number\",\"importantNotesSplit\":\"This lead was submitted via the QuotesV3 form.:This customer has indicated that they would like to receive the VIC rebate.:Lead wants to pay cash:Aiden has verified this phone number\",\"requestedQuotes\":2,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"No\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: This lead was submitted via the QuotesV3 form.This customer has indicated that they would like to receive the VIC rebate.Lead wants to pay cashAiden has verified this phone number\\n\\nFeatures: On Grid Solar\\n\\nHave Battery: No\\n\\nRoof Type: Tile\\n\\nStoreys: 1\\n\\nAddress: 21 Tea Tree Ct Lyndhurst, Lyndhurst, VIC, 3975\",\"mappedRoofType\":\"Tile (Concrete)\",\"_imported_at\":\"2026-03-12T18:30:01.514Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(115, NULL, 'new', 'Sean Hearn', 'sshearn@hotmail.com', '0419 799 111', 'Bulleen', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-13 00:00:01', NULL, '2026-03-12 18:30:01', NULL, '1029682', '{\"id\":1029682,\"idLeadSupplier\":2302732,\"name\":\"Sean\",\"lastName\":\"Hearn\",\"phone\":\"0419 799 111\",\"email\":\"sshearn@hotmail.com\",\"supplierId\":14039,\"leadPrice\":60,\"claimed\":\"No\",\"size\":\"Not Sure. Please help me decide\",\"systemPriceType\":\"A good mix of quality and price\",\"timeframe\":\"Immediately\",\"quarterlyBill\":\"$500-$1000\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Tile\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":3,\"features\":\"On Grid Solar\\nMicro Inverters or Power Optimisers\\nBattery System\",\"leadType\":\"On Grid Solar + Batteries\",\"submittedDate\":\"2026-03-12 17:45:09\",\"companyName\":\"\",\"address\":\"75 Yarra Valley Blvd Bulleen\",\"latitude\":-37.760986,\"longitude\":145.0902712,\"installationAddressLineOne\":\"75 Yarra Valley Blvd\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Bulleen\",\"installationState\":\"VIC\",\"installationPostcode\":3105,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"Would like installation before 01 May 2026 for battery rebate.This lead was submitted via the QuotesV3 form.This customer has indicated that they do not want the VIC rebate.Lead wants to pay cashRequired for: Blackout Protection, charge from solar in blackout, almost instant changeover in a blackout & easily expandableSean has verified this phone number\",\"importantNotesSplit\":\"Would like installation before 01 May 2026 for battery rebate.:This lead was submitted via the QuotesV3 form.:This customer has indicated that they do not want the VIC rebate.:Lead wants to pay cash:Required for: Blackout Protection, charge from solar in blackout, almost instant changeover in a blackout & easily expandable:Sean has verified this phone number\",\"requestedQuotes\":3,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"No\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"Micro Inverters / Power Optimisers\",\"consolidatedNotes\":\"Important Notes: Would like installation before 01 May 2026 for battery rebate.This lead was submitted via the QuotesV3 form.This customer has indicated that they do not want the VIC rebate.Lead wants to pay cashRequired for: Blackout Protection, charge from solar in blackout, almost instant changeover in a blackout & easily expandableSean has verified this phone number\\n\\nFeatures: On Grid Solar\\nMicro Inverters or Power Optimisers\\nBattery System\\n\\nHave Battery: No\\n\\nRoof Type: Tile\\n\\nStoreys: 3\\n\\nAddress: 75 Yarra Valley Blvd Bulleen, Bulleen, VIC, 3105\",\"mappedRoofType\":\"Tile (Concrete)\",\"_imported_at\":\"2026-03-12T18:30:01.521Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(116, NULL, 'new', 'Cathy Sage', 'cathy@sagewords.com.au', '0400 714 603', 'Kensington', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-13 00:00:01', NULL, '2026-03-12 18:30:01', NULL, '1029653', '{\"id\":1029653,\"idLeadSupplier\":2302686,\"name\":\"Cathy\",\"lastName\":\"Sage\",\"phone\":\"0400 714 603\",\"email\":\"cathy@sagewords.com.au\",\"supplierId\":14039,\"leadPrice\":60,\"claimed\":\"No\",\"size\":\"Not Sure. Please help me decide\",\"systemPriceType\":\"\",\"timeframe\":\"Immediately\",\"quarterlyBill\":\"Less than $500\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Tin / Colourbond\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":3,\"features\":\"Adding Batteries\\nIncrease size of existing solar system\",\"leadType\":\"On Grid Solar + Batteries\",\"submittedDate\":\"2026-03-12 16:30:50\",\"companyName\":\"\",\"address\":\"91 McCracken St Kensington\",\"latitude\":-37.7933281,\"longitude\":144.9279465,\"installationAddressLineOne\":\"91 McCracken St\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Kensington\",\"installationState\":\"VIC\",\"installationPostcode\":3031,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"No\",\"availableForConversation\":\"\",\"importantNotes\":\"This lead was submitted via the QuotesV3 form.Lead wants to pay cashCustomer wants a battery upgradeAmount of storage required: I don\'t knowExisting battery type: UnknownExisting inverter type: UnknownRequired for: Lowest billsCathy has verified this phone number\",\"importantNotesSplit\":\"This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Customer wants a battery upgrade:Amount of storage required: I don\'t know:Existing battery type: Unknown:Existing inverter type: Unknown:Required for: Lowest bills:Cathy has verified this phone number\",\"requestedQuotes\":2,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":[\"Solar System Upgrade\",\"Battery System Upgrade\"],\"consolidatedNotes\":\"Important Notes: This lead was submitted via the QuotesV3 form.Lead wants to pay cashCustomer wants a battery upgradeAmount of storage required: I don\'t knowExisting battery type: UnknownExisting inverter type: UnknownRequired for: Lowest billsCathy has verified this phone number\\n\\nFeatures: Adding Batteries\\nIncrease size of existing solar system\\n\\nRoof Type: Tin / Colourbond\\n\\nStoreys: 3\\n\\nAddress: 91 McCracken St Kensington, Kensington, VIC, 3031\",\"mappedRoofType\":\"Tin (Colorbond)\",\"_imported_at\":\"2026-03-12T18:30:01.528Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(117, NULL, 'new', 'Glynnis Owen', 'glynnis.owen@optusnet.com.au', '0411 469 764', 'Eltham', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-13 12:00:01', NULL, '2026-03-13 06:30:01', NULL, '1030082', '{\"id\":1030082,\"idLeadSupplier\":2303472,\"name\":\"Glynnis\",\"lastName\":\"Owen\",\"phone\":\"0411 469 764\",\"email\":\"glynnis.owen@optusnet.com.au\",\"supplierId\":14039,\"leadPrice\":50,\"claimed\":\"No\",\"size\":\"Not Sure. Please help me decide\",\"systemPriceType\":\"\",\"timeframe\":\"Immediately\",\"quarterlyBill\":\"Less than $500\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Other\",\"typeOfRoofOther\":\"Other\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":\"\",\"features\":\"Adding Batteries\",\"leadType\":\"Batteries\",\"submittedDate\":\"2026-03-13 13:06:01\",\"companyName\":\"\",\"address\":\"9-11 Grove St Eltham\",\"latitude\":-37.7108116,\"longitude\":145.1535576,\"installationAddressLineOne\":\"9-11 Grove St\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Eltham\",\"installationState\":\"VIC\",\"installationPostcode\":3095,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"We have room for the battery to be installed in our garage.This lead was submitted via the QuotesV3 form.Lead wants to pay cashCustomer wants a battery upgradeAmount of storage required: I don\'t knowExisting battery type: UnknownExisting inverter type: GoodweRequired for: Quickest payback time, almost instant changeover in a blackout & easily expandableGlynnis has verified this phone number\",\"importantNotesSplit\":\"We have room for the battery to be installed in our garage.:This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Customer wants a battery upgrade:Amount of storage required: I don\'t know:Existing battery type: Unknown:Existing inverter type: Goodwe:Required for: Quickest payback time, almost instant changeover in a blackout & easily expandable:Glynnis has verified this phone number\",\"requestedQuotes\":2,\"note\":\"Glynnis booked for ash between Monday 1-2pm\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"appointment_booked\",\"funnelVersion\":3,\"extraInfo\":\"Battery System Upgrade\",\"consolidatedNotes\":\"Important Notes: We have room for the battery to be installed in our garage.This lead was submitted via the QuotesV3 form.Lead wants to pay cashCustomer wants a battery upgradeAmount of storage required: I don\'t knowExisting battery type: UnknownExisting inverter type: GoodweRequired for: Quickest payback time, almost instant changeover in a blackout & easily expandableGlynnis has verified this phone number\\n\\nFeatures: Adding Batteries\\n\\nRoof Type: Other\\n\\nAddress: 9-11 Grove St Eltham, Eltham, VIC, 3095\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-13T06:30:01.598Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(118, NULL, 'new', 'Kathryn Lowe', 'kathryn.lowe@mac.com', '0414 373 080', 'Rowville', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-13 12:00:01', NULL, '2026-03-13 06:30:01', NULL, '1029948', '{\"id\":1029948,\"idLeadSupplier\":2303208,\"name\":\"Kathryn\",\"lastName\":\"Lowe\",\"phone\":\"0414 373 080\",\"email\":\"kathryn.lowe@mac.com\",\"supplierId\":14039,\"leadPrice\":60,\"claimed\":\"No\",\"size\":\"Fill my roof with solar panels\",\"systemPriceType\":\"A good mix of quality and price\",\"timeframe\":\"In the next 3 months\",\"quarterlyBill\":\"$1000-$2000\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Tile\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":1,\"features\":\"On Grid Solar\\nBattery System\",\"leadType\":\"On Grid Solar + Batteries\",\"submittedDate\":\"2026-03-13 10:05:33\",\"companyName\":\"\",\"address\":\"179 Murrindal Dr Rowville\",\"latitude\":-37.9091057,\"longitude\":145.2638734,\"installationAddressLineOne\":\"179 Murrindal Dr\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Rowville\",\"installationState\":\"VIC\",\"installationPostcode\":3178,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"Currently renovating and are building an extension to which we can also add solar once completed.We already have solar on our shed and would like that system assessed with the potential of adding a battery to that in addition to adding solar and battery to our house. Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.This customer has indicated that they do not want the VIC rebate.Lead wants to pay cashRequired for: Lowest bills & easily expandableKathryn has verified this phone number\",\"importantNotesSplit\":\"Currently renovating and are building an extension to which we can also add solar once completed.::We already have solar on our shed and would like that system assessed with the potential of adding a battery to that in addition to adding solar and battery to our house. :Lead has consented to discussion of energy plans.:This lead was submitted via the QuotesV3 form.:This customer has indicated that they do not want the VIC rebate.:Lead wants to pay cash:Required for: Lowest bills & easily expandable:Kathryn has verified this phone number\",\"requestedQuotes\":2,\"note\":\"Ashley site inspection Monday 10am\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"No\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"appointment_booked\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: Currently renovating and are building an extension to which we can also add solar once completed.We already have solar on our shed and would like that system assessed with the potential of adding a battery to that in addition to adding solar and battery to our house. Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.This customer has indicated that they do not want the VIC rebate.Lead wants to pay cashRequired for: Lowest bills & easily expandableKathryn has verified this phone number\\n\\nFeatures: On Grid Solar\\nBattery System\\n\\nHave Battery: No\\n\\nRoof Type: Tile\\n\\nStoreys: 1\\n\\nAddress: 179 Murrindal Dr Rowville, Rowville, VIC, 3178\",\"mappedRoofType\":\"Tile (Concrete)\",\"_imported_at\":\"2026-03-13T06:30:01.608Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(119, NULL, 'new', 'David Kwong', 'kwongdavid@hotmail.com', '0455 451 967', 'Murrumbeena', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-13 12:00:01', NULL, '2026-03-13 06:30:01', NULL, '1029708', '{\"id\":1029708,\"idLeadSupplier\":2302952,\"name\":\"David\",\"lastName\":\"Kwong\",\"phone\":\"0455 451 967\",\"email\":\"kwongdavid@hotmail.com\",\"supplierId\":14039,\"leadPrice\":50,\"claimed\":\"No\",\"size\":\"\",\"systemPriceType\":\"\",\"timeframe\":\"In the next 3 months\",\"quarterlyBill\":\"Less than $500\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":2,\"features\":\"Battery System\",\"leadType\":\"Batteries\",\"submittedDate\":\"2026-03-13 01:45:35\",\"companyName\":\"\",\"address\":\"28 Bute St Murrumbeena\",\"latitude\":-37.8951151,\"longitude\":145.0704236,\"installationAddressLineOne\":\"28 Bute St\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Murrumbeena\",\"installationState\":\"VIC\",\"installationPostcode\":3163,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"Looking to install some more solar ~6.6kw as well noting some may be south facing. Currently have about ~5kw installed with ~1.3kw panels taken down due to a renovation. This lead was submitted via the QuotesV3 form.Lead wants to pay cashRequired for: Blackout Protection & charge from solar in blackoutThis is an ORIGIN lead.David has verified this phone number\",\"importantNotesSplit\":\"Looking to install some more solar ~6.6kw as well noting some may be south facing. Currently have about ~5kw installed with ~1.3kw panels taken down due to a renovation. :This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Required for: Blackout Protection & charge from solar in blackout:This is an ORIGIN lead.:David has verified this phone number\",\"requestedQuotes\":3,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"waiting_reply\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: Looking to install some more solar ~6.6kw as well noting some may be south facing. Currently have about ~5kw installed with ~1.3kw panels taken down due to a renovation. This lead was submitted via the QuotesV3 form.Lead wants to pay cashRequired for: Blackout Protection & charge from solar in blackoutThis is an ORIGIN lead.David has verified this phone number\\n\\nFeatures: Battery System\\n\\nRoof Type: Yes\\n\\nStoreys: 2\\n\\nAddress: 28 Bute St Murrumbeena, Murrumbeena, VIC, 3163\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-13T06:30:01.611Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(120, NULL, 'new', 'Awin Stephen', 'awinstephen@gmail.com', '0432 551 768', 'Mooroolbark', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-13 12:00:01', NULL, '2026-03-13 06:30:01', NULL, '1029706', '{\"id\":1029706,\"idLeadSupplier\":2302946,\"name\":\"Awin\",\"lastName\":\"Stephen\",\"phone\":\"0432 551 768\",\"email\":\"awinstephen@gmail.com\",\"supplierId\":14039,\"leadPrice\":50,\"claimed\":\"No\",\"size\":\"\",\"systemPriceType\":\"\",\"timeframe\":\"In the next 4 weeks\",\"quarterlyBill\":\"$500-$1000\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":1,\"features\":\"Battery System\",\"leadType\":\"Batteries\",\"submittedDate\":\"2026-03-13 01:45:15\",\"companyName\":\"\",\"address\":\"5 Devon Walk Mooroolbark\",\"latitude\":-37.7745499,\"longitude\":145.3232157,\"installationAddressLineOne\":\"5 Devon Walk\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Mooroolbark\",\"installationState\":\"VIC\",\"installationPostcode\":3138,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"Looking to install before changes to rebates in MayThis lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Goodwe GW5000 MSRequired for: Quickest payback timeAwin has verified this phone number\",\"importantNotesSplit\":\"Looking to install before changes to rebates in May:This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Existing inverter type: Goodwe GW5000 MS:Required for: Quickest payback time:Awin has verified this phone number\",\"requestedQuotes\":3,\"note\":\"Monday 12pm site inspection\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"appointment_booked\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: Looking to install before changes to rebates in MayThis lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Goodwe GW5000 MSRequired for: Quickest payback timeAwin has verified this phone number\\n\\nFeatures: Battery System\\n\\nRoof Type: Yes\\n\\nStoreys: 1\\n\\nAddress: 5 Devon Walk Mooroolbark, Mooroolbark, VIC, 3138\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-13T06:30:01.613Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO `leads` (`id`, `company_id`, `stage`, `customer_name`, `email`, `phone`, `suburb`, `system_size_kw`, `value_amount`, `source`, `referred_by_lead_id`, `is_closed`, `is_won`, `won_lost_at`, `last_activity_at`, `site_inspection_date`, `created_at`, `updated_at`, `external_id`, `marketing_payload_json`, `system_type`, `house_storey`, `roof_type`, `meter_phase`, `access_to_second_storey`, `access_to_inverter`, `pre_approval_reference_no`, `energy_retailer`, `energy_distributor`, `solar_vic_eligibility`, `nmi_number`, `meter_number`, `contacted_at`, `assigned_user_id`) VALUES
+(121, NULL, 'new', 'Markus Wagner', 'solar@acrocon.com', '0488 996 355', 'Springvale', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1031533', '{\"id\":1031533,\"idLeadSupplier\":2305927,\"name\":\"Markus\",\"lastName\":\"Wagner\",\"phone\":\"0488 996 355\",\"email\":\"solar@acrocon.com\",\"supplierId\":14039,\"leadPrice\":60,\"claimed\":\"No\",\"size\":\"Not Sure. Please help me decide\",\"systemPriceType\":\"A good mix of quality and price\",\"timeframe\":\"Immediately\",\"quarterlyBill\":\"$500-$1000\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Tin / Colourbond\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":2,\"features\":\"On Grid Solar\\nBattery System\",\"leadType\":\"On Grid Solar + Batteries\",\"submittedDate\":\"2026-03-16 13:45:55\",\"companyName\":\"\",\"address\":\"12 Merton St Springvale\",\"latitude\":-37.9492746,\"longitude\":145.1582258,\"installationAddressLineOne\":\"12 Merton St\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Springvale\",\"installationState\":\"VIC\",\"installationPostcode\":3171,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"Phone: I can normally not pick up the phone but I will call back. Happy to arrange the in-person inspection via email.Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.This customer has indicated that they do not want the VIC rebate.Lead wants to pay cashRequired for: Lowest bills, charge from solar in blackout, almost instant changeover in a blackout & backups up 3-phase appliancesMarkus has verified this phone number\",\"importantNotesSplit\":\"Phone: I can normally not pick up the phone but I will call back. Happy to arrange the in-person inspection via email.:Lead has consented to discussion of energy plans.:This lead was submitted via the QuotesV3 form.:This customer has indicated that they do not want the VIC rebate.:Lead wants to pay cash:Required for: Lowest bills, charge from solar in blackout, almost instant changeover in a blackout & backups up 3-phase appliances:Markus has verified this phone number\",\"requestedQuotes\":3,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"No\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: Phone: I can normally not pick up the phone but I will call back. Happy to arrange the in-person inspection via email.Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.This customer has indicated that they do not want the VIC rebate.Lead wants to pay cashRequired for: Lowest bills, charge from solar in blackout, almost instant changeover in a blackout & backups up 3-phase appliancesMarkus has verified this phone number\\n\\nFeatures: On Grid Solar\\nBattery System\\n\\nHave Battery: No\\n\\nRoof Type: Tin / Colourbond\\n\\nStoreys: 2\\n\\nAddress: 12 Merton St Springvale, Springvale, VIC, 3171\",\"mappedRoofType\":\"Tin (Colorbond)\",\"_imported_at\":\"2026-03-17T19:30:01.403Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(122, NULL, 'new', 'Paul Gloury', 'paulgloury@gmail.com', '0419 501 629', 'Parkdale', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1031529', '{\"id\":1031529,\"idLeadSupplier\":2305922,\"name\":\"Paul\",\"lastName\":\"Gloury\",\"phone\":\"0419 501 629\",\"email\":\"paulgloury@gmail.com\",\"supplierId\":14039,\"leadPrice\":50,\"claimed\":\"No\",\"size\":\"\",\"systemPriceType\":\"\",\"timeframe\":\"In the next 4 weeks\",\"quarterlyBill\":\"Don\'t know\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":2,\"features\":\"Battery System\",\"leadType\":\"Batteries\",\"submittedDate\":\"2026-03-16 13:45:35\",\"companyName\":\"\",\"address\":\"16 Foam St Parkdale\",\"latitude\":-37.99738139999,\"longitude\":145.0752338,\"installationAddressLineOne\":\"16 Foam St\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Parkdale\",\"installationState\":\"VIC\",\"installationPostcode\":3195,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"We are currently renovating our home and looking at installing a battery to add to our Enphase Solar Panel system. I also have an Electrical vehicle and we are currently upgrading to 3 Phase power. We are keen to look at Blackout protection but also a built in smart EV charger if possible.Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Enphase with microinverters behind each panelRequired for: Quickest payback time, almost instant changeover in a blackout, backups up 3-phase appliances & easily expandablePaul has verified this phone number\",\"importantNotesSplit\":\"We are currently renovating our home and looking at installing a battery to add to our Enphase Solar Panel system. I also have an Electrical vehicle and we are currently upgrading to 3 Phase power. We are keen to look at Blackout protection but also a built in smart EV charger if possible.:Lead has consented to discussion of energy plans.:This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Existing inverter type: Enphase with microinverters behind each panel:Required for: Quickest payback time, almost instant changeover in a blackout, backups up 3-phase appliances & easily expandable:Paul has verified this phone number\",\"requestedQuotes\":2,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: We are currently renovating our home and looking at installing a battery to add to our Enphase Solar Panel system. I also have an Electrical vehicle and we are currently upgrading to 3 Phase power. We are keen to look at Blackout protection but also a built in smart EV charger if possible.Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Enphase with microinverters behind each panelRequired for: Quickest payback time, almost instant changeover in a blackout, backups up 3-phase appliances & easily expandablePaul has verified this phone number\\n\\nFeatures: Battery System\\n\\nRoof Type: Yes\\n\\nStoreys: 2\\n\\nAddress: 16 Foam St Parkdale, Parkdale, VIC, 3195\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-17T19:30:01.410Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(123, NULL, 'new', 'Lou Marasco', 'lou@altobmg.com.au', '0439 388 807', 'Carnegie', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1031509', '{\"id\":1031509,\"idLeadSupplier\":2305900,\"name\":\"Lou\",\"lastName\":\"Marasco\",\"phone\":\"0439 388 807\",\"email\":\"lou@altobmg.com.au\",\"supplierId\":14039,\"leadPrice\":50,\"claimed\":\"No\",\"size\":\"\",\"systemPriceType\":\"\",\"timeframe\":\"In the next 4 weeks\",\"quarterlyBill\":\"Less than $500\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":1,\"features\":\"Battery System\",\"leadType\":\"Batteries\",\"submittedDate\":\"2026-03-16 13:35:36\",\"companyName\":\"\",\"address\":\"50 Miller St Carnegie\",\"latitude\":-37.8972144,\"longitude\":145.0515508,\"installationAddressLineOne\":\"50 Miller St\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Carnegie\",\"installationState\":\"VIC\",\"installationPostcode\":3163,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"Option for EV charger moduleLead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.Lead wants to pay cashRequired for: Lowest bills & easily expandableLou has verified this phone number\",\"importantNotesSplit\":\"Option for EV charger module:Lead has consented to discussion of energy plans.:This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Required for: Lowest bills & easily expandable:Lou has verified this phone number\",\"requestedQuotes\":2,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: Option for EV charger moduleLead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.Lead wants to pay cashRequired for: Lowest bills & easily expandableLou has verified this phone number\\n\\nFeatures: Battery System\\n\\nRoof Type: Yes\\n\\nStoreys: 1\\n\\nAddress: 50 Miller St Carnegie, Carnegie, VIC, 3163\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-17T19:30:01.412Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(124, NULL, 'new', 'Daniel Busatta', 'buzzaemail@gmail.com', '0413 201 454', 'Narre Warren North', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1031460', '{\"id\":1031460,\"idLeadSupplier\":2305830,\"name\":\"Daniel\",\"lastName\":\"Busatta\",\"phone\":\"0413 201 454\",\"email\":\"buzzaemail@gmail.com\",\"supplierId\":14039,\"leadPrice\":50,\"claimed\":\"No\",\"size\":\"Not Sure. Please help me decide\",\"systemPriceType\":\"\",\"timeframe\":\"In the next 4 weeks\",\"quarterlyBill\":\"Less than $500\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Other\",\"typeOfRoofOther\":\"Other\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":\"\",\"features\":\"Adding Batteries\",\"leadType\":\"Batteries\",\"submittedDate\":\"2026-03-16 12:35:25\",\"companyName\":\"\",\"address\":\"13 Lombard Ct Narre Warren North\",\"latitude\":-37.9849308,\"longitude\":145.2845908,\"installationAddressLineOne\":\"13 Lombard Ct\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Narre Warren North\",\"installationState\":\"VIC\",\"installationPostcode\":3804,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"This lead was submitted via the QuotesV3 form.Lead wants to pay cashCustomer wants a battery upgradeAmount of storage required: I don\'t knowExisting battery type: UnknownExisting inverter type: goodweRequired for: Blackout Protection, charge from solar in blackout, almost instant changeover in a blackout & easily expandableDaniel has verified this phone number\",\"importantNotesSplit\":\"This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Customer wants a battery upgrade:Amount of storage required: I don\'t know:Existing battery type: Unknown:Existing inverter type: goodwe:Required for: Blackout Protection, charge from solar in blackout, almost instant changeover in a blackout & easily expandable:Daniel has verified this phone number\",\"requestedQuotes\":3,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"Battery System Upgrade\",\"consolidatedNotes\":\"Important Notes: This lead was submitted via the QuotesV3 form.Lead wants to pay cashCustomer wants a battery upgradeAmount of storage required: I don\'t knowExisting battery type: UnknownExisting inverter type: goodweRequired for: Blackout Protection, charge from solar in blackout, almost instant changeover in a blackout & easily expandableDaniel has verified this phone number\\n\\nFeatures: Adding Batteries\\n\\nRoof Type: Other\\n\\nAddress: 13 Lombard Ct Narre Warren North, Narre Warren North, VIC, 3804\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-17T19:30:01.414Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(125, NULL, 'new', 'Daniel Martin', 'danielsmartin0000@gmail.com', '401053606', 'Cockatoo', 5.00, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1031257', '{\"id\":1031257,\"idLeadSupplier\":2305743,\"name\":\"Daniel\",\"lastName\":\"Martin\",\"phone\":401053606,\"email\":\"danielsmartin0000@gmail.com\",\"supplierId\":14039,\"leadPrice\":60,\"claimed\":\"No\",\"size\":\"5 to 10 kW\",\"systemPriceType\":\"A good mix of quality and price\",\"timeframe\":\"In the next 3 months\",\"quarterlyBill\":\"$1000-$2000\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Tin / Colourbond\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":1,\"features\":\"On Grid Solar\\nMicro Inverters or Power Optimisers\\nBattery System\",\"leadType\":\"On Grid Solar + Batteries\",\"submittedDate\":\"2026-03-16 11:40:11\",\"companyName\":\"\",\"address\":\"1 George St Cockatoo\",\"latitude\":-37.9464796,\"longitude\":145.498311,\"installationAddressLineOne\":\"1 George St\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Cockatoo\",\"installationState\":\"VIC\",\"installationPostcode\":3781,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Zoom call\",\"availableForConversation\":\"\",\"importantNotes\":\"This lead was submitted via the QuotesV3 form.This customer has indicated that they would like to receive the VIC rebate.Lead wants to pay cashRequired for: Blackout Protection, charge from solar in blackout & almost instant changeover in a blackoutThis is an ORIGIN lead.Daniel has verified this phone number\",\"importantNotesSplit\":\"This lead was submitted via the QuotesV3 form.::This customer has indicated that they would like to receive the VIC rebate.::Lead wants to pay cash::Required for: Blackout Protection, charge from solar in blackout & almost instant changeover in a blackout::This is an ORIGIN lead.:Daniel has verified this phone number\",\"requestedQuotes\":3,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"Micro Inverters / Power Optimisers\",\"consolidatedNotes\":\"Important Notes: This lead was submitted via the QuotesV3 form.This customer has indicated that they would like to receive the VIC rebate.Lead wants to pay cashRequired for: Blackout Protection, charge from solar in blackout & almost instant changeover in a blackoutThis is an ORIGIN lead.Daniel has verified this phone number\\n\\nFeatures: On Grid Solar\\nMicro Inverters or Power Optimisers\\nBattery System\\n\\nRoof Type: Tin / Colourbond\\n\\nStoreys: 1\\n\\nAddress: 1 George St Cockatoo, Cockatoo, VIC, 3781\",\"mappedRoofType\":\"Tin (Colorbond)\",\"_imported_at\":\"2026-03-17T19:30:01.417Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(126, NULL, 'new', 'Matthew Cutajar', 'mcutajarau@gmail.com', '0401 000 869', 'St Helena', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1031242', '{\"id\":1031242,\"idLeadSupplier\":2305429,\"name\":\"Matthew\",\"lastName\":\"Cutajar\",\"phone\":\"0401 000 869\",\"email\":\"mcutajarau@gmail.com\",\"supplierId\":14039,\"leadPrice\":50,\"claimed\":\"No\",\"size\":\"Not Sure. Please help me decide\",\"systemPriceType\":\"\",\"timeframe\":\"In the next 4 weeks\",\"quarterlyBill\":\"$500-$1000\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Other\",\"typeOfRoofOther\":\"Other\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":\"\",\"features\":\"Adding Batteries\",\"leadType\":\"Batteries\",\"submittedDate\":\"2026-03-16 02:10:59\",\"companyName\":\"\",\"address\":\"45 Maxine Dr St Helena\",\"latitude\":-37.6860121,\"longitude\":145.1327052,\"installationAddressLineOne\":\"45 Maxine Dr\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"St Helena\",\"installationState\":\"VIC\",\"installationPostcode\":3088,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"No\",\"availableForConversation\":\"\",\"importantNotes\":\"Instalation is to be in the garage. I would also lik to have UPS included.Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.Lead wants to pay cashCustomer wants a battery upgradeAmount of storage required: I don\'t knowExisting battery type: UnknownExisting inverter type: Goodwe GW5000D-N5Required for: Quickest payback time, charge from solar in blackout & almost instant changeover in a blackoutMatthew has verified this phone number\",\"importantNotesSplit\":\"Instalation is to be in the garage. I would also lik to have UPS included.:Lead has consented to discussion of energy plans.:This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Customer wants a battery upgrade:Amount of storage required: I don\'t know:Existing battery type: Unknown:Existing inverter type: Goodwe GW5000D-N5:Required for: Quickest payback time, charge from solar in blackout & almost instant changeover in a blackout:Matthew has verified this phone number\",\"requestedQuotes\":3,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"Battery System Upgrade\",\"consolidatedNotes\":\"Important Notes: Instalation is to be in the garage. I would also lik to have UPS included.Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.Lead wants to pay cashCustomer wants a battery upgradeAmount of storage required: I don\'t knowExisting battery type: UnknownExisting inverter type: Goodwe GW5000D-N5Required for: Quickest payback time, charge from solar in blackout & almost instant changeover in a blackoutMatthew has verified this phone number\\n\\nFeatures: Adding Batteries\\n\\nRoof Type: Other\\n\\nAddress: 45 Maxine Dr St Helena, St Helena, VIC, 3088\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-17T19:30:01.420Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(127, NULL, 'new', 'Hugh Haley', 'hugh.haley@gmail.com', '0423 625 800', 'Malvern East', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1031121', '{\"id\":1031121,\"idLeadSupplier\":2305344,\"name\":\"Hugh\",\"lastName\":\"Haley\",\"phone\":\"0423 625 800\",\"email\":\"hugh.haley@gmail.com\",\"supplierId\":14039,\"leadPrice\":50,\"claimed\":\"No\",\"size\":\"\",\"systemPriceType\":\"\",\"timeframe\":\"In the next 4 weeks\",\"quarterlyBill\":\"$1000-$2000\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":2,\"features\":\"Battery System\",\"leadType\":\"Batteries\",\"submittedDate\":\"2026-03-16 01:50:38\",\"companyName\":\"\",\"address\":\"76 Brunel St Malvern East\",\"latitude\":-37.8704584,\"longitude\":145.05713,\"installationAddressLineOne\":\"76 Brunel St\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Malvern East\",\"installationState\":\"VIC\",\"installationPostcode\":3145,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Zoom call\",\"availableForConversation\":\"\",\"importantNotes\":\"Add battery to existing solar This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Solaredge Required for: Lowest bills, charge from solar in blackout & almost instant changeover in a blackoutHugh has verified this phone number\",\"importantNotesSplit\":\"Add battery to existing solar :This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Existing inverter type: Solaredge :Required for: Lowest bills, charge from solar in blackout & almost instant changeover in a blackout:Hugh has verified this phone number\",\"requestedQuotes\":3,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: Add battery to existing solar This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Solaredge Required for: Lowest bills, charge from solar in blackout & almost instant changeover in a blackoutHugh has verified this phone number\\n\\nFeatures: Battery System\\n\\nRoof Type: Yes\\n\\nStoreys: 2\\n\\nAddress: 76 Brunel St Malvern East, Malvern East, VIC, 3145\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-17T19:30:01.421Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(128, NULL, 'new', 'Daniel Zhang', 'dz.mailreceipt@gmail.com', '0407 128 670', 'Ormond', 10.00, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1031103', '{\"id\":1031103,\"idLeadSupplier\":2305322,\"name\":\"Daniel\",\"lastName\":\"Zhang\",\"phone\":\"0407 128 670\",\"email\":\"dz.mailreceipt@gmail.com\",\"supplierId\":14039,\"leadPrice\":60,\"claimed\":\"No\",\"size\":\"10 to 15 kW\",\"systemPriceType\":\"A good mix of quality and price\",\"timeframe\":\"In the next 4 weeks\",\"quarterlyBill\":\"Don\'t know\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Tin / Colourbond\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":2,\"features\":\"On Grid Solar\\nMicro Inverters or Power Optimisers\\nBattery System\",\"leadType\":\"On Grid Solar + Batteries\",\"submittedDate\":\"2026-03-16 01:45:42\",\"companyName\":\"\",\"address\":\"28A Wheeler St Ormond\",\"latitude\":-37.9060685,\"longitude\":145.0407026,\"installationAddressLineOne\":\"28A Wheeler St\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Ormond\",\"installationState\":\"VIC\",\"installationPostcode\":3204,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"No\",\"availableForConversation\":\"\",\"importantNotes\":\"I would only like providers who have the availability to install between 8 April and 1 May. This lead was submitted via the QuotesV3 form.This customer has indicated that they do not want the VIC rebate.Lead wants to pay cashRequired for: Quickest payback timeDaniel has verified this phone number\",\"importantNotesSplit\":\"I would only like providers who have the availability to install between 8 April and 1 May. :This lead was submitted via the QuotesV3 form.:This customer has indicated that they do not want the VIC rebate.:Lead wants to pay cash:Required for: Quickest payback time:Daniel has verified this phone number\",\"requestedQuotes\":3,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"No\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"Micro Inverters / Power Optimisers\",\"consolidatedNotes\":\"Important Notes: I would only like providers who have the availability to install between 8 April and 1 May. This lead was submitted via the QuotesV3 form.This customer has indicated that they do not want the VIC rebate.Lead wants to pay cashRequired for: Quickest payback timeDaniel has verified this phone number\\n\\nFeatures: On Grid Solar\\nMicro Inverters or Power Optimisers\\nBattery System\\n\\nHave Battery: No\\n\\nRoof Type: Tin / Colourbond\\n\\nStoreys: 2\\n\\nAddress: 28A Wheeler St Ormond, Ormond, VIC, 3204\",\"mappedRoofType\":\"Tin (Colorbond)\",\"_imported_at\":\"2026-03-17T19:30:01.422Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(129, NULL, 'new', 'Ross Edwards', 'rossedwards339@gmail.com', '0422 146 157', 'Glen Iris', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1031088', '{\"id\":1031088,\"idLeadSupplier\":2305301,\"name\":\"Ross\",\"lastName\":\"Edwards\",\"phone\":\"0422 146 157\",\"email\":\"rossedwards339@gmail.com\",\"supplierId\":14039,\"leadPrice\":50,\"claimed\":\"No\",\"size\":\"\",\"systemPriceType\":\"\",\"timeframe\":\"Immediately\",\"quarterlyBill\":\"Less than $500\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":1,\"features\":\"Battery System\",\"leadType\":\"Batteries\",\"submittedDate\":\"2026-03-16 01:36:17\",\"companyName\":\"\",\"address\":\"4 Ruskin Rd Glen Iris\",\"latitude\":-37.8483706,\"longitude\":145.0722504,\"installationAddressLineOne\":\"4 Ruskin Rd\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Glen Iris\",\"installationState\":\"VIC\",\"installationPostcode\":3146,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: GoodweRequired for: Lowest bills, charge from solar in blackout & almost instant changeover in a blackoutRoss has verified this phone number\",\"importantNotesSplit\":\"Lead has consented to discussion of energy plans.:This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Existing inverter type: Goodwe:Required for: Lowest bills, charge from solar in blackout & almost instant changeover in a blackout:Ross has verified this phone number\",\"requestedQuotes\":3,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: GoodweRequired for: Lowest bills, charge from solar in blackout & almost instant changeover in a blackoutRoss has verified this phone number\\n\\nFeatures: Battery System\\n\\nRoof Type: Yes\\n\\nStoreys: 1\\n\\nAddress: 4 Ruskin Rd Glen Iris, Glen Iris, VIC, 3146\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-17T19:30:01.424Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(130, NULL, 'new', 'Tarco Sibbel', 'tarkosibbel@gmail.com', '0403 843 009', 'Sandringham', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1031022', '{\"id\":1031022,\"idLeadSupplier\":2305269,\"name\":\"Tarco\",\"lastName\":\"Sibbel\",\"phone\":\"0403 843 009\",\"email\":\"tarkosibbel@gmail.com\",\"supplierId\":14039,\"leadPrice\":50,\"claimed\":\"No\",\"size\":\"\",\"systemPriceType\":\"\",\"timeframe\":\"In the next 4 weeks\",\"quarterlyBill\":\"$500-$1000\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":2,\"features\":\"Battery System\",\"leadType\":\"Batteries\",\"submittedDate\":\"2026-03-16 01:30:18\",\"companyName\":\"\",\"address\":\"2 Grange Rd Sandringham\",\"latitude\":-37.9478773,\"longitude\":145.0108268,\"installationAddressLineOne\":\"2 Grange Rd\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Sandringham\",\"installationState\":\"VIC\",\"installationPostcode\":3191,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"We are on 3-phase.Would consider adding more solar panels if appropriate (recent solar install last year).I am after the best way to live more sustainably in an all electric house (gas mains has been removed).Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Fronius Symo 8.2-3-MRequired for: Lowest bills, backups up 3-phase appliances & easily expandableTarco has verified this phone number\",\"importantNotesSplit\":\"We are on 3-phase.::Would consider adding more solar panels if appropriate (recent solar install last year).::I am after the best way to live more sustainably in an all electric house (gas mains has been removed).:Lead has consented to discussion of energy plans.:This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Existing inverter type: Fronius Symo 8.2-3-M:Required for: Lowest bills, backups up 3-phase appliances & easily expandable:Tarco has verified this phone number\",\"requestedQuotes\":3,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: We are on 3-phase.Would consider adding more solar panels if appropriate (recent solar install last year).I am after the best way to live more sustainably in an all electric house (gas mains has been removed).Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Fronius Symo 8.2-3-MRequired for: Lowest bills, backups up 3-phase appliances & easily expandableTarco has verified this phone number\\n\\nFeatures: Battery System\\n\\nRoof Type: Yes\\n\\nStoreys: 2\\n\\nAddress: 2 Grange Rd Sandringham, Sandringham, VIC, 3191\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-17T19:30:01.425Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(131, NULL, 'new', 'Richard Taylor', 'richjamestaylor@icloud.com', '0404 343 219', 'Elwood', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1031017', '{\"id\":1031017,\"idLeadSupplier\":2305028,\"name\":\"Richard\",\"lastName\":\"Taylor\",\"phone\":\"0404 343 219\",\"email\":\"richjamestaylor@icloud.com\",\"supplierId\":14039,\"leadPrice\":50,\"claimed\":\"No\",\"size\":\"\",\"systemPriceType\":\"\",\"timeframe\":\"In the next 4 weeks\",\"quarterlyBill\":\"$500-$1000\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":2,\"features\":\"Battery System\",\"leadType\":\"Batteries\",\"submittedDate\":\"2026-03-15 15:05:08\",\"companyName\":\"\",\"address\":\"20 Coleridge St Elwood\",\"latitude\":-37.8811732,\"longitude\":144.992799,\"installationAddressLineOne\":\"20 Coleridge St\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Elwood\",\"installationState\":\"VIC\",\"installationPostcode\":3184,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Zoom call\",\"availableForConversation\":\"\",\"importantNotes\":\"This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Enphase inverters to Jinko panelsRequired for: Quickest payback timeRichard has verified this phone number\",\"importantNotesSplit\":\"This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Existing inverter type: Enphase inverters to Jinko panels:Required for: Quickest payback time:Richard has verified this phone number\",\"requestedQuotes\":3,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Enphase inverters to Jinko panelsRequired for: Quickest payback timeRichard has verified this phone number\\n\\nFeatures: Battery System\\n\\nRoof Type: Yes\\n\\nStoreys: 2\\n\\nAddress: 20 Coleridge St Elwood, Elwood, VIC, 3184\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-17T19:30:01.426Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(132, NULL, 'new', 'David Kirkland', 'davidkir70@gmail.com', '0410 270 084', 'Ferntree Gully', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1030930', '{\"id\":1030930,\"idLeadSupplier\":2304848,\"name\":\"David\",\"lastName\":\"Kirkland\",\"phone\":\"0410 270 084\",\"email\":\"davidkir70@gmail.com\",\"supplierId\":14039,\"leadPrice\":50,\"claimed\":\"No\",\"size\":\"\",\"systemPriceType\":\"\",\"timeframe\":\"In the next 4 weeks\",\"quarterlyBill\":\"$500-$1000\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":2,\"features\":\"Battery System\",\"leadType\":\"Batteries\",\"submittedDate\":\"2026-03-15 11:20:34\",\"companyName\":\"\",\"address\":\"18 Holme Rd Ferntree Gully\",\"latitude\":-37.8898357,\"longitude\":145.2663999,\"installationAddressLineOne\":\"18 Holme Rd\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Ferntree Gully\",\"installationState\":\"VIC\",\"installationPostcode\":3156,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Solis S5-GR3P8KRequired for: Quickest payback time & charge from solar in blackoutDavid has verified this phone number\",\"importantNotesSplit\":\"This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Existing inverter type: Solis S5-GR3P8K:Required for: Quickest payback time & charge from solar in blackout:David has verified this phone number\",\"requestedQuotes\":2,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Solis S5-GR3P8KRequired for: Quickest payback time & charge from solar in blackoutDavid has verified this phone number\\n\\nFeatures: Battery System\\n\\nRoof Type: Yes\\n\\nStoreys: 2\\n\\nAddress: 18 Holme Rd Ferntree Gully, Ferntree Gully, VIC, 3156\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-17T19:30:01.427Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(133, NULL, 'new', 'Neil Robinson', 'neilsrobinson15664@gmail.com', '0419 537 591', 'Eltham', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1030887', '{\"id\":1030887,\"idLeadSupplier\":2304796,\"name\":\"Neil\",\"lastName\":\"Robinson\",\"phone\":\"0419 537 591\",\"email\":\"neilsrobinson15664@gmail.com\",\"supplierId\":14039,\"leadPrice\":60,\"claimed\":\"No\",\"size\":\"Not Sure. Please help me decide\",\"systemPriceType\":\"A good mix of quality and price\",\"timeframe\":\"Immediately\",\"quarterlyBill\":\"Less than $500\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Tile\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":1,\"features\":\"On Grid Solar\\nBattery System\",\"leadType\":\"On Grid Solar + Batteries\",\"submittedDate\":\"2026-03-15 09:45:25\",\"companyName\":\"\",\"address\":\"12 Balmoral Cct Eltham\",\"latitude\":-37.6950141,\"longitude\":145.1542016,\"installationAddressLineOne\":\"12 Balmoral Cct\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Eltham\",\"installationState\":\"VIC\",\"installationPostcode\":3095,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.This customer has indicated that they do not want the VIC rebate.Lead wants to pay cashRequired for: Lowest bills, charge from solar in blackout, almost instant changeover in a blackout, backups up 3-phase appliances & easily expandableNeil has verified this phone number\",\"importantNotesSplit\":\"Lead has consented to discussion of energy plans.:This lead was submitted via the QuotesV3 form.:This customer has indicated that they do not want the VIC rebate.:Lead wants to pay cash:Required for: Lowest bills, charge from solar in blackout, almost instant changeover in a blackout, backups up 3-phase appliances & easily expandable:Neil has verified this phone number\",\"requestedQuotes\":3,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"No\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.This customer has indicated that they do not want the VIC rebate.Lead wants to pay cashRequired for: Lowest bills, charge from solar in blackout, almost instant changeover in a blackout, backups up 3-phase appliances & easily expandableNeil has verified this phone number\\n\\nFeatures: On Grid Solar\\nBattery System\\n\\nHave Battery: No\\n\\nRoof Type: Tile\\n\\nStoreys: 1\\n\\nAddress: 12 Balmoral Cct Eltham, Eltham, VIC, 3095\",\"mappedRoofType\":\"Tile (Concrete)\",\"_imported_at\":\"2026-03-17T19:30:01.428Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(134, NULL, 'new', 'Matthew Fayle', 'talkies_decibel.4@icloud.com', '0407 663 964', 'Ashburton', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1030879', '{\"id\":1030879,\"idLeadSupplier\":2304782,\"name\":\"Matthew\",\"lastName\":\"Fayle\",\"phone\":\"0407 663 964\",\"email\":\"talkies_decibel.4@icloud.com\",\"supplierId\":14039,\"leadPrice\":60,\"claimed\":\"No\",\"size\":\"Not Sure. Please help me decide\",\"systemPriceType\":\"A good mix of quality and price\",\"timeframe\":\"In the next 3 months\",\"quarterlyBill\":\"Less than $500\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Tin / Colourbond\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":2,\"features\":\"On Grid Solar\\nMicro Inverters or Power Optimisers\\nBattery System\",\"leadType\":\"On Grid Solar + Batteries\",\"submittedDate\":\"2026-03-15 09:25:19\",\"companyName\":\"\",\"address\":\"12 High St Rd Ashburton\",\"latitude\":-37.8654725,\"longitude\":145.0910703,\"installationAddressLineOne\":\"12 High St Rd\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Ashburton\",\"installationState\":\"VIC\",\"installationPostcode\":3147,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"No\",\"availableForConversation\":\"\",\"importantNotes\":\"Two storey townhouse with a shared roof area.This lead was submitted via the QuotesV3 form.This customer has indicated that they do not want the VIC rebate.Lead wants to pay cashRequired for: Lowest bills, charge from solar in blackout & almost instant changeover in a blackoutThis is an ORIGIN lead.Matthew has verified this phone number\",\"importantNotesSplit\":\"Two storey townhouse with a shared roof area.:This lead was submitted via the QuotesV3 form.:This customer has indicated that they do not want the VIC rebate.:Lead wants to pay cash:Required for: Lowest bills, charge from solar in blackout & almost instant changeover in a blackout:This is an ORIGIN lead.:Matthew has verified this phone number\",\"requestedQuotes\":2,\"note\":\"Plan For Wednesday:10am - Matthew Fayle\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"No\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"appointment_booked\",\"funnelVersion\":3,\"extraInfo\":\"Micro Inverters / Power Optimisers\",\"consolidatedNotes\":\"Important Notes: Two storey townhouse with a shared roof area.This lead was submitted via the QuotesV3 form.This customer has indicated that they do not want the VIC rebate.Lead wants to pay cashRequired for: Lowest bills, charge from solar in blackout & almost instant changeover in a blackoutThis is an ORIGIN lead.Matthew has verified this phone number\\n\\nFeatures: On Grid Solar\\nMicro Inverters or Power Optimisers\\nBattery System\\n\\nHave Battery: No\\n\\nRoof Type: Tin / Colourbond\\n\\nStoreys: 2\\n\\nAddress: 12 High St Rd Ashburton, Ashburton, VIC, 3147\",\"mappedRoofType\":\"Tin (Colorbond)\",\"_imported_at\":\"2026-03-17T19:30:01.432Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO `leads` (`id`, `company_id`, `stage`, `customer_name`, `email`, `phone`, `suburb`, `system_size_kw`, `value_amount`, `source`, `referred_by_lead_id`, `is_closed`, `is_won`, `won_lost_at`, `last_activity_at`, `site_inspection_date`, `created_at`, `updated_at`, `external_id`, `marketing_payload_json`, `system_type`, `house_storey`, `roof_type`, `meter_phase`, `access_to_second_storey`, `access_to_inverter`, `pre_approval_reference_no`, `energy_retailer`, `energy_distributor`, `solar_vic_eligibility`, `nmi_number`, `meter_number`, `contacted_at`, `assigned_user_id`) VALUES
+(135, NULL, 'new', 'Chris Wignall', 'wignall2000@gmail.com', '0419 595 145', 'Ivanhoe', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1030853', '{\"id\":1030853,\"idLeadSupplier\":2304740,\"name\":\"Chris\",\"lastName\":\"Wignall\",\"phone\":\"0419 595 145\",\"email\":\"wignall2000@gmail.com\",\"supplierId\":14039,\"leadPrice\":55,\"claimed\":\"No\",\"size\":\"Not Sure. Please help me decide\",\"systemPriceType\":\"\",\"timeframe\":\"In the next 4 weeks\",\"quarterlyBill\":\"Don\'t know\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Terracotta\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":3,\"features\":\"Increase size of existing solar system\",\"leadType\":\"On Grid Solar\",\"submittedDate\":\"2026-03-15 08:30:18\",\"companyName\":\"\",\"address\":\"22 Beatty St Ivanhoe\",\"latitude\":-37.7592294,\"longitude\":145.0425112,\"installationAddressLineOne\":\"22 Beatty St\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Ivanhoe\",\"installationState\":\"VIC\",\"installationPostcode\":3079,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"I have an existing 2kw system and would like to increase capacity and will charge an EVLead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.Lead wants to pay cashChris has verified this phone number\",\"importantNotesSplit\":\"I have an existing 2kw system and would like to increase capacity and will charge an EV:Lead has consented to discussion of energy plans.:This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Chris has verified this phone number\",\"requestedQuotes\":3,\"note\":\"He has too much on his plate right now so wants us to call next week. 17/03/2026 13:09\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"No\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"waiting_reply\",\"funnelVersion\":3,\"extraInfo\":\"Solar System Upgrade\",\"consolidatedNotes\":\"Important Notes: I have an existing 2kw system and would like to increase capacity and will charge an EVLead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.Lead wants to pay cashChris has verified this phone number\\n\\nFeatures: Increase size of existing solar system\\n\\nHave Battery: No\\n\\nRoof Type: Terracotta\\n\\nStoreys: 3\\n\\nAddress: 22 Beatty St Ivanhoe, Ivanhoe, VIC, 3079\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-17T19:30:01.433Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(136, NULL, 'new', 'Anthony Widjaja', 'anthony.widjaja@live.com', '0402 750 930', 'Knoxfield', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1030829', '{\"id\":1030829,\"idLeadSupplier\":2304736,\"name\":\"Anthony\",\"lastName\":\"Widjaja\",\"phone\":\"0402 750 930\",\"email\":\"anthony.widjaja@live.com\",\"supplierId\":14039,\"leadPrice\":60,\"claimed\":\"No\",\"size\":\"Fill my roof with solar panels\",\"systemPriceType\":\"A good budget system\",\"timeframe\":\"Immediately\",\"quarterlyBill\":\"Less than $500\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Tin / Colourbond\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":2,\"features\":\"On Grid Solar\\nBattery System\",\"leadType\":\"On Grid Solar + Batteries\",\"submittedDate\":\"2026-03-15 08:30:10\",\"companyName\":\"\",\"address\":\"21 David St Knoxfield\",\"latitude\":-37.8920105,\"longitude\":145.2508811,\"installationAddressLineOne\":\"21 David St\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Knoxfield\",\"installationState\":\"VIC\",\"installationPostcode\":3180,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"This lead was submitted via the QuotesV3 form.This customer has indicated that they would like to receive the VIC rebate.Lead wants to pay cashRequired for: Quickest payback timeThis is an ORIGIN lead.Anthony has verified this phone number\",\"importantNotesSplit\":\"This lead was submitted via the QuotesV3 form.:This customer has indicated that they would like to receive the VIC rebate.:Lead wants to pay cash:Required for: Quickest payback time:This is an ORIGIN lead.:Anthony has verified this phone number\",\"requestedQuotes\":3,\"note\":\"Plan For Wednesday:1:30pm - Anthony Widjaja - (Knoxfield)\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"appointment_booked\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: This lead was submitted via the QuotesV3 form.This customer has indicated that they would like to receive the VIC rebate.Lead wants to pay cashRequired for: Quickest payback timeThis is an ORIGIN lead.Anthony has verified this phone number\\n\\nFeatures: On Grid Solar\\nBattery System\\n\\nRoof Type: Tin / Colourbond\\n\\nStoreys: 2\\n\\nAddress: 21 David St Knoxfield, Knoxfield, VIC, 3180\",\"mappedRoofType\":\"Tin (Colorbond)\",\"_imported_at\":\"2026-03-17T19:30:01.434Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(137, NULL, 'new', 'David Nguyen', 'qkdn@me.com', '0434 382 676', 'Mont Albert', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1030782', '{\"id\":1030782,\"idLeadSupplier\":2304694,\"name\":\"David\",\"lastName\":\"Nguyen\",\"phone\":\"0434 382 676\",\"email\":\"qkdn@me.com\",\"supplierId\":14039,\"leadPrice\":60,\"claimed\":\"No\",\"size\":\"Fill my roof with solar panels\",\"systemPriceType\":\"A good mix of quality and price\",\"timeframe\":\"In the next 3 months\",\"quarterlyBill\":\"Less than $500\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Tin / Colourbond\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":2,\"features\":\"On Grid Solar\\nBattery System\",\"leadType\":\"On Grid Solar + Batteries\",\"submittedDate\":\"2026-03-15 02:05:55\",\"companyName\":\"\",\"address\":\"15 Leopold Cres Mont Albert\",\"latitude\":-37.8223209,\"longitude\":145.1034873,\"installationAddressLineOne\":\"15 Leopold Cres\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Mont Albert\",\"installationState\":\"VIC\",\"installationPostcode\":3127,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"This lead was submitted via the QuotesV3 form.This customer has indicated that they do not want the VIC rebate.Lead wants to pay cashRequired for: Quickest payback time & charge from solar in blackoutDavid has verified this phone number\",\"importantNotesSplit\":\"This lead was submitted via the QuotesV3 form.:This customer has indicated that they do not want the VIC rebate.:Lead wants to pay cash:Required for: Quickest payback time & charge from solar in blackout:David has verified this phone number\",\"requestedQuotes\":2,\"note\":\"Plan For Tuesday: 12:30pm - David Nguyen - (Mont Albert)\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"No\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"appointment_booked\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: This lead was submitted via the QuotesV3 form.This customer has indicated that they do not want the VIC rebate.Lead wants to pay cashRequired for: Quickest payback time & charge from solar in blackoutDavid has verified this phone number\\n\\nFeatures: On Grid Solar\\nBattery System\\n\\nHave Battery: No\\n\\nRoof Type: Tin / Colourbond\\n\\nStoreys: 2\\n\\nAddress: 15 Leopold Cres Mont Albert, Mont Albert, VIC, 3127\",\"mappedRoofType\":\"Tin (Colorbond)\",\"_imported_at\":\"2026-03-17T19:30:01.435Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(138, NULL, 'new', 'Jovica Torlak', 'torlak@bigpond.com', '0400 057 584', 'Malvern East', 5.00, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1030705', '{\"id\":1030705,\"idLeadSupplier\":2304645,\"name\":\"Jovica\",\"lastName\":\"Torlak\",\"phone\":\"0400 057 584\",\"email\":\"torlak@bigpond.com\",\"supplierId\":14039,\"leadPrice\":55,\"claimed\":\"No\",\"size\":\"5 to 10 kW\",\"systemPriceType\":\"A good mix of quality and price\",\"timeframe\":\"In the next 3 months\",\"quarterlyBill\":\"\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Tin / Colourbond\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":2,\"features\":\"On Grid Solar\\nA home currently under construction - frame and roof completed\",\"leadType\":\"On Grid Solar\",\"submittedDate\":\"2026-03-15 01:45:59\",\"companyName\":\"\",\"address\":\"76 Alma St Malvern East\",\"latitude\":-37.88021,\"longitude\":145.0774259,\"installationAddressLineOne\":\"76 Alma St\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Malvern East\",\"installationState\":\"VIC\",\"installationPostcode\":3145,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"No\",\"availableForConversation\":\"\",\"importantNotes\":\"Hi could you please provide this quote for 2 under construction dwellings (duplex) with a flat metal roof. Each dwelling is to have a 6.6kw system with a 5kw inverter (preferably Fronius or similar quality).This lead was submitted via the QuotesV3 form.This customer has indicated that they do not want the VIC rebate.Lead wants to pay cashJovica has verified this phone number\",\"importantNotesSplit\":\"Hi could you please provide this quote for 2 under construction dwellings (duplex) with a flat metal roof. Each dwelling is to have a 6.6kw system with a 5kw inverter (preferably Fronius or similar quality).:This lead was submitted via the QuotesV3 form.:This customer has indicated that they do not want the VIC rebate.:Lead wants to pay cash:Jovica has verified this phone number\",\"requestedQuotes\":3,\"note\":\"Plan For Wednesday: 8am - Jovica Torlak - (Malvern East)&#13;\\nHave to complete site inspection for 2 properties.\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"No\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"appointment_booked\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: Hi could you please provide this quote for 2 under construction dwellings (duplex) with a flat metal roof. Each dwelling is to have a 6.6kw system with a 5kw inverter (preferably Fronius or similar quality).This lead was submitted via the QuotesV3 form.This customer has indicated that they do not want the VIC rebate.Lead wants to pay cashJovica has verified this phone number\\n\\nFeatures: On Grid Solar\\nA home currently under construction - frame and roof completed\\n\\nHave Battery: No\\n\\nRoof Type: Tin / Colourbond\\n\\nStoreys: 2\\n\\nAddress: 76 Alma St Malvern East, Malvern East, VIC, 3145\",\"mappedRoofType\":\"Tin (Colorbond)\",\"_imported_at\":\"2026-03-17T19:30:01.436Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(139, NULL, 'new', 'Sharon Song', 'sharonsong23@gmail.com', '0425 260 639', 'Burwood', 5.00, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1030794', '{\"id\":1030794,\"idLeadSupplier\":2304518,\"name\":\"Sharon\",\"lastName\":\"Song\",\"phone\":\"0425 260 639\",\"email\":\"sharonsong23@gmail.com\",\"supplierId\":14039,\"leadPrice\":60,\"claimed\":\"No\",\"size\":\"5 to 10 kW\",\"systemPriceType\":\"A good mix of quality and price\",\"timeframe\":\"In the next 3 months\",\"quarterlyBill\":\"$500-$1000\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Terracotta\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":1,\"features\":\"On Grid Solar\\nBattery System\",\"leadType\":\"On Grid Solar + Batteries\",\"submittedDate\":\"2026-03-14 23:05:08\",\"companyName\":\"\",\"address\":\"16 Wattlebird Ct Burwood\",\"latitude\":-37.8427435,\"longitude\":145.1012891,\"installationAddressLineOne\":\"16 Wattlebird Ct\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Burwood\",\"installationState\":\"VIC\",\"installationPostcode\":3125,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"No\",\"availableForConversation\":\"\",\"importantNotes\":\"This lead was submitted via the QuotesV3 form.This customer has indicated that they would like to receive the VIC rebate.Lead wants to pay cashRequired for: Lowest bills, charge from solar in blackout & almost instant changeover in a blackoutThis is an ORIGIN lead.Sharon  has verified this phone number\",\"importantNotesSplit\":\"This lead was submitted via the QuotesV3 form.:This customer has indicated that they would like to receive the VIC rebate.:Lead wants to pay cash:Required for: Lowest bills, charge from solar in blackout & almost instant changeover in a blackout:This is an ORIGIN lead.:Sharon  has verified this phone number\",\"requestedQuotes\":3,\"note\":\"Does not live on Site, as the property is under construction&#13;\\nwants only Fronius Inverter as she has one installed at her property where she currently lives.&#13;\\nPlan For Tuesday: 8am - Sharon Song\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"No\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"appointment_booked\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: This lead was submitted via the QuotesV3 form.This customer has indicated that they would like to receive the VIC rebate.Lead wants to pay cashRequired for: Lowest bills, charge from solar in blackout & almost instant changeover in a blackoutThis is an ORIGIN lead.Sharon  has verified this phone number\\n\\nFeatures: On Grid Solar\\nBattery System\\n\\nHave Battery: No\\n\\nRoof Type: Terracotta\\n\\nStoreys: 1\\n\\nAddress: 16 Wattlebird Ct Burwood, Burwood, VIC, 3125\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-17T19:30:01.438Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(140, NULL, 'new', 'Neil Horvath', 'knwhorvath@gmail.com', '0449 162 020', 'Vermont South', 10.00, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1030746', '{\"id\":1030746,\"idLeadSupplier\":2304458,\"name\":\"Neil\",\"lastName\":\"Horvath\",\"phone\":\"0449 162 020\",\"email\":\"knwhorvath@gmail.com\",\"supplierId\":14039,\"leadPrice\":60,\"claimed\":\"No\",\"size\":\"10 to 15 kW\",\"systemPriceType\":\"A good mix of quality and price\",\"timeframe\":\"In the next 4 weeks\",\"quarterlyBill\":\"Less than $500\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Terracotta\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":1,\"features\":\"On Grid Solar\\nMicro Inverters or Power Optimisers\\nBattery System\",\"leadType\":\"On Grid Solar + Batteries\",\"submittedDate\":\"2026-03-14 20:45:07\",\"companyName\":\"\",\"address\":\"16 Warrington Ave Vermont South\",\"latitude\":-37.8560445,\"longitude\":145.1890334,\"installationAddressLineOne\":\"16 Warrington Ave\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Vermont South\",\"installationState\":\"VIC\",\"installationPostcode\":3133,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"Replace exitibg panels. Use all subsidies currentlt available. 10 kW inverter with around 12 kW of soalr panelsQuality inverter such as Fronius, solaredge, digenergy or SMA preferred. Minimum 25 year warranty on solar panels.This lead was submitted via the QuotesV3 form.This customer has indicated that they would like to receive the VIC rebate.Lead wants to pay cashRequired for: Quickest payback time, charge from solar in blackout & almost instant changeover in a blackoutNeil  has verified this phone number\",\"importantNotesSplit\":\"Replace exitibg panels. Use all subsidies currentlt available. 10 kW inverter with around 12 kW of soalr panels::Quality inverter such as Fronius, solaredge, digenergy or SMA preferred. Minimum 25 year warranty on solar panels.:This lead was submitted via the QuotesV3 form.:This customer has indicated that they would like to receive the VIC rebate.:Lead wants to pay cash:Required for: Quickest payback time, charge from solar in blackout & almost instant changeover in a blackout:Neil  has verified this phone number\",\"requestedQuotes\":2,\"note\":\"1st Call and dropped a message but no response yet. - 16/03/2026 14:02\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"No\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"Micro Inverters / Power Optimisers\",\"consolidatedNotes\":\"Important Notes: Replace exitibg panels. Use all subsidies currentlt available. 10 kW inverter with around 12 kW of soalr panelsQuality inverter such as Fronius, solaredge, digenergy or SMA preferred. Minimum 25 year warranty on solar panels.This lead was submitted via the QuotesV3 form.This customer has indicated that they would like to receive the VIC rebate.Lead wants to pay cashRequired for: Quickest payback time, charge from solar in blackout & almost instant changeover in a blackoutNeil  has verified this phone number\\n\\nFeatures: On Grid Solar\\nMicro Inverters or Power Optimisers\\nBattery System\\n\\nHave Battery: No\\n\\nRoof Type: Terracotta\\n\\nStoreys: 1\\n\\nAddress: 16 Warrington Ave Vermont South, Vermont South, VIC, 3133\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-17T19:30:01.438Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(141, NULL, 'new', 'Stephen Hooke', 'emailstevehooke@gmail.com', '0421 048 329', 'Nunawading', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1030710', '{\"id\":1030710,\"idLeadSupplier\":2304436,\"name\":\"Stephen\",\"lastName\":\"Hooke\",\"phone\":\"0421 048 329\",\"email\":\"emailstevehooke@gmail.com\",\"supplierId\":14039,\"leadPrice\":50,\"claimed\":\"No\",\"size\":\"\",\"systemPriceType\":\"\",\"timeframe\":\"Immediately\",\"quarterlyBill\":\"$500-$1000\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":1,\"features\":\"Battery System\",\"leadType\":\"Batteries\",\"submittedDate\":\"2026-03-14 18:40:25\",\"companyName\":\"\",\"address\":\"9 Lemon Grove Nunawading\",\"latitude\":-37.8087243,\"longitude\":145.1837885,\"installationAddressLineOne\":\"9 Lemon Grove\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Nunawading\",\"installationState\":\"VIC\",\"installationPostcode\":3131,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"No\",\"availableForConversation\":\"\",\"importantNotes\":\"This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Enphase Required for: Blackout Protection, charge from solar in blackout, almost instant changeover in a blackout & backups up 3-phase appliancesStephen  has verified this phone number\",\"importantNotesSplit\":\"This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Existing inverter type: Enphase :Required for: Blackout Protection, charge from solar in blackout, almost instant changeover in a blackout & backups up 3-phase appliances:Stephen  has verified this phone number\",\"requestedQuotes\":2,\"note\":\"\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"appointment_booked\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Enphase Required for: Blackout Protection, charge from solar in blackout, almost instant changeover in a blackout & backups up 3-phase appliancesStephen  has verified this phone number\\n\\nFeatures: Battery System\\n\\nRoof Type: Yes\\n\\nStoreys: 1\\n\\nAddress: 9 Lemon Grove Nunawading, Nunawading, VIC, 3131\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-17T19:30:01.439Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(142, NULL, 'new', 'Gary Wyatt', 'gdw2964@outlook.com', '0437 257 753', 'Wantirna South', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1030654', '{\"id\":1030654,\"idLeadSupplier\":2304390,\"name\":\"Gary\",\"lastName\":\"Wyatt\",\"phone\":\"0437 257 753\",\"email\":\"gdw2964@outlook.com\",\"supplierId\":14039,\"leadPrice\":50,\"claimed\":\"No\",\"size\":\"\",\"systemPriceType\":\"\",\"timeframe\":\"In the next 4 weeks\",\"quarterlyBill\":\"Less than $500\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":2,\"features\":\"Battery System\",\"leadType\":\"Batteries\",\"submittedDate\":\"2026-03-14 17:05:18\",\"companyName\":\"\",\"address\":\"4 Riverpark Dr Wantirna South\",\"latitude\":-37.8728715,\"longitude\":145.2322395,\"installationAddressLineOne\":\"4 Riverpark Dr\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Wantirna South\",\"installationState\":\"VIC\",\"installationPostcode\":3152,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Enphase s270 Micro Inverters & LG 330 w NeON panelsRequired for: Blackout Protection, charge from solar in blackout & easily expandableGary has verified this phone number\",\"importantNotesSplit\":\"This lead was submitted via the QuotesV3 form.::Lead wants to pay cash::Existing inverter type: Enphase s270 Micro Inverters & LG 330 w NeON panels::Required for: Blackout Protection, charge from solar in blackout & easily expandable::Gary has verified this phone number\",\"requestedQuotes\":2,\"note\":\"1st Call and dropped a message but no response yet. - 16/03/2026 13:05&#13;\\nPlan For Tuesday: 2pm - Gary Wyatt (Wantirna South)\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"appointment_booked\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Enphase s270 Micro Inverters & LG 330 w NeON panelsRequired for: Blackout Protection, charge from solar in blackout & easily expandableGary has verified this phone number\\n\\nFeatures: Battery System\\n\\nRoof Type: Yes\\n\\nStoreys: 2\\n\\nAddress: 4 Riverpark Dr Wantirna South, Wantirna South, VIC, 3152\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-17T19:30:01.440Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(143, NULL, 'new', 'Adriyan Hansopaheluwakan', 'nelizhu88@gmail.com', '0433 753 588', 'Narre Warren', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1030641', '{\"id\":1030641,\"idLeadSupplier\":2304370,\"name\":\"Adriyan\",\"lastName\":\"Hansopaheluwakan\",\"phone\":\"0433 753 588\",\"email\":\"nelizhu88@gmail.com\",\"supplierId\":14039,\"leadPrice\":50,\"claimed\":\"No\",\"size\":\"\",\"systemPriceType\":\"\",\"timeframe\":\"In the next 4 weeks\",\"quarterlyBill\":\"$500-$1000\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":1,\"features\":\"Battery System\",\"leadType\":\"Batteries\",\"submittedDate\":\"2026-03-14 16:05:06\",\"companyName\":\"\",\"address\":\"9 Wallaroo Ave Narre Warren\",\"latitude\":-38.0128613,\"longitude\":145.2977055,\"installationAddressLineOne\":\"9 Wallaroo Ave\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Narre Warren\",\"installationState\":\"VIC\",\"installationPostcode\":3805,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"I have one quote from other provider.Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Fronius 5kwRequired for: Lowest bills, charge from solar in blackout, almost instant changeover in a blackout, backups up 3-phase appliances & easily expandableAdriyan has verified this phone number\",\"importantNotesSplit\":\"I have one quote from other provider.:Lead has consented to discussion of energy plans.:This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Existing inverter type: Fronius 5kw:Required for: Lowest bills, charge from solar in blackout, almost instant changeover in a blackout, backups up 3-phase appliances & easily expandable:Adriyan has verified this phone number\",\"requestedQuotes\":3,\"note\":\"Needs a site inspection today, Ash is speaking now to check what time the site inspection can be done. - 16/03/2026 - 12:58\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"appointment_booked\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: I have one quote from other provider.Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Fronius 5kwRequired for: Lowest bills, charge from solar in blackout, almost instant changeover in a blackout, backups up 3-phase appliances & easily expandableAdriyan has verified this phone number\\n\\nFeatures: Battery System\\n\\nRoof Type: Yes\\n\\nStoreys: 1\\n\\nAddress: 9 Wallaroo Ave Narre Warren, Narre Warren, VIC, 3805\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-17T19:30:01.441Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(144, NULL, 'new', 'Nick Matlock', 'nbm1981@hotmail.com', '0419 149 311', 'Parkdale', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1030639', '{\"id\":1030639,\"idLeadSupplier\":2304365,\"name\":\"Nick\",\"lastName\":\"Matlock\",\"phone\":\"0419 149 311\",\"email\":\"nbm1981@hotmail.com\",\"supplierId\":14039,\"leadPrice\":50,\"claimed\":\"No\",\"size\":\"\",\"systemPriceType\":\"\",\"timeframe\":\"Immediately\",\"quarterlyBill\":\"Less than $500\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":2,\"features\":\"Battery System\",\"leadType\":\"Batteries\",\"submittedDate\":\"2026-03-14 15:55:08\",\"companyName\":\"\",\"address\":\"6 Vialls Ave Parkdale\",\"latitude\":-37.9933106,\"longitude\":145.0855745,\"installationAddressLineOne\":\"6 Vialls Ave\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Parkdale\",\"installationState\":\"VIC\",\"installationPostcode\":3195,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"No\",\"availableForConversation\":\"\",\"importantNotes\":\"Looking for a battery 16-20kWh, that’s easily expandable in future, if I was to buy an Electric Vehicle.Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Sungrow SGR10T 11.4kW Solar PanelsRequired for: Quickest payback time & easily expandableNick has verified this phone number\",\"importantNotesSplit\":\"Looking for a battery 16-20kWh, that’s easily expandable in future, if I was to buy an Electric Vehicle.:Lead has consented to discussion of energy plans.:This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Existing inverter type: Sungrow SGR10T 11.4kW Solar Panels:Required for: Quickest payback time & easily expandable:Nick has verified this phone number\",\"requestedQuotes\":3,\"note\":\"1st Call and dropped a message but no response yet. - 16/03/2026 12:43&#13;\\nPlan For Tuesday: 8:45am - Nick Matlock - (Nick Matlock)\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"appointment_booked\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: Looking for a battery 16-20kWh, that’s easily expandable in future, if I was to buy an Electric Vehicle.Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Sungrow SGR10T 11.4kW Solar PanelsRequired for: Quickest payback time & easily expandableNick has verified this phone number\\n\\nFeatures: Battery System\\n\\nRoof Type: Yes\\n\\nStoreys: 2\\n\\nAddress: 6 Vialls Ave Parkdale, Parkdale, VIC, 3195\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-17T19:30:01.442Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(145, NULL, 'new', 'Tuan Tran', 'tuanthi@gmail.com', '0412 020 701', 'Bayswater North', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1030308', '{\"id\":1030308,\"idLeadSupplier\":2303994,\"name\":\"Tuan\",\"lastName\":\"Tran\",\"phone\":\"0412 020 701\",\"email\":\"tuanthi@gmail.com\",\"supplierId\":14039,\"leadPrice\":50,\"claimed\":\"No\",\"size\":\"\",\"systemPriceType\":\"\",\"timeframe\":\"Immediately\",\"quarterlyBill\":\"Less than $500\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":1,\"features\":\"Battery System\",\"leadType\":\"Batteries\",\"submittedDate\":\"2026-03-14 02:15:19\",\"companyName\":\"\",\"address\":\"26 Bayview Rise Bayswater North\",\"latitude\":-37.8252652,\"longitude\":145.2727398,\"installationAddressLineOne\":\"26 Bayview Rise\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Bayswater North\",\"installationState\":\"VIC\",\"installationPostcode\":3153,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"I\'d like my battery to be upgradeable in the future to charge electric cars if necessary.Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: FroniusRequired for: Lowest bills, charge from solar in blackout & almost instant changeover in a blackoutTuan has verified this phone number\",\"importantNotesSplit\":\"I\'d like my battery to be upgradeable in the future to charge electric cars if necessary.:Lead has consented to discussion of energy plans.:This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Existing inverter type: Fronius:Required for: Lowest bills, charge from solar in blackout & almost instant changeover in a blackout:Tuan has verified this phone number\",\"requestedQuotes\":3,\"note\":\"1st Call and dropped a message but no response yet. - 14/03/2026 14:57&#13;\\nPlan For Tuesday:1pm - Tuan Tran - (Bayswater North)\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"appointment_booked\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: I\'d like my battery to be upgradeable in the future to charge electric cars if necessary.Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: FroniusRequired for: Lowest bills, charge from solar in blackout & almost instant changeover in a blackoutTuan has verified this phone number\\n\\nFeatures: Battery System\\n\\nRoof Type: Yes\\n\\nStoreys: 1\\n\\nAddress: 26 Bayview Rise Bayswater North, Bayswater North, VIC, 3153\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-17T19:30:01.443Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(146, NULL, 'new', 'Amar Naik', 'amarnaik1@gmail.com', '0422 282 527', 'Carnegie', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1030319', '{\"id\":1030319,\"idLeadSupplier\":2303979,\"name\":\"Amar\",\"lastName\":\"Naik\",\"phone\":\"0422 282 527\",\"email\":\"amarnaik1@gmail.com\",\"supplierId\":14039,\"leadPrice\":50,\"claimed\":\"No\",\"size\":\"\",\"systemPriceType\":\"\",\"timeframe\":\"In the next 4 weeks\",\"quarterlyBill\":\"$500-$1000\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":2,\"features\":\"Battery System\",\"leadType\":\"Batteries\",\"submittedDate\":\"2026-03-14 02:10:53\",\"companyName\":\"\",\"address\":\"14 Frogmore Rd Carnegie\",\"latitude\":-37.8939362,\"longitude\":145.0636382,\"installationAddressLineOne\":\"14 Frogmore Rd\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Carnegie\",\"installationState\":\"VIC\",\"installationPostcode\":3163,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Zoom call\",\"availableForConversation\":\"\",\"importantNotes\":\"I have 3 phase power and a 13kw solar panel system installed already. I would like to try make the 1 May deadline before the rebates change.This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Goodwe GW10KAU-DTRequired for: Quickest payback timeAmar has verified this phone number\",\"importantNotesSplit\":\"I have 3 phase power and a 13kw solar panel system installed already. I would like to try make the 1 May deadline before the rebates change.:This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Existing inverter type: Goodwe GW10KAU-DT:Required for: Quickest payback time:Amar has verified this phone number\",\"requestedQuotes\":3,\"note\":\"Plan For Tuesday: 10am - Amar Naik - (Carnegie)\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"appointment_booked\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: I have 3 phase power and a 13kw solar panel system installed already. I would like to try make the 1 May deadline before the rebates change.This lead was submitted via the QuotesV3 form.Lead wants to pay cashExisting inverter type: Goodwe GW10KAU-DTRequired for: Quickest payback timeAmar has verified this phone number\\n\\nFeatures: Battery System\\n\\nRoof Type: Yes\\n\\nStoreys: 2\\n\\nAddress: 14 Frogmore Rd Carnegie, Carnegie, VIC, 3163\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-17T19:30:01.444Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(147, NULL, 'new', 'Gael McLeod', 'gmc0608@hotmail.com', '0405 156 849', 'Glen Iris', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1030117', '{\"id\":1030117,\"idLeadSupplier\":2303884,\"name\":\"Gael\",\"lastName\":\"McLeod\",\"phone\":\"0405 156 849\",\"email\":\"gmc0608@hotmail.com\",\"supplierId\":14039,\"leadPrice\":50,\"claimed\":\"No\",\"size\":\"\",\"systemPriceType\":\"\",\"timeframe\":\"Immediately\",\"quarterlyBill\":\"$500-$1000\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":2,\"features\":\"Battery System\",\"leadType\":\"Batteries\",\"submittedDate\":\"2026-03-14 01:45:27\",\"companyName\":\"\",\"address\":\"5 Airley Rd Glen Iris\",\"latitude\":-37.8536288,\"longitude\":145.0714871,\"installationAddressLineOne\":\"5 Airley Rd\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Glen Iris\",\"installationState\":\"VIC\",\"installationPostcode\":3146,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"No\",\"availableForConversation\":\"\",\"importantNotes\":\"I already have a few quotesLead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.Lead wants to pay cashRequired for: Lowest bills & charge from solar in blackoutGael has verified this phone number\",\"importantNotesSplit\":\"I already have a few quotes:Lead has consented to discussion of energy plans.:This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Required for: Lowest bills & charge from solar in blackout:Gael has verified this phone number\",\"requestedQuotes\":3,\"note\":\"1st Call and dropped a message but no response yet. - 14/03/2026 14:48&#13;\\n2nd Call and dropped a message but no response yet. - 16/03/2026 12:15\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"\",\"funnelVersion\":3,\"extraInfo\":\"\",\"consolidatedNotes\":\"Important Notes: I already have a few quotesLead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.Lead wants to pay cashRequired for: Lowest bills & charge from solar in blackoutGael has verified this phone number\\n\\nFeatures: Battery System\\n\\nRoof Type: Yes\\n\\nStoreys: 2\\n\\nAddress: 5 Airley Rd Glen Iris, Glen Iris, VIC, 3146\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-17T19:30:01.445Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+(148, NULL, 'new', 'Katherine Hunt', 'katty54@hotmail.com', '0421 335 355', 'Kew', NULL, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1030345', '{\"id\":1030345,\"idLeadSupplier\":2303764,\"name\":\"Katherine\",\"lastName\":\"Hunt\",\"phone\":\"0421 335 355\",\"email\":\"katty54@hotmail.com\",\"supplierId\":14039,\"leadPrice\":50,\"claimed\":\"No\",\"size\":\"Not Sure. Please help me decide\",\"systemPriceType\":\"\",\"timeframe\":\"Immediately\",\"quarterlyBill\":\"$500-$1000\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Other\",\"typeOfRoofOther\":\"Other\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":\"\",\"features\":\"Adding Batteries\",\"leadType\":\"Batteries\",\"submittedDate\":\"2026-03-13 22:05:15\",\"companyName\":\"\",\"address\":\"53 Davis St Kew\",\"latitude\":-37.81060799999,\"longitude\":145.0463328,\"installationAddressLineOne\":\"53 Davis St\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Kew\",\"installationState\":\"VIC\",\"installationPostcode\":3101,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"No\",\"availableForConversation\":\"\",\"importantNotes\":\"This lead was submitted via the QuotesV3 form.Lead wants to pay cashCustomer wants a battery upgradeAmount of storage required: I don\'t knowExisting battery type: UnknownExisting inverter type: Fronius primo gen24 8.0Required for: Lowest billsThis is an ORIGIN lead.Katherine  has verified this phone number\",\"importantNotesSplit\":\"This lead was submitted via the QuotesV3 form.:Lead wants to pay cash:Customer wants a battery upgrade:Amount of storage required: I don\'t know:Existing battery type: Unknown:Existing inverter type: Fronius primo gen24 8.0:Required for: Lowest bills:This is an ORIGIN lead.:Katherine  has verified this phone number\",\"requestedQuotes\":2,\"note\":\"1st Call and dropped a message but no response yet. - 14/03/2026 14:45&#13;\\nAppointment booked for Tuesday at 11:30\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"appointment_booked\",\"funnelVersion\":3,\"extraInfo\":\"Battery System Upgrade\",\"consolidatedNotes\":\"Important Notes: This lead was submitted via the QuotesV3 form.Lead wants to pay cashCustomer wants a battery upgradeAmount of storage required: I don\'t knowExisting battery type: UnknownExisting inverter type: Fronius primo gen24 8.0Required for: Lowest billsThis is an ORIGIN lead.Katherine  has verified this phone number\\n\\nFeatures: Adding Batteries\\n\\nRoof Type: Other\\n\\nAddress: 53 Davis St Kew, Kew, VIC, 3101\",\"mappedRoofType\":\"Other\",\"_imported_at\":\"2026-03-17T19:30:01.446Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO `leads` (`id`, `company_id`, `stage`, `customer_name`, `email`, `phone`, `suburb`, `system_size_kw`, `value_amount`, `source`, `referred_by_lead_id`, `is_closed`, `is_won`, `won_lost_at`, `last_activity_at`, `site_inspection_date`, `created_at`, `updated_at`, `external_id`, `marketing_payload_json`, `system_type`, `house_storey`, `roof_type`, `meter_phase`, `access_to_second_storey`, `access_to_inverter`, `pre_approval_reference_no`, `energy_retailer`, `energy_distributor`, `solar_vic_eligibility`, `nmi_number`, `meter_number`, `contacted_at`, `assigned_user_id`) VALUES
+(149, NULL, 'new', 'Alison Liyanage', 'alison.liyanage@gmail.com', '0431 239 184', 'Mount Waverley', 10.00, 0.00, 'Solar Quotes', NULL, 0, 0, NULL, '2026-03-18 01:00:01', NULL, '2026-03-17 19:30:01', NULL, '1030340', '{\"id\":1030340,\"idLeadSupplier\":2303761,\"name\":\"Alison\",\"lastName\":\"Liyanage\",\"phone\":\"0431 239 184\",\"email\":\"alison.liyanage@gmail.com\",\"supplierId\":14039,\"leadPrice\":60,\"claimed\":\"No\",\"size\":\"10 to 15 kW\",\"systemPriceType\":\"A good mix of quality and price\",\"timeframe\":\"In the next 3 months\",\"quarterlyBill\":\"$500-$1000\",\"electricityBillPerMonth\":\"\",\"ownTheRoofSpace\":\"Yes\",\"typeOfRoof\":\"Tin / Colourbond\",\"typeOfRoofOther\":\"\",\"minimumTenSquareMetersNorthFacing\":\"I\'m not sure - Please Help Me Out\",\"roofSlope\":\"\",\"shade\":\"\",\"direction\":\"Not Sure\",\"storeys\":2,\"features\":\"On Grid Solar\\nMicro Inverters or Power Optimisers\\nBattery System\",\"leadType\":\"On Grid Solar + Batteries\",\"submittedDate\":\"2026-03-13 22:05:08\",\"companyName\":\"\",\"address\":\"521 Stephensons Rd Mount Waverley\",\"latitude\":-37.895313,\"longitude\":145.1246676,\"installationAddressLineOne\":\"521 Stephensons Rd\",\"installationAddressLineTwo\":\"\",\"installationSuburb\":\"Mount Waverley\",\"installationState\":\"VIC\",\"installationPostcode\":3149,\"installationCountry\":\"Australia\",\"mailingAddressLineOne\":\"\",\"mailingAddressLineTwo\":\"\",\"mailingSuburb\":\"\",\"mailingState\":\"\",\"mailingPostcode\":\"\",\"mailingCountry\":\"\",\"homeVisit\":\"Yes\",\"availableForConversation\":\"\",\"importantNotes\":\"Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.This customer has indicated that they would like to receive the VIC rebate.Lead wants to pay cashRequired for: Blackout Protection, almost instant changeover in a blackout & backups up 3-phase appliancesThis is a CHOICE lead. Choice currently recommend JA, Tindo, Trina, Jinko & Winaico (panels that achieve 80% or more \'CHOICE Expert rating\').Alison has verified this phone number\",\"importantNotesSplit\":\"Lead has consented to discussion of energy plans.:This lead was submitted via the QuotesV3 form.:This customer has indicated that they would like to receive the VIC rebate.:Lead wants to pay cash:Required for: Blackout Protection, almost instant changeover in a blackout & backups up 3-phase appliances:This is a CHOICE lead. Choice currently recommend JA, Tindo, Trina, Jinko & Winaico (panels that achieve 80% or more \'CHOICE Expert rating\').:Alison has verified this phone number\",\"requestedQuotes\":3,\"note\":\"Plan For Wednesday: 8am - Alison Liyanage - 521 Stephensons Rd , Mount Waverley\",\"evExistingSolarSize\":\"\",\"evExistingBattery\":\"\",\"evInstallationType\":\"\",\"evDistanceChargerSwitchboard\":\"\",\"evCarMakeModel\":\"\",\"images\":{\"evChargerImages\":\"\",\"evSwitchboardImages\":\"\",\"evOtherImages\":\"\",\"hwhpLocationImages\":\"\",\"hwhpSwitchboardImages\":\"\",\"hwhpOtherImages\":\"\"},\"hwhpNumberOfResidents\":\"\",\"hwhpExistingSystem\":\"\",\"hwhpLocationAccessibility\":\"\",\"hwhpSwitchboardDistance\":\"\",\"leadStatus\":\"appointment_booked\",\"funnelVersion\":3,\"extraInfo\":\"Micro Inverters / Power Optimisers\",\"consolidatedNotes\":\"Important Notes: Lead has consented to discussion of energy plans.This lead was submitted via the QuotesV3 form.This customer has indicated that they would like to receive the VIC rebate.Lead wants to pay cashRequired for: Blackout Protection, almost instant changeover in a blackout & backups up 3-phase appliancesThis is a CHOICE lead. Choice currently recommend JA, Tindo, Trina, Jinko & Winaico (panels that achieve 80% or more \'CHOICE Expert rating\').Alison has verified this phone number\\n\\nFeatures: On Grid Solar\\nMicro Inverters or Power Optimisers\\nBattery System\\n\\nRoof Type: Tin / Colourbond\\n\\nStoreys: 2\\n\\nAddress: 521 Stephensons Rd Mount Waverley, Mount Waverley, VIC, 3149\",\"mappedRoofType\":\"Tin (Colorbond)\",\"_imported_at\":\"2026-03-17T19:30:01.447Z\"}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -546,6 +989,21 @@ CREATE TABLE `lead_communications` (
   `related_message_id` varchar(255) DEFAULT NULL,
   `sent_at` datetime DEFAULT NULL,
   `delivered_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `lead_documents`
+--
+
+CREATE TABLE `lead_documents` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `lead_id` bigint(20) UNSIGNED NOT NULL,
+  `status` enum('requested','received') NOT NULL DEFAULT 'requested',
+  `filename` varchar(255) DEFAULT NULL,
+  `storage_url` text DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -573,9 +1031,11 @@ CREATE TABLE `lead_notes` (
 CREATE TABLE `lead_site_inspections` (
   `id` bigint(20) UNSIGNED NOT NULL,
   `lead_id` bigint(20) UNSIGNED NOT NULL,
+  `inspector_id` int(10) UNSIGNED DEFAULT NULL,
   `status` enum('draft','submitted') NOT NULL DEFAULT 'draft',
   `inspected_at` datetime DEFAULT NULL,
   `inspector_name` varchar(120) DEFAULT NULL,
+  `scheduled_at` datetime DEFAULT NULL,
   `roof_type` varchar(60) DEFAULT NULL,
   `roof_pitch_deg` decimal(5,2) DEFAULT NULL,
   `house_storey` enum('single','double','triple') DEFAULT NULL,
@@ -587,6 +1047,47 @@ CREATE TABLE `lead_site_inspections` (
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `leave_balances`
+--
+
+CREATE TABLE `leave_balances` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `company_id` int(10) UNSIGNED NOT NULL,
+  `employee_id` int(10) UNSIGNED NOT NULL,
+  `leave_type` enum('annual','sick','personal','unpaid') NOT NULL,
+  `total_days` decimal(5,1) NOT NULL DEFAULT 0.0,
+  `used_days` decimal(5,1) NOT NULL DEFAULT 0.0,
+  `year` smallint(5) UNSIGNED NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `leave_requests`
+--
+
+CREATE TABLE `leave_requests` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `company_id` int(10) UNSIGNED NOT NULL,
+  `employee_id` int(10) UNSIGNED NOT NULL,
+  `leave_type` enum('annual','sick','personal','unpaid') NOT NULL,
+  `start_date` date NOT NULL,
+  `end_date` date NOT NULL,
+  `days_count` decimal(5,1) NOT NULL,
+  `reason` text NOT NULL,
+  `status` enum('pending','approved','rejected','cancelled') NOT NULL DEFAULT 'pending',
+  `reviewed_by` int(10) UNSIGNED DEFAULT NULL,
+  `reviewed_at` datetime DEFAULT NULL,
+  `reviewer_note` text DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -627,6 +1128,7 @@ CREATE TABLE `modules` (
 
 INSERT INTO `modules` (`key_name`, `display_name`, `created_at`) VALUES
 ('attendance', 'Attendance', '2026-02-23 20:18:58'),
+('installation', 'Installation Day', '2026-03-12 16:49:19'),
 ('leads', 'Leads', '2026-02-23 20:18:58'),
 ('messages', 'Messages', '2026-02-23 20:18:58'),
 ('on_field', 'On Field', '2026-02-23 20:18:58'),
@@ -651,6 +1153,74 @@ CREATE TABLE `password_reset_tokens` (
   `created_ip` varchar(45) DEFAULT NULL,
   `user_agent` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `payroll_details`
+--
+
+CREATE TABLE `payroll_details` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `payroll_run_id` int(10) UNSIGNED NOT NULL,
+  `employee_id` int(10) UNSIGNED NOT NULL,
+  `regular_hours` decimal(8,2) DEFAULT 0.00,
+  `overtime_hours` decimal(8,2) DEFAULT 0.00,
+  `hourly_rate` decimal(8,2) DEFAULT 0.00,
+  `overtime_rate` decimal(8,2) DEFAULT 0.00,
+  `gross_pay` decimal(10,2) DEFAULT 0.00,
+  `deductions` decimal(10,2) DEFAULT 0.00,
+  `net_pay` decimal(10,2) DEFAULT 0.00,
+  `tax_deductions` decimal(10,2) DEFAULT 0.00,
+  `other_deductions` decimal(10,2) DEFAULT 0.00,
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `payroll_runs`
+--
+
+CREATE TABLE `payroll_runs` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `company_id` int(10) UNSIGNED NOT NULL,
+  `period_start` date NOT NULL,
+  `period_end` date NOT NULL,
+  `period_type` enum('weekly','fortnightly','monthly') NOT NULL DEFAULT 'monthly',
+  `status` enum('draft','processed','paid') NOT NULL DEFAULT 'draft',
+  `total_payroll_amount` decimal(12,2) DEFAULT 0.00,
+  `total_employees` int(10) UNSIGNED DEFAULT 0,
+  `total_hours` decimal(10,2) DEFAULT 0.00,
+  `overtime_hours` decimal(10,2) DEFAULT 0.00,
+  `created_by` int(10) UNSIGNED NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `payroll_runs`
+--
+
+INSERT INTO `payroll_runs` (`id`, `company_id`, `period_start`, `period_end`, `period_type`, `status`, `total_payroll_amount`, `total_employees`, `total_hours`, `overtime_hours`, `created_by`, `created_at`, `updated_at`) VALUES
+(1, 1, '2026-02-28', '2026-03-30', 'monthly', 'draft', 0.00, 0, 0.00, 0.00, 7, '2026-03-17 20:03:36', '2026-03-17 20:03:36');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `payslips`
+--
+
+CREATE TABLE `payslips` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `payroll_detail_id` int(10) UNSIGNED NOT NULL,
+  `file_path` varchar(255) NOT NULL,
+  `file_name` varchar(255) NOT NULL,
+  `generated_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `emailed_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -699,6 +1269,59 @@ INSERT INTO `permissions` (`id`, `resource`, `action`, `description`, `created_a
 (26, 'roles', 'manage', 'Create/edit roles and assign permissions', '2026-02-10 05:02:56'),
 (27, 'support', 'view', 'View support tickets', '2026-03-06 18:50:07'),
 (28, 'support', 'edit', 'Reply to and manage support tickets', '2026-03-06 18:50:07');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `projects`
+--
+
+CREATE TABLE `projects` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `lead_id` bigint(20) UNSIGNED NOT NULL,
+  `stage` enum('new','pre_approval','state_rebate','design_engineering','procurement','scheduled','installation_in_progress','installation_completed','compliance_check','inspection_grid_connection','rebate_stc_claims','project_completed') NOT NULL DEFAULT 'new',
+  `customer_name` varchar(150) NOT NULL,
+  `email` varchar(255) DEFAULT NULL,
+  `phone` varchar(50) DEFAULT NULL,
+  `suburb` varchar(150) DEFAULT NULL,
+  `system_size_kw` decimal(10,2) DEFAULT NULL,
+  `value_amount` decimal(14,2) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `project_assignees`
+--
+
+CREATE TABLE `project_assignees` (
+  `project_id` bigint(20) UNSIGNED NOT NULL,
+  `employee_id` int(10) UNSIGNED NOT NULL,
+  `company_id` int(10) UNSIGNED NOT NULL,
+  `assigned_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `assigned_by` int(10) UNSIGNED DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `project_schedules`
+--
+
+CREATE TABLE `project_schedules` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `company_id` bigint(20) UNSIGNED NOT NULL,
+  `project_id` bigint(20) UNSIGNED NOT NULL,
+  `status` enum('scheduled','in_progress','completed') NOT NULL DEFAULT 'scheduled',
+  `scheduled_at` datetime DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `created_by` bigint(20) UNSIGNED DEFAULT NULL,
+  `updated_by` bigint(20) UNSIGNED DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -771,7 +1394,84 @@ INSERT INTO `refresh_tokens` (`id`, `user_id`, `token_hash`, `expires_at`, `crea
 (61, 8, 'b7be01ad0746677c38a6d5cc94ca46bbc8eb64b47ffdb9569e25847c715e87ff', '2026-03-16 11:22:52', '2026-03-09 11:22:52'),
 (62, 8, '4152cc9f99170a8cde4cd09dbcf867f5e0ac3970ceea93aa7e28eb2c4ed72e01', '2026-03-16 11:23:29', '2026-03-09 11:23:29'),
 (63, 7, '97f4f687ba65bae8d13b1cf260a0a41140530380580b0cc593bd7ba072ea0cc2', '2026-03-16 11:23:47', '2026-03-09 11:23:47'),
-(64, 7, '0b35ff9a87249ff2f3e0a369df720ce39ca805719efcd9ffc7f078de657fd862', '2026-03-16 14:03:46', '2026-03-09 14:03:46');
+(64, 7, '0b35ff9a87249ff2f3e0a369df720ce39ca805719efcd9ffc7f078de657fd862', '2026-03-16 14:03:46', '2026-03-09 14:03:46'),
+(65, 7, 'bc42b9cc6ed079f40d8c2d87cd33caf5faa4de5d2cbdbe64af9df4ba98fd2bf5', '2026-03-18 23:17:52', '2026-03-11 23:17:52'),
+(66, 8, '17515cd2407cd577ee6e819e9e9b737b846090e9440fccdc3b08b01b62b35d52', '2026-03-18 23:18:36', '2026-03-11 23:18:36'),
+(67, 7, 'f9905a6892e109fbd919adb2f805d1f5d18f7bd1867b1de142e4a20a017e473d', '2026-03-19 09:41:04', '2026-03-12 09:41:04'),
+(68, 8, '76a58398afcc47a1be09068038a8c1ad013869d50c1447ef6efd83db8df03db3', '2026-03-19 09:41:32', '2026-03-12 09:41:32'),
+(69, 7, 'c380a7a5c2e2d84d840f9f536c9c8b3a22d2011c0ee76e9fa152973d061402d9', '2026-03-19 23:58:12', '2026-03-12 23:58:12'),
+(70, 7, 'cf330112f5540dcff76f4749196d9813f8816d198e813f76dd3cba3246a8e571', '2026-03-20 11:36:28', '2026-03-13 11:36:28'),
+(71, 8, '35fa67203a406d84bb185ea3b4e301741d30e2e8312461c3b1d00e088e166c54', '2026-03-20 11:38:39', '2026-03-13 11:38:39'),
+(72, 7, '328936bcad807d3debdfc220f42a45554a49d83c27a4a4aebc76d86a8afdbb7e', '2026-03-25 00:46:07', '2026-03-18 00:46:07');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `retailer_projects`
+--
+
+CREATE TABLE `retailer_projects` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `company_id` int(10) UNSIGNED NOT NULL,
+  `code` varchar(20) NOT NULL,
+  `job_type` enum('site_inspection','stage_one','stage_two','full_system') DEFAULT NULL,
+  `stage` enum('new','site_inspection','stage_one','stage_two','full_system','cancelled','scheduled','to_be_rescheduled','installation_in_progress','installation_completed','ces_certificate_applied','ces_certificate_received','ces_certificate_submitted','done') NOT NULL DEFAULT 'new',
+  `customer_name` varchar(150) NOT NULL,
+  `customer_email` varchar(255) DEFAULT NULL,
+  `customer_contact` varchar(50) DEFAULT NULL,
+  `address` varchar(255) DEFAULT NULL,
+  `location_url` varchar(1024) DEFAULT NULL,
+  `client_type` varchar(100) DEFAULT NULL,
+  `client_name` varchar(150) DEFAULT NULL,
+  `system_type` varchar(100) DEFAULT NULL,
+  `suburb` varchar(150) DEFAULT NULL,
+  `system_size_kw` decimal(10,2) DEFAULT NULL,
+  `house_storey` varchar(50) DEFAULT NULL,
+  `roof_type` varchar(80) DEFAULT NULL,
+  `meter_phase` varchar(40) DEFAULT NULL,
+  `access_to_two_storey` varchar(20) DEFAULT NULL,
+  `access_to_inverter` varchar(20) DEFAULT NULL,
+  `value_amount` decimal(14,2) DEFAULT NULL,
+  `lead_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `retailer_project_assignees`
+--
+
+CREATE TABLE `retailer_project_assignees` (
+  `project_id` bigint(20) UNSIGNED NOT NULL,
+  `employee_id` int(10) UNSIGNED NOT NULL,
+  `company_id` int(10) UNSIGNED NOT NULL,
+  `assigned_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `assigned_by` bigint(20) UNSIGNED DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `retailer_project_schedules`
+--
+
+CREATE TABLE `retailer_project_schedules` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `company_id` int(10) UNSIGNED NOT NULL,
+  `project_id` bigint(20) UNSIGNED NOT NULL,
+  `job_type` enum('site_inspection','stage_one','stage_two','full_system') NOT NULL,
+  `scheduled_date` date NOT NULL,
+  `scheduled_time` time DEFAULT NULL,
+  `scheduled_at` datetime DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `created_by` bigint(20) UNSIGNED DEFAULT NULL,
+  `updated_by` bigint(20) UNSIGNED DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -869,6 +1569,33 @@ INSERT INTO `role_permissions` (`role_id`, `permission_id`, `created_at`) VALUES
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `schema_migrations`
+--
+
+CREATE TABLE `schema_migrations` (
+  `version` varchar(100) NOT NULL,
+  `description` varchar(255) DEFAULT NULL,
+  `executed_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `duration_ms` int(10) UNSIGNED NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `schema_migrations`
+--
+
+INSERT INTO `schema_migrations` (`version`, `description`, `executed_at`, `duration_ms`) VALUES
+('V001__multi_tenant', 'Company types, modules, and tenant columns', '2026-03-12 00:15:06', 26),
+('V002__rbac', 'Permissions, role_permissions, custom_roles', '2026-03-12 00:15:06', 3),
+('V003__user_profile', 'User profile and notification columns', '2026-03-12 00:15:06', 4),
+('V004__solarquotes', 'External ID and marketing payload on leads', '2026-03-12 00:15:06', 3),
+('V005__attendance', 'Employee attendance table', '2026-03-12 00:15:06', 1),
+('V006__attendance_edit_requests', 'Attendance edit request table', '2026-03-12 00:15:06', 1),
+('V007__leave', 'Leave balances and requests', '2026-03-12 00:15:06', 1),
+('V008__expenses', 'Expense claims table', '2026-03-12 00:15:06', 1);
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `support_tickets`
 --
 
@@ -960,12 +1687,39 @@ INSERT INTO `users` (`id`, `company_id`, `role_id`, `custom_role_id`, `email`, `
 (4, 3, 2, NULL, 'adsfghjh@gm.cp', '$2a$12$ocIOpqCBQPCJuUc2P9cGKeqomi1hLJQqgHHrmf5AesLsjwAKRUBBK', '23456576', 'active', NULL, '2026-02-09 07:06:50', '2026-02-09 07:06:50', 0, NULL, NULL, NULL, NULL, NULL, 1, 0, 0),
 (5, 4, 2, NULL, 'qwerty@gmail.com', '$2a$12$knNyXogLhimg3.AzwnD9y.IVhXbscsj0CI8m5Gmb9XZTOmw8eRZbS', 'Web Admin', 'active', '2026-02-11 05:09:32', '2026-02-11 05:09:18', '2026-02-11 05:09:32', 0, NULL, NULL, NULL, NULL, NULL, 1, 0, 0),
 (6, 5, 2, NULL, 'test1@gmail.com', '$2a$12$R97RTJsc9mXj1m9eEl6MLu94iBIGuFTbYoGkFCIvu0ZzUPRLU3UxK', 'Lorum Ipsum', 'active', NULL, '2026-02-17 08:34:44', '2026-02-17 08:34:44', 0, NULL, NULL, NULL, NULL, NULL, 1, 0, 0),
-(7, 1, 1, NULL, 'admin@xvrythng.com', '$2a$12$lpKQL0jCjGsitDuX6fOlmuhhAlvAx8V.KzlgWHSHDDrURNQbgYJ.O', 'Super Admin', 'active', '2026-03-09 08:33:46', '2026-02-20 06:45:28', '2026-03-09 08:33:46', 0, NULL, NULL, NULL, NULL, NULL, 1, 0, 0),
-(8, 1, 4, NULL, 'soumikpathak0@gmail.com', '$2a$10$ZWdw9Juz5vymFmZ76izbDuBk.MVDy8BlynimpXgqifsX7tu4TTSsK', 'Soumik Pathak', 'active', '2026-03-09 05:53:29', '2026-03-07 19:10:31', '2026-03-09 05:53:29', 0, NULL, NULL, NULL, NULL, NULL, 1, 0, 0);
+(7, 1, 1, NULL, 'admin@xvrythng.com', '$2a$12$lpKQL0jCjGsitDuX6fOlmuhhAlvAx8V.KzlgWHSHDDrURNQbgYJ.O', 'Super Admin', 'active', '2026-03-17 19:16:07', '2026-02-20 06:45:28', '2026-03-17 19:16:07', 0, NULL, NULL, NULL, NULL, NULL, 1, 0, 0),
+(8, 1, 4, NULL, 'soumikpathak0@gmail.com', '$2a$10$ZWdw9Juz5vymFmZ76izbDuBk.MVDy8BlynimpXgqifsX7tu4TTSsK', 'Soumik Pathak', 'active', '2026-03-13 06:08:39', '2026-03-07 19:10:31', '2026-03-13 06:08:39', 0, NULL, NULL, NULL, NULL, NULL, 1, 0, 0);
 
 --
 -- Indexes for dumped tables
 --
+
+--
+-- Indexes for table `activity_logs`
+--
+ALTER TABLE `activity_logs`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_activity_company_created` (`company_id`,`created_at`),
+  ADD KEY `idx_activity_lead_created` (`lead_id`,`created_at`),
+  ADD KEY `idx_activity_user_created` (`user_id`,`created_at`);
+
+--
+-- Indexes for table `approval_activity`
+--
+ALTER TABLE `approval_activity`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_approval_activity_company` (`company_id`),
+  ADD KEY `idx_approval_activity_target` (`approval_type`,`approval_id`),
+  ADD KEY `idx_approval_activity_employee` (`employee_id`),
+  ADD KEY `idx_approval_activity_actor` (`actor_user_id`);
+
+--
+-- Indexes for table `attendance_edit_requests`
+--
+ALTER TABLE `attendance_edit_requests`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_company_status` (`company_id`,`status`),
+  ADD KEY `idx_employee` (`employee_id`);
 
 --
 -- Indexes for table `companies`
@@ -976,6 +1730,13 @@ ALTER TABLE `companies`
   ADD KEY `idx_companies_slug` (`slug`),
   ADD KEY `idx_companies_status` (`status`),
   ADD KEY `fk_companies_type` (`company_type_id`);
+
+--
+-- Indexes for table `company_payroll_settings`
+--
+ALTER TABLE `company_payroll_settings`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uk_company_payroll_settings_company` (`company_id`);
 
 --
 -- Indexes for table `company_types`
@@ -1043,11 +1804,104 @@ ALTER TABLE `employees`
   ADD KEY `idx_emp_status` (`status`);
 
 --
+-- Indexes for table `employee_attendance`
+--
+ALTER TABLE `employee_attendance`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_emp_attendance_company` (`company_id`),
+  ADD KEY `idx_emp_attendance_employee` (`employee_id`),
+  ADD KEY `idx_emp_attendance_date` (`date`);
+
+--
 -- Indexes for table `employment_types`
 --
 ALTER TABLE `employment_types`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `name` (`name`);
+
+--
+-- Indexes for table `expense_claims`
+--
+ALTER TABLE `expense_claims`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_company_status` (`company_id`,`status`),
+  ADD KEY `idx_employee` (`employee_id`),
+  ADD KEY `idx_project` (`project_name`);
+
+--
+-- Indexes for table `inspection_templates`
+--
+ALTER TABLE `inspection_templates`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_template_version` (`company_id`,`key`,`version`);
+
+--
+-- Indexes for table `installation_checklist_items`
+--
+ALTER TABLE `installation_checklist_items`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_ici_company` (`company_id`),
+  ADD KEY `idx_ici_section` (`section`);
+
+--
+-- Indexes for table `installation_checklist_responses`
+--
+ALTER TABLE `installation_checklist_responses`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uk_icr_job_item` (`job_id`,`item_id`),
+  ADD KEY `idx_icr_job` (`job_id`),
+  ADD KEY `idx_icr_item` (`item_id`);
+
+--
+-- Indexes for table `installation_jobs`
+--
+ALTER TABLE `installation_jobs`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_ij_company` (`company_id`),
+  ADD KEY `idx_ij_project` (`project_id`),
+  ADD KEY `idx_ij_retailer` (`retailer_project_id`),
+  ADD KEY `idx_ij_date` (`scheduled_date`),
+  ADD KEY `idx_ij_status` (`status`);
+
+--
+-- Indexes for table `installation_job_assignees`
+--
+ALTER TABLE `installation_job_assignees`
+  ADD PRIMARY KEY (`job_id`,`employee_id`),
+  ADD KEY `idx_ija_company` (`company_id`),
+  ADD KEY `idx_ija_employee` (`employee_id`);
+
+--
+-- Indexes for table `installation_photos`
+--
+ALTER TABLE `installation_photos`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_ip_job` (`job_id`),
+  ADD KEY `idx_ip_company` (`company_id`);
+
+--
+-- Indexes for table `installation_photo_requirements`
+--
+ALTER TABLE `installation_photo_requirements`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uk_ipr_company_section` (`company_id`,`section`);
+
+--
+-- Indexes for table `installation_signoffs`
+--
+ALTER TABLE `installation_signoffs`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `job_id` (`job_id`),
+  ADD KEY `idx_is_job` (`job_id`);
+
+--
+-- Indexes for table `installation_time_records`
+--
+ALTER TABLE `installation_time_records`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_itr_job` (`job_id`),
+  ADD KEY `idx_itr_company` (`company_id`),
+  ADD KEY `idx_itr_event` (`event`);
 
 --
 -- Indexes for table `job_roles`
@@ -1087,6 +1941,14 @@ ALTER TABLE `lead_communications`
   ADD KEY `idx_lead` (`lead_id`);
 
 --
+-- Indexes for table `lead_documents`
+--
+ALTER TABLE `lead_documents`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_lead` (`lead_id`),
+  ADD KEY `idx_lead_type` (`lead_id`);
+
+--
 -- Indexes for table `lead_notes`
 --
 ALTER TABLE `lead_notes`
@@ -1100,6 +1962,23 @@ ALTER TABLE `lead_site_inspections`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `uniq_lead` (`lead_id`),
   ADD KEY `idx_lead` (`lead_id`);
+
+--
+-- Indexes for table `leave_balances`
+--
+ALTER TABLE `leave_balances`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_emp_type_year` (`employee_id`,`leave_type`,`year`),
+  ADD KEY `idx_company` (`company_id`);
+
+--
+-- Indexes for table `leave_requests`
+--
+ALTER TABLE `leave_requests`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_company_status` (`company_id`,`status`),
+  ADD KEY `idx_employee` (`employee_id`),
+  ADD KEY `idx_dates` (`start_date`,`end_date`);
 
 --
 -- Indexes for table `messages`
@@ -1126,12 +2005,61 @@ ALTER TABLE `password_reset_tokens`
   ADD KEY `idx_prt_exp` (`expires_at`);
 
 --
+-- Indexes for table `payroll_details`
+--
+ALTER TABLE `payroll_details`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_payroll_details_run` (`payroll_run_id`),
+  ADD KEY `idx_payroll_details_employee` (`employee_id`);
+
+--
+-- Indexes for table `payroll_runs`
+--
+ALTER TABLE `payroll_runs`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_payroll_runs_company` (`company_id`),
+  ADD KEY `idx_payroll_runs_period` (`period_start`,`period_end`),
+  ADD KEY `idx_payroll_runs_status` (`status`),
+  ADD KEY `fk_payroll_runs_created_by` (`created_by`);
+
+--
+-- Indexes for table `payslips`
+--
+ALTER TABLE `payslips`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_payslips_detail` (`payroll_detail_id`);
+
+--
 -- Indexes for table `permissions`
 --
 ALTER TABLE `permissions`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `uk_permission` (`resource`,`action`),
   ADD KEY `idx_perm_resource` (`resource`);
+
+--
+-- Indexes for table `projects`
+--
+ALTER TABLE `projects`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_projects_lead_id` (`lead_id`),
+  ADD KEY `idx_projects_stage` (`stage`);
+
+--
+-- Indexes for table `project_assignees`
+--
+ALTER TABLE `project_assignees`
+  ADD PRIMARY KEY (`project_id`,`employee_id`),
+  ADD KEY `idx_company` (`company_id`),
+  ADD KEY `fk_pa_employee` (`employee_id`);
+
+--
+-- Indexes for table `project_schedules`
+--
+ALTER TABLE `project_schedules`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_project` (`project_id`),
+  ADD KEY `idx_company_project` (`company_id`,`project_id`);
 
 --
 -- Indexes for table `referral_bonuses`
@@ -1157,6 +2085,33 @@ ALTER TABLE `refresh_tokens`
   ADD KEY `idx_rt_exp` (`expires_at`);
 
 --
+-- Indexes for table `retailer_projects`
+--
+ALTER TABLE `retailer_projects`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uk_retailer_projects_code` (`code`),
+  ADD KEY `idx_retailer_projects_company` (`company_id`),
+  ADD KEY `idx_retailer_projects_stage` (`stage`);
+
+--
+-- Indexes for table `retailer_project_assignees`
+--
+ALTER TABLE `retailer_project_assignees`
+  ADD PRIMARY KEY (`project_id`,`employee_id`,`company_id`),
+  ADD KEY `idx_rpa_company` (`company_id`),
+  ADD KEY `idx_rpa_employee` (`employee_id`);
+
+--
+-- Indexes for table `retailer_project_schedules`
+--
+ALTER TABLE `retailer_project_schedules`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uk_retailer_project_schedule_project` (`company_id`,`project_id`),
+  ADD KEY `idx_retailer_project_schedule_company` (`company_id`),
+  ADD KEY `idx_retailer_project_schedule_date` (`scheduled_date`),
+  ADD KEY `fk_rps_project` (`project_id`);
+
+--
 -- Indexes for table `roles`
 --
 ALTER TABLE `roles`
@@ -1169,6 +2124,12 @@ ALTER TABLE `roles`
 ALTER TABLE `role_permissions`
   ADD PRIMARY KEY (`role_id`,`permission_id`),
   ADD KEY `permission_id` (`permission_id`);
+
+--
+-- Indexes for table `schema_migrations`
+--
+ALTER TABLE `schema_migrations`
+  ADD PRIMARY KEY (`version`);
 
 --
 -- Indexes for table `support_tickets`
@@ -1208,10 +2169,34 @@ ALTER TABLE `users`
 --
 
 --
+-- AUTO_INCREMENT for table `activity_logs`
+--
+ALTER TABLE `activity_logs`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `approval_activity`
+--
+ALTER TABLE `approval_activity`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `attendance_edit_requests`
+--
+ALTER TABLE `attendance_edit_requests`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `companies`
 --
 ALTER TABLE `companies`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+
+--
+-- AUTO_INCREMENT for table `company_payroll_settings`
+--
+ALTER TABLE `company_payroll_settings`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `company_types`
@@ -1250,10 +2235,70 @@ ALTER TABLE `employees`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
+-- AUTO_INCREMENT for table `employee_attendance`
+--
+ALTER TABLE `employee_attendance`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `employment_types`
 --
 ALTER TABLE `employment_types`
   MODIFY `id` tinyint(3) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+
+--
+-- AUTO_INCREMENT for table `expense_claims`
+--
+ALTER TABLE `expense_claims`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `inspection_templates`
+--
+ALTER TABLE `inspection_templates`
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+
+--
+-- AUTO_INCREMENT for table `installation_checklist_items`
+--
+ALTER TABLE `installation_checklist_items`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=55;
+
+--
+-- AUTO_INCREMENT for table `installation_checklist_responses`
+--
+ALTER TABLE `installation_checklist_responses`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `installation_jobs`
+--
+ALTER TABLE `installation_jobs`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `installation_photos`
+--
+ALTER TABLE `installation_photos`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `installation_photo_requirements`
+--
+ALTER TABLE `installation_photo_requirements`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `installation_signoffs`
+--
+ALTER TABLE `installation_signoffs`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `installation_time_records`
+--
+ALTER TABLE `installation_time_records`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `job_roles`
@@ -1265,13 +2310,19 @@ ALTER TABLE `job_roles`
 -- AUTO_INCREMENT for table `leads`
 --
 ALTER TABLE `leads`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=106;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=150;
 
 --
 -- AUTO_INCREMENT for table `lead_communications`
 --
 ALTER TABLE `lead_communications`
   MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `lead_documents`
+--
+ALTER TABLE `lead_documents`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `lead_notes`
@@ -1286,6 +2337,18 @@ ALTER TABLE `lead_site_inspections`
   MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
+-- AUTO_INCREMENT for table `leave_balances`
+--
+ALTER TABLE `leave_balances`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `leave_requests`
+--
+ALTER TABLE `leave_requests`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `messages`
 --
 ALTER TABLE `messages`
@@ -1298,10 +2361,40 @@ ALTER TABLE `password_reset_tokens`
   MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `payroll_details`
+--
+ALTER TABLE `payroll_details`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `payroll_runs`
+--
+ALTER TABLE `payroll_runs`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
+-- AUTO_INCREMENT for table `payslips`
+--
+ALTER TABLE `payslips`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `permissions`
 --
 ALTER TABLE `permissions`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=32;
+
+--
+-- AUTO_INCREMENT for table `projects`
+--
+ALTER TABLE `projects`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
+-- AUTO_INCREMENT for table `project_schedules`
+--
+ALTER TABLE `project_schedules`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `referral_bonuses`
@@ -1313,7 +2406,19 @@ ALTER TABLE `referral_bonuses`
 -- AUTO_INCREMENT for table `refresh_tokens`
 --
 ALTER TABLE `refresh_tokens`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=65;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=73;
+
+--
+-- AUTO_INCREMENT for table `retailer_projects`
+--
+ALTER TABLE `retailer_projects`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT for table `retailer_project_schedules`
+--
+ALTER TABLE `retailer_project_schedules`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT for table `roles`
@@ -1344,10 +2449,32 @@ ALTER TABLE `users`
 --
 
 --
+-- Constraints for table `activity_logs`
+--
+ALTER TABLE `activity_logs`
+  ADD CONSTRAINT `fk_activity_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_activity_lead` FOREIGN KEY (`lead_id`) REFERENCES `leads` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_activity_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `approval_activity`
+--
+ALTER TABLE `approval_activity`
+  ADD CONSTRAINT `approval_activity_ibfk_1` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `approval_activity_ibfk_2` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `approval_activity_ibfk_3` FOREIGN KEY (`actor_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
 -- Constraints for table `companies`
 --
 ALTER TABLE `companies`
   ADD CONSTRAINT `fk_companies_type` FOREIGN KEY (`company_type_id`) REFERENCES `company_types` (`id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `company_payroll_settings`
+--
+ALTER TABLE `company_payroll_settings`
+  ADD CONSTRAINT `fk_company_payroll_settings_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `company_type_modules`
@@ -1388,6 +2515,59 @@ ALTER TABLE `departments`
   ADD CONSTRAINT `fk_departments_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE;
 
 --
+-- Constraints for table `employee_attendance`
+--
+ALTER TABLE `employee_attendance`
+  ADD CONSTRAINT `fk_attendance_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_attendance_employee` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `installation_checklist_responses`
+--
+ALTER TABLE `installation_checklist_responses`
+  ADD CONSTRAINT `fk_icr_item` FOREIGN KEY (`item_id`) REFERENCES `installation_checklist_items` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_icr_job` FOREIGN KEY (`job_id`) REFERENCES `installation_jobs` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `installation_jobs`
+--
+ALTER TABLE `installation_jobs`
+  ADD CONSTRAINT `fk_ij_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_ij_project` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_ij_retailer_project` FOREIGN KEY (`retailer_project_id`) REFERENCES `retailer_projects` (`id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `installation_job_assignees`
+--
+ALTER TABLE `installation_job_assignees`
+  ADD CONSTRAINT `fk_ija_employee` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_ija_job` FOREIGN KEY (`job_id`) REFERENCES `installation_jobs` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `installation_photos`
+--
+ALTER TABLE `installation_photos`
+  ADD CONSTRAINT `fk_ip_job` FOREIGN KEY (`job_id`) REFERENCES `installation_jobs` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `installation_photo_requirements`
+--
+ALTER TABLE `installation_photo_requirements`
+  ADD CONSTRAINT `fk_ipr_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `installation_signoffs`
+--
+ALTER TABLE `installation_signoffs`
+  ADD CONSTRAINT `fk_is_job` FOREIGN KEY (`job_id`) REFERENCES `installation_jobs` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `installation_time_records`
+--
+ALTER TABLE `installation_time_records`
+  ADD CONSTRAINT `fk_itr_job` FOREIGN KEY (`job_id`) REFERENCES `installation_jobs` (`id`) ON DELETE CASCADE;
+
+--
 -- Constraints for table `job_roles`
 --
 ALTER TABLE `job_roles`
@@ -1405,6 +2585,12 @@ ALTER TABLE `leads`
 --
 ALTER TABLE `lead_communications`
   ADD CONSTRAINT `fk_comm_lead` FOREIGN KEY (`lead_id`) REFERENCES `leads` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `lead_documents`
+--
+ALTER TABLE `lead_documents`
+  ADD CONSTRAINT `fk_lead_documents_lead` FOREIGN KEY (`lead_id`) REFERENCES `leads` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `lead_notes`
@@ -1432,6 +2618,45 @@ ALTER TABLE `password_reset_tokens`
   ADD CONSTRAINT `fk_prt_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
+-- Constraints for table `payroll_details`
+--
+ALTER TABLE `payroll_details`
+  ADD CONSTRAINT `fk_payroll_details_employee` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_payroll_details_run` FOREIGN KEY (`payroll_run_id`) REFERENCES `payroll_runs` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `payroll_runs`
+--
+ALTER TABLE `payroll_runs`
+  ADD CONSTRAINT `fk_payroll_runs_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_payroll_runs_created_by` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `payslips`
+--
+ALTER TABLE `payslips`
+  ADD CONSTRAINT `fk_payslips_detail` FOREIGN KEY (`payroll_detail_id`) REFERENCES `payroll_details` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `projects`
+--
+ALTER TABLE `projects`
+  ADD CONSTRAINT `fk_projects_lead` FOREIGN KEY (`lead_id`) REFERENCES `leads` (`id`) ON UPDATE CASCADE;
+
+--
+-- Constraints for table `project_assignees`
+--
+ALTER TABLE `project_assignees`
+  ADD CONSTRAINT `fk_pa_employee` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_pa_project` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `project_schedules`
+--
+ALTER TABLE `project_schedules`
+  ADD CONSTRAINT `fk_ps_project` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE;
+
+--
 -- Constraints for table `referral_bonuses`
 --
 ALTER TABLE `referral_bonuses`
@@ -1442,6 +2667,19 @@ ALTER TABLE `referral_bonuses`
 --
 ALTER TABLE `refresh_tokens`
   ADD CONSTRAINT `fk_rt_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `retailer_project_assignees`
+--
+ALTER TABLE `retailer_project_assignees`
+  ADD CONSTRAINT `fk_rpa_employee` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_rpa_project` FOREIGN KEY (`project_id`) REFERENCES `retailer_projects` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `retailer_project_schedules`
+--
+ALTER TABLE `retailer_project_schedules`
+  ADD CONSTRAINT `fk_rps_project` FOREIGN KEY (`project_id`) REFERENCES `retailer_projects` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `role_permissions`

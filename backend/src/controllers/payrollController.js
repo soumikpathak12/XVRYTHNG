@@ -1,5 +1,7 @@
 import * as payrollService from '../services/payrollService.js';
 import * as payslipService from '../services/payslipService.js';
+import * as emailService from '../services/emailService.js';
+import db from '../config/db.js';
 
 function resolveCompanyId(req) {
   const fromTenant = req.tenantId != null ? Number(req.tenantId) : null;
@@ -158,6 +160,72 @@ export async function downloadAllPayslips(req, res) {
     res.download(zipPath);
   } catch (err) {
     console.error('Download all payslips error:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+}
+
+// Email payslips for all employees in a payroll run
+export async function emailAllPayslips(req, res) {
+  try {
+    const companyId = resolveCompanyId(req);
+    if (!companyId) return res.status(400).json({ success: false, message: 'Missing company context' });
+
+    const { payrollRunId } = req.params;
+
+    // Load run + details (with employee email)
+    const [runRows] = await db.query(
+      'SELECT * FROM payroll_runs WHERE id = ? AND company_id = ? LIMIT 1',
+      [payrollRunId, companyId]
+    );
+    if (runRows.length === 0) return res.status(404).json({ success: false, message: 'Payroll run not found' });
+    const run = runRows[0];
+
+    const [rows] = await db.query(
+      `SELECT pd.id AS payroll_detail_id, pd.employee_id, pd.net_pay, e.first_name, e.last_name, e.email
+       FROM payroll_details pd
+       JOIN employees e ON e.id = pd.employee_id
+       WHERE pd.payroll_run_id = ?`,
+      [payrollRunId]
+    );
+
+    const results = { sent: 0, skipped: 0, failed: 0, failures: [] };
+
+    for (const r of rows) {
+      const to = r.email;
+      if (!emailService.isValidEmail(to)) {
+        results.skipped++;
+        continue;
+      }
+
+      // Ensure payslip exists, then email
+      try {
+        await payslipService.generatePayslip(payrollRunId, r.employee_id, companyId);
+        const filePath = await payslipService.getPayslipPath(payrollRunId, r.employee_id, companyId);
+        await emailService.sendPayslipEmail({
+          to,
+          employeeName: `${r.first_name} ${r.last_name}`.trim(),
+          companyName: 'XVRYTHNG',
+          periodStart: run.period_start,
+          periodEnd: run.period_end,
+          netPay: r.net_pay,
+          attachmentPath: filePath,
+          attachmentFilename: `payslip_${payrollRunId}_${r.employee_id}.pdf`,
+          headers: { 'X-Payroll-Run-Id': String(payrollRunId) },
+        });
+        await db.query(
+          'UPDATE payslips SET emailed_at = NOW() WHERE payroll_detail_id = ?',
+          [r.payroll_detail_id]
+        );
+        results.sent++;
+      } catch (e) {
+        results.failed++;
+        results.failures.push({ employee_id: r.employee_id, email: to, error: e.message });
+      }
+    }
+
+    return res.status(200).json({ success: true, data: results });
+  } catch (err) {
+    console.error('Email payslips error:', err);
     return res.status(500).json({ success: false, message: err.message });
   }
 }
