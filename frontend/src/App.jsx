@@ -73,7 +73,7 @@ function PlaceholderPage({ title, message, children }) {
 const AdminOverview = () => <PlaceholderPage title="Dashboard" message="Overview metrics & quick actions." />;
 const AdminProjects = () => <PlaceholderPage title="Projects" message="In-house & retailer projects." />;
 const AdminOnField = () => <PlaceholderPage title="On-Field" message="Field schedules & activities." />;
-const AdminOperations = () => <PlaceholderPage title="Operations" message="Approvals, payroll, billing." />;
+const AdminOperations = () => <ApprovalsPage />;
 
 // ---------- Login Page ----------
 function LoginPage() {
@@ -440,7 +440,7 @@ function App() {
           <Route path="projects" element={<PlaceholderPage title="Projects" message="In-house & retailer projects." />} />
           <Route path="leads" element={<PlaceholderPage title="Lead Pipeline" message="Manage and track leads." />} />
           <Route path="on-field" element={<PlaceholderPage title="On-Field" message="Field schedules & activities." />} />
-          <Route path="operations" element={<PlaceholderPage title="Operations" message="Approvals, payroll, billing." />} />
+          <Route path="operations" element={<ApprovalsPage />} />
           <Route path="attendance" element={<ApprovalsPage />} />
           <Route path="payroll" element={<RequirePermission resource="payroll" action="view"><PayrollPage /></RequirePermission>} />
           <Route path="referrals" element={<ReferralsPage />} />
