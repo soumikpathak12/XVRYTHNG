@@ -94,21 +94,21 @@ export async function createLead(req, res) {
       errors.phone = 'Invalid phone format.';
     }
 
-    // Required number + non-negative
-    if (system_size_kw === undefined || system_size_kw === null || String(system_size_kw) === '') {
-      errors.system_size_kw = 'System size (kW) is required.';
-    } else if (Number.isNaN(Number(system_size_kw))) {
-      errors.system_size_kw = 'System size must be a number (kW).';
-    } else if (Number(system_size_kw) < 0) {
-      errors.system_size_kw = 'System size cannot be negative.';
+    // Optional numbers (validate only when provided)
+    if (system_size_kw !== undefined && system_size_kw !== null && String(system_size_kw) !== '') {
+      if (Number.isNaN(Number(system_size_kw))) {
+        errors.system_size_kw = 'System size must be a number (kW).';
+      } else if (Number(system_size_kw) < 0) {
+        errors.system_size_kw = 'System size cannot be negative.';
+      }
     }
 
-    if (value_amount === undefined || value_amount === null || String(value_amount) === '') {
-      errors.value_amount = 'Value amount is required.';
-    } else if (Number.isNaN(Number(value_amount))) {
-      errors.value_amount = 'Value amount must be a number.';
-    } else if (Number(value_amount) < 0) {
-      errors.value_amount = 'Value amount cannot be negative.';
+    if (value_amount !== undefined && value_amount !== null && String(value_amount) !== '') {
+      if (Number.isNaN(Number(value_amount))) {
+        errors.value_amount = 'Value amount must be a number.';
+      } else if (Number(value_amount) < 0) {
+        errors.value_amount = 'Value amount cannot be negative.';
+      }
     }
 
     // Optional date validation
@@ -127,8 +127,14 @@ export async function createLead(req, res) {
       email: String(email).trim(),
       phone: String(phone).trim(),
       suburb: String(suburb).trim(),
-      system_size_kw: Number(system_size_kw),
-      value_amount: Number(value_amount),
+      system_size_kw:
+        system_size_kw === undefined || system_size_kw === null || String(system_size_kw) === ''
+          ? null
+          : Number(system_size_kw),
+      value_amount:
+        value_amount === undefined || value_amount === null || String(value_amount) === ''
+          ? null
+          : Number(value_amount),
       source: source ? String(source).trim() : null,
       site_inspection_date: normalizedInspection,
     };
@@ -297,6 +303,32 @@ export async function updateLead(req, res) {
 
     if (body.nmi_number !== undefined) payload.nmi_number = trimOrNull(body.nmi_number, 50);
     if (body.meter_number !== undefined) payload.meter_number = trimOrNull(body.meter_number, 50);
+
+    // PV details
+    if (body.pv_system_size_kw !== undefined)
+      payload.pv_system_size_kw = body.pv_system_size_kw;
+    if (body.pv_inverter_size_kw !== undefined)
+      payload.pv_inverter_size_kw = body.pv_inverter_size_kw;
+    if (body.pv_inverter_brand !== undefined)
+      payload.pv_inverter_brand = trimOrNull(body.pv_inverter_brand, 120);
+    if (body.pv_panel_brand !== undefined)
+      payload.pv_panel_brand = trimOrNull(body.pv_panel_brand, 120);
+    if (body.pv_panel_module_watts !== undefined)
+      payload.pv_panel_module_watts = body.pv_panel_module_watts;
+
+    // EV charger details
+    if (body.ev_charger_brand !== undefined)
+      payload.ev_charger_brand = trimOrNull(body.ev_charger_brand, 120);
+    if (body.ev_charger_model !== undefined)
+      payload.ev_charger_model = trimOrNull(body.ev_charger_model, 120);
+
+    // Battery details
+    if (body.battery_size_kwh !== undefined)
+      payload.battery_size_kwh = body.battery_size_kwh;
+    if (body.battery_brand !== undefined)
+      payload.battery_brand = trimOrNull(body.battery_brand, 120);
+    if (body.battery_model !== undefined)
+      payload.battery_model = trimOrNull(body.battery_model, 120);
 
     if (Object.keys(payload).length === 0) {
       const result = await leadService.getLeadById(leadId);

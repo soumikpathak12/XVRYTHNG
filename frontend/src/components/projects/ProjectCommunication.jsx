@@ -167,7 +167,16 @@ export default function ProjectCommunication({ projectId, apiBasePath }) {
               onClick={handlePost}
               className="lead-detail-btn primary"
               disabled={submitting || !comment.trim()}
-              style={{ padding: '8px 24px', borderRadius: '24px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}
+              style={{
+                padding: '8px 24px',
+                borderRadius: '24px',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                backgroundColor: submitting || !comment.trim() ? '#94a3b8' : '#1A7B7B',
+                borderColor: submitting || !comment.trim() ? '#94a3b8' : '#1A7B7B',
+              }}
             >
               {submitting ? 'Posting...' : 'Post Comment'}
             </button>

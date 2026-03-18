@@ -71,14 +71,12 @@ export default function LeadForm({
   formId,                      
   hideActions = false,           
 }) {
-  const SOURCE_OPTIONS = ['Website', 'Solar Quote', 'Facebook', 'Others'];
+  const SOURCE_OPTIONS = ['Website', 'Solar Quotes', 'Facebook', 'Other'];
   const [form, setForm] = useState({
     customer_name: '',
     email: '',
     phone: '',
     suburb: '',
-    system_size_kw: '',
-    value_amount: '',
     source: '',
     stage: 'new',
     site_inspection_date: '',
@@ -105,7 +103,7 @@ export default function LeadForm({
       const matchedSource = SOURCE_OPTIONS.find(
         (s) => s.toLowerCase() === rawSource.toLowerCase()
       );
-      const sourceSel = matchedSource ?? (rawSource ? 'Others' : '');
+      const sourceSel = matchedSource ?? (rawSource ? 'Other' : '');
       const sourceOther = matchedSource || !rawSource ? '' : rawSource;
 
       setForm({
@@ -116,11 +114,6 @@ export default function LeadForm({
         email: initialValues.email || '',
         phone: initialValues.phone || '',
         suburb: initialValues.suburb || '',
-        system_size_kw: initialValues.systemSize
-          ? parseFloat(initialValues.systemSize)
-          : initialValues.system_size_kw || '',
-        value_amount:
-          initialValues.value || initialValues.value_amount || '',
         source: sourceSel,
         sourceOther,
         stage: initialValues.stage || 'new',
@@ -196,24 +189,10 @@ export default function LeadForm({
     if (!form.stage || !STAGES.includes(form.stage)) {
       nextFieldErrors.stage = 'Invalid stage selected.';
     }
-    if (form.system_size_kw === '' || form.system_size_kw === null) {
-      nextFieldErrors.system_size_kw = 'System size (kW) is required.';
-    } else if (Number.isNaN(Number(form.system_size_kw))) {
-      nextFieldErrors.system_size_kw = 'System size must be a number (kW).';
-    } else if (Number(form.system_size_kw) < 0) {
-      nextFieldErrors.system_size_kw = 'System size cannot be negative.';
-    }
-    if (form.value_amount === '' || form.value_amount === null) {
-      nextFieldErrors.value_amount = 'Value amount is required.';
-    } else if (Number.isNaN(Number(form.value_amount))) {
-      nextFieldErrors.value_amount = 'Value amount must be a number.';
-    } else if (Number(form.value_amount) < 0) {
-      nextFieldErrors.value_amount = 'Value amount cannot be negative.';
-    }
 
     if (!form.source) {
       nextFieldErrors.source = 'Please select a source.';
-    } else if (form.source === 'Others' && !form.sourceOther?.trim()) {
+    } else if (form.source === 'Other' && !form.sourceOther?.trim()) {
       nextFieldErrors.sourceOther = 'Please specify the source.';
     }
 
@@ -224,7 +203,7 @@ export default function LeadForm({
     }
 
     const sourceFinal =
-      form.source === 'Others' ? form.sourceOther.trim() : form.source.trim();
+      form.source === 'Other' ? form.sourceOther.trim() : form.source.trim();
 
     const inspectionDate = toMySQLDateTime(form.site_inspection_date);
     const payload = {
@@ -233,8 +212,6 @@ export default function LeadForm({
       email: form.email.trim(),
       phone: form.phone.trim(),
       suburb: form.suburb.trim(),
-      system_size_kw: Number(form.system_size_kw),
-      value_amount: Number(form.value_amount),
       source: sourceFinal || null,
       site_inspection_date: inspectionDate,
       inspector_id: form.inspector_id || undefined,
@@ -251,8 +228,6 @@ export default function LeadForm({
           email: '',
           phone: '',
           suburb: '',
-          system_size_kw: '',
-          value_amount: '',
           source: '',
           sourceOther: '',
           stage: 'new',
@@ -347,57 +322,25 @@ export default function LeadForm({
           />
         </Field>
 
-        <div style={styles.twoCol}>
-          <Field label="System size (kW) *" error={fieldErrors.system_size_kw}>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={form.system_size_kw}
-              onChange={(e) => update('system_size_kw', e.target.value)}
-              style={{
-                ...styles.input,
-                borderColor: fieldErrors.system_size_kw ? COLORS.dangerText : COLORS.border,
-              }}
-              required
-            />
-          </Field>
-
-          <Field label="Value amount *" error={fieldErrors.value_amount}>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={form.value_amount}
-              onChange={(e) => update('value_amount', e.target.value)}
-              style={{
-                ...styles.input,
-                borderColor: fieldErrors.value_amount ? COLORS.dangerText : COLORS.border,
-              }}
-              required
-            />
-          </Field>
-        </div>
-
         <Field label="Source" error={fieldErrors.source}>
           <select
             value={form.source}
             onChange={(e) => {
               const value = e.target.value;
               update('source', value);
-              if (value !== 'Others') update('sourceOther', '');
+              if (value !== 'Other') update('sourceOther', '');
             }}
             style={styles.input}
             aria-describedby={fieldErrors.source ? 'source-error' : undefined}
           >
             <option value="" disabled>Select a source</option>
             <option value="Website">Website</option>
-            <option value="Solar Quote">Solar Quote</option>
+            <option value="Solar Quotes">Solar Quotes</option>
             <option value="Facebook">Facebook</option>
-            <option value="Others">Others</option>
+            <option value="Other">Other</option>
           </select>
 
-          {form.source === 'Others' && (
+          {form.source === 'Other' && (
             <div style={{ marginTop: 8 }}>
               <label htmlFor="source-other" style={{ display: 'block', marginBottom: 4 }}>
                 Source type:

@@ -7,7 +7,6 @@ function IconPhone(props) { return <svg width="20" height="20" {...props} fill="
 function IconEmail(props) { return <svg width="20" height="20" {...props} fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>; }
 function IconLocation(props) { return <svg width="20" height="20" {...props} fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>; }
 function IconLightning(props) { return <svg width="20" height="20" {...props} fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>; }
-function IconDollar(props) { return <svg width="20" height="20" {...props} fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>; }
 function IconHome(props) { return <svg width="20" height="20" {...props} fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9.5L12 3l9 6.5V21H3z"/></svg>; }
 function IconRoof(props) { return <svg width="20" height="20" {...props} fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12l9-8 9 8"/><path d="M4 10v10h16V10"/></svg>; }
 function IconPower(props) { return <svg width="20" height="20" {...props} fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/></svg>; }
@@ -32,9 +31,6 @@ export default function LeadDetailOverview({ lead, onEdit }) {
   const phone  = v(lead?.phone);
   const email  = v(lead?.email);
   const suburb = v(lead?.suburb);
-
-  const systemSizeKw = lead?.system_size_kw ? `${lead.system_size_kw} kW` : "—";
-  const valueAmount  = lead?.value_amount ? `$${Number(lead.value_amount).toLocaleString()}` : "—";
 
   // New fields (compact)
   const fields = [
@@ -79,24 +75,7 @@ export default function LeadDetailOverview({ lead, onEdit }) {
           </div>
         </section>
 
-        {/* RIGHT: PROJECT OVERVIEW */}
-        <section className="lead-detail-overview-section">
-          <h3 className="lead-detail-section-title">PROJECT OVERVIEW</h3>
-
-          <div className="lead-detail-project-cards">
-            <div className="lead-detail-project-card">
-              <IconLightning className="lead-detail-project-icon" />
-              <span className="lead-detail-project-label">SYSTEM SIZE</span>
-              <span className="lead-detail-project-value">{systemSizeKw}</span>
-            </div>
-
-            <div className="lead-detail-project-card">
-              <IconDollar className="lead-detail-project-icon" />
-              <span className="lead-detail-project-label">EST. VALUE</span>
-              <span className="lead-detail-project-value">{valueAmount}</span>
-            </div>
-          </div>
-        </section>
+        {/* PROJECT OVERVIEW section removed (no longer using System size / Est. value) */}
       </div>
 
       <section className="lead-detail-overview-section" style={{ marginTop: 20 }}>

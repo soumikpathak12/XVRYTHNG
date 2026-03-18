@@ -424,6 +424,60 @@ export async function updateLead(leadId, payload) {
     params.push(payload.meter_number ?? null);
   }
 
+  // PV details
+  if (payload.pv_system_size_kw !== undefined) {
+    updates.push('pv_system_size_kw = ?');
+    params.push(
+      payload.pv_system_size_kw == null ? null : Number(payload.pv_system_size_kw),
+    );
+  }
+  if (payload.pv_inverter_size_kw !== undefined) {
+    updates.push('pv_inverter_size_kw = ?');
+    params.push(
+      payload.pv_inverter_size_kw == null ? null : Number(payload.pv_inverter_size_kw),
+    );
+  }
+  if (payload.pv_inverter_brand !== undefined) {
+    updates.push('pv_inverter_brand = ?');
+    params.push(payload.pv_inverter_brand ?? null);
+  }
+  if (payload.pv_panel_brand !== undefined) {
+    updates.push('pv_panel_brand = ?');
+    params.push(payload.pv_panel_brand ?? null);
+  }
+  if (payload.pv_panel_module_watts !== undefined) {
+    updates.push('pv_panel_module_watts = ?');
+    params.push(
+      payload.pv_panel_module_watts == null ? null : Number(payload.pv_panel_module_watts),
+    );
+  }
+
+  // EV charger details
+  if (payload.ev_charger_brand !== undefined) {
+    updates.push('ev_charger_brand = ?');
+    params.push(payload.ev_charger_brand ?? null);
+  }
+  if (payload.ev_charger_model !== undefined) {
+    updates.push('ev_charger_model = ?');
+    params.push(payload.ev_charger_model ?? null);
+  }
+
+  // Battery details
+  if (payload.battery_size_kwh !== undefined) {
+    updates.push('battery_size_kwh = ?');
+    params.push(
+      payload.battery_size_kwh == null ? null : Number(payload.battery_size_kwh),
+    );
+  }
+  if (payload.battery_brand !== undefined) {
+    updates.push('battery_brand = ?');
+    params.push(payload.battery_brand ?? null);
+  }
+  if (payload.battery_model !== undefined) {
+    updates.push('battery_model = ?');
+    params.push(payload.battery_model ?? null);
+  }
+
   // Handle inline assignment of inspector
   if (payload.inspector_id !== undefined) {
     // inspector_id will be saved down below or we can update `lead_site_inspections` here

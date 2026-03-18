@@ -69,9 +69,9 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
 
   const SYSTEM_TYPE_OPTS  = ['PV only', 'PV + Battery', 'Only Battery', 'Only EV Charger', 'PV + Battery + EV Charger', 'Battery + EV Charger','PV + EV Chargers'];
   const HOUSE_STOREY_OPTS = ['Single', 'Double', 'Triple', 'Other'];
-  const ROOF_TYPE_OPTS    = ['Tin', 'Tile', 'Flat', 'Other'];
-  const METER_PHASE_OPTS  = ['single', 'double', 'tree']; // theo đúng yêu cầu
-
+  const ROOF_TYPE_OPTS    = ['Tin(Colorbond)', 'Tin(Kliplock)', 'Tile(Concrete)', 'Tile(Terracotta)', 'Flat', 'Other'];
+  const METER_PHASE_OPTS  = ['Single', 'Double', 'Three']; 
+  const ENERGY_DISTRIBUTOR_OPTS = ['AusNet', 'Powercor', 'CitiPower', 'United Energy', 'Jemena'];
   const splitForSelectOther = (value, options) => {
     if (!value) return { sel: '', other: '' };
     const found = options.find(o => o.toLowerCase() === String(value).trim().toLowerCase());
@@ -149,6 +149,52 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
       nmi_number: lead?.nmi_number ?? lead?.nmiNumber ?? lead?._raw?.nmi_number ?? '',
       meter_number:
         lead?.meter_number ?? lead?.meterNumber ?? lead?._raw?.meter_number ?? '',
+
+      // PV system details
+      pv_system_size_kw:
+        lead?.pv_system_size_kw ??
+        lead?._raw?.pv_system_size_kw ??
+        '',
+      pv_inverter_size_kw:
+        lead?.pv_inverter_size_kw ??
+        lead?._raw?.pv_inverter_size_kw ??
+        '',
+      pv_inverter_brand:
+        lead?.pv_inverter_brand ??
+        lead?._raw?.pv_inverter_brand ??
+        '',
+      pv_panel_brand:
+        lead?.pv_panel_brand ??
+        lead?._raw?.pv_panel_brand ??
+        '',
+      pv_panel_module_watts:
+        lead?.pv_panel_module_watts ??
+        lead?._raw?.pv_panel_module_watts ??
+        '',
+
+      // EV charger details
+      ev_charger_brand:
+        lead?.ev_charger_brand ??
+        lead?._raw?.ev_charger_brand ??
+        '',
+      ev_charger_model:
+        lead?.ev_charger_model ??
+        lead?._raw?.ev_charger_model ??
+        '',
+
+      // Battery details
+      battery_size_kwh:
+        lead?.battery_size_kwh ??
+        lead?._raw?.battery_size_kwh ??
+        '',
+      battery_brand:
+        lead?.battery_brand ??
+        lead?._raw?.battery_brand ??
+        '',
+      battery_model:
+        lead?.battery_model ??
+        lead?._raw?.battery_model ??
+        '',
     };
   });
 
@@ -200,6 +246,22 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
 
       nmi_number: (extras.nmi_number || '').trim() || null,
       meter_number: (extras.meter_number || '').trim() || null,
+
+      // PV system details
+      pv_system_size_kw: (extras.pv_system_size_kw || '').trim() || null,
+      pv_inverter_size_kw: (extras.pv_inverter_size_kw || '').trim() || null,
+      pv_inverter_brand: (extras.pv_inverter_brand || '').trim() || null,
+      pv_panel_brand: (extras.pv_panel_brand || '').trim() || null,
+      pv_panel_module_watts: (extras.pv_panel_module_watts || '').trim() || null,
+
+      // EV charger details
+      ev_charger_brand: (extras.ev_charger_brand || '').trim() || null,
+      ev_charger_model: (extras.ev_charger_model || '').trim() || null,
+
+      // Battery details
+      battery_size_kwh: (extras.battery_size_kwh || '').trim() || null,
+      battery_brand: (extras.battery_brand || '').trim() || null,
+      battery_model: (extras.battery_model || '').trim() || null,
     };
 
     return onSubmit(merged);
@@ -245,6 +307,123 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
           </Labeled>
         </FieldRow>
       </Section>
+
+      {/* PV / EV / Battery detail sections, driven by system type */}
+      {(() => {
+        const type = extras.system_type_sel || '';
+        const hasPV = /PV/i.test(type);
+        const hasEV = /EV/i.test(type);
+        const hasBattery = /Battery/i.test(type);
+
+        return (
+          <>
+            {hasPV && (
+              <Section title="PV SYSTEM DETAILS">
+                <FieldRow two>
+                  <Labeled label="SYSTEM SIZE (kW)">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={extras.pv_system_size_kw || ''}
+                      onChange={(e) => updateExtra('pv_system_size_kw', e.target.value)}
+                      style={inputStyle}
+                    />
+                  </Labeled>
+                  <Labeled label="INVERTER SIZE (kW)">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={extras.pv_inverter_size_kw || ''}
+                      onChange={(e) => updateExtra('pv_inverter_size_kw', e.target.value)}
+                      style={inputStyle}
+                    />
+                  </Labeled>
+                  <Labeled label="INVERTER BRAND">
+                    <input
+                      type="text"
+                      value={extras.pv_inverter_brand || ''}
+                      onChange={(e) => updateExtra('pv_inverter_brand', e.target.value)}
+                      style={inputStyle}
+                    />
+                  </Labeled>
+                  <Labeled label="PANEL BRAND">
+                    <input
+                      type="text"
+                      value={extras.pv_panel_brand || ''}
+                      onChange={(e) => updateExtra('pv_panel_brand', e.target.value)}
+                      style={inputStyle}
+                    />
+                  </Labeled>
+                  <Labeled label="PANEL MODULE (WATTS)">
+                    <input
+                      type="number"
+                      step="1"
+                      value={extras.pv_panel_module_watts || ''}
+                      onChange={(e) => updateExtra('pv_panel_module_watts', e.target.value)}
+                      style={inputStyle}
+                    />
+                  </Labeled>
+                </FieldRow>
+              </Section>
+            )}
+
+            {hasEV && (
+              <Section title="EV CHARGER DETAILS">
+                <FieldRow two>
+                  <Labeled label="EV CHARGER BRAND">
+                    <input
+                      type="text"
+                      value={extras.ev_charger_brand || ''}
+                      onChange={(e) => updateExtra('ev_charger_brand', e.target.value)}
+                      style={inputStyle}
+                    />
+                  </Labeled>
+                  <Labeled label="EV CHARGER MODEL">
+                    <input
+                      type="text"
+                      value={extras.ev_charger_model || ''}
+                      onChange={(e) => updateExtra('ev_charger_model', e.target.value)}
+                      style={inputStyle}
+                    />
+                  </Labeled>
+                </FieldRow>
+              </Section>
+            )}
+
+            {hasBattery && (
+              <Section title="BATTERY DETAILS">
+                <FieldRow two>
+                  <Labeled label="BATTERY SIZE (kWh)">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={extras.battery_size_kwh || ''}
+                      onChange={(e) => updateExtra('battery_size_kwh', e.target.value)}
+                      style={inputStyle}
+                    />
+                  </Labeled>
+                  <Labeled label="BATTERY BRAND">
+                    <input
+                      type="text"
+                      value={extras.battery_brand || ''}
+                      onChange={(e) => updateExtra('battery_brand', e.target.value)}
+                      style={inputStyle}
+                    />
+                  </Labeled>
+                  <Labeled label="BATTERY MODEL">
+                    <input
+                      type="text"
+                      value={extras.battery_model || ''}
+                      onChange={(e) => updateExtra('battery_model', e.target.value)}
+                      style={inputStyle}
+                    />
+                  </Labeled>
+                </FieldRow>
+              </Section>
+            )}
+          </>
+        );
+      })()}
 
       <Section title="PROPERTY INFORMATION">
         <FieldRow two>
@@ -372,12 +551,18 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
           </Labeled>
 
           <Labeled label="ENERGY DISTRIBUTOR">
-            <input
-              type="text"
+            <select
               value={extras.energy_distributor || ''}
               onChange={(e) => updateExtra('energy_distributor', e.target.value)}
               style={inputStyle}
-            />
+            >
+              <option value="">Select</option>
+              {ENERGY_DISTRIBUTOR_OPTS.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
           </Labeled>
 
           <Labeled label="SOLAR VICTORIA ELIGIBILITY">

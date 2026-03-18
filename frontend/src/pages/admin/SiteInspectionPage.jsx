@@ -223,7 +223,8 @@ export default function SiteInspectionPage() {
         setLoading(true);
         setMsg('');
         const leadResp = await getLead(leadId);
-        if (!aborted) setLead(leadResp.lead ?? leadResp.data ?? null);
+        const leadData = leadResp.lead ?? leadResp.data ?? null;
+        if (!aborted) setLead(leadData);
         const si = await getSiteInspection(leadId);
         if (!aborted && si?.data) {
           const d = si.data;
@@ -673,11 +674,55 @@ const meta = base?.meta && typeof base.meta === 'string'
               <div>{lead.suburb ?? '—'}</div>
             </div>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>System</div>
-              <div>
-                {(lead.system_type ?? '—') + (lead.system_size_kw ? ` • ${lead.system_size_kw} kW` : '')}
-              </div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>System Type</div>
+              <div>{lead.system_type ?? '—'}</div>
             </div>
+            {lead.pv_system_size_kw != null ||
+              lead.pv_inverter_brand ||
+              lead.pv_panel_brand ? (
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>PV System</div>
+                <div>
+                  {[
+                    lead.pv_system_size_kw != null ? `${lead.pv_system_size_kw} kW` : null,
+                    lead.pv_inverter_brand ? `Inverter: ${lead.pv_inverter_brand}` : null,
+                    lead.pv_panel_brand ? `Panel: ${lead.pv_panel_brand}` : null,
+                    lead.pv_panel_module_watts != null ? `${lead.pv_panel_module_watts} W` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' • ') || '—'}
+                </div>
+              </div>
+            ) : null}
+            {lead.ev_charger_brand || lead.ev_charger_model ? (
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>EV Charger</div>
+                <div>
+                  {[
+                    lead.ev_charger_brand,
+                    lead.ev_charger_model,
+                  ]
+                    .filter(Boolean)
+                    .join(' • ') || '—'}
+                </div>
+              </div>
+            ) : null}
+            {lead.battery_size_kwh != null ||
+              lead.battery_brand ||
+              lead.battery_model ? (
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>Battery</div>
+                <div>
+                  {[
+                    lead.battery_size_kwh != null ? `${lead.battery_size_kwh} kWh` : null,
+                    lead.battery_brand,
+                    lead.battery_model,
+                  ]
+                    .filter(Boolean)
+                    .join(' • ') || '—'}
+                </div>
+              </div>
+            ) : null}
           </div>
           <div
             style={{

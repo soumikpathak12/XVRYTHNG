@@ -82,12 +82,16 @@ export default function LeadDetailPage() {
   }, [leadId, loadLead]);
 
   const handleDetailsSubmit = async (payload) => {
+    // Keep all extra fields from Details tab (system_type, PV/EV/Battery, etc.)
     const dbPayload = {
+      ...payload,
       stage: payload.stage,
       customer_name: payload.customer_name,
       suburb: payload.suburb || null,
-      system_size_kw: payload.system_size_kw != null ? Number(payload.system_size_kw) : null,
-      value_amount: payload.value_amount != null ? Number(payload.value_amount) : null,
+      system_size_kw:
+        payload.system_size_kw != null ? Number(payload.system_size_kw) : null,
+      value_amount:
+        payload.value_amount != null ? Number(payload.value_amount) : null,
       source: payload.source || null,
       site_inspection_date: payload.site_inspection_date || null,
     };
@@ -304,16 +308,6 @@ export default function LeadDetailPage() {
               <div className="lead-detail-card">
                 <span className="lead-detail-card-label">Location</span>
                 <span className="lead-detail-card-value">{lead.suburb || '—'}</span>
-              </div>
-              <div className="lead-detail-card">
-                <span className="lead-detail-card-label">Est. value</span>
-                <span className="lead-detail-card-value">
-                  {lead.value_amount != null ? `$${Number(lead.value_amount).toLocaleString()}` : '—'}
-                </span>
-              </div>
-              <div className="lead-detail-card">
-                <span className="lead-detail-card-label">System</span>
-                <span className="lead-detail-card-value">{lead.system_size_kw != null ? `${lead.system_size_kw}kW` : '—'}</span>
               </div>
             </div>
 
