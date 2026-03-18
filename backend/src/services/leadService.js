@@ -720,6 +720,207 @@ export async function getLeadById(leadId) {
   };
 }
 
+// ─── Sales Dashboard Metrics (T-037) ─────────────────────────────────────────
+
+/**
+ * Compute date window boundaries from a named range or explicit from/to.
+ * Returns { from: Date, to: Date, prevFrom: Date, prevTo: Date }
+ */
+function resolveDateRange(range = 'month', customFrom = null, customTo = null) {
+  const now = new Date();
+  let from, to;
+
+  if (range === 'custom' && customFrom && customTo) {
+    from = new Date(customFrom);
+    to   = new Date(customTo);
+    to.setHours(23, 59, 59, 999);
+  } else if (range === 'week') {
+    // Mon → today
+    const day = now.getDay() === 0 ? 6 : now.getDay() - 1; // 0=Mon
+    from = new Date(now); from.setDate(now.getDate() - day); from.setHours(0, 0, 0, 0);
+    to   = new Date(now); to.setHours(23, 59, 59, 999);
+  } else if (range === 'quarter') {
+    const q = Math.floor(now.getMonth() / 3);
+    from = new Date(now.getFullYear(), q * 3, 1, 0, 0, 0, 0);
+    to   = new Date(now); to.setHours(23, 59, 59, 999);
+  } else {
+    // month (default)
+    from = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    to   = new Date(now); to.setHours(23, 59, 59, 999);
+  }
+
+  // Previous period: same length immediately before `from`
+  const periodMs = to.getTime() - from.getTime();
+  const prevTo   = new Date(from.getTime() - 1);
+  const prevFrom = new Date(prevTo.getTime() - periodMs);
+
+  return { from, to, prevFrom, prevTo };
+}
+
+function toSQL(d) {
+  const p = v => String(v).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+function calcDelta(curr, prev) {
+  if (!prev || prev === 0) return curr > 0 ? 100 : 0;
+  return Math.round(((curr - prev) / prev) * 100);
+}
+
+/**
+ * GET /api/leads/dashboard
+ * Returns 6 KPI metrics + trend indicators + pipeline_by_stage + leads_by_source.
+ */
+export async function getSalesDashboardMetrics({ range = 'month', customFrom = null, customTo = null } = {}) {
+  const { from, to, prevFrom, prevTo } = resolveDateRange(range, customFrom, customTo);
+  const f  = toSQL(from);
+  const t  = toSQL(to);
+  const pf = toSQL(prevFrom);
+  const pt = toSQL(prevTo);
+
+  // ── Current period aggregate ──
+  const [[curr]] = await db.execute(
+    `SELECT
+       COUNT(*) AS total_leads,
+       COUNT(CASE WHEN stage != 'new' THEN 1 END) AS leads_contacted,
+       COUNT(CASE WHEN stage = 'closed_won' THEN 1 END) AS closed_won,
+       COUNT(CASE WHEN stage IN ('proposal_sent','negotiation','closed_won','closed_lost') THEN 1 END) AS proposals_sent,
+       SUM(CASE WHEN is_closed = 0 AND value_amount IS NOT NULL THEN value_amount ELSE 0 END) AS pipeline_value
+     FROM leads
+     WHERE created_at BETWEEN ? AND ?`,
+    [f, t]
+  );
+
+  // ── Previous period aggregate ──
+  const [[prev]] = await db.execute(
+    `SELECT
+       COUNT(*) AS total_leads,
+       COUNT(CASE WHEN stage != 'new' THEN 1 END) AS leads_contacted,
+       COUNT(CASE WHEN stage = 'closed_won' THEN 1 END) AS closed_won,
+       COUNT(CASE WHEN stage IN ('proposal_sent','negotiation','closed_won','closed_lost') THEN 1 END) AS proposals_sent,
+       SUM(CASE WHEN is_closed = 0 AND value_amount IS NOT NULL THEN value_amount ELSE 0 END) AS pipeline_value
+     FROM leads
+     WHERE created_at BETWEEN ? AND ?`,
+    [pf, pt]
+  );
+
+  const cTotal   = Number(curr.total_leads       ?? 0);
+  const cContact = Number(curr.leads_contacted    ?? 0);
+  const cWon     = Number(curr.closed_won         ?? 0);
+  const cProp    = Number(curr.proposals_sent     ?? 0);
+  const cPipe    = Number(curr.pipeline_value     ?? 0);
+  const cConv    = cTotal > 0 ? parseFloat(((cWon / cTotal) * 100).toFixed(1)) : 0;
+
+  const pTotal   = Number(prev.total_leads        ?? 0);
+  const pContact = Number(prev.leads_contacted    ?? 0);
+  const pWon     = Number(prev.closed_won         ?? 0);
+  const pProp    = Number(prev.proposals_sent     ?? 0);
+  const pPipe    = Number(prev.pipeline_value     ?? 0);
+  const pConv    = pTotal > 0 ? parseFloat(((pWon / pTotal) * 100).toFixed(1)) : 0;
+
+  // ── Pipeline value by stage (open leads only) ──
+  const STAGE_LABELS = {
+    new: 'New', contacted: 'Contacted', qualified: 'Qualified',
+    inspection_booked: 'Inspection Booked', inspection_completed: 'Inspection Done',
+    proposal_sent: 'Proposal Sent', negotiation: 'Negotiation',
+  };
+  const [stageRows] = await db.execute(
+    `SELECT stage, COUNT(*) AS count, COALESCE(SUM(value_amount), 0) AS value
+     FROM leads
+     WHERE is_closed = 0
+       AND created_at BETWEEN ? AND ?
+     GROUP BY stage
+     ORDER BY FIELD(stage, 'new','contacted','qualified','inspection_booked','inspection_completed','proposal_sent','negotiation')`,
+    [f, t]
+  );
+
+  // ── Leads by source (top 8, current period) ──
+  const [sourceRows] = await db.execute(
+    `SELECT COALESCE(NULLIF(TRIM(source),''), 'Unknown') AS source, COUNT(*) AS count
+     FROM leads
+     WHERE created_at BETWEEN ? AND ?
+     GROUP BY source
+     ORDER BY count DESC
+     LIMIT 8`,
+    [f, t]
+  );
+
+  // ── Closed Won trend over period days (for sparkline) ──
+  const [wonTrend] = await db.execute(
+    `SELECT DATE(won_lost_at) AS day, COUNT(*) AS count
+     FROM leads
+     WHERE is_won = 1 AND won_lost_at BETWEEN ? AND ?
+     GROUP BY DATE(won_lost_at)
+     ORDER BY day ASC`,
+    [f, t]
+  );
+
+  return {
+    period: { from: f, to: t, prevFrom: pf, prevTo: pt },
+    metrics: {
+      total_leads:     { value: cTotal,  prev: pTotal,  delta: calcDelta(cTotal,  pTotal)  },
+      leads_contacted: { value: cContact,prev: pContact, delta: calcDelta(cContact,pContact)},
+      conversion_rate: { value: cConv,   prev: pConv,   delta: calcDelta(cConv,   pConv)   },
+      pipeline_value:  { value: cPipe,   prev: pPipe,   delta: calcDelta(cPipe,   pPipe)   },
+      proposals_sent:  { value: cProp,   prev: pProp,   delta: calcDelta(cProp,   pProp)   },
+      closed_won:      { value: cWon,    prev: pWon,    delta: calcDelta(cWon,    pWon)    },
+    },
+    pipeline_by_stage: stageRows.map(r => ({
+      stage: r.stage,
+      label: STAGE_LABELS[r.stage] ?? r.stage,
+      count: Number(r.count),
+      value: Number(r.value),
+    })),
+    leads_by_source: sourceRows.map(r => ({
+      source: r.source,
+      count:  Number(r.count),
+    })),
+    won_trend: wonTrend.map(r => ({ day: r.day, count: Number(r.count) })),
+  };
+}
+
+/**
+ * Team performance aggregation per assigned_user_id within the same date window
+ * used by getSalesDashboardMetrics (created_at between from/to).
+ */
+export async function getTeamPerformance({ range = 'month', customFrom = null, customTo = null } = {}) {
+  const { from, to } = resolveDateRange(range, customFrom, customTo);
+  const f = toSQL(from);
+  const t = toSQL(to);
+
+  const sql = `
+    SELECT
+      u.id   AS user_id,
+      u.name AS user_name,
+      COUNT(l.id) AS total_leads,
+      COUNT(CASE WHEN l.stage <> 'new' THEN 1 END) AS leads_contacted,
+      COUNT(CASE WHEN l.stage IN ('proposal_sent','negotiation','closed_won','closed_lost') THEN 1 END) AS proposals_sent,
+      COUNT(CASE WHEN l.stage = 'closed_won' THEN 1 END) AS closed_won
+    FROM leads l
+    JOIN users u ON u.id = l.assigned_user_id
+    WHERE l.created_at BETWEEN ? AND ?
+    GROUP BY u.id, u.name
+    ORDER BY leads_contacted DESC, user_name ASC
+  `;
+
+  const [rows] = await db.execute(sql, [f, t]);
+
+  return rows.map(row => {
+    const total = Number(row.total_leads ?? 0);
+    const won   = Number(row.closed_won ?? 0);
+    const closeRate = total > 0 ? parseFloat(((won / total) * 100).toFixed(1)) : 0;
+    return {
+      user_id: row.user_id,
+      user_name: row.user_name,
+      leads_contacted: Number(row.leads_contacted ?? 0),
+      proposals_sent: Number(row.proposals_sent ?? 0),
+      closed_won: won,
+      total_leads: total,
+      close_rate: closeRate,
+    };
+  });
+}
+
 export async function countLeads({ stage, search } = {}) {
   const where = [];
   const args = [];

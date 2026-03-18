@@ -17,6 +17,7 @@ import * as attendanceController from '../controllers/attendanceController.js';
 import * as attendanceEditController from '../controllers/attendanceEditController.js';
 import * as leaveController from '../controllers/leaveController.js';
 import * as expenseController from '../controllers/expenseController.js';
+import * as payrollController from '../controllers/payrollController.js';
 import { receiptUpload } from '../controllers/expenseController.js';
 const router = Router();
 router.use(requireAuth, tenantContext);
@@ -40,6 +41,18 @@ router.get('/attendance/edit-requests', attendanceEditController.myEditRequests)
 // Attendance edit requests (manager / admin)
 router.get('/attendance/edit-requests/pending', attendanceEditController.pendingEditRequests);
 router.patch('/attendance/edit-requests/:id', attendanceEditController.reviewEditRequest);
+
+// Payroll
+router.post('/payroll/calculate', payrollController.calculatePayroll);
+router.post('/payroll/save', payrollController.savePayrollRun);
+router.get('/payroll/runs', payrollController.getPayrollRuns);
+router.get('/payroll/runs/:id', payrollController.getPayrollRunDetails);
+
+// Payslips
+router.post('/payroll/runs/:payrollRunId/payslips/:employeeId/generate', payrollController.generatePayslip);
+router.post('/payroll/runs/:payrollRunId/payslips/generate-all', payrollController.generateAllPayslips);
+router.get('/payroll/runs/:payrollRunId/payslips/:employeeId/download', payrollController.downloadPayslip);
+router.get('/payroll/runs/:payrollRunId/payslips/download-all', payrollController.downloadAllPayslips);
 
 // Leave
 router.get('/leave/balances', leaveController.getBalances);

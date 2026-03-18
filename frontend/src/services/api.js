@@ -1589,6 +1589,35 @@ export async function getLeadsCount(params = {}) {
   return data.total ?? 0;
 }
 
+/**
+ * GET /api/leads/dashboard
+ * @param {{ range?: 'week'|'month'|'quarter'|'custom', from?: string, to?: string }} params
+ */
+export async function getSalesDashboard(params = {}) {
+  const q = new URLSearchParams();
+  if (params.range) q.set('range', params.range);
+  if (params.from)  q.set('from',  params.from);
+  if (params.to)    q.set('to',    params.to);
+  const res  = await authFetch(`/api/leads/dashboard${q.toString() ? `?${q}` : ''}`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message ?? 'Failed to load dashboard metrics');
+  return data.data ?? data;
+}
+
+// ---------------------------------------------------------------------------
+// Sales activity feed (recent team actions)
+// ---------------------------------------------------------------------------
+/** GET /api/sales/activity?limit=50&offset=0 */
+export async function getSalesActivity(params = {}) {
+  const q = new URLSearchParams();
+  if (params.limit != null)  q.set('limit', String(params.limit));
+  if (params.offset != null) q.set('offset', String(params.offset));
+  const res  = await authFetch(`/api/sales/activity${q.toString() ? `?${q}` : ''}`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message ?? 'Failed to load sales activity');
+  return data.data ?? [];
+}
+
 
 
  export async function getTrialUsers() {
@@ -2085,3 +2114,63 @@ export async function deleteInstallationPhoto(jobId, photoId) {
 export async function getInstallationPhotoRequirements() {
   return authFetchJSON('/api/installation-jobs/photo-requirements', { method: 'GET' });
 }
+
+// ---------------------------------------------------------------------------
+// On-Field (employee calendar: inspections + installations)
+// ---------------------------------------------------------------------------
+/** GET /api/on-field/calendar?from=YYYY-MM-DD&to=YYYY-MM-DD – events for current employee */
+export async function getOnFieldCalendar(params = {}) {
+  const q = new URLSearchParams(params).toString();
+  return authFetchJSON(`/api/on-field/calendar${q ? `?${q}` : ''}`, { method: 'GET' });
+}
+
+// ---------------------------------------------------------------------------
+// Approvals (unified: leave + expense + attendance)
+// ---------------------------------------------------------------------------
+/** GET /api/approvals?type=leave|expense|attendance&status=pending|approved|rejected */
+export async function listApprovals(params = {}) {
+  const q = new URLSearchParams(params).toString();
+  return authFetchJSON(`/api/approvals${q ? `?${q}` : ''}`, { method: 'GET' });
+}
+
+/** GET /api/approvals/count – returns { pending, by_type: { leave, expense, attendance } } */
+export async function getApprovalsPendingCount() {
+  return authFetchJSON('/api/approvals/count', { method: 'GET' });
+}
+
+/** PATCH /api/approvals/:type/:id/decision – body: { action, comment } */
+export async function decideApproval(type, id, body) {
+  return authFetchJSON(`/api/approvals/${encodeURIComponent(type)}/${encodeURIComponent(id)}/decision`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+/** PATCH /api/employees/attendance/edit-requests/:id */
+export async function reviewAttendanceEditRequest(id, body) {
+  return authFetchJSON(`/api/employees/attendance/edit-requests/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+/** PATCH /api/employees/leave/:id/review */
+export async function reviewLeaveRequest(id, body) {
+  return authFetchJSON(`/api/employees/leave/${id}/review`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+/** PATCH /api/employees/expenses/:id/review */
+export async function reviewExpenseClaim(id, body) {
+  return authFetchJSON(`/api/employees/expenses/${id}/review`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+

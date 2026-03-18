@@ -1,6 +1,7 @@
 import * as leadService from '../services/leadService.js';
 import * as customerCredentialsService from '../services/customerCredentialsService.js';
-import * as db from '../config/db.js'
+import * as db from '../config/db.js';
+import * as activityService from '../services/activityService.js';
 const STAGES = [
   'new',
   'contacted',
@@ -133,6 +134,20 @@ export async function createLead(req, res) {
     };
 
     const lead = await leadService.createLead(payload);
+
+    // Log activity: lead created
+    try {
+      await activityService.logActivity({
+        companyId: req.tenantId ?? req.user?.companyId ?? null,
+        userId: req.user?.id ?? null,
+        leadId: lead.id,
+        actionType: 'lead_created',
+        description: `created lead "${lead.customer_name}"`,
+        meta: { stage: lead.stage, value_amount: lead.value_amount },
+      });
+    } catch (e) {
+      console.warn('logActivity lead_created failed:', e.message);
+    }
 
     if (!lead || typeof lead.id !== 'number') {
       return res.status(500).json({
@@ -317,6 +332,30 @@ export async function updateLeadStage(req, res) {
     }
 
     const updated = await leadService.updateLeadStage(leadId, stage);
+
+    // Log activity: stage changed / proposal sent
+    try {
+      const companyId = req.tenantId ?? req.user?.companyId ?? null;
+      const userId = req.user?.id ?? null;
+      const prevStage = updated.previous_stage ?? null;
+      const actionType = stage === 'proposal_sent' ? 'proposal_sent' : 'stage_changed';
+      const desc =
+        actionType === 'proposal_sent'
+          ? `sent proposal for "${updated.customer_name}"`
+          : `moved "${updated.customer_name}" to ${stage}`;
+
+      await activityService.logActivity({
+        companyId,
+        userId,
+        leadId,
+        actionType,
+        description: desc,
+        meta: { from: prevStage, to: stage },
+      });
+    } catch (e) {
+      console.warn('logActivity stage_changed failed:', e.message);
+    }
+
     return res.status(200).json({ success: true, data: updated });
   } catch (err) {
     console.error('Update stage error:', err);
@@ -404,6 +443,23 @@ export async function addLeadNote(req, res) {
       created_at: note.created_at,
       body: note.body + (note.follow_up_at ? `\n\nNext follow-up: ${String(note.follow_up_at).slice(0, 10)}` : ''),
     };
+
+    // Best-effort: log \"call logged\" when note looks like a call
+    try {
+      const lower = String(body).trim().toLowerCase();
+      if (lower.startsWith('call:') || lower.startsWith('called ')) {
+        await activityService.logActivity({
+          companyId: req.tenantId ?? req.user?.companyId ?? null,
+          userId: createdBy,
+          leadId,
+          actionType: 'call_logged',
+          description: `logged a call on lead #${leadId}`,
+          meta: { noteId: note.id },
+        });
+      }
+    } catch (e) {
+      console.warn('logActivity call_logged failed:', e.message);
+    }
 
     return res.status(201).json({ success: true, data: activity });
   } catch (err) {
@@ -515,13 +571,28 @@ export async function sendCustomerCredentials(req, res) {
 }
 
 
- export async function getLeadsCount(req, res) {
-   try {
-     const { stage, search } = req.query;
-     const total = await leadService.countLeads({ stage, search });
-     return res.json({ success: true, total });
-   } catch (err) {
-     console.error('getLeadsCount error', err);
-     return res.status(500).json({ success: false, message: 'Failed to count leads' });
-   }
- }
+export async function getLeadsCount(req, res) {
+  try {
+    const { stage, search } = req.query;
+    const total = await leadService.countLeads({ stage, search });
+    return res.json({ success: true, total });
+  } catch (err) {
+    console.error('getLeadsCount error', err);
+    return res.status(500).json({ success: false, message: 'Failed to count leads' });
+  }
+}
+
+// GET /api/leads/dashboard?range=week|month|quarter|custom&from=YYYY-MM-DD&to=YYYY-MM-DD
+export async function getSalesDashboard(req, res) {
+  try {
+    const { range = 'month', from: customFrom = null, to: customTo = null } = req.query;
+    const [metrics, team] = await Promise.all([
+      leadService.getSalesDashboardMetrics({ range, customFrom, customTo }),
+      leadService.getTeamPerformance({ range, customFrom, customTo }),
+    ]);
+    return res.json({ success: true, data: { ...metrics, team_performance: team } });
+  } catch (err) {
+    console.error('getSalesDashboard error', err);
+    return res.status(500).json({ success: false, message: 'Failed to load dashboard metrics' });
+  }
+}

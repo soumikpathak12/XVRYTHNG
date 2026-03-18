@@ -10,8 +10,10 @@ import {
   addLeadNote,
   listLeadNotes,
   sendCustomerCredentials,
-  getCustomerPortalTestLink,getLeadsCount,
-  scheduleInspection // NEW
+  getCustomerPortalTestLink,
+  getLeadsCount,
+  getSalesDashboard,
+  scheduleInspection,
 } from '../controllers/leadController.js';
 import { tenantContext } from '../middleware/tenantContext.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -25,7 +27,8 @@ router.post('/import', importLeads);
 router.get('/', listLeads);
 router.get('/customer-portal-test-link', getCustomerPortalTestLink); // ?leadId=69
 router.post('/customer-portal-test-link', getCustomerPortalTestLink); // body: { leadId: 69 }
-router.get('/count', getLeadsCount);
+router.get('/count',     getLeadsCount);
+router.get('/dashboard', getSalesDashboard);
 
 router.get('/:id/customer-portal-test-link', getCustomerPortalTestLink);
 router.get('/:id/notes', listLeadNotes);

@@ -328,7 +328,7 @@ export default function AttendancePage() {
   const isCheckedIn = !!status?.check_in_time && !status?.check_out_time;
 
   return (
-    <div style={{ maxWidth: 820, margin: '0 auto', padding: '1.5rem' }}>
+    <div style={{ width: '100%', boxSizing: 'border-box', padding: '1.5rem' }}>
       <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1.5rem', color: '#1A1A2E' }}>Attendance</h1>
 
       {error && (

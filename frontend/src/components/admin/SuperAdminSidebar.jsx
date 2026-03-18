@@ -19,9 +19,11 @@ import {
   UserPlus,
   UserCog,
   Wrench,
+  Calculator,
 } from 'lucide-react';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { getApprovalsPendingCount } from '../../services/api.js';
 
 /**
  * Top-level nav items.
@@ -52,6 +54,7 @@ const RAW_NAV = [
   { to: '/admin/installation', label: 'Installation Day', icon: Wrench, permission: { resource: 'installation', action: 'view' } },
   { to: '/admin/on-field', label: 'On-Field', icon: HardHat, permission: { resource: 'on_field', action: 'view' } },
   { to: '/admin/operations', label: 'Operations', icon: Factory, permission: { resource: 'operations', action: 'view' } },
+  { to: '/admin/payroll', label: 'Payroll', icon: Calculator, permission: { resource: 'payroll', action: 'view' } },
   { to: '/admin/attendance', label: 'Attendance', icon: Clock3, permission: { resource: 'attendance', action: 'view' } },
   { to: '/admin/referrals', label: 'Referrals', icon: Share2, permission: { resource: 'referrals', action: 'view' } },
   { to: '/admin/messages', label: 'Messages', icon: MessageSquare, permission: { resource: 'messages', action: 'view' } },
@@ -76,6 +79,20 @@ export default function SuperAdminSidebar({
     : setInternalCollapsed;
 
   const { can } = useAuth();
+
+  const [pendingCount, setPendingCount] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    const fetchCount = async () => {
+      try {
+        const res = await getApprovalsPendingCount();
+        if (alive) setPendingCount(res?.pending ?? 0);
+      } catch (_) {}
+    };
+    fetchCount();
+    const interval = setInterval(fetchCount, 60000);
+    return () => { alive = false; clearInterval(interval); };
+  }, []);
 
   /**
    * Filter nav based on permission; also filter children (Projects submenu).
@@ -292,6 +309,7 @@ export default function SuperAdminSidebar({
           }
 
           // --- Normal single link ---
+          const showBadge = item.to === '/admin/attendance' && pendingCount > 0;
           return (
             <NavLink
               key={item.to}
@@ -301,7 +319,21 @@ export default function SuperAdminSidebar({
                 ...(isActive ? activeStyle : {}),
               })}
             >
-              <Icon size={20} />
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <Icon size={20} />
+                {showBadge && (
+                  <span style={{
+                    position: 'absolute', top: -6, right: -7,
+                    background: '#EF4444', color: '#fff',
+                    borderRadius: 999, minWidth: 16, height: 16, fontSize: 10,
+                    fontWeight: 800, display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', padding: '0 3px', lineHeight: 1,
+                    border: '1.5px solid #fff',
+                  }}>
+                    {pendingCount > 99 ? '99+' : pendingCount}
+                  </span>
+                )}
+              </div>
               <span style={textHide}>{item.label}</span>
             </NavLink>
           );
