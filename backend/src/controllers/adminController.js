@@ -250,12 +250,6 @@ export async function createUser(req, res) {
   }
 }
 
-export function requireSuperAdmin(req, res, next) {
-  if (String(req.user?.role).toLowerCase() !== 'super_admin') {
-    return res.status(403).json({ success: false, message: 'Forbidden' });
-  }
-  next();
-}
 
 /** POST /api/admin/change-password */
 export async function changeAdminPassword(req, res) {

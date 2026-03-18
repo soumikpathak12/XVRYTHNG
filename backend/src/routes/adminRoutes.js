@@ -6,7 +6,7 @@ import {
   requireSuperAdmin,
   getAdminProfile,
   updateAdminProfile,
-  changeAdminPassword,
+  changeAdminPassword,createUser
 } from '../controllers/adminController.js';
 import {
   getCompanyTypes,
