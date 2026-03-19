@@ -217,7 +217,7 @@ function EmploymentStep({ form, onChange, inputStyle, labelStyle, roleOptions, e
     <div style={{ display: 'grid', gap: 10 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div style={{ display: 'grid', gap: 6 }}>
-          <label style={labelStyle}>Department ID</label>
+          <label style={labelStyle}>Department </label>
           
           <select
             style={inputStyle}

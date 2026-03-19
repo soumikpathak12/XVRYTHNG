@@ -14,7 +14,7 @@ export function getSectionCatalog() {
         id: 'core-details', label: 'Core Details',
         fields: [
           { key: 'inspected_at', label: 'Inspected At', type: 'datetime', required: true },
-          { key: 'inspector_name', label: 'Inspector Name', type: 'text', required: true },
+          { key: 'inspector_name', label: 'Inspector Name', type: 'select', options: ['Ashley Bronson', 'Liam Jackman', 'Clarke Dean'], required: true },
           { 
             key: 'roof_type',
             label: 'Roof Type',
@@ -22,7 +22,7 @@ export function getSectionCatalog() {
             options: [ 'Tin Colorbond',  'Tin Kliplock' , 'Tile Concrete' , 'Tile Terracotta' , 'Tile Shillings'],
             required: true
           },
-                    { key: 'meter_phase', label: 'Meter Phase', type: 'select', options: ['single','three'], required: true },
+                    { key: 'meter_phase', label: 'Meter Phase', type: 'select', options: ['Single','Double','Three'], required: true },
           { key: 'house_storey', label: 'House Storey', type: 'select', options: ['Single','Double','Triple'] },
           { key: 'inverter_location', label: 'Inverter Location', type: 'text', placeholder: 'Garage wall / near MSB', required: true },
           { key: 'msb_condition', label: 'Main Switchboard Condition', type: 'textarea', required: true },
@@ -192,6 +192,7 @@ export function getSectionCatalog() {
             label: 'Roof Type',
             type: 'select',
             options: ['Tin Colorbond','Tin Kliplock','Tile Concrete','Tile Terracotta','Tile Shillings'],
+            allowOther: true,
           },
           { key: 'roofProfile.roofConditionOK', label: 'Roof in suitable condition?', type: 'select', options: ['Yes','No'] },
           { key: 'roofProfile.section1Pitch', label: 'Section 1 pitch', type: 'text' },

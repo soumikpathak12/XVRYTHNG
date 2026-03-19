@@ -121,6 +121,27 @@ export default function ProjectsPage() {
   }, [projects, daysFilter]);
 
   const handleStageChange = useCallback(async (projectId, nextStage) => {
+    // Guardrails: block moving forward from "New" when required Utility fields are missing.
+    const current = projects.find((p) => String(p.id) === String(projectId));
+    if (current && current.stage === 'new' && nextStage !== 'new') {
+      const raw = current._raw || {};
+      const preRef =
+        raw.lead_pre_approval_reference_no ??
+        raw.pre_approval_reference_no ??
+        null;
+      const solarVic =
+        raw.lead_solar_vic_eligibility ??
+        raw.solar_vic_eligibility ??
+        null;
+
+      if (!preRef || solarVic == null) {
+        setToast(
+          'Please fill Pre‑approval reference number and Solar Vic eligibility in Utility Information before moving this project.'
+        );
+        setTimeout(() => setToast(''), 4000);
+        return;
+      }
+    }
     setProjects((prev) =>
       prev.map((p) =>
         String(p.id) === String(projectId) ? { ...p, stage: nextStage, _reverting: p.stage } : p
@@ -141,7 +162,7 @@ export default function ProjectsPage() {
     } finally {
       setProjects((prev) => prev.map((p) => ({ ...p, _reverting: undefined })));
     }
-  }, []);
+  }, [projects]);
 
   const focusSearch = useCallback((stageKey = null) => {
     setSearchStage(stageKey);

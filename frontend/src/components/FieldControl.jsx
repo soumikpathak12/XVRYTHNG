@@ -21,12 +21,51 @@ export default function FieldControl({ field, value, onChange, onPickFile }) {
         </select>
       );
     case 'select':
-      return (
-        <select {...common} value={value || ''} onChange={e => onChange(e.target.value)}>
-          <option value="">Select</option>
-          {(field.options || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
-        </select>
-      );
+      {
+        const opts = Array.isArray(field.options) ? field.options : [];
+        const hasOther = Boolean(field.allowOther);
+        const OTHER_SENTINEL = '__OTHER__';
+        const isOtherSentinel = value === OTHER_SENTINEL;
+        const isKnown = value != null && value !== '' && opts.includes(value) && !isOtherSentinel;
+        const inOtherMode = hasOther && !isKnown && (isOtherSentinel || (value != null && value !== ''));
+        const selectVal = hasOther
+          ? (isKnown ? value : (inOtherMode ? '__other__' : ''))
+          : (value || '');
+        const otherText = hasOther && inOtherMode
+          ? (isOtherSentinel ? '' : (value || ''))
+          : '';
+
+        return (
+          <div style={{display:'grid', gap:8}}>
+            <select
+              {...common}
+              value={selectVal}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (hasOther && v === '__other__') {
+                  // enter "other" mode – use sentinel so textarea shows,
+                  // but real custom text will be stored from the textarea.
+                  if (!inOtherMode) onChange(OTHER_SENTINEL);
+                  return;
+                }
+                onChange(v);
+              }}
+            >
+              <option value="">Select</option>
+              {opts.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+              {hasOther && <option value="__other__">Other</option>}
+            </select>
+
+            {hasOther && selectVal === '__other__' && (
+              <textarea
+                style={{...common.style, minHeight: 64}}
+                value={otherText}
+                onChange={(e) => onChange(e.target.value)}
+              />
+            )}
+          </div>
+        );
+      }
     case 'multiselect': {
       const arr = Array.isArray(value) ? value : [];
       const toggle = (opt) => onChange(arr.includes(opt) ? arr.filter(x => x !== opt) : [...arr, opt]);
@@ -47,12 +86,97 @@ export default function FieldControl({ field, value, onChange, onPickFile }) {
     }
     case 'photo':
     case 'file': {
-      const isImg = value?.preview_data_url?.startsWith('data:image/');
+      const fileValue = value || {};
+      const src = fileValue.preview_data_url || fileValue.storage_url || '';
+      const isImg =
+        (src && src.startsWith('data:image/')) ||
+        (src && /\.(png|jpe?g|gif|webp|bmp)$/i.test(src.split('?')[0] || ''));
+
+      const handleRename = (e) => {
+        const nextName = e.target.value;
+        onChange({ ...fileValue, filename: nextName });
+      };
+
+      const handleClear = () => {
+        onChange(null);
+      };
+
       return (
-        <div style={{display:'flex', alignItems:'center', gap:10}}>
-          <button type="button" onClick={() => onPickFile(field)} style={{...common.style, width:'auto', cursor:'pointer'}}>Upload</button>
-          {isImg && <img src={value.preview_data_url} alt={value?.filename || 'preview'} width={64} height={64} style={{borderRadius:10, objectFit:'cover'}} />}
-          {value?.filename && <a href={value.storage_url} target="_blank" rel="noreferrer" style={{ color: '#2563EB', textDecoration:'underline', fontSize:12 }}>{value.filename}</a>}
+        <div style={{display:'grid', gap:6}}>
+          <div style={{display:'flex', alignItems:'center', gap:10}}>
+            <button
+              type="button"
+              onClick={() => onPickFile(field)}
+              style={{...common.style, width:'auto', cursor:'pointer'}}
+            >
+              Upload
+            </button>
+            {src && (
+              <a
+                href={src}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  padding:'6px 10px',
+                  borderRadius:999,
+                  border:'1px solid #cbd5e1',
+                  background:'#F9FAFB',
+                  fontSize:11,
+                  cursor:'pointer',
+                  textDecoration:'none',
+                  color:'#111827'
+                }}
+              >
+                View
+              </a>
+            )}
+            {value && (
+              <button
+                type="button"
+                onClick={handleClear}
+                style={{
+                  padding:'6px 10px',
+                  borderRadius:999,
+                  border:'1px solid #fecaca',
+                  background:'#fef2f2',
+                  fontSize:11,
+                  cursor:'pointer',
+                  color:'#b91c1c'
+                }}
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          {isImg && src && (
+            <div style={{display:'flex', alignItems:'center', gap:10}}>
+              <img
+                src={src}
+                alt={fileValue.filename || 'preview'}
+                width={72}
+                height={72}
+                style={{borderRadius:10, objectFit:'cover', border:'1px solid #e5e7eb'}}
+              />
+            </div>
+          )}
+          {!isImg && fileValue.storage_url && (
+            <div style={{fontSize:12}}>
+              <a
+                href={fileValue.storage_url}
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: '#2563EB', textDecoration:'underline' }}
+              >
+                Download file
+              </a>
+            </div>
+          )}
+          <input
+            {...common}
+            placeholder="File name"
+            value={fileValue.filename || ''}
+            onChange={handleRename}
+          />
         </div>
       );
     }

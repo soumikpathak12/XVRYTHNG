@@ -1,5 +1,5 @@
 // frontend/src/pages/admin/AdminTemplatesPage.jsx
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   getCompanyInspectionTemplates,
   saveInspectionTemplate,
@@ -99,17 +99,19 @@ const S = {
   /* ==== List row (tighter & cleaner) ==== */
   listItem: {
     padding: '10px 8px',
-    borderBottom: `1px solid ${BRAND.border}`,
+    borderBottomWidth: 1,
+    borderBottomStyle: 'solid',
+    borderBottomColor: BRAND.border,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
     borderRadius: 8,
-    transition: 'background .12s ease, border-color .12s ease',
+    transition: 'background .12s ease, border-bottom-color .12s ease',
   },
   listItemHover: {
     background: BRAND.surfaceAlt,
-    borderColor: BRAND.borderStrong,
+    borderBottomColor: BRAND.borderStrong,
   },
   pill: (bg, color) => ({
     display: 'inline-flex',
@@ -344,14 +346,20 @@ export default function AdminTemplatesPage() {
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
 
+  // Draft fields kept in refs to avoid re-render on each keystroke.
+  const keyRef = useRef(emptyTemplate.key);
+  const nameRef = useRef(emptyTemplate.name);
+  const versionRef = useRef(emptyTemplate.version);
+  const statusRef = useRef(emptyTemplate.status);
+  const appliesToRef = useRef((emptyTemplate.appliesTo ?? []).join(','));
+
   // Field configurator state
   const [fieldConfig, setFieldConfig] = useState(buildDefaultFieldConfigFromCatalog());
   const [activeSectionKey, setActiveSectionKey] = useState('core');
 
-  /** Track focus key for input focus ring */
-  const [focusKey, setFocusKey] = useState(null);
-  const onFocus = (k) => setFocusKey(k);
-  const onBlur = () => setFocusKey(null);
+  // NOTE: Previously we tracked focusKey to render focus ring.
+  // That caused an input focus instability (only 1 char could be typed),
+  // so we removed the focus-ring state for stable typing.
 
   /** Load templates list */
   async function load() {
@@ -395,6 +403,12 @@ export default function AdminTemplatesPage() {
       validation,
       meta: { enabledSections, stepGuards }
     });
+    // Seed refs for stable typing in the header inputs.
+    keyRef.current = tpl.key ?? '';
+    nameRef.current = tpl.name ?? '';
+    versionRef.current = Number(tpl.version ?? emptyTemplate.version);
+    statusRef.current = tpl.status ?? emptyTemplate.status;
+    appliesToRef.current = (appliesTo ?? []).join(',');
     setFieldConfig(cfg);
     setActiveSectionKey(enabledSections[0] ?? 'core');
     setMsg("");
@@ -536,11 +550,14 @@ export default function AdminTemplatesPage() {
 
       const payload = {
         id: form.id,
-        key: form.key,
-        name: form.name,
-        version: form.version,
-        status: form.status,
-        appliesTo: form.appliesTo ?? [],
+        key: String(keyRef.current ?? ''),
+        name: String(nameRef.current ?? ''),
+        version: Number(versionRef.current ?? 1),
+        status: String(statusRef.current ?? 'draft'),
+        appliesTo: (appliesToRef.current ?? '')
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
         steps: stepsBuilt,
         validation: { ...(form.validation || {}), requiredFields: Array.from(new Set(requiredFields)) },
         meta: {
@@ -578,6 +595,11 @@ export default function AdminTemplatesPage() {
     try {
       await deleteInspectionTemplate(id);
       setForm({ ...emptyTemplate });
+      keyRef.current = emptyTemplate.key;
+      nameRef.current = emptyTemplate.name;
+      versionRef.current = emptyTemplate.version;
+      statusRef.current = emptyTemplate.status;
+      appliesToRef.current = (emptyTemplate.appliesTo ?? []).join(',');
       setFieldConfig(buildDefaultFieldConfigFromCatalog());
       setActiveSectionKey('core');
       load();
@@ -586,28 +608,12 @@ export default function AdminTemplatesPage() {
     }
   }
 
-  /** Inputs with focus ring */
+  /** Stable inputs (no focus-ring state) */
   const Input = (props) => {
-    const isFocused = focusKey === props.name;
-    return (
-      <input
-        {...props}
-        onFocus={() => onFocus(props.name)}
-        onBlur={onBlur}
-        style={{ ...S.input, ...(isFocused ? S.inputFocus : {}), ...(props.style || {}) }}
-      />
-    );
+    return <input {...props} style={{ ...S.input, ...(props.style || {}) }} />;
   };
   const Select = (props) => {
-    const isFocused = focusKey === props.name;
-    return (
-      <select
-        {...props}
-        onFocus={() => onFocus(props.name)}
-        onBlur={onBlur}
-        style={{ ...S.input, ...(isFocused ? S.inputFocus : {}), ...(props.style || {}) }}
-      />
-    );
+    return <select {...props} style={{ ...S.input, ...(props.style || {}) }} />;
   };
 
   return (
@@ -619,7 +625,16 @@ export default function AdminTemplatesPage() {
         </div>
 
         <Btn
-          onClick={() => { setForm({ ...emptyTemplate }); setFieldConfig(buildDefaultFieldConfigFromCatalog()); setActiveSectionKey('core'); }}
+          onClick={() => {
+            setForm({ ...emptyTemplate });
+            keyRef.current = emptyTemplate.key;
+            nameRef.current = emptyTemplate.name;
+            versionRef.current = emptyTemplate.version;
+            statusRef.current = emptyTemplate.status;
+            appliesToRef.current = (emptyTemplate.appliesTo ?? []).join(',');
+            setFieldConfig(buildDefaultFieldConfigFromCatalog());
+            setActiveSectionKey('core');
+          }}
           variant="primary"
           style={{ width: "100%", marginBottom: 12 }}
         >
@@ -677,8 +692,10 @@ export default function AdminTemplatesPage() {
             Key
             <Input
               name="key"
-              value={form.key}
-              onChange={(e) => setForm((f) => ({ ...f, key: e.target.value }))}
+              defaultValue={form.key}
+              onChange={(e) => {
+                keyRef.current = e.target.value;
+              }}
               style={{ marginTop: 6 }}
               placeholder="e.g. residential_v1"
             />
@@ -687,8 +704,10 @@ export default function AdminTemplatesPage() {
             Name
             <Input
               name="name"
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              defaultValue={form.name}
+              onChange={(e) => {
+                nameRef.current = e.target.value;
+              }}
               style={{ marginTop: 6 }}
               placeholder="Template display name"
             />
@@ -698,8 +717,11 @@ export default function AdminTemplatesPage() {
             <Input
               name="version"
               type="number"
-              value={form.version}
-              onChange={(e) => setForm((f) => ({ ...f, version: Number(e.target.value) }))}
+              defaultValue={form.version}
+              onChange={(e) => {
+                const raw = e.target.value;
+                versionRef.current = raw === '' ? 1 : Number(raw);
+              }}
               style={{ marginTop: 6 }}
               min={1}
             />
@@ -708,8 +730,10 @@ export default function AdminTemplatesPage() {
             Status
             <Select
               name="status"
-              value={form.status}
-              onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+              defaultValue={form.status}
+              onChange={(e) => {
+                statusRef.current = e.target.value;
+              }}
               style={{ marginTop: 6 }}
             >
               <option value="draft">draft</option>
@@ -720,13 +744,10 @@ export default function AdminTemplatesPage() {
             Applies To (comma separated)
             <Input
               name="appliesTo"
-              value={(form.appliesTo ?? []).join(",")}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  appliesTo: e.target.value.split(",").map((s) => s.trim()).filter(Boolean)
-                }))
-              }
+              defaultValue={(form.appliesTo ?? []).join(',')}
+              onChange={(e) => {
+                appliesToRef.current = e.target.value;
+              }}
               style={{ marginTop: 6 }}
               placeholder="e.g. residential, commercial"
             />

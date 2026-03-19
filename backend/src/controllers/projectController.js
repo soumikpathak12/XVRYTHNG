@@ -47,7 +47,7 @@ export async function updateProject(req, res) {
     const projectId = req.params.id;
     const body = req.body ?? {};
     
-    // currently we only allow expected_completion_date and stage in service
+    // currently we only allow a subset of fields in service
     const allowedUpdates = {};
     if ('expected_completion_date' in body) {
       allowedUpdates.expected_completion_date = body.expected_completion_date;
@@ -55,6 +55,9 @@ export async function updateProject(req, res) {
     if ('stage' in body) {
       allowedUpdates.stage = body.stage;
     }
+     if ('post_install_reference_no' in body) {
+       allowedUpdates.post_install_reference_no = body.post_install_reference_no;
+     }
 
     const updated = await projectService.updateProject(projectId, allowedUpdates);
     return res.status(200).json({ success: true, data: updated });

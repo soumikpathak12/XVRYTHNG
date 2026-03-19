@@ -9,6 +9,7 @@ import {
   getLead,
   updateProjectApi,
   listInstallationJobs,
+  updateLead,
 } from '../services/api.js';
 import '../styles/LeadDetailModal.css'; // Reuse lead detail styles
 import RetailerProjectDetailDetails from '../components/projects/RetailerProjectDetailDetails.jsx';
@@ -137,7 +138,16 @@ export default function ProjectDetailPage() {
   const [documents, setDocuments] = useState([]);
   const [expectedCompletionDate, setExpectedCompletionDate] = useState('');
   const [installationJobs, setInstallationJobs] = useState([]);
-
+  const [postInstallRef, setPostInstallRef] = useState('');
+  const [utilityForm, setUtilityForm] = useState({
+    preApprovalRef: '',
+    energyRetailer: '',
+    energyDistributor: '',
+    solarVic: '',
+    nmiNumber: '',
+    meterNumber: '',
+  });
+  const [isEditingUtility, setIsEditingUtility] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview'); // overview, schedule, financials, documents, activity, communication
@@ -174,12 +184,42 @@ export default function ProjectDetailPage() {
           client_type: raw.client_type || 'Residential',
           access_to_two_storey: raw.lead_access_to_second_storey ? 'Yes' : 'No',
           access_to_inverter: raw.lead_access_to_inverter ? 'Yes' : 'No',
+          // Utility information (from joined lead)
+          pre_approval_reference_no:
+            raw.lead_pre_approval_reference_no ?? raw.pre_approval_reference_no,
+          energy_retailer:
+            raw.lead_energy_retailer ?? raw.energy_retailer,
+          energy_distributor:
+            raw.lead_energy_distributor ?? raw.energy_distributor,
+          solar_vic_eligibility:
+            raw.lead_solar_vic_eligibility ?? raw.solar_vic_eligibility,
+          nmi_number:
+            raw.lead_nmi_number ?? raw.nmi_number,
+          meter_number:
+            raw.lead_meter_number ?? raw.meter_number,
+          post_install_reference_no: raw.post_install_reference_no ?? null,
+          lead_id: raw.lead_id,
         };
         setProject(mapped);
         if (raw.expected_completion_date) {
           // ensure yyyy-mm-dd format
           setExpectedCompletionDate(raw.expected_completion_date.split('T')[0]);
         }
+        setPostInstallRef(mapped.post_install_reference_no || '');
+        setUtilityForm({
+          preApprovalRef: mapped.pre_approval_reference_no || '',
+          energyRetailer: mapped.energy_retailer || '',
+          energyDistributor: mapped.energy_distributor || '',
+          solarVic:
+            mapped.solar_vic_eligibility == null
+              ? ''
+              : mapped.solar_vic_eligibility
+              ? '1'
+              : '0',
+          nmiNumber: mapped.nmi_number || '',
+          meterNumber: mapped.meter_number || '',
+        });
+        setIsEditingUtility(false);
       } else if (pResp.status === 'rejected') {
         throw new Error(pResp.reason?.message || 'Failed to load project');
       }
@@ -274,6 +314,46 @@ export default function ProjectDetailPage() {
     } catch (err) {
       console.error(err);
       setToast(err.message || 'Failed to update expected completion date');
+    }
+  };
+
+  const handleSavePostInstallRef = async () => {
+    try {
+      await updateProjectApi(projectId, { post_install_reference_no: postInstallRef || null });
+      setToast('Post-install reference number updated!');
+      setTimeout(() => setToast(''), 3000);
+      loadData();
+    } catch (err) {
+      console.error(err);
+      setToast(err.message || 'Failed to update post-install reference number');
+      setTimeout(() => setToast(''), 3000);
+    }
+  };
+
+  const handleSaveUtilityInfo = async () => {
+    try {
+      if (project?.lead_id) {
+        await updateLead(project.lead_id, {
+          pre_approval_reference_no: utilityForm.preApprovalRef || null,
+          energy_retailer: utilityForm.energyRetailer || null,
+          energy_distributor: utilityForm.energyDistributor || null,
+          solar_vic_eligibility:
+            utilityForm.solarVic === ''
+              ? null
+              : utilityForm.solarVic === '1',
+          nmi_number: utilityForm.nmiNumber || null,
+          meter_number: utilityForm.meterNumber || null,
+        });
+      }
+      await handleSavePostInstallRef();
+      setToast('Utility information updated!');
+      setTimeout(() => setToast(''), 3000);
+      loadData();
+      setIsEditingUtility(false);
+    } catch (err) {
+      console.error(err);
+      setToast(err.message || 'Failed to update utility information');
+      setTimeout(() => setToast(''), 3000);
     }
   };
 
@@ -437,6 +517,149 @@ export default function ProjectDetailPage() {
                 hideJobType={true}
                 projectStages={DIRECT_PROJECT_STAGES}
               />
+
+              {/* Utility Information (moved to bottom of overview tab) */}
+              <div className="lead-detail-card" style={{ marginTop: '24px', marginBottom: '32px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                  <span className="lead-detail-card-label">Utility Information</span>
+                  <button
+                    type="button"
+                    className="lead-detail-btn secondary"
+                    onClick={() => {
+                      if (!isEditingUtility) {
+                        // Enter edit mode: seed form from latest project snapshot
+                        setUtilityForm({
+                          preApprovalRef: project.pre_approval_reference_no || '',
+                          energyRetailer: project.energy_retailer || '',
+                          energyDistributor: project.energy_distributor || '',
+                          solarVic:
+                            project.solar_vic_eligibility == null
+                              ? ''
+                              : project.solar_vic_eligibility
+                              ? '1'
+                              : '0',
+                          nmiNumber: project.nmi_number || '',
+                          meterNumber: project.meter_number || '',
+                        });
+                        setPostInstallRef(project.post_install_reference_no || '');
+                        setIsEditingUtility(true);
+                      } else {
+                        // Save in edit mode
+                        handleSaveUtilityInfo();
+                      }
+                    }}
+                  >
+                    {isEditingUtility ? 'Save' : 'Edit'}
+                  </button>
+                </div>
+                {!isEditingUtility ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: '12px', marginTop: '8px' }}>
+                    <div className="lead-detail-field">
+                      <span className="lead-detail-label">Pre-approval Reference Number</span>
+                      <span className="lead-detail-card-value">{project.pre_approval_reference_no || '—'}</span>
+                    </div>
+                    <div className="lead-detail-field">
+                      <span className="lead-detail-label">Energy Retailer</span>
+                      <span className="lead-detail-card-value">{project.energy_retailer || '—'}</span>
+                    </div>
+                    <div className="lead-detail-field">
+                      <span className="lead-detail-label">Energy Distributor</span>
+                      <span className="lead-detail-card-value">{project.energy_distributor || '—'}</span>
+                    </div>
+                    <div className="lead-detail-field">
+                      <span className="lead-detail-label">Solar Victoria Eligibility</span>
+                      <span className="lead-detail-card-value">
+                        {project.solar_vic_eligibility == null
+                          ? '—'
+                          : project.solar_vic_eligibility
+                          ? 'Eligible'
+                          : 'Not eligible'}
+                      </span>
+                    </div>
+                    <div className="lead-detail-field">
+                      <span className="lead-detail-label">NMI Number</span>
+                      <span className="lead-detail-card-value">{project.nmi_number || '—'}</span>
+                    </div>
+                    <div className="lead-detail-field">
+                      <span className="lead-detail-label">Meter Number</span>
+                      <span className="lead-detail-card-value">{project.meter_number || '—'}</span>
+                    </div>
+                    <div className="lead-detail-field">
+                      <span className="lead-detail-label">Post-install Reference Number</span>
+                      <span className="lead-detail-card-value">{project.post_install_reference_no || '—'}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: '12px', marginTop: '8px' }}>
+                    <div className="lead-detail-field">
+                      <span className="lead-detail-label">Pre-approval Reference Number</span>
+                      <input
+                        type="text"
+                        value={utilityForm.preApprovalRef}
+                        onChange={(e) => setUtilityForm((f) => ({ ...f, preApprovalRef: e.target.value }))}
+                        className="lead-detail-input"
+                      />
+                    </div>
+                    <div className="lead-detail-field">
+                      <span className="lead-detail-label">Energy Retailer</span>
+                      <input
+                        type="text"
+                        value={utilityForm.energyRetailer}
+                        onChange={(e) => setUtilityForm((f) => ({ ...f, energyRetailer: e.target.value }))}
+                        className="lead-detail-input"
+                      />
+                    </div>
+                    <div className="lead-detail-field">
+                      <span className="lead-detail-label">Energy Distributor</span>
+                      <input
+                        type="text"
+                        value={utilityForm.energyDistributor}
+                        onChange={(e) => setUtilityForm((f) => ({ ...f, energyDistributor: e.target.value }))}
+                        className="lead-detail-input"
+                      />
+                    </div>
+                    <div className="lead-detail-field">
+                      <span className="lead-detail-label">Solar Victoria Eligibility</span>
+                      <select
+                        value={utilityForm.solarVic}
+                        onChange={(e) => setUtilityForm((f) => ({ ...f, solarVic: e.target.value }))}
+                        className="lead-detail-input"
+                      >
+                        <option value="">Select</option>
+                        <option value="1">Eligible</option>
+                        <option value="0">Not eligible</option>
+                      </select>
+                    </div>
+                    <div className="lead-detail-field">
+                      <span className="lead-detail-label">NMI Number</span>
+                      <input
+                        type="text"
+                        value={utilityForm.nmiNumber}
+                        onChange={(e) => setUtilityForm((f) => ({ ...f, nmiNumber: e.target.value }))}
+                        className="lead-detail-input"
+                      />
+                    </div>
+                    <div className="lead-detail-field">
+                      <span className="lead-detail-label">Meter Number</span>
+                      <input
+                        type="text"
+                        value={utilityForm.meterNumber}
+                        onChange={(e) => setUtilityForm((f) => ({ ...f, meterNumber: e.target.value }))}
+                        className="lead-detail-input"
+                      />
+                    </div>
+                    <div className="lead-detail-field">
+                      <span className="lead-detail-label">Post-install Reference Number</span>
+                      <input
+                        type="text"
+                        value={postInstallRef}
+                        onChange={(e) => setPostInstallRef(e.target.value)}
+                        className="lead-detail-input"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           ) : activeTab === 'schedule' ? (
             <RetailerProjectDetailDetails

@@ -120,6 +120,21 @@ export async function getProjects(filters = {}) {
   return rows;
 }
 
+const PROJECT_STAGE_ORDER = [
+  'new',
+  'pre_approval',
+  'state_rebate',
+  'design_engineering',
+  'procurement',
+  'scheduled',
+  'installation_in_progress',
+  'installation_completed',
+  'compliance_check',
+  'inspection_grid_connection',
+  'rebate_stc_claims',
+  'project_completed',
+];
+
 export async function updateProjectStage(projectId, nextStage) {
   if (!projectId || Number.isNaN(Number(projectId))) {
     const err = new Error('Invalid project id');
@@ -131,12 +146,37 @@ export async function updateProjectStage(projectId, nextStage) {
     err.statusCode = 422;
     throw err;
   }
+
+  // Business rules: for Grid Connection stage and beyond, ensure post‑install info is present.
+  const project = await getProjectById(projectId);
+  const idxTarget = PROJECT_STAGE_ORDER.indexOf(nextStage);
+  const idxGrid = PROJECT_STAGE_ORDER.indexOf('inspection_grid_connection');
+
+  if (idxTarget !== -1 && idxGrid !== -1 && idxTarget >= idxGrid) {
+    if (!project.post_install_reference_no) {
+      const err = new Error('Please enter Post-install reference number before moving to this stage.');
+      err.statusCode = 422;
+      throw err;
+    }
+    // Require at least one document uploaded for this project.
+    const [rows] = await db.execute(
+      'SELECT COUNT(*) AS cnt FROM project_documents WHERE project_id = ?',
+      [projectId]
+    );
+    const count = rows?.[0]?.cnt ?? 0;
+    if (!count) {
+      const err = new Error('Please upload at least one post-install document before moving to this stage.');
+      err.statusCode = 422;
+      throw err;
+    }
+  }
+
   return updateProject(projectId, { stage: nextStage });
 }
 
 export async function updateProject(projectId, updates = {}) {
   // Extract only allowed fields
-  const allowed = ['expected_completion_date', 'stage'];
+  const allowed = ['expected_completion_date', 'stage', 'post_install_reference_no'];
   const sets = [];
   const params = [];
   for (const k of allowed) {
