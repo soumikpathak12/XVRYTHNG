@@ -15,11 +15,14 @@ import {
   UserCircle,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   LogOut,
   UserPlus,
   UserCog,
   Wrench,
   Calculator,
+  TrendingUp,
+  Cog,
 } from 'lucide-react';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -113,13 +116,27 @@ export default function SuperAdminSidebar({
       .filter(Boolean);
   }, [can]);
 
+  // Partition into 2 modules (Sales first, then Operation)
+  const salesRoutes = useMemo(() => new Set(['/admin/overview', '/admin/leads']), []);
+  const salesItems = useMemo(() => navItems.filter((i) => i.to && salesRoutes.has(i.to)), [navItems, salesRoutes]);
+  const operationItems = useMemo(
+    () => navItems.filter((i) => !(i.to && salesRoutes.has(i.to))),
+    [navItems, salesRoutes]
+  );
+
+  // Use route prefix directly (not permission-filtered items) so modules auto-open correctly.
+  const isSalesPath = location.pathname.startsWith('/admin/overview') || location.pathname.startsWith('/admin/leads');
+  const isOperationsPath = !isSalesPath;
+
   /**
-   * Track which parent menus are expanded (e.g. projects submenu).
+   * Track which parent menus are expanded (e.g. sales, operations, projects submenu).
    * By default, open the submenu if the current path is inside it.
    */
   const [openKeys, setOpenKeys] = useState(() => {
+    const isSales = location.pathname.startsWith('/admin/overview') || location.pathname.startsWith('/admin/leads');
+    const isOperations = !isSales; // Default to operations if not sales
     const isProjects = location.pathname.startsWith('/admin/projects');
-    return { projects: isProjects };
+    return { sales: isSales, operations: isOperations, projects: isProjects };
   });
 
   const toggleOpen = useCallback((key) => {
@@ -190,10 +207,147 @@ export default function SuperAdminSidebar({
     fontSize: 13,
   };
 
+  const moduleHeader = {
+    padding: '10px 12px',
+    fontSize: 12,
+    fontWeight: 800,
+    letterSpacing: 0.06,
+    color: '#6B7280',
+    textTransform: 'uppercase',
+  };
+
   const sectionLabel = {
     ...linkBase,
     cursor: 'pointer',
     userSelect: 'none',
+  };
+
+  const renderNavItem = (item) => {
+    const Icon = item.icon;
+
+    // --- Parent with children: render as a collapsible section ---
+    if (item.children?.length) {
+      const anyChildActive = item.children.some((c) => location.pathname.startsWith(c.to));
+      const isOpen = openKeys[item.key ?? 'projects'] ?? anyChildActive;
+
+      // When sidebar is collapsed, we render only a single icon button (no children list)
+      if (collapsed) {
+        return (
+          <div key={item.key ?? 'projects'}>
+            <div
+              style={{
+                ...sectionLabel,
+                justifyContent: 'center',
+                padding: 10,
+                ...(anyChildActive ? activeStyle : {}),
+              }}
+              onClick={() => toggleOpen(item.key ?? 'projects')}
+              aria-expanded={!!isOpen}
+            >
+              <Icon size={20} />
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div key={item.key ?? 'projects'}>
+          <div
+            style={{
+              ...sectionLabel,
+              ...(anyChildActive ? activeStyle : {}),
+              justifyContent: 'space-between',
+            }}
+            onClick={() => toggleOpen(item.key ?? 'projects')}
+            aria-expanded={!!isOpen}
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+              <Icon size={20} />
+              <span>{item.label}</span>
+            </span>
+            <ChevronRight
+              size={18}
+              style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s ease' }}
+            />
+          </div>
+
+          {isOpen && (
+            <div
+              role="group"
+              aria-label={`${item.label} submenu`}
+              style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}
+            >
+              {item.children.map((child) => (
+                <NavLink
+                  key={child.to}
+                  to={child.to}
+                  end={child.to === '/admin/projects'}
+                  style={({ isActive }) => ({
+                    ...childLink,
+                    ...(isActive ? activeStyle : {}),
+                  })}
+                >
+                  {/* Simple dot as child bullet; you can swap for an icon if you want */}
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: 999,
+                      background: '#94a3b8',
+                      display: 'inline-block',
+                    }}
+                  />
+                  <span>{child.label}</span>
+                </NavLink>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // --- Normal single link ---
+    const showBadge = item.to === '/admin/attendance' && pendingCount > 0;
+    return (
+      <NavLink
+        key={item.to}
+        to={item.to}
+        style={({ isActive }) => ({
+          ...linkBase,
+          ...(isActive ? activeStyle : {}),
+        })}
+      >
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <Icon size={20} />
+          {showBadge && (
+            <span
+              style={{
+                position: 'absolute',
+                top: -6,
+                right: -7,
+                background: '#EF4444',
+                color: '#fff',
+                borderRadius: 999,
+                minWidth: 16,
+                height: 16,
+                fontSize: 10,
+                fontWeight: 800,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '0 3px',
+                lineHeight: 1,
+                border: '1.5px solid #fff',
+              }}
+            >
+              {pendingCount > 99 ? '99+' : pendingCount}
+            </span>
+          )}
+        </div>
+        <span style={textHide}>{item.label}</span>
+      </NavLink>
+    );
   };
 
   return (
@@ -231,113 +385,96 @@ export default function SuperAdminSidebar({
 
       {/* Nav */}
       <nav style={navStyle}>
-        {navItems.map((item) => {
-          const Icon = item.icon;
+        {/* When sidebar is collapsed, show all items without module toggling */}
+        {collapsed ? (
+          <>
+            {salesItems.map(renderNavItem)}
+            {operationItems.map(renderNavItem)}
+          </>
+        ) : (
+          <>
+            {salesItems.length > 0 && (
+              <>
+                {(() => {
+                  const isSalesOpen = (openKeys.sales ?? false) || isSalesPath;
+                  return (
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => toggleOpen('sales')}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') toggleOpen('sales');
+                      }}
+                      aria-expanded={!!isSalesOpen}
+                      style={{
+                        ...linkBase,
+                        ...moduleHeader,
+                        cursor: 'pointer',
+                        justifyContent: 'space-between',
+                        ...(isSalesPath ? activeStyle : {}),
+                        userSelect: 'none',
+                      }}
+                    >
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+                        <TrendingUp size={18} />
+                        <span style={{ color: isSalesPath ? '#fff' : moduleHeader.color }}>Sales Module</span>
+                      </span>
+                      <ChevronRight
+                        size={18}
+                        style={{ transform: isSalesOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s ease' }}
+                      />
+                    </div>
+                  );
+                })()}
+                {(() => {
+                  const isSalesOpen = (openKeys.sales ?? false) || isSalesPath;
+                  return isSalesOpen ? salesItems.map(renderNavItem) : null;
+                })()}
+              </>
+            )}
 
-          // --- Parent with children: render as a collapsible section ---
-          if (item.children?.length) {
-            const anyChildActive = item.children.some((c) => location.pathname.startsWith(c.to));
-            const isOpen = openKeys[item.key ?? 'projects'] ?? anyChildActive;
-
-            // When sidebar is collapsed, we render only a single icon button (no children list)
-            if (collapsed) {
-              return (
-                <div key={item.key ?? 'projects'}>
-                  <div
-                    style={{
-                      ...sectionLabel,
-                      justifyContent: 'center',
-                      padding: 10,
-                      ...(anyChildActive ? activeStyle : {}),
-                    }}
-                    onClick={() => toggleOpen(item.key ?? 'projects')}
-                    aria-expanded={!!isOpen}
-                  >
-                    <Icon size={20} />
-                  </div>
-                </div>
-              );
-            }
-
-            return (
-              <div key={item.key ?? 'projects'}>
-                <div
-                  style={{
-                    ...sectionLabel,
-                    ...(anyChildActive ? activeStyle : {}),
-                    justifyContent: 'space-between',
-                  }}
-                  onClick={() => toggleOpen(item.key ?? 'projects')}
-                  aria-expanded={!!isOpen}
-                >
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
-                    <Icon size={20} />
-                    <span>{item.label}</span>
-                  </span>
-                  <ChevronRight
-                    size={18}
-                    style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s ease' }}
-                  />
-                </div>
-
-                {isOpen && (
-                  <div role="group" aria-label={`${item.label} submenu`} style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
-                    {item.children.map((child) => (
-                      <NavLink
-                        key={child.to}
-                        to={child.to}
-                        end={child.to === '/admin/projects'}
-                        style={({ isActive }) => ({
-                          ...childLink,
-                          ...(isActive ? activeStyle : {}),
-                        })}
-                      >
-                        {/* Simple dot as child bullet; you can swap for an icon if you want */}
-                        <span
-                          aria-hidden
-                          style={{
-                            width: 6, height: 6, borderRadius: 999, background: '#94a3b8', display: 'inline-block',
-                          }}
-                        />
-                        <span>{child.label}</span>
-                      </NavLink>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          }
-
-          // --- Normal single link ---
-          const showBadge = item.to === '/admin/attendance' && pendingCount > 0;
-          return (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              style={({ isActive }) => ({
-                ...linkBase,
-                ...(isActive ? activeStyle : {}),
-              })}
-            >
-              <div style={{ position: 'relative', flexShrink: 0 }}>
-                <Icon size={20} />
-                {showBadge && (
-                  <span style={{
-                    position: 'absolute', top: -6, right: -7,
-                    background: '#EF4444', color: '#fff',
-                    borderRadius: 999, minWidth: 16, height: 16, fontSize: 10,
-                    fontWeight: 800, display: 'flex', alignItems: 'center',
-                    justifyContent: 'center', padding: '0 3px', lineHeight: 1,
-                    border: '1.5px solid #fff',
-                  }}>
-                    {pendingCount > 99 ? '99+' : pendingCount}
-                  </span>
-                )}
-              </div>
-              <span style={textHide}>{item.label}</span>
-            </NavLink>
-          );
-        })}
+            {operationItems.length > 0 && (
+              <>
+                {salesItems.length > 0 && <div style={{ height: 1, background: '#F3F4F6', margin: '8px 0' }} />}
+                {(() => {
+                  const isOpsOpen = (openKeys.operations ?? false) || isOperationsPath;
+                  return (
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => toggleOpen('operations')}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') toggleOpen('operations');
+                      }}
+                      aria-expanded={!!isOpsOpen}
+                      style={{
+                        ...linkBase,
+                        ...moduleHeader,
+                        cursor: 'pointer',
+                        justifyContent: 'space-between',
+                        ...(isOperationsPath ? activeStyle : {}),
+                        userSelect: 'none',
+                      }}
+                    >
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+                        <Cog size={18} />
+                        <span style={{ color: isOperationsPath ? '#fff' : moduleHeader.color }}>Operation</span>
+                      </span>
+                      <ChevronRight
+                        size={18}
+                        style={{ transform: isOpsOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s ease' }}
+                      />
+                    </div>
+                  );
+                })()}
+                {(() => {
+                  const isOpsOpen = (openKeys.operations ?? false) || isOperationsPath;
+                  return isOpsOpen ? operationItems.map(renderNavItem) : null;
+                })()}
+              </>
+            )}
+          </>
+        )}
       </nav>
 
       {/* Collapse / Expand */}
