@@ -182,12 +182,14 @@ export default function SuperAdminSidebar({
   const linkBase = {
     display: 'flex',
     alignItems: 'center',
-    gap: 12,
-    padding: '10px 12px',
+    gap: 10,
+    // Tighter spacing so items look more "inside" the sidebar.
+    padding: '8px 10px',
     borderRadius: 14,
     fontWeight: 600,
     color: '#556070',
     textDecoration: 'none',
+    fontSize: 13,
   };
 
   const activeStyle = {
@@ -196,24 +198,48 @@ export default function SuperAdminSidebar({
     boxShadow: '0 4px 14px rgba(20,107,107,.25)',
   };
 
+  const moduleHeaderActiveStyle = {
+    background: 'rgba(20,107,107,0.10)',
+    color: '#0f1a2b',
+    boxShadow: 'inset 4px 0 0 #146b6b',
+    // Keep the header feeling light; avoid the heavy "card" shadow.
+    textDecoration: 'none',
+  };
+
+  const submenuActiveStyle = {
+    background: 'rgba(20,107,107,0.10)',
+    color: '#0f1a2b',
+    boxShadow: 'inset 3px 0 0 #146b6b',
+  };
+
   const textHide = { display: collapsed ? 'none' : 'inline' };
 
   const childLink = {
     ...linkBase,
     padding: '8px 12px',
     borderRadius: 12,
-    marginLeft: 36,          
+    // Reduce left indentation so the submenu visually sits "inside" the parent.
+    marginLeft: 14,
     fontWeight: 600,
-    fontSize: 13,
+    fontSize: 11,
   };
 
   const moduleHeader = {
-    padding: '10px 12px',
+    padding: '10px 10px',
     fontSize: 12,
     fontWeight: 800,
     letterSpacing: 0.06,
     color: '#6B7280',
     textTransform: 'uppercase',
+  };
+
+  const moduleItemsWrapper = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+    // Indent items so they visually sit "inside" the module header.
+    paddingLeft: 8,
+    marginTop: 4,
   };
 
   const sectionLabel = {
@@ -239,7 +265,7 @@ export default function SuperAdminSidebar({
                 ...sectionLabel,
                 justifyContent: 'center',
                 padding: 10,
-                ...(anyChildActive ? activeStyle : {}),
+                ...(anyChildActive ? moduleHeaderActiveStyle : {}),
               }}
               onClick={() => toggleOpen(item.key ?? 'projects')}
               aria-expanded={!!isOpen}
@@ -277,30 +303,37 @@ export default function SuperAdminSidebar({
               aria-label={`${item.label} submenu`}
               style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}
             >
-              {item.children.map((child) => (
-                <NavLink
-                  key={child.to}
-                  to={child.to}
-                  end={child.to === '/admin/projects'}
-                  style={({ isActive }) => ({
-                    ...childLink,
-                    ...(isActive ? activeStyle : {}),
-                  })}
-                >
-                  {/* Simple dot as child bullet; you can swap for an icon if you want */}
-                  <span
-                    aria-hidden
+              {item.children.map((child) => {
+                // Match NavLink's `end` behavior to keep submenu highlight accurate.
+                const isChildActive = child.to === '/admin/projects'
+                  ? location.pathname === child.to
+                  : location.pathname.startsWith(child.to);
+
+                return (
+                  <NavLink
+                    key={child.to}
+                    to={child.to}
+                    end={child.to === '/admin/projects'}
                     style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: 999,
-                      background: '#94a3b8',
-                      display: 'inline-block',
+                      ...childLink,
+                      ...(isChildActive ? submenuActiveStyle : {}),
                     }}
-                  />
-                  <span>{child.label}</span>
-                </NavLink>
-              ))}
+                  >
+                    {/* Simple dot as child bullet; active uses the brand accent */}
+                    <span
+                      aria-hidden
+                      style={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: 999,
+                        background: isChildActive ? '#146b6b' : '#94a3b8',
+                        display: 'inline-block',
+                      }}
+                    />
+                    <span>{child.label}</span>
+                  </NavLink>
+                );
+              })}
             </div>
           )}
         </div>
@@ -411,13 +444,13 @@ export default function SuperAdminSidebar({
                         ...moduleHeader,
                         cursor: 'pointer',
                         justifyContent: 'space-between',
-                        ...(isSalesPath ? activeStyle : {}),
+                        ...(isSalesPath ? moduleHeaderActiveStyle : {}),
                         userSelect: 'none',
                       }}
                     >
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
                         <TrendingUp size={18} />
-                        <span style={{ color: isSalesPath ? '#fff' : moduleHeader.color }}>Sales Module</span>
+                        <span style={{ color: isSalesPath ? '#0f1a2b' : moduleHeader.color }}>Sales Module</span>
                       </span>
                       <ChevronRight
                         size={18}
@@ -428,7 +461,11 @@ export default function SuperAdminSidebar({
                 })()}
                 {(() => {
                   const isSalesOpen = (openKeys.sales ?? false) || isSalesPath;
-                  return isSalesOpen ? salesItems.map(renderNavItem) : null;
+                  return isSalesOpen ? (
+                    <div style={moduleItemsWrapper}>
+                      {salesItems.map(renderNavItem)}
+                    </div>
+                  ) : null;
                 })()}
               </>
             )}
@@ -452,13 +489,13 @@ export default function SuperAdminSidebar({
                         ...moduleHeader,
                         cursor: 'pointer',
                         justifyContent: 'space-between',
-                        ...(isOperationsPath ? activeStyle : {}),
+                        ...(isOperationsPath ? moduleHeaderActiveStyle : {}),
                         userSelect: 'none',
                       }}
                     >
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
                         <Cog size={18} />
-                        <span style={{ color: isOperationsPath ? '#fff' : moduleHeader.color }}>Operation</span>
+                        <span style={{ color: isOperationsPath ? '#0f1a2b' : moduleHeader.color }}>Operation</span>
                       </span>
                       <ChevronRight
                         size={18}
@@ -469,7 +506,11 @@ export default function SuperAdminSidebar({
                 })()}
                 {(() => {
                   const isOpsOpen = (openKeys.operations ?? false) || isOperationsPath;
-                  return isOpsOpen ? operationItems.map(renderNavItem) : null;
+                  return isOpsOpen ? (
+                    <div style={moduleItemsWrapper}>
+                      {operationItems.map(renderNavItem)}
+                    </div>
+                  ) : null;
                 })()}
               </>
             )}

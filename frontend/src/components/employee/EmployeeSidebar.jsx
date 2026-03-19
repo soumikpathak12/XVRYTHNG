@@ -1,5 +1,5 @@
 // src/pages/employee/EmployeeSidebar.jsx
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   UsersRound,
   HardHat,
@@ -49,6 +49,7 @@ const EMP_MODULE_NAV = {
 };
 
 export default function EmployeeSidebar() {
+  const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [modules, setModules] = useState([]);
@@ -106,12 +107,14 @@ export default function EmployeeSidebar() {
   const linkBase = {
     display: 'flex',
     alignItems: 'center',
-    gap: 12,
-    padding: '10px 12px',
+    gap: 10,
+    // Tighten horizontal padding so labels sit more "inside" the sidebar.
+    padding: '8px 10px',
     borderRadius: 14,
     fontWeight: 600,
     color: '#556070',
     textDecoration: 'none',
+    fontSize: 13,
   };
   const activeStyle = {
     background: '#146b6b',
@@ -120,13 +123,28 @@ export default function EmployeeSidebar() {
   };
 
   const moduleHeader = {
-    padding: '10px 12px',
+    padding: '10px 10px',
     fontSize: 12,
     fontWeight: 800,
     letterSpacing: 0.06,
     color: '#6B7280',
     textTransform: 'uppercase',
   };
+
+  const moduleHeaderActiveStyle = {
+    background: 'rgba(20,107,107,0.10)',
+    color: '#0f1a2b',
+    boxShadow: 'inset 4px 0 0 #146b6b',
+    borderRadius: 12,
+  };
+
+  const pathname = location.pathname || '';
+  const isSalesPath = pathname === '/employee' || pathname.startsWith('/employee/leads');
+  const isOnFieldPath =
+    pathname.startsWith('/employee/attendance') ||
+    pathname.startsWith('/employee/on-field') ||
+    pathname.startsWith('/employee/site-inspection');
+  const isOperationsPath = pathname.startsWith('/employee/operations');
 
   return (
     <aside
@@ -153,7 +171,22 @@ export default function EmployeeSidebar() {
             const nodes = [];
             if (!collapsed) {
               if (idx > 0) nodes.push(<div key={`sep-${sec.key}`} style={{ height: 1, background: '#F3F4F6', margin: '8px 0' }} />);
-              nodes.push(<div key={`hdr-${sec.key}`} style={moduleHeader}>{sec.title}</div>);
+              const isActiveHeader =
+                (sec.key === 'sales' && isSalesPath) ||
+                (sec.key === 'on_field' && isOnFieldPath) ||
+                (sec.key === 'operations' && isOperationsPath);
+
+              nodes.push(
+                <div
+                  key={`hdr-${sec.key}`}
+                  style={{
+                    ...moduleHeader,
+                    ...(isActiveHeader ? moduleHeaderActiveStyle : {}),
+                  }}
+                >
+                  {sec.title}
+                </div>
+              );
             }
             sec.items.forEach((it) => {
               const Icon = it.icon;
@@ -169,7 +202,7 @@ export default function EmployeeSidebar() {
                   })}
                 >
                   <Icon size={20} />
-                  <span style={{ display: collapsed ? 'none' : 'inline' }}>{it.label}</span>
+                  <span style={{ display: collapsed ? 'none' : 'inline', fontSize: 13 }}>{it.label}</span>
                 </NavLink>
               );
             });

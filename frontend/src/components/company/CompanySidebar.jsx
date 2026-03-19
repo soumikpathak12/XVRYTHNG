@@ -90,7 +90,12 @@ export default function CompanySidebar({ apiBase = '/api', logoSrc }) {
     display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
     borderRadius: 14, fontWeight: 600, color: '#556070', textDecoration: 'none',
   };
-  const activeStyle = { background: '#146b6b', color: '#fff', boxShadow: '0 4px 14px rgba(20,107,107,.25)' };
+  // Light, brand-consistent active state (matches module header styling).
+  const activeStyle = {
+    background: 'rgba(20,107,107,0.10)',
+    color: '#0f1a2b',
+    boxShadow: 'inset 4px 0 0 #146b6b',
+  };
   const textHide = { display: collapsed ? 'none' : 'inline' };
 
   return (
