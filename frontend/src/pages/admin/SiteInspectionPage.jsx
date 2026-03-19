@@ -156,6 +156,31 @@ function stepPassesGuards(template, stepId, form) {
   return rule.fields.every((fkey) => isFilled(getValueFlex(form, fkey)));
 }
 
+// Ensure consistent UX overrides across templates (DB templates + sectionCatalog fallback).
+function applyTemplateOverrides(tpl) {
+  if (!tpl) return tpl;
+  const steps = Array.isArray(tpl.steps) ? tpl.steps : [];
+  if (!steps.length) return tpl;
+
+  const nextSteps = steps.map((st) => ({
+    ...st,
+    sections: (st.sections || []).map((sec) => ({
+      ...sec,
+      fields: (sec.fields || []).map((f) => {
+        // Roof Type: allow custom "Other" input (store custom text, not "Other")
+        const isRoofType =
+          f?.key === 'roofProfile.roofMaterial' ||
+          f?.key?.endsWith?.('.roofMaterial') ||
+          String(f?.label || '').trim().toLowerCase() === 'roof type';
+        if (isRoofType) return { ...f, allowOther: true };
+        return f;
+      }),
+    })),
+  }));
+
+  return { ...tpl, steps: nextSteps };
+}
+
 // Build a human-readable media summary from all photo/file fields in the template.
 function buildMediaSummary(template, form) {
   if (!template) return '';
@@ -315,7 +340,7 @@ const meta = base?.meta && typeof base.meta === 'string'
    steps = enabled ? buildStepsFromEnabled(enabled) : [];
  }
 
- setTemplate({ ...base, steps, meta });
+ setTemplate(applyTemplateOverrides({ ...base, steps, meta }));
 }, [templates, selectedTemplateId]);
 
 
@@ -659,7 +684,7 @@ const meta = base?.meta && typeof base.meta === 'string'
       {/* Header */}
       {lead && (
         <div style={{ ...card, position: 'relative' }}>
-          <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 6, color: UI.color.navy }}>CUSTOMER & SYSTEM</div>
+          <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 6, color: UI.color.navy }}>BASIC DETAILS</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>Customer</div>
@@ -667,7 +692,11 @@ const meta = base?.meta && typeof base.meta === 'string'
             </div>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>Contact</div>
-              <div>{lead.email ?? lead.phone ?? '—'}</div>
+              <div>{lead.email ?? '—'}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>Phone</div>
+              <div>{lead.phone ?? '—'}</div>
             </div>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>Address</div>
@@ -815,7 +844,7 @@ const meta = base?.meta && typeof base.meta === 'string'
               />
             </div>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700 }}>Inspector Name *</div>
+              <div style={{ fontSize: 12, fontWeight: 700 }}>Site Inspector Name*</div>
               <input
                 value={form.inspector_name || ''}
                 onChange={(e) => setForm((p) => ({ ...p, inspector_name: e.target.value }))}

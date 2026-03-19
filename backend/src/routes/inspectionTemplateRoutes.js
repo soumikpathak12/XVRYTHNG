@@ -56,6 +56,14 @@ router.post('/', async (req, res) => {
     res.json({ success: true, id: ins.insertId });
   } catch (e) {
     console.error('[TPL] POST error:', e);
+    if (e && (e.code === 'ER_DUP_ENTRY' || e.errno === 1062)) {
+      // Unique constraint: (company_id, key, version)
+      return res.status(409).json({
+        success: false,
+        code: 'TEMPLATE_VERSION_EXISTS',
+        message: 'Template key/version already exists. Please increment the version or change the key.',
+      });
+    }
     res.status(500).json({ success: false, message: 'Failed to save template' });
   }
 });
