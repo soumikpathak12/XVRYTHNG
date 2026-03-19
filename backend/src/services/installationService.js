@@ -39,7 +39,7 @@ function computeElapsed(records) {
 // ─────────────────────────────────────────────────────────────────────────────
 // List jobs
 // ─────────────────────────────────────────────────────────────────────────────
-export async function listJobs(companyId, { status, date, search, project_id, limit = 50, offset = 0 } = {}) {
+export async function listJobs(companyId, { status, date, search, project_id, employee_id, limit = 50, offset = 0 } = {}) {
   const where = ['ij.company_id = ?'];
   const params = [companyId];
 
@@ -50,6 +50,38 @@ export async function listJobs(companyId, { status, date, search, project_id, li
     where.push('(ij.customer_name LIKE ? OR ij.address LIKE ? OR ij.suburb LIKE ?)');
     const q = `%${search}%`;
     params.push(q, q, q);
+  }
+
+  // Employee portal: only show jobs assigned to this employee.
+  // Assignment can come from:
+  // - installation_job_assignees (direct)
+  // - project_assignees (via ij.project_id)
+  // - retailer_project_assignees (via ij.retailer_project_id)
+  if (employee_id) {
+    const employeeId = Number(employee_id);
+    if (Number.isFinite(employeeId) && employeeId > 0) {
+      where.push(
+        `(
+          EXISTS (
+            SELECT 1 FROM installation_job_assignees ija2
+            WHERE ija2.job_id = ij.id AND ija2.company_id = ij.company_id AND ija2.employee_id = ?
+          )
+          OR (
+            ij.project_id IS NOT NULL AND EXISTS (
+              SELECT 1 FROM project_assignees pa
+              WHERE pa.project_id = ij.project_id AND pa.company_id = ij.company_id AND pa.employee_id = ?
+            )
+          )
+          OR (
+            ij.retailer_project_id IS NOT NULL AND EXISTS (
+              SELECT 1 FROM retailer_project_assignees rpa
+              WHERE rpa.project_id = ij.retailer_project_id AND rpa.company_id = ij.company_id AND rpa.employee_id = ?
+            )
+          )
+        )`
+      );
+      params.push(employeeId, employeeId, employeeId);
+    }
   }
 
   const [rows] = await db.execute(

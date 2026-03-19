@@ -16,6 +16,9 @@ import {
   PalmtreeIcon,
   Receipt,
   Wrench,
+  CheckCircle2,
+  Calculator,
+  CreditCard,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getCompanySidebar } from '../../services/api.js';
@@ -25,7 +28,8 @@ const EMP_MODULE_NAV = {
   dashboard: { to: '/employee', label: 'Dashboard', icon: LayoutDashboard },
 
   // Module-driven items
-  leads:      { to: '/employee/leads',      label: 'Site Inspection', icon: UsersRound },
+  leads_pipeline: { to: '/employee/leads', label: 'Leads Pipeline', icon: UsersRound },
+  site_inspection: { to: '/employee/site-inspection', label: 'Site Inspection', icon: UsersRound },
   on_field:     { to: '/employee/on-field',       label: 'On-Field',         icon: HardHat },
   installation: { to: '/employee/installation',   label: 'Installation Day', icon: Wrench },
   messages:   { to: '/employee/messages',   label: 'Messages',       icon: MessageSquare },
@@ -37,6 +41,11 @@ const EMP_MODULE_NAV = {
   projects:   { to: '/employee/projects',   label: 'Projects',       icon: Building2 },
   referrals:  { to: '/employee/referrals',  label: 'Referrals',      icon: Gift },
   support:    { to: '/employee/support-tickets', label: 'Support Tickets', icon: MessageCircle },
+
+  // Employee Operations sub-items (currently routed to the same placeholder page)
+  approvals:  { to: '/employee/operations?tab=approvals', label: 'Approvals', icon: CheckCircle2 },
+  payroll:    { to: '/employee/operations?tab=payroll', label: 'Payroll', icon: Calculator },
+  billings:   { to: '/employee/operations?tab=billings', label: 'Billings & Payment', icon: CreditCard },
 };
 
 export default function EmployeeSidebar() {
@@ -61,9 +70,38 @@ export default function EmployeeSidebar() {
     return () => { alive = false; };
   }, []);
 
-  // Always prepend Dashboard, then the module-driven items (only those returned by API)
-  const moduleItems = (modules ?? []).map((k) => EMP_MODULE_NAV[k]).filter(Boolean);
-  const navItems = [EMP_MODULE_NAV.dashboard, ...moduleItems];
+  const allowed = new Set(modules ?? []);
+
+  // Grouped nav structure
+  const sections = [
+    {
+      key: 'sales',
+      title: 'Sales Module',
+      items: [
+        EMP_MODULE_NAV.dashboard,
+        ...(allowed.has('leads') ? [EMP_MODULE_NAV.leads_pipeline] : []),
+      ],
+    },
+    {
+      key: 'on_field',
+      title: 'On-Field Module',
+      items: [
+        ...(allowed.has('attendance') ? [EMP_MODULE_NAV.attendance] : []),
+        ...(allowed.has('on_field') ? [EMP_MODULE_NAV.on_field] : []),
+        ...(allowed.has('site_inspection') ? [EMP_MODULE_NAV.site_inspection] : []),
+      ],
+    },
+    {
+      key: 'operations',
+      title: 'Operations Module',
+      items: [
+        ...(allowed.has('operations') ? [EMP_MODULE_NAV.approvals, EMP_MODULE_NAV.payroll, EMP_MODULE_NAV.billings] : []),
+      ],
+    },
+  ].map((s) => ({
+    ...s,
+    items: s.items.filter(Boolean),
+  })).filter((s) => s.items.length > 0);
 
   const linkBase = {
     display: 'flex',
@@ -79,6 +117,15 @@ export default function EmployeeSidebar() {
     background: '#146b6b',
     color: '#fff',
     boxShadow: '0 4px 14px rgba(20,107,107,.25)',
+  };
+
+  const moduleHeader = {
+    padding: '10px 12px',
+    fontSize: 12,
+    fontWeight: 800,
+    letterSpacing: 0.06,
+    color: '#6B7280',
+    textTransform: 'uppercase',
   };
 
   return (
@@ -99,26 +146,34 @@ export default function EmployeeSidebar() {
       <nav style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, flex: 1, minHeight: 0, overflowY: 'auto' }}>
         {loading ? (
           <div style={{ color: '#6B7280', fontSize: 13, padding: '4px 10px' }}>Loading menu…</div>
-        ) : navItems.length === 0 ? (
+        ) : sections.length === 0 ? (
           <div style={{ color: '#6B7280', fontSize: 13, padding: '4px 10px' }}>No items.</div>
         ) : (
-          navItems.map((it) => {
-            const Icon = it.icon;
-            const isDashboard = it.to === '/employee'; 
-            return (
-              <NavLink
-                key={it.to}
-                to={it.to}
-                end={isDashboard}
-                style={({ isActive }) => ({
-                  ...linkBase,
-                  ...(isActive ? activeStyle : {}),
-                })}
-              >
-                <Icon size={20} />
-                <span style={{ display: collapsed ? 'none' : 'inline' }}>{it.label}</span>
-              </NavLink>
-            );
+          sections.flatMap((sec, idx) => {
+            const nodes = [];
+            if (!collapsed) {
+              if (idx > 0) nodes.push(<div key={`sep-${sec.key}`} style={{ height: 1, background: '#F3F4F6', margin: '8px 0' }} />);
+              nodes.push(<div key={`hdr-${sec.key}`} style={moduleHeader}>{sec.title}</div>);
+            }
+            sec.items.forEach((it) => {
+              const Icon = it.icon;
+              const isDashboard = it.to === '/employee';
+              nodes.push(
+                <NavLink
+                  key={it.to}
+                  to={it.to}
+                  end={isDashboard}
+                  style={({ isActive }) => ({
+                    ...linkBase,
+                    ...(isActive ? activeStyle : {}),
+                  })}
+                >
+                  <Icon size={20} />
+                  <span style={{ display: collapsed ? 'none' : 'inline' }}>{it.label}</span>
+                </NavLink>
+              );
+            });
+            return nodes;
           })
         )}
       </nav>

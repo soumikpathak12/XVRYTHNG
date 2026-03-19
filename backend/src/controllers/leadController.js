@@ -208,17 +208,28 @@ export async function listLeads(req, res) {
       offset: req.query.offset ? Number(req.query.offset) : undefined,
     };
 
-    // When the user is an employee, restrict to leads where they are the assigned inspector (Site Inspection view).
-    const companyId = req.tenantId ?? req.user?.companyId ?? null;
-    if (companyId != null && req.user?.id) {
-      try {
-        const { getEmployeeIdByUserId } = await import('../services/attendanceService.js');
-        const employeeId = await getEmployeeIdByUserId(companyId, req.user.id);
-        if (employeeId != null) {
-          filters.inspector_id = employeeId;
+    // IMPORTANT:
+    // Do NOT auto-restrict employee Leads Pipeline.
+    // Only restrict to assigned site inspections when explicitly requested by the UI.
+    // Example: GET /api/leads?site_inspection=1
+    const siteInspectionScope = String(req.query.site_inspection || '').trim() === '1';
+    if (siteInspectionScope) {
+      const companyId = req.tenantId ?? req.user?.companyId ?? null;
+      if (companyId != null && req.user?.id) {
+        try {
+          const { getEmployeeIdByUserId } = await import('../services/attendanceService.js');
+          const employeeId = await getEmployeeIdByUserId(companyId, req.user.id);
+          if (employeeId != null) {
+            filters.inspector_id = employeeId;
+          } else {
+            // No employee record -> return empty list for site inspection scope
+            return res.status(200).json({ success: true, data: grouped ? {} : [] });
+          }
+        } catch (e) {
+          return res.status(200).json({ success: true, data: grouped ? {} : [] });
         }
-      } catch (e) {
-        // ignore: user may not have an employee record
+      } else {
+        return res.status(200).json({ success: true, data: grouped ? {} : [] });
       }
     }
 

@@ -218,7 +218,9 @@ export default function RetailerProjectDetailDetails({
     setStatus(project?.stage ?? '');
     setDate(nextDate);
     setTime(nextTime);
-    setJobType(s.job_type || inferJobTypeFromStage(project?.stage) || '');
+    // Retailer schedule API requires job_type. If none is present yet, default to full_system
+    // so the user can schedule immediately without hitting a 422.
+    setJobType(s.job_type || inferJobTypeFromStage(project?.stage) || 'full_system');
     setNotes(s.notes || '');
     setAssigneeIds(Array.isArray(assignees) ? [...assignees] : []);
   }, [project, schedule, assignees]);
@@ -277,7 +279,14 @@ export default function RetailerProjectDetailDetails({
           <button 
             type="button" 
             className="lead-detail-btn primary"
-            onClick={() => onSaveSchedule({ job_type: hideJobType ? undefined : jobType, date, time: hideJobType || jobType === 'site_inspection' ? time : null, notes, nextStage: status })}
+            onClick={() => onSaveSchedule({
+              job_type: hideJobType ? undefined : jobType,
+              date,
+              time: hideJobType || jobType === 'site_inspection' ? time : null,
+              notes,
+              assignees: assigneeIds, // persist assignees together with schedule
+              nextStage: status,
+            })}
           >
             Save Schedule Updates
           </button>

@@ -305,6 +305,153 @@ export async function saveScheduleAndAssignees(companyId, projectId, payload = {
       );
     }
 
+    // Sync to installation_jobs so "Installation Day" can show scheduled work immediately.
+    // Project stage statuses we care about:
+    // - scheduled                 -> installation_jobs.status = 'scheduled'
+    // - installation_in_progress  -> installation_jobs.status = 'in_progress'
+    // - installation_completed    -> installation_jobs.status = 'completed'
+    const projectStageToJobStatus = {
+      scheduled: 'scheduled',
+      installation_in_progress: 'in_progress',
+      installation_completed: 'completed',
+    };
+
+    const targetJobStatus = projectStageToJobStatus[status];
+    const shouldCreateOrUpdateInstallationJob =
+      !!targetJobStatus && !!scheduledAt && !!date && !!time;
+
+    if (shouldCreateOrUpdateInstallationJob) {
+      // 1) Load minimal lead/project info for the job card list
+      const [[projRow]] = await conn.execute(
+        `SELECT
+           l.customer_name AS lead_customer_name,
+           l.email         AS lead_email,
+           l.phone         AS lead_phone,
+           l.suburb        AS lead_suburb,
+           l.system_size_kw AS lead_system_size_kw,
+           l.system_type     AS lead_system_type,
+           p.customer_name  AS project_customer_name,
+           p.suburb          AS project_suburb,
+           p.system_size_kw AS project_system_size_kw
+         FROM projects p
+         JOIN leads l ON l.id = p.lead_id
+         WHERE p.id = ?
+         LIMIT 1`,
+        [Number(projectId)]
+      );
+
+      const customerName = projRow?.project_customer_name ?? projRow?.lead_customer_name ?? '';
+      const customerEmail = projRow?.lead_email ?? null;
+      const customerPhone = projRow?.lead_phone ?? null;
+      const suburb = projRow?.project_suburb ?? projRow?.lead_suburb ?? null;
+      // Your `projects` table doesn't have an `address` column in this DB dump.
+      // Installation jobs has `address`, but we can safely keep it null and rely on `suburb` for UI.
+      const address = null;
+      const systemSizeKw = projRow?.project_system_size_kw ?? projRow?.lead_system_size_kw ?? null;
+      const systemType = projRow?.lead_system_type ?? null;
+
+      // 2) Upsert installation_jobs by latest job for this project/company
+      const [[existingJobRow]] = await conn.execute(
+        `SELECT id
+           FROM installation_jobs
+          WHERE company_id = ? AND project_id = ?
+          ORDER BY id DESC
+          LIMIT 1`,
+        [Number(companyId), Number(projectId)]
+      );
+
+      const jobDate = date;
+      const jobTime = String(time).slice(0, 5); // expect HH:mm
+      const jobNotes = notes ?? null;
+
+      let jobId = null;
+      if (existingJobRow?.id) {
+        jobId = existingJobRow.id;
+        await conn.execute(
+          `UPDATE installation_jobs
+              SET status = ?,
+                  customer_name = ?,
+                  customer_phone = ?,
+                  customer_email = ?,
+                  address = ?,
+                  suburb = ?,
+                  system_size_kw = ?,
+                  system_type = ?,
+                  scheduled_date = ?,
+                  scheduled_time = ?,
+                  notes = ?,
+                  updated_by = ?,
+                  updated_at = NOW()
+            WHERE id = ? AND company_id = ?`,
+          [
+            targetJobStatus,
+            customerName,
+            customerPhone,
+            customerEmail,
+            address,
+            suburb,
+            systemSizeKw,
+            systemType,
+            jobDate,
+            jobTime,
+            jobNotes,
+            userId,
+            Number(jobId),
+            Number(companyId),
+          ]
+        );
+      } else {
+        const [result] = await conn.execute(
+          `INSERT INTO installation_jobs
+            (company_id, project_id, retailer_project_id,
+             customer_name, customer_phone, customer_email, address, suburb,
+             system_size_kw, system_type, panel_count, inverter_model, battery_included,
+             scheduled_date, scheduled_time, estimated_hours, notes,
+             created_by, updated_by)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          [
+            Number(companyId),
+            Number(projectId),
+            null,
+            customerName,
+            customerPhone,
+            customerEmail,
+            address,
+            suburb,
+            systemSizeKw,
+            systemType,
+            null, // panel_count
+            null, // inverter_model
+            0, // battery_included
+            jobDate,
+            jobTime,
+            null, // estimated_hours
+            jobNotes,
+            userId,
+            userId,
+          ]
+        );
+        jobId = result.insertId;
+      }
+
+      // 3) Sync installation_job_assignees from project_assignees
+      await conn.execute(
+        `DELETE FROM installation_job_assignees
+          WHERE job_id = ? AND company_id = ?`,
+        [Number(jobId), Number(companyId)]
+      );
+
+      if (Array.isArray(assignees) && assignees.length > 0) {
+        const values = assignees.map((empId) => [Number(jobId), Number(empId), Number(companyId), userId]);
+        const placeholders = values.map(() => '(?,?,?,?)').join(',');
+        await conn.query(
+          `INSERT IGNORE INTO installation_job_assignees (job_id, employee_id, company_id, assigned_by)
+           VALUES ${placeholders}`,
+          values.flat()
+        );
+      }
+    }
+
     await conn.commit();
     return { success: true };
   } catch (err) {

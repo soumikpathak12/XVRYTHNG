@@ -2,7 +2,16 @@
 import db from '../config/db.js';
 
 const ALL_KNOWN_MODULES = [
-  'leads', 'projects', 'on_field', 'operations', 'attendance', 'referrals', 'messages', 'support',
+  'leads',
+  'site_inspection',
+  'projects',
+  'on_field',
+  'installation', // Installation Day (field jobs)
+  'operations',
+  'attendance',
+  'referrals',
+  'messages',
+  'support',
 ];
 
 const COMPANY_PSEUDO = ['settings'];

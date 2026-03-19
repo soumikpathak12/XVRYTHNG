@@ -183,7 +183,15 @@ export default function LeadsCalendar({
           padding: 12px;
           width: 100%;
           overflow: hidden;
+          display: flex;
+          flex-direction: column;
         }
+        .lc2-compactMonth .lc2-chip {
+          padding: 4px 6px;
+          border-radius: 7px;
+        }
+        .lc2-compactMonth .lc2-chipTitle { font-size: 11px; }
+        .lc2-compactMonth .lc2-chipSub { font-size: 10px; }
 
         /* ---- Header ---- */
         .lc2-header {
@@ -253,12 +261,14 @@ export default function LeadsCalendar({
         .lc2-grid {
           display: grid;
           grid-template-columns: repeat(7, 1fr);
-          grid-auto-rows: 110px;
+          grid-auto-rows: 150px;
           border-left: 1px solid #E5E7EB;
           border-right: 1px solid #E5E7EB;
           border-bottom: 1px solid #E5E7EB;
           border-radius: 0 0 10px 10px;
           overflow: hidden;
+          flex: 1;
+          min-height: 0;
         }
 
         .lc2-cell {
@@ -271,6 +281,19 @@ export default function LeadsCalendar({
           flex-direction: column;
           gap: 6px;
         }
+        .lc2-events {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          min-height: 0;
+          flex: 1;
+          overflow: auto;
+          padding-right: 2px; /* space for scrollbar */
+        }
+        .lc2-events::-webkit-scrollbar { width: 6px; }
+        .lc2-events::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 6px; }
+        .lc2-events::-webkit-scrollbar-track { background: transparent; }
+
         .lc2-cell:nth-child(7n) { border-right: none; } /* last in row */
 
         /* Date number (top-left) */
@@ -331,7 +354,15 @@ export default function LeadsCalendar({
         }
       `}</style>
 
-      <div className={`lc2-root ${className || ''}`} style={style} role="region" aria-label="Leads calendar">
+      <div
+        className={`lc2-root ${viewMode === 'month' ? 'lc2-compactMonth' : ''} ${className || ''}`}
+        style={{
+          ...(style || {}),
+          ...(viewMode === 'month' ? {} : { height: '100%' }),
+        }}
+        role="region"
+        aria-label="Leads calendar"
+      >
         {/* Header */}
         <div className="lc2-header">
           <button
@@ -378,13 +409,18 @@ export default function LeadsCalendar({
           aria-label={viewMode === 'day' ? 'Day' : viewMode === 'week' ? 'Week' : 'Month'}
           style={{
             gridTemplateColumns: `repeat(${viewMode === 'day' ? 1 : 7}, 1fr)`,
-            gridAutoRows: viewMode === 'day' ? 'minmax(200px, 1fr)' : undefined,
+            ...(viewMode === 'day'
+              ? { gridAutoRows: '1fr', height: '100%' }
+              : viewMode === 'week'
+              ? { gridAutoRows: '1fr', height: '100%' }
+              : {}),
           }}
         >
           {days.map((d, idx) => {
             const items = byDay.get(d.key) || [];
             const isToday = d.key === todayKey;
-            const visible = items.slice(0, 3);
+            const maxVisible = viewMode === 'month' ? 8 : 50;
+            const visible = items.slice(0, maxVisible);
             const overflow = items.length - visible.length;
 
             return (
@@ -396,32 +432,34 @@ export default function LeadsCalendar({
               >
                 <div className="lc2-dateNum">{d.date.getDate()}</div>
 
-                {visible.map((lead, i) => (
-          <CalendarLeadEntry
-  key={lead.id ?? i}
-  lead={lead}
-  title={titleForLead(lead)}
-  subtitle={subtitleForLead(lead) || undefined}
-  onClick={() => {
-    if (typeof onLeadClick === 'function') {
-      onLeadClick(lead);                          
-    } else if (lead?.id != null) {
-      window.location.assign(`/admin/leads/${lead.id}/site-inspection`);
-    }
-  }}
-  role="button"
-  tabIndex={0}
-  onKeyDown={(e) => {
-    if ((e.key === 'Enter' || e.key === ' ') && lead?.id != null) {
-      e.preventDefault();
-      if (typeof onLeadClick === 'function') onLeadClick(lead);
-      else window.location.assign(`/admin/leads/${lead.id}/site-inspection`);
-    }
-  }}
-/>
-                ))}
+                <div className="lc2-events">
+                  {visible.map((lead, i) => (
+                    <CalendarLeadEntry
+                      key={lead.id ?? i}
+                      lead={lead}
+                      title={titleForLead(lead)}
+                      subtitle={subtitleForLead(lead) || undefined}
+                      onClick={() => {
+                        if (typeof onLeadClick === 'function') {
+                          onLeadClick(lead);
+                        } else if (lead?.id != null) {
+                          window.location.assign(`/admin/leads/${lead.id}/site-inspection`);
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if ((e.key === 'Enter' || e.key === ' ') && lead?.id != null) {
+                          e.preventDefault();
+                          if (typeof onLeadClick === 'function') onLeadClick(lead);
+                          else window.location.assign(`/admin/leads/${lead.id}/site-inspection`);
+                        }
+                      }}
+                    />
+                  ))}
 
-                {overflow > 0 && <div className="lc2-more">+{overflow} more</div>}
+                  {overflow > 0 && <div className="lc2-more">+{overflow} more</div>}
+                </div>
               </div>
             );
           })}

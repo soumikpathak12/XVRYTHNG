@@ -371,11 +371,22 @@ export default function InstallationJobList() {
 // Grouped list: Today / This Week / Upcoming / Past
 // ─────────────────────────────────────────────────────────────────────────────
 function JobListGrouped({ jobs, onJobClick }) {
-  const today    = new Date().toISOString().slice(0, 10);
-  const endOfWeek = (() => {
-    const d = new Date(); d.setDate(d.getDate() + (7 - d.getDay()));
-    return d.toISOString().slice(0, 10);
-  })();
+  const toLocalDateKey = (d) => {
+    const x = d instanceof Date ? d : new Date(d);
+    if (Number.isNaN(x.getTime())) return '';
+    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+  };
+
+  const todayKey = toLocalDateKey(new Date()); // TODAY theo local máy
+  const endOfWeekKeyFor = (key) => {
+    // key is "YYYY-MM-DD"
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return '';
+    const [yy, mm, dd] = key.split('-').map((v) => Number(v));
+    const d = new Date(yy, mm - 1, dd);
+    // Sunday-based end of week
+    d.setDate(d.getDate() + (7 - d.getDay()));
+    return toLocalDateKey(d);
+  };
 
   const groups = useMemo(() => {
     const todayJobs    = [];
@@ -384,13 +395,34 @@ function JobListGrouped({ jobs, onJobClick }) {
     const pastJobs     = [];
     const noDateJobs   = [];
 
-    for (const j of jobs) {
-      const d = j.scheduled_date?.slice(0, 10);
-      if (!d)        { noDateJobs.push(j);   continue; }
-      if (d === today)             todayJobs.push(j);
-      else if (d > today && d <= endOfWeek) weekJobs.push(j);
-      else if (d > endOfWeek)      upcomingJobs.push(j);
-      else                         pastJobs.push(j);
+    // 1) Build date keys (no parsing drift: prefer raw string).
+    const keyedJobs = jobs.map((j) => {
+      const raw = j?.scheduled_date;
+      const k =
+        typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw)
+          ? raw
+          : (raw ? toLocalDateKey(new Date(raw)) : '');
+      return { j, k };
+    });
+
+    // 2) Decide effective "TODAY" date:
+    // If there is no job on actual todayKey, use the earliest upcoming job date as TODAY.
+    const hasActualTodayJob = keyedJobs.some(({ k }) => k && k === todayKey);
+    const upcomingKeys = keyedJobs.map(({ k }) => k).filter((k) => k && k > todayKey);
+    const minUpcoming = upcomingKeys.length ? upcomingKeys.reduce((a, b) => (a < b ? a : b)) : '';
+    const effectiveTodayKey = hasActualTodayJob ? todayKey : (minUpcoming || todayKey);
+    const endOfWeekKey = endOfWeekKeyFor(effectiveTodayKey);
+
+    for (const { j, k: jobDateKey } of keyedJobs) {
+      if (!jobDateKey) {
+        noDateJobs.push(j);
+        continue;
+      }
+
+      if (jobDateKey === effectiveTodayKey) todayJobs.push(j);
+      else if (jobDateKey > effectiveTodayKey && jobDateKey <= endOfWeekKey) weekJobs.push(j);
+      else if (jobDateKey > endOfWeekKey) upcomingJobs.push(j);
+      else pastJobs.push(j);
     }
 
     const result = [];
@@ -400,7 +432,7 @@ function JobListGrouped({ jobs, onJobClick }) {
     if (pastJobs.length)     result.push({ label: 'Past',        jobs: pastJobs,     accent: '#9CA3AF' });
     if (noDateJobs.length)   result.push({ label: 'Unscheduled', jobs: noDateJobs,   accent: '#9CA3AF' });
     return result;
-  }, [jobs, today, endOfWeek]);
+  }, [jobs, todayKey]);
 
   return (
     <div style={{ display: 'grid', gap: 28 }}>

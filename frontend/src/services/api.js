@@ -826,6 +826,7 @@ export async function getLeads(params = {}) {
   if (params.stage) q.set('stage', params.stage);
   if (params.search) q.set('search', params.search);
   if (params.assigned_user) q.set('assigned_user', params.assigned_user);
+  if (params.site_inspection) q.set('site_inspection', '1');
   if (typeof params.limit === 'number') q.set('limit', String(params.limit));
   if (typeof params.offset === 'number') q.set('offset', String(params.offset));
 

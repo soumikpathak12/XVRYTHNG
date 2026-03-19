@@ -20,7 +20,7 @@ import RolesPage from './pages/admin/RolesPage.jsx';
 import CompanySettingsPage from './pages/company/CompanySettingPage.jsx';
 import CompanyPage from './pages/company/CompanyPage.jsx';
 
-import LeadsPage from './pages/LeadsPage.jsx';
+import LeadsPage from './pages/LeadsPipelinePage.jsx';
 import LeadDetailPage from './pages/LeadDetailPage.jsx';
 import LeadsCalendarPage from './pages/admin/LeadsCalendarPage.jsx';
 import MessagesPage from './pages/MessagesPage.jsx';
@@ -59,6 +59,7 @@ import ProjectManagementDashboard from './pages/ProjectManagementDashboard.jsx';
 import InstallationJobCard from './pages/InstallationJobCard.jsx';
 import InstallationJobList from './pages/InstallationJobList.jsx';
 import OnFieldPage from './pages/employee/OnFieldPage.jsx';
+import SiteInspectionLeadsPage from './pages/employee/SiteInspectionLeadsPage.jsx';
 import PayrollPage from './pages/PayrollPage.jsx';
 function PlaceholderPage({ title, message, children }) {
   return (
@@ -475,6 +476,16 @@ function App() {
             element={
               <RequirePermission resource="leads" action="view">
                 <LeadsPage />
+              </RequirePermission>
+            }
+          />
+
+          {/* Site Inspection (employee calendar page) */}
+          <Route
+            path="site-inspection"
+            element={
+              <RequirePermission resource="leads" action="view">
+                <SiteInspectionLeadsPage />
               </RequirePermission>
             }
           />

@@ -342,6 +342,7 @@ export async function saveRetailerProjectSchedule(companyId, projectId, payload 
     date,              // required for all
     time,              // required if job_type === site_inspection
     notes,
+    assignees,         // optional: persist assignees together with schedule
   } = payload;
 
   if (!job_type || !JOB_TYPES.has(job_type)) {
@@ -379,6 +380,138 @@ export async function saveRetailerProjectSchedule(companyId, projectId, payload 
     'UPDATE retailer_projects SET job_type = ?, stage = ?, updated_at = NOW() WHERE id = ? AND company_id = ?',
     [job_type, stage, Number(projectId), Number(companyId)]
   );
+
+  // If assignees were provided, persist them now (so installation sync uses the latest list)
+  if (Array.isArray(assignees)) {
+    await saveRetailerProjectAssignees(companyId, projectId, assignees, userId ?? null);
+  }
+
+  // Sync to Installation Day (installation_jobs) ONLY for install job types
+  if (['stage_one', 'stage_two', 'full_system'].includes(job_type)) {
+    // Fetch retailer project for job fields
+    const [[rp]] = await db.execute(
+      `SELECT
+         id, company_id,
+         customer_name, customer_email, customer_contact,
+         address, suburb,
+         system_size_kw, system_type
+       FROM retailer_projects
+       WHERE id = ? AND company_id = ?
+       LIMIT 1`,
+      [Number(projectId), Number(companyId)]
+    );
+
+    // Upsert the latest installation job for this retailer_project
+    const [[existingJob]] = await db.execute(
+      `SELECT id
+         FROM installation_jobs
+        WHERE company_id = ? AND retailer_project_id = ?
+        ORDER BY id DESC
+        LIMIT 1`,
+      [Number(companyId), Number(projectId)]
+    );
+
+    const jobDate = date;
+    const jobTime = nn(time) ? `${String(time).slice(0, 5)}:00` : null; // TIME expects HH:mm:ss
+    const jobNotes = nn(notes);
+
+    let jobId = null;
+    if (existingJob?.id) {
+      jobId = existingJob.id;
+      await db.execute(
+        `UPDATE installation_jobs
+            SET status = 'scheduled',
+                customer_name = ?,
+                customer_phone = ?,
+                customer_email = ?,
+                address = ?,
+                suburb = ?,
+                system_size_kw = ?,
+                system_type = ?,
+                scheduled_date = ?,
+                scheduled_time = ?,
+                notes = ?,
+                updated_by = ?,
+                updated_at = NOW()
+          WHERE id = ? AND company_id = ?`,
+        [
+          rp?.customer_name ?? '',
+          rp?.customer_contact ?? null,
+          rp?.customer_email ?? null,
+          rp?.address ?? null,
+          rp?.suburb ?? null,
+          rp?.system_size_kw ?? null,
+          rp?.system_type ?? null,
+          jobDate,
+          jobTime,
+          jobNotes,
+          userId ?? null,
+          Number(jobId),
+          Number(companyId),
+        ]
+      );
+    } else {
+      const [ins] = await db.execute(
+        `INSERT INTO installation_jobs
+          (company_id, project_id, retailer_project_id,
+           status,
+           customer_name, customer_phone, customer_email, address, suburb,
+           system_size_kw, system_type,
+           panel_count, inverter_model, battery_included,
+           scheduled_date, scheduled_time, estimated_hours, notes,
+           created_by, updated_by)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          Number(companyId),
+          null,
+          Number(projectId),
+          'scheduled',
+          rp?.customer_name ?? '',
+          rp?.customer_contact ?? null,
+          rp?.customer_email ?? null,
+          rp?.address ?? null,
+          rp?.suburb ?? null,
+          rp?.system_size_kw ?? null,
+          rp?.system_type ?? null,
+          null,
+          null,
+          0,
+          jobDate,
+          jobTime,
+          null,
+          jobNotes,
+          userId ?? null,
+          userId ?? null,
+        ]
+      );
+      jobId = ins.insertId;
+    }
+
+    // Sync assignees from retailer_project_assignees -> installation_job_assignees
+    const [asgRows] = await db.execute(
+      `SELECT employee_id
+         FROM retailer_project_assignees
+        WHERE company_id = ? AND project_id = ?`,
+      [Number(companyId), Number(projectId)]
+    );
+    const assigneeIds = (asgRows ?? []).map(r => Number(r.employee_id)).filter(Boolean);
+
+    if (jobId) {
+      await db.execute(
+        `DELETE FROM installation_job_assignees WHERE job_id = ? AND company_id = ?`,
+        [Number(jobId), Number(companyId)]
+      );
+      if (assigneeIds.length) {
+        const values = assigneeIds.map(eid => [Number(jobId), Number(eid), Number(companyId), userId ?? null]);
+        const placeholders = values.map(() => '(?,?,?,?)').join(',');
+        await db.query(
+          `INSERT IGNORE INTO installation_job_assignees (job_id, employee_id, company_id, assigned_by)
+           VALUES ${placeholders}`,
+          values.flat()
+        );
+      }
+    }
+  }
 
   const schedule = await getRetailerProjectSchedule(companyId, projectId);
   return { schedule };
@@ -459,6 +592,34 @@ export async function saveRetailerProjectAssignees(companyId, projectId, ids = [
          VALUES ${values.map(()=>'(?, ?, ?, ?, ?)').join(', ')}`,
         values.flat()
       );
+    }
+
+    // Sync to installation_job_assignees for the linked Installation Day job (if exists).
+    // Installation Day reads from installation_job_assignees, so this keeps UI consistent
+    // even when user only clicks "Save Assignees" (without re-saving schedule).
+    const [jobs] = await conn.execute(
+      `SELECT id
+         FROM installation_jobs
+        WHERE company_id = ? AND retailer_project_id = ?`,
+      [Number(companyId), Number(projectId)]
+    );
+    const jobIds = (jobs ?? []).map(r => Number(r.id)).filter(Boolean);
+
+    for (const jobId of jobIds) {
+      await conn.execute(
+        `DELETE FROM installation_job_assignees
+          WHERE job_id = ? AND company_id = ?`,
+        [Number(jobId), Number(companyId)]
+      );
+      if (assignees.length > 0) {
+        const values = assignees.map((empId) => [Number(jobId), Number(empId), Number(companyId), userId ?? null]);
+        const placeholders = values.map(() => '(?,?,?,?)').join(',');
+        await conn.query(
+          `INSERT IGNORE INTO installation_job_assignees (job_id, employee_id, company_id, assigned_by)
+           VALUES ${placeholders}`,
+          values.flat()
+        );
+      }
     }
 
     await conn.commit();

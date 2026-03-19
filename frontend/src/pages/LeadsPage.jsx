@@ -47,25 +47,20 @@ export default function LeadsPage() {
 
   const isEmployeeView = base === '/employee';
   const getInitialView = () => {
-    if (isEmployeeView) return 'calendar';
     const params = new URLSearchParams(location.search);
     const v = (params.get('view') || '').toLowerCase();
     return ['kanban', 'table', 'calendar'].includes(v) ? v : 'kanban';
   };
   const [view, setView] = useState(getInitialView());
-  const [calendarViewMode, setCalendarViewMode] = useState('month'); // day | week | month (employee only)
+  const [calendarViewMode, setCalendarViewMode] = useState('month'); // day | week | month
 
   useEffect(() => {
-    if (isEmployeeView) {
-      if (view !== 'calendar') setView('calendar');
-      return;
-    }
     const params = new URLSearchParams(location.search);
     const v = (params.get('view') || '').toLowerCase();
     if (['kanban', 'table', 'calendar'].includes(v) && v !== view) {
       setView(v);
     }
-  }, [location.search, isEmployeeView]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [location.search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const switchView = useCallback(
     (next) => {
@@ -304,47 +299,41 @@ export default function LeadsPage() {
       <header className="leads-kanban-header">
         <div className="leads-kanban-header-top">
           <div className="leads-kanban-title">
-            <h1>{base === '/employee' ? 'Site Inspection' : 'Sales Pipeline'}</h1>
+            <h1>Leads Pipeline</h1>
             <p>
-              {base === '/employee'
-                ? 'Your scheduled inspections. View Kanban, Table, or Calendar.'
-                : 'Manage leads across stages. Search, filter, and drag cards between columns.'}
+              Manage leads across stages. Search, filter, and drag cards between columns.
             </p>
           </div>
           <div className="leads-kanban-actions">
-            {!isEmployeeView && (
-              <div className="leads-view-tabs">
-                <button
-                  type="button"
-                  className={`leads-view-tab ${view === 'kanban' ? 'active' : ''}`}
-                  onClick={() => switchView('kanban')}
-                >
-                  Kanban
-                </button>
-                <button
-                  type="button"
-                  className={`leads-view-tab ${view === 'table' ? 'active' : ''}`}
-                  onClick={() => switchView('table')}
-                >
-                  Table
-                </button>
-                <button
-                  type="button"
-                  className={`leads-view-tab ${view === 'calendar' ? 'active' : ''}`}
-                  onClick={() => switchView('calendar')}
-                >
-                  Calendar
-                </button>
-              </div>
-            )}
-            {!isEmployeeView && (
-              <button type="button" className="leads-add-btn" onClick={() => setOpenAdd(true)}>
-                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                </svg>
-                Add Lead
+            <div className="leads-view-tabs">
+              <button
+                type="button"
+                className={`leads-view-tab ${view === 'kanban' ? 'active' : ''}`}
+                onClick={() => switchView('kanban')}
+              >
+                Kanban
               </button>
-            )}
+              <button
+                type="button"
+                className={`leads-view-tab ${view === 'table' ? 'active' : ''}`}
+                onClick={() => switchView('table')}
+              >
+                Table
+              </button>
+              <button
+                type="button"
+                className={`leads-view-tab ${view === 'calendar' ? 'active' : ''}`}
+                onClick={() => switchView('calendar')}
+              >
+                Calendar
+              </button>
+            </div>
+            <button type="button" className="leads-add-btn" onClick={() => setOpenAdd(true)}>
+              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Add New Lead
+            </button>
           </div>
         </div>
 
@@ -410,52 +399,50 @@ export default function LeadsPage() {
           <span className="leads-result-count">
             {boardLeads.length} lead{boardLeads.length !== 1 ? 's' : ''}
           </span>
-          {!isEmployeeView && view === 'table' && (
+          {view === 'table' && (
             <div className="leads-filter-bar-right">
               <button type="button" className="leads-export-csv-btn" onClick={exportLeadsCsv} disabled={boardLeads.length === 0}>
                 Export CSV
               </button>
             </div>
           )}
-          {!isEmployeeView && (
-            <div
-              className="leads-filter-bar-right"
-              style={{ marginLeft: view === 'table' ? '8px' : 'auto', display: 'flex', gap: '8px' }}
+          <div
+            className="leads-filter-bar-right"
+            style={{ marginLeft: view === 'table' ? '8px' : 'auto', display: 'flex', gap: '8px' }}
+          >
+            <button
+              type="button"
+              className="leads-add-btn bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+              onClick={() => setShowImport(true)}
+              style={{ backgroundColor: '#fff', color: '#374151', border: '1px solid #d1d5db' }}
             >
-              <button
-                type="button"
-                className="leads-add-btn bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-                onClick={() => setShowImport(true)}
-                style={{ backgroundColor: '#fff', color: '#374151', border: '1px solid #d1d5db' }}
+              <svg
+                width="16"
+                height="16"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="mr-1"
               >
-                <svg
-                  width="16"
-                  height="16"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="mr-1"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                  />
-                </svg>
-                Import CSV
-              </button>
-              <button
-                type="button"
-                className="leads-add-btn"
-                style={{ backgroundColor: '#f59e0b', borderColor: '#f59e0b' }}
-                onClick={handleImportSolarQuotes}
-                title="Fetch latest leads from SolarQuotes"
-              >
-                Sync SolarQuotes
-              </button>
-            </div>
-          )}
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                />
+              </svg>
+              Import CSV
+            </button>
+            <button
+              type="button"
+              className="leads-add-btn"
+              style={{ backgroundColor: '#f59e0b', borderColor: '#f59e0b' }}
+              onClick={handleImportSolarQuotes}
+              title="Fetch latest leads from SolarQuotes"
+            >
+              Sync SolarQuotes
+            </button>
+          </div>
         </div>
       </header>
 

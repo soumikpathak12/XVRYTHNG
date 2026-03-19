@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import * as svc from '../services/installationService.js';
+import { getEmployeeIdByUserId } from '../services/attendanceService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
@@ -29,11 +30,16 @@ export async function listJobs(req, res) {
   try {
     const companyId = companyOrFail(req, res);
     if (!companyId) return;
+    const role = String(req.user?.role || '').toLowerCase();
+    const employeeId = role === 'field_agent'
+      ? await getEmployeeIdByUserId(companyId, req.user.id).catch(() => null)
+      : null;
     const rows = await svc.listJobs(companyId, {
       status:     req.query.status,
       date:       req.query.date,
       search:     req.query.search,
       project_id: req.query.project_id ? Number(req.query.project_id) : undefined,
+      employee_id: employeeId || undefined,
       limit:      req.query.limit  ? Number(req.query.limit)  : 50,
       offset:     req.query.offset ? Number(req.query.offset) : 0,
     });

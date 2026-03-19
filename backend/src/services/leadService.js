@@ -165,6 +165,14 @@ export async function getLeads(filters = {}) {
   const joinSql = joinInspector
     ? ' INNER JOIN lead_site_inspections lsi ON lsi.lead_id = leads.id '
     : '';
+  const selectSql = joinInspector
+    ? `SELECT leads.*,
+              lsi.scheduled_at AS site_inspection_scheduled_at,
+              lsi.inspector_id AS site_inspection_inspector_id,
+              lsi.inspector_name AS site_inspection_inspector_name,
+              lsi.status AS site_inspection_status
+       FROM leads`
+    : 'SELECT leads.* FROM leads';
   let limitSql = '';
   if (typeof filters.limit === 'number' && filters.limit > 0) {
     limitSql = 'LIMIT ?';
@@ -176,8 +184,7 @@ export async function getLeads(filters = {}) {
   }
 
   const sql = `
-    SELECT leads.*
-    FROM leads
+    ${selectSql}
     ${joinSql}
     ${whereSql}
     ORDER BY leads.last_activity_at DESC, leads.created_at DESC
