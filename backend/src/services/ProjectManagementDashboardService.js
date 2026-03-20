@@ -7,6 +7,7 @@
 // - Includes 2 debug helpers: getUnionRaw (see raw rows) and getQuickCounts (table counts).
 
 import db from '../config/db.js';
+import * as expenseService from './expenseService.js';
 
 // Debug flags via env vars
 const DEBUG = String(process.env.PMDB_DEBUG || '').toLowerCase() === 'true';
@@ -211,7 +212,12 @@ export async function buildDashboard(
   const revenue = active.reduce((s, r) => s + (Number(r.revenue) || 0), 0);
   const revenueRetailer = activeRetailer.reduce((s, r) => s + (Number(r.revenue) || 0), 0);
   const revenueClassic = activeClassic.reduce((s, r) => s + (Number(r.revenue) || 0), 0);
-  const cost = 0;
+  const totalExpenseCosts = await expenseService.sumApprovedExpensesForCompany(companyId, {
+    range,
+    from,
+    to,
+  });
+  const cost = totalExpenseCosts;
   const margin = revenue - cost;
   const avgProjectValue = totalActive ? revenue / totalActive : 0;
 

@@ -181,6 +181,9 @@ export default function PmDashboardPage() {
               <span>Total Costs</span>
               <strong><Currency value={dash?.profitability?.totalCosts ?? 0} /></strong>
             </div>
+            <div className="pmdb-profit-hint" style={{ fontSize: 12, color: '#64748b', margin: '-6px 0 8px' }}>
+              Sum of approved expense claims (same date range as above; tenant-scoped).
+            </div>
             <div className="pmdb-row">
               <span>Gross Margin</span>
               <strong><Currency value={dash?.profitability?.grossMargin ?? 0} /></strong>

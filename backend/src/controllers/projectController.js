@@ -1,4 +1,5 @@
 import * as projectService from '../services/projectService.js';
+import * as expenseService from '../services/expenseService.js';
 
 export async function listProjects(req, res) {
   try {
@@ -20,7 +21,18 @@ export async function getProject(req, res) {
   try {
     const projectId = req.params.id;
     const project = await projectService.getProjectById(projectId);
-    return res.status(200).json({ success: true, data: project });
+    const companyId = req.tenantId != null ? Number(req.tenantId) : null;
+    let approvedExpenseTotal = 0;
+    if (companyId) {
+      approvedExpenseTotal = await expenseService.approvedExpenseTotalForClassicProject(
+        companyId,
+        Number(projectId)
+      );
+    }
+    return res.status(200).json({
+      success: true,
+      data: { ...project, approved_expense_total: approvedExpenseTotal },
+    });
   } catch (err) {
     const status = err.statusCode ?? err.status ?? 500;
     return res.status(status).json({ success: false, message: err.message ?? 'Failed to load project.' });
