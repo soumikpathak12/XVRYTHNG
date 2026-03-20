@@ -11,7 +11,7 @@ const sql = `
     project_name    VARCHAR(255),
     category        ENUM('travel','materials','equipment','other') NOT NULL,
     amount          DECIMAL(12,2)  NOT NULL,
-    currency        VARCHAR(3)     NOT NULL DEFAULT 'INR',
+    currency        VARCHAR(3)     NOT NULL DEFAULT 'AUD',
     expense_date    DATE           NOT NULL,
     description     TEXT           NOT NULL,
     receipt_path    VARCHAR(500),

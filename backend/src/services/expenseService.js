@@ -2,9 +2,21 @@ import db from '../config/db.js';
 
 const CATEGORIES = ['travel', 'materials', 'equipment', 'other'];
 
+/** Stable label stored in `project_name` for installation-day expenses (matches filter from job id). */
+export function installationJobProjectLabel(jobId) {
+  const n = Number(jobId);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return `Installation job #${n}`;
+}
+
 /* ─── Employee: submit ─── */
 export async function submitExpense(companyId, employeeId, fields, receiptPath) {
-  const { projectName, category, amount, expenseDate, description } = fields;
+  let { projectName, category, amount, expenseDate, description, installationJobId } = fields;
+  const installLabel =
+    installationJobId != null && String(installationJobId).trim() !== ''
+      ? installationJobProjectLabel(installationJobId)
+      : null;
+  if (installLabel) projectName = installLabel;
   if (!CATEGORIES.includes(category)) throw new Error('Invalid category.');
   if (!amount || Number(amount) <= 0) throw new Error('Amount must be positive.');
   if (!expenseDate) throw new Error('expense date is required.');
@@ -13,20 +25,30 @@ export async function submitExpense(companyId, employeeId, fields, receiptPath) 
 
   const [result] = await db.query(
     `INSERT INTO expense_claims
-       (company_id, employee_id, project_name, category, amount, expense_date, description, receipt_path)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+       (company_id, employee_id, project_name, category, amount, currency, expense_date, description, receipt_path)
+     VALUES (?, ?, ?, ?, ?, 'AUD', ?, ?, ?)`,
     [companyId, employeeId, projectName || null, category, Number(amount), expenseDate, description, receiptPath]
   );
   return { id: result.insertId };
 }
 
 /* ─── Employee: own list ─── */
-export async function getMyExpenses(companyId, employeeId) {
+export async function getMyExpenses(companyId, employeeId, options = {}) {
+  const { installationJobId } = options;
+  const label = installationJobId != null ? installationJobProjectLabel(installationJobId) : null;
+
+  const where = ['company_id = ?', 'employee_id = ?'];
+  const params = [companyId, employeeId];
+  if (label) {
+    where.push('project_name = ?');
+    params.push(label);
+  }
+
   const [rows] = await db.query(
     `SELECT * FROM expense_claims
-     WHERE company_id = ? AND employee_id = ?
+     WHERE ${where.join(' AND ')}
      ORDER BY created_at DESC`,
-    [companyId, employeeId]
+    params
   );
   return rows;
 }

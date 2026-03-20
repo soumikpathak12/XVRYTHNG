@@ -28,6 +28,7 @@ import {
   deleteInstallationPhoto,
   getInstallationPhotoRequirements,
 } from '../services/api.js';
+import InstallationJobExpensesSection from '../components/installation/InstallationJobExpensesSection.jsx';
 
 // ─── brand tokens ────────────────────────────────────────────────────────────
 const BRAND      = '#146b6b';
@@ -1197,6 +1198,9 @@ export default function InstallationJobCard() {
         </div>
         {job.notes && (<><HR /><div><FieldLabel>Notes</FieldLabel><div style={{ fontSize: 14, color: '#374151' }}>{job.notes}</div></div></>)}
       </Card>
+
+      {/* Job-linked expenses (same approval flow as HR → Approvals → Expense) */}
+      <InstallationJobExpensesSection jobId={Number(id)} />
 
       {/* Checklist — T-235/237/238 */}
       {(job.checklist ?? []).length > 0 && (
