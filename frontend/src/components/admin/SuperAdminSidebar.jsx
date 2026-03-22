@@ -64,7 +64,7 @@ const RAW_NAV = [
   { to: '/admin/support-tickets', label: 'Support Tickets', icon: MessageCircle, permission: { resource: 'support', action: 'view' } },
   { to: '/admin/trial-users', label: 'Trial Users', icon: UsersRound, permission: { resource: 'users', action: 'view' } },
   { to: '/admin/settings', label: 'Settings', icon: Settings, permission: { resource: 'settings', action: 'view' } },
-  { to: '/admin/users/create', label: 'Add User', icon: UserPlus, permission: { resource: 'users', action: 'create' } },
+  
 ];
 
 export default function SuperAdminSidebar({

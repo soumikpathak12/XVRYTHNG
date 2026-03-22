@@ -330,6 +330,36 @@ function generatePassword() {
   return out.split('').sort(() => Math.random() - 0.5).join('');
 }
 
+/** Clipboard API often fails on HTTP / some browsers; fall back to execCommand. */
+async function copyToClipboard(text) {
+  if (!text) return false;
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* fall through */
+  }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '0';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 function AccountStep({ form, onChange, inputStyle, labelStyle }) {
   const handleEnableLoginChange = (checked) => {
     onChange(['account', 'enable_login'], checked);
@@ -349,9 +379,15 @@ function AccountStep({ form, onChange, inputStyle, labelStyle }) {
     onChange(['account', 'password_confirm'], pwd);
   };
 
-  const handleCopy = () => {
-    if (form.account.password) {
-      navigator.clipboard.writeText(form.account.password);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    const pwd = form.account.password;
+    if (!pwd) return;
+    const ok = await copyToClipboard(pwd);
+    if (ok) {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -380,8 +416,8 @@ function AccountStep({ form, onChange, inputStyle, labelStyle }) {
               <button type="button" onClick={handleRegenerate} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', cursor: 'pointer', fontWeight: 600 }}>
                 Regenerate
               </button>
-              <button type="button" onClick={handleCopy} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', cursor: 'pointer', fontWeight: 600 }}>
-                Copy
+              <button type="button" onClick={handleCopy} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', background: copied ? '#ECFDF5' : '#fff', cursor: 'pointer', fontWeight: 600 }}>
+                {copied ? 'Copied!' : 'Copy'}
               </button>
             </div>
             <p style={{ fontSize: 12, color: '#6B7280', margin: 0 }}>
@@ -487,8 +523,12 @@ export default function EmployeeCreatePage() {
   const [stepIdx, setStepIdx] = useState(0);
   const [showErrors, setShowErrors] = useState(false);
 
-  // success banner state
+  // Success modal (after create)
   const [createdInfo, setCreatedInfo] = useState(null); // { id, code, name }
+  const [successModalOpen, setSuccessModalOpen] = useState(false);
+
+  // Employee create is mounted under /admin; employees list is the management “dashboard”.
+  const employeesDashboardPath = useMemo(() => `/admin/employees${qs}`, [qs]);
 
   const [form, setForm] = useState(() => ({
     employee_code: '',
@@ -606,6 +646,41 @@ export default function EmployeeCreatePage() {
 
   useEffect(() => { setShowErrors(false); }, [stepIdx]);
 
+  const emptyForm = useMemo(
+    () => ({
+      employee_code: '',
+      personal: { first_name: '', last_name: '', date_of_birth: '', gender: '', avatar_url: '' },
+      contact: {
+        email: '', phone: '',
+        address_line1: '', address_line2: '',
+        city: '', state: '', postal_code: '', country: '',
+      },
+      employment: {
+        department_id: '', job_role_id: '', employment_type_id: '',
+        start_date: '', rate_type: 'monthly', rate_amount: 0,
+      },
+      qualifications: [],
+      emergency_contacts: [],
+      account: { enable_login: false, password: '', password_confirm: '' },
+    }),
+    []
+  );
+
+  const resetWizardForm = () => {
+    setForm(structuredClone(emptyForm));
+    setCreatedInfo(null);
+    setSuccessModalOpen(false);
+    setStepIdx(0);
+    setShowErrors(false);
+    setErrText('');
+  };
+
+  const handleSuccessModalOk = () => {
+    setSuccessModalOpen(false);
+    setCreatedInfo(null);
+    navigate(employeesDashboardPath);
+  };
+
   const submit = async (e) => {
     e.preventDefault();
     try {
@@ -631,11 +706,9 @@ export default function EmployeeCreatePage() {
       setCreatedInfo({
         id: res?.id ?? null,
         code: form.employee_code || '',
-        name: fullName || '(no name)'
+        name: fullName || '(no name)',
       });
-
-      // Do not navigate away; show success header instead.
-      // Optionally, jump to Review step after success.
+      setSuccessModalOpen(true);
       setStepIdx(steps.findIndex(s => s.key === 'review'));
       setShowErrors(false);
     } catch (err) {
@@ -770,66 +843,12 @@ export default function EmployeeCreatePage() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div>
-            <div style={{ fontSize: 20, fontWeight: 900, color: '#111827' }}>
-              {createdInfo ? 'Employee Created Successfully' : 'Add New Employee'}
-            </div>
+            <div style={{ fontSize: 20, fontWeight: 900, color: '#111827' }}>Add New Employee</div>
             <div style={{ fontSize: 13, color: '#6B7280' }}>
-              {createdInfo
-                ? `Employee ${createdInfo.name}${createdInfo.id ? ` (ID #${createdInfo.id})` : ''} has been created.`
-                : `Step ${stepIdx + 1} of ${steps.length} — follow the wizard to complete the details.`}
+              Step {stepIdx + 1} of {steps.length} — follow the wizard to complete the details.
             </div>
           </div>
-
-          {createdInfo && (
-            <div style={{ display: 'flex', gap: 8 }}>
-              <GhostButton onClick={() => navigate(`/employees${qs}`)}>Go to List</GhostButton>
-              <PrimaryButton
-                onClick={() => {
-                  // reset to create another employee quickly
-                  setForm({
-                    employee_code: '',
-                    personal: { first_name: '', last_name: '', date_of_birth: '', gender: '', avatar_url: '' },
-                    contact: {
-                      email: '', phone: '',
-                      address_line1: '', address_line2: '',
-                      city: '', state: '', postal_code: '', country: ''
-                    },
-                    employment: {
-                      department_id: '', job_role_id: '', employment_type_id: '',
-                      start_date: '', rate_type: 'monthly', rate_amount: 0
-                    },
-                    qualifications: [],
-                    emergency_contacts: [],
-                    account: { enable_login: false, password: '', password_confirm: '' },
-                  });
-                  setCreatedInfo(null);
-                  setStepIdx(0);
-                  setShowErrors(false);
-                }}
-                color={brand}
-              >
-                Create Another
-              </PrimaryButton>
-            </div>
-          )}
         </div>
-
-        {createdInfo && (
-          <div
-            role="status"
-            style={{
-              color: '#065F46',
-              background: '#ECFDF5',
-              border: '1px solid #10B981',
-              borderRadius: 8,
-              padding: '8px 10px',
-              fontSize: 13,
-              fontWeight: 700,
-            }}
-          >
-            Employee Created Successfully
-          </div>
-        )}
       </div>
 
       {/* Stepper */}
@@ -884,7 +903,7 @@ export default function EmployeeCreatePage() {
 
           {/* Controls */}
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-            <GhostButton onClick={() => navigate(`/employees${qs}`)}>Cancel</GhostButton>
+            <GhostButton onClick={() => navigate(employeesDashboardPath)}>Cancel</GhostButton>
 
             <div style={{ display: 'flex', gap: 10 }}>
               {stepIdx > 0 && (
@@ -919,6 +938,53 @@ export default function EmployeeCreatePage() {
           </div>
         </div>
       </form>
+
+      {successModalOpen && createdInfo && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="emp-create-success-title"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.45)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: 16,
+              maxWidth: 440,
+              width: '100%',
+              padding: 24,
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+              border: '1px solid #E5E7EB',
+            }}
+          >
+            <div
+              id="emp-create-success-title"
+              style={{ fontSize: 20, fontWeight: 900, color: '#111827', marginBottom: 10 }}
+            >
+              Employee Created Successfully
+            </div>
+            <p style={{ margin: 0, fontSize: 14, color: '#4B5563', lineHeight: 1.55 }}>
+              <strong>{createdInfo.name}</strong>
+              {createdInfo.id != null ? ` (ID #${createdInfo.id})` : ''} has been created.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24, flexWrap: 'wrap' }}>
+              <GhostButton onClick={resetWizardForm}>Create Another</GhostButton>
+              <PrimaryButton onClick={handleSuccessModalOk} color={brand}>
+                OK
+              </PrimaryButton>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
