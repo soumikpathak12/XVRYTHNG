@@ -716,7 +716,39 @@ export async function updateCompanyProfile(payload) {
   if (!res.ok) throw new Error(data.message ?? 'Failed to update company profile');
   return data; // { success:true, data:{...} }
 }
+// --- add to: src/services/api.js ---
 
+/**
+ * POST /api/admin/users
+ * @param {{ token?: string, payload: {
+ *   name: string,
+ *   email: string,
+ *   password: string,
+ *   role: 'super_admin'|'company_admin'|'manager'|'field_agent',
+ *   companyId?: number,
+ *   phone?: string,
+ *   status?: 'active'|'suspended'
+ * } }} params
+ * Note: token is ignored here; authFetch reads from localStorage.
+ */
+export async function createUser({ token, payload }) {
+  const res = await authFetch('/api/admin/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 422) {
+    const err = new Error('Validation failed');
+    err.status = 422;
+    err.body = data; // { success:false, errors:{...} }
+    throw err;
+  }
+  if (!res.ok) {
+    throw new Error(data.message ?? 'Failed to create user');
+  }
+  return data; // { success:true, data:{...} }
+}
 /* =======================================================================
    LEADS
    ======================================================================= */

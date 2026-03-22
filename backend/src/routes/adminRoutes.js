@@ -6,7 +6,7 @@ import {
   requireSuperAdmin,
   getAdminProfile,
   updateAdminProfile,
-  changeAdminPassword,
+  changeAdminPassword,createUser
 } from '../controllers/adminController.js';
 import {
   getCompanyTypes,
@@ -37,6 +37,7 @@ import {
 } from '../controllers/adminSupportTicketController.js';
 import { tenantContext } from '../middleware/tenantContext.js';
 import { requirePermission } from '../middleware/requirePermission.js';
+
 
 const router = Router();
 
@@ -79,5 +80,7 @@ router.get('/support-tickets', requirePermission('support', 'view'), listTickets
 router.get('/support-tickets/:id', requirePermission('support', 'view'), getTicket);
 router.post('/support-tickets/:id/replies', requirePermission('support', 'edit'), addReply);
 router.patch('/support-tickets/:id/status', requirePermission('support', 'edit'), updateStatus);
+
+router.post('/users', requireSuperAdmin, createUser);
 
 export default router;
