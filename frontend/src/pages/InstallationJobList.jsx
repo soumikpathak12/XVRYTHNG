@@ -71,6 +71,9 @@ function JobCard({ job, onClick }) {
         background: '#fff', border: '1px solid #E5E7EB', borderRadius: 16,
         padding: '16px 18px', cursor: 'pointer',
         display: 'flex', alignItems: 'flex-start', gap: 16,
+        height: '100%',
+        boxSizing: 'border-box',
+        minWidth: 0,
         transition: 'box-shadow 0.15s, border-color 0.15s',
       }}
       onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'; e.currentTarget.style.borderColor = BRAND; }}
@@ -125,6 +128,232 @@ function JobCard({ job, onClick }) {
   );
 }
 
+// ─── Group jobs: Today / This Week / Upcoming / Past / Unscheduled (shared) ───
+function toLocalDateKey(d) {
+  const x = d instanceof Date ? d : new Date(d);
+  if (Number.isNaN(x.getTime())) return '';
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+}
+
+function endOfWeekKeyFor(key) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return '';
+  const [yy, mm, dd] = key.split('-').map((v) => Number(v));
+  const d = new Date(yy, mm - 1, dd);
+  d.setDate(d.getDate() + (7 - d.getDay()));
+  return toLocalDateKey(d);
+}
+
+/** @returns {{ label: string, jobs: object[], accent: string }[]} */
+function buildInstallationJobGroups(jobs) {
+  const todayKey = toLocalDateKey(new Date());
+  const todayJobs = [];
+  const weekJobs = [];
+  const upcomingJobs = [];
+  const pastJobs = [];
+  const noDateJobs = [];
+
+  const keyedJobs = jobs.map((j) => {
+    const raw = j?.scheduled_date;
+    const k =
+      typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw)
+        ? raw
+        : (raw ? toLocalDateKey(new Date(raw)) : '');
+    return { j, k };
+  });
+
+  const hasActualTodayJob = keyedJobs.some(({ k }) => k && k === todayKey);
+  const upcomingKeys = keyedJobs.map(({ k }) => k).filter((k) => k && k > todayKey);
+  const minUpcoming = upcomingKeys.length ? upcomingKeys.reduce((a, b) => (a < b ? a : b)) : '';
+  const effectiveTodayKey = hasActualTodayJob ? todayKey : (minUpcoming || todayKey);
+  const endOfWeekKey = endOfWeekKeyFor(effectiveTodayKey);
+
+  for (const { j, k: jobDateKey } of keyedJobs) {
+    if (!jobDateKey) {
+      noDateJobs.push(j);
+      continue;
+    }
+    if (jobDateKey === effectiveTodayKey) todayJobs.push(j);
+    else if (jobDateKey > effectiveTodayKey && jobDateKey <= endOfWeekKey) weekJobs.push(j);
+    else if (jobDateKey > endOfWeekKey) upcomingJobs.push(j);
+    else pastJobs.push(j);
+  }
+
+  const result = [];
+  if (todayJobs.length) result.push({ label: 'Today', jobs: todayJobs, accent: BRAND });
+  if (weekJobs.length) result.push({ label: 'This Week', jobs: weekJobs, accent: '#1D4ED8' });
+  if (upcomingJobs.length) result.push({ label: 'Upcoming', jobs: upcomingJobs, accent: '#6B7280' });
+  if (pastJobs.length) result.push({ label: 'Past', jobs: pastJobs, accent: '#9CA3AF' });
+  if (noDateJobs.length) result.push({ label: 'Unscheduled', jobs: noDateJobs, accent: '#9CA3AF' });
+  return result;
+}
+
+function flatOrderedWithMeta(groups) {
+  const flatOrdered = groups.flatMap((g) => g.jobs);
+  const jobMeta = new Map();
+  groups.forEach((g) => {
+    g.jobs.forEach((j) => {
+      jobMeta.set(j.id, { label: g.label, accent: g.accent, groupCount: g.jobs.length });
+    });
+  });
+  return { flatOrdered, jobMeta };
+}
+
+/** Section headers span full row; job cards fill a responsive grid */
+function PaginatedInstallationGrid({
+  pageSlice,
+  jobMeta,
+  onJobClick,
+}) {
+  const items = [];
+  let lastLabel = null;
+  for (const j of pageSlice) {
+    const meta = jobMeta.get(j.id);
+    const label = meta?.label ?? 'Jobs';
+    const accent = meta?.accent ?? BRAND;
+    const groupCount = meta?.groupCount;
+    if (label !== lastLabel) {
+      items.push({
+        kind: 'header',
+        key: `hdr-${j.id}-${label}`,
+        label,
+        accent,
+        groupCount,
+      });
+      lastLabel = label;
+    }
+    items.push({ kind: 'job', key: j.id, job: j });
+  }
+
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))',
+        gap: 16,
+        alignItems: 'stretch',
+      }}
+    >
+      {items.map((item) => {
+        if (item.kind === 'header') {
+          return (
+            <div
+              key={item.key}
+              style={{
+                gridColumn: '1 / -1',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                marginTop: items[0] === item ? 0 : 8,
+                marginBottom: 4,
+              }}
+            >
+              <div style={{ width: 3, height: 18, borderRadius: 2, background: item.accent }} />
+              <div
+                style={{
+                  fontWeight: 800,
+                  fontSize: 13,
+                  color: item.accent,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                }}
+              >
+                {item.label}
+              </div>
+              {item.groupCount != null && (
+                <div style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 600 }}>{item.groupCount}</div>
+              )}
+            </div>
+          );
+        }
+        return (
+          <JobCard key={item.key} job={item.job} onClick={() => onJobClick(item.job)} />
+        );
+      })}
+    </div>
+  );
+}
+
+function PaginationBar({
+  total,
+  page,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
+}) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const from = total === 0 ? 0 : (safePage - 1) * pageSize + 1;
+  const to = Math.min(safePage * pageSize, total);
+
+  const btn = (disabled) => ({
+    padding: '8px 14px',
+    borderRadius: 10,
+    border: '1px solid #E5E7EB',
+    background: disabled ? '#F3F4F6' : '#fff',
+    color: disabled ? '#9CA3AF' : '#111827',
+    fontWeight: 700,
+    fontSize: 13,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+  });
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 16,
+        marginTop: 28,
+        paddingTop: 20,
+        borderTop: '1px solid #E5E7EB',
+      }}
+    >
+      <div style={{ fontSize: 13, color: '#6B7280', fontWeight: 600 }}>
+        {total === 0 ? 'No jobs on this page' : `Showing ${from}–${to} of ${total}`}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 13, color: '#374151', fontWeight: 600 }}>Per page</span>
+        <select
+          value={pageSize}
+          onChange={(e) => onPageSizeChange(Number(e.target.value))}
+          style={{
+            padding: '8px 12px',
+            borderRadius: 10,
+            border: '1px solid #E5E7EB',
+            fontSize: 13,
+            fontWeight: 600,
+            background: '#fff',
+            cursor: 'pointer',
+          }}
+        >
+          {[6, 9, 12, 18, 24].map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <button type="button" style={btn(safePage <= 1)} disabled={safePage <= 1} onClick={() => onPageChange(safePage - 1)}>
+          Previous
+        </button>
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#374151', minWidth: 100, textAlign: 'center' }}>
+          Page {safePage} of {totalPages}
+        </span>
+        <button
+          type="button"
+          style={btn(safePage >= totalPages)}
+          disabled={safePage >= totalPages}
+          onClick={() => onPageChange(safePage + 1)}
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Main page
 // ─────────────────────────────────────────────────────────────────────────────
@@ -139,6 +368,8 @@ export default function InstallationJobList() {
   const [search,     setSearch]     = useState('');
   const [status,     setStatus]     = useState('');       // '' = all
   const [showCreate, setShowCreate] = useState(false);
+  const [listPage, setListPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
   const searchRef = useRef(null);
 
   // Load all jobs once
@@ -177,6 +408,23 @@ export default function InstallationJobList() {
     });
   }, [jobs, search, status]);
 
+  const { flatOrdered, jobMeta } = useMemo(() => {
+    const groups = buildInstallationJobGroups(filtered);
+    return flatOrderedWithMeta(groups);
+  }, [filtered]);
+
+  const totalListPages = Math.max(1, Math.ceil(flatOrdered.length / pageSize) || 1);
+  const safeListPage = Math.min(Math.max(1, listPage), totalListPages);
+  const pageSlice = flatOrdered.slice((safeListPage - 1) * pageSize, safeListPage * pageSize);
+
+  useEffect(() => {
+    setListPage(1);
+  }, [search, status]);
+
+  useEffect(() => {
+    if (listPage > totalListPages) setListPage(totalListPages);
+  }, [listPage, totalListPages]);
+
   // Counts per status for filter badges
   const counts = useMemo(() => {
     const c = {};
@@ -201,7 +449,14 @@ export default function InstallationJobList() {
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <div style={{ padding: '24px', maxWidth: 1100, margin: '0 auto', fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
+    <div style={{
+      width: '100%',
+      maxWidth: '100%',
+      boxSizing: 'border-box',
+      padding: '24px',
+      margin: 0,
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    }}>
 
       {/* Page header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
@@ -357,103 +612,30 @@ export default function InstallationJobList() {
             </div>
           )}
 
-          {/* Job list — grouped by date */}
-          {filtered.length > 0 && <JobListGrouped jobs={filtered} onJobClick={openJob} />}
+          {/* Job cards — responsive grid + pagination */}
+          {filtered.length > 0 && (
+            <>
+              <PaginatedInstallationGrid
+                pageSlice={pageSlice}
+                jobMeta={jobMeta}
+                onJobClick={openJob}
+              />
+              <PaginationBar
+                total={flatOrdered.length}
+                page={safeListPage}
+                pageSize={pageSize}
+                onPageChange={setListPage}
+                onPageSizeChange={(n) => {
+                  setPageSize(n);
+                  setListPage(1);
+                }}
+              />
+            </>
+          )}
         </>
       )}
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Grouped list: Today / This Week / Upcoming / Past
-// ─────────────────────────────────────────────────────────────────────────────
-function JobListGrouped({ jobs, onJobClick }) {
-  const toLocalDateKey = (d) => {
-    const x = d instanceof Date ? d : new Date(d);
-    if (Number.isNaN(x.getTime())) return '';
-    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
-  };
-
-  const todayKey = toLocalDateKey(new Date()); // TODAY theo local máy
-  const endOfWeekKeyFor = (key) => {
-    // key is "YYYY-MM-DD"
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return '';
-    const [yy, mm, dd] = key.split('-').map((v) => Number(v));
-    const d = new Date(yy, mm - 1, dd);
-    // Sunday-based end of week
-    d.setDate(d.getDate() + (7 - d.getDay()));
-    return toLocalDateKey(d);
-  };
-
-  const groups = useMemo(() => {
-    const todayJobs    = [];
-    const weekJobs     = [];
-    const upcomingJobs = [];
-    const pastJobs     = [];
-    const noDateJobs   = [];
-
-    // 1) Build date keys (no parsing drift: prefer raw string).
-    const keyedJobs = jobs.map((j) => {
-      const raw = j?.scheduled_date;
-      const k =
-        typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw)
-          ? raw
-          : (raw ? toLocalDateKey(new Date(raw)) : '');
-      return { j, k };
-    });
-
-    // 2) Decide effective "TODAY" date:
-    // If there is no job on actual todayKey, use the earliest upcoming job date as TODAY.
-    const hasActualTodayJob = keyedJobs.some(({ k }) => k && k === todayKey);
-    const upcomingKeys = keyedJobs.map(({ k }) => k).filter((k) => k && k > todayKey);
-    const minUpcoming = upcomingKeys.length ? upcomingKeys.reduce((a, b) => (a < b ? a : b)) : '';
-    const effectiveTodayKey = hasActualTodayJob ? todayKey : (minUpcoming || todayKey);
-    const endOfWeekKey = endOfWeekKeyFor(effectiveTodayKey);
-
-    for (const { j, k: jobDateKey } of keyedJobs) {
-      if (!jobDateKey) {
-        noDateJobs.push(j);
-        continue;
-      }
-
-      if (jobDateKey === effectiveTodayKey) todayJobs.push(j);
-      else if (jobDateKey > effectiveTodayKey && jobDateKey <= endOfWeekKey) weekJobs.push(j);
-      else if (jobDateKey > endOfWeekKey) upcomingJobs.push(j);
-      else pastJobs.push(j);
-    }
-
-    const result = [];
-    if (todayJobs.length)    result.push({ label: 'Today',       jobs: todayJobs,    accent: BRAND });
-    if (weekJobs.length)     result.push({ label: 'This Week',   jobs: weekJobs,     accent: '#1D4ED8' });
-    if (upcomingJobs.length) result.push({ label: 'Upcoming',    jobs: upcomingJobs, accent: '#6B7280' });
-    if (pastJobs.length)     result.push({ label: 'Past',        jobs: pastJobs,     accent: '#9CA3AF' });
-    if (noDateJobs.length)   result.push({ label: 'Unscheduled', jobs: noDateJobs,   accent: '#9CA3AF' });
-    return result;
-  }, [jobs, todayKey]);
-
-  return (
-    <div style={{ display: 'grid', gap: 28 }}>
-      {groups.map(g => (
-        <div key={g.label}>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12,
-          }}>
-            <div style={{ width: 3, height: 18, borderRadius: 2, background: g.accent }} />
-            <div style={{ fontWeight: 800, fontSize: 13, color: g.accent, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              {g.label}
-            </div>
-            <div style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 600 }}>{g.jobs.length}</div>
-          </div>
-          <div style={{ display: 'grid', gap: 10 }}>
-            {g.jobs.map(j => (
-              <JobCard key={j.id} job={j} onClick={() => onJobClick(j)} />
-            ))}
-          </div>
-        </div>
-      ))}
     </div>
   );
 }

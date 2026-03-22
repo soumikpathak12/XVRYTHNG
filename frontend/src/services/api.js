@@ -1117,7 +1117,11 @@ export async function getChatAttachments(conversationId, companyId) {
 export async function markChatRead(conversationId, companyId) {
   const q = chatQuery(companyId);
   const url = `/api/chats/${encodeURIComponent(conversationId)}/read${q ? `?${q}` : ''}`;
-  await authFetch(url, { method: 'PATCH' });
+  const res = await authFetch(url, { method: 'PATCH' });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.message || `Failed to mark chat read (${res.status})`);
+  }
 }
 
 /** POST /api/chats/:id/participants - add members to group. Body: { userIds: number[] } */

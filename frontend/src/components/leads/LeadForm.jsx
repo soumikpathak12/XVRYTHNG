@@ -69,7 +69,10 @@ export default function LeadForm({
 
   cancelLabel = 'Cancel',        
   formId,                      
-  hideActions = false,           
+  hideActions = false,
+  /** When true (new lead only), skip the green banner; parent can show a modal via onAfterCreate */
+  suppressInlineSuccess = false,
+  onAfterCreate = null,
 }) {
   const SOURCE_OPTIONS = ['Website', 'Solar Quotes', 'Facebook', 'Other'];
   const [form, setForm] = useState({
@@ -185,7 +188,7 @@ export default function LeadForm({
     } else if (!PHONE_RE.test(form.phone.trim())) {
       nextFieldErrors.phone = 'Invalid phone format.';
     }
-    if (!form.suburb.trim()) nextFieldErrors.suburb = 'Suburb is required.';
+    if (!form.suburb.trim()) nextFieldErrors.suburb = 'Location is required.';
     if (!form.stage || !STAGES.includes(form.stage)) {
       nextFieldErrors.stage = 'Invalid stage selected.';
     }
@@ -220,7 +223,11 @@ export default function LeadForm({
     setSubmitting(true);
     try {
       await onSubmit(payload);
-      setSuccess(true);
+      if (!initialValues && suppressInlineSuccess) {
+        onAfterCreate?.();
+      } else {
+        setSuccess(true);
+      }
       if (!initialValues) {
         // Reset form for new record
         setForm({
@@ -249,7 +256,7 @@ export default function LeadForm({
 
   const content = (
     <>
-      {success && (
+      {success && !suppressInlineSuccess && (
         <div style={styles.alertSuccess} role="status" aria-live="polite">
           ✅ Lead has been created successfully.
         </div>
@@ -309,19 +316,6 @@ export default function LeadForm({
           </Field>
         </div>
 
-        <Field label="Suburb *" error={fieldErrors.suburb}>
-          <input
-            type="text"
-            value={form.suburb}
-            onChange={(e) => update('suburb', e.target.value)}
-            style={{
-              ...styles.input,
-              borderColor: fieldErrors.suburb ? COLORS.dangerText : COLORS.border,
-            }}
-            required
-          />
-        </Field>
-
         <Field label="Source" error={fieldErrors.source}>
           <select
             value={form.source}
@@ -363,29 +357,51 @@ export default function LeadForm({
           )}
         </Field>
 
-        <Field label="Stage *" error={fieldErrors.stage}>
-          <select
-            value={form.stage}
-            onChange={(e) => update('stage', e.target.value)}
-            style={{
-              ...styles.input,
-              appearance: 'none',
-              paddingRight: 36,
-              backgroundImage: dropdownChevron,
-              backgroundRepeat: 'no-repeat',
-              backgroundPosition: 'right 10px center',
-              backgroundSize: '14px',
-              borderColor: fieldErrors.stage ? COLORS.dangerText : COLORS.border,
-            }}
-            required
-          >
-            {STAGES.map((s) => (
-              <option key={s} value={s}>
-                {STAGE_LABELS[s] || s}
-              </option>
-            ))}
-          </select>
-        </Field>
+        {/* Location + stage on one row (pipeline UX) */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: 12,
+          }}
+        >
+          <Field label="Location *" error={fieldErrors.suburb}>
+            <input
+              type="text"
+              value={form.suburb}
+              onChange={(e) => update('suburb', e.target.value)}
+              placeholder="Suburb or area"
+              style={{
+                ...styles.input,
+                borderColor: fieldErrors.suburb ? COLORS.dangerText : COLORS.border,
+              }}
+              required
+            />
+          </Field>
+          <Field label="Stage *" error={fieldErrors.stage}>
+            <select
+              value={form.stage}
+              onChange={(e) => update('stage', e.target.value)}
+              style={{
+                ...styles.input,
+                appearance: 'none',
+                paddingRight: 36,
+                backgroundImage: dropdownChevron,
+                backgroundRepeat: 'no-repeat',
+                backgroundPosition: 'right 10px center',
+                backgroundSize: '14px',
+                borderColor: fieldErrors.stage ? COLORS.dangerText : COLORS.border,
+              }}
+              required
+            >
+              {STAGES.map((s) => (
+                <option key={s} value={s}>
+                  {STAGE_LABELS[s] || s}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
 
         <Field
           label="Site inspection date (optional)"

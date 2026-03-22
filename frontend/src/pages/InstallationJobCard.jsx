@@ -1108,7 +1108,11 @@ export default function InstallationJobCard() {
 
   return (
     <div style={{
-      maxWidth: 520, margin: '0 auto', padding: '12px 14px 64px',
+      width: '100%',
+      maxWidth: '100%',
+      boxSizing: 'border-box',
+      margin: 0,
+      padding: '12px 16px 64px',
       fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     }}>
 
@@ -1184,7 +1188,7 @@ export default function InstallationJobCard() {
       {/* System specs */}
       <Card style={{ marginBottom: 14 }}>
         <div style={{ fontWeight: 800, fontSize: 14, color: '#111827', marginBottom: 10 }}>System Specs</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px 16px' }}>
           {job.system_size_kw && <div><FieldLabel>System size</FieldLabel><FieldValue>{job.system_size_kw} kW</FieldValue></div>}
           {job.system_type    && <div><FieldLabel>Type</FieldLabel><FieldValue>{job.system_type}</FieldValue></div>}
           {job.panel_count    && <div><FieldLabel>Panels</FieldLabel><FieldValue>{job.panel_count}</FieldValue></div>}

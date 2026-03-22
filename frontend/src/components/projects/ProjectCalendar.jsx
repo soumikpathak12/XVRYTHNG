@@ -1,5 +1,5 @@
 // src/components/projects/ProjectsCalendar.jsx
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 
 /**
  * ProjectsCalendar — month view (Australia/Melbourne timezone)
@@ -111,6 +111,32 @@ export default function ProjectsCalendar({
   const goNextMonth = useCallback(() => { if (canGoNext) setViewMonthKey((k) => keyAddMonths(k, 1)); }, [canGoNext]);
   const goToday = useCallback(() => setViewMonthKey(keyStartOfMonth(todayKey)), [todayKey]);
 
+  /** Full list for a day — opened from "+N more" */
+  const [dayModal, setDayModal] = useState(null); // { key, items, label }
+
+  useEffect(() => {
+    if (!dayModal) return;
+    const onKey = (e) => { if (e.key === 'Escape') setDayModal(null); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [dayModal]);
+
+  const openDayModal = useCallback((dayKey, items) => {
+    const d = dateFromKeyAtNoonUTC(dayKey);
+    const label = Number.isNaN(d.getTime())
+      ? dayKey
+      : new Intl.DateTimeFormat(sysLocale, {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+          timeZone: TZ,
+        }).format(d);
+    setDayModal({ key: dayKey, items, label });
+  }, [sysLocale]);
+
+  const MAX_CHIPS_INLINE = 2;
+
   return (
     <>
       <style>{`
@@ -187,7 +213,7 @@ export default function ProjectsCalendar({
 .pc-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  grid-auto-rows: 110px;
+  grid-auto-rows: minmax(132px, auto);
   border-left: 1px solid #E5E7EB;
   border-right: 1px solid #E5E7EB;
   border-bottom: 1px solid #E5E7EB;
@@ -199,12 +225,20 @@ export default function ProjectsCalendar({
   background: #fff;
   border-right: 1px solid #E5E7EB;
   border-bottom: 1px solid #E5E7EB;
-  padding: 8px 8px 6px;
+  padding: 6px 6px 6px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+  min-height: 132px;
 }
 .pc-cell:nth-child(7n) { border-right: none; }
+.pc-cellBody {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 /* Date number */
 .pc-dateNum {
   font-weight: 800;
@@ -250,13 +284,136 @@ export default function ProjectsCalendar({
   color: #6B7280;
   font-size: 11px;
 }
-.pc-more {
+/* Compact chips: fit more per cell; full detail in day modal */
+.pc-chip--compact {
+  padding: 5px 7px;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.pc-chip--compact .pc-chipTitle {
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.pc-chip--compact .pc-chipSub {
+  display: none;
+}
+.pc-moreBtn {
+  flex-shrink: 0;
+  width: 100%;
+  margin-top: 2px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px dashed #CBD5E1;
+  background: #F8FAFC;
+  color: #146b6b;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.12s, border-color 0.12s;
+}
+.pc-moreBtn:hover {
+  background: #E6F4F1;
+  border-color: #146b6b;
+}
+/* Day detail modal */
+.pc-dayOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+.pc-dayModal {
+  width: 100%;
+  max-width: 420px;
+  max-height: min(80vh, 560px);
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+  border: 1px solid #E5E7EB;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.pc-dayModalHead {
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid #F3F4F6;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pc-dayModalTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.25;
+}
+.pc-dayModalMeta {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 600;
+}
+.pc-dayModalClose {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 10px;
+  background: #F3F4F6;
+  color: #475569;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.pc-dayModalClose:hover { background: #E2E8F0; }
+.pc-dayModalList {
+  padding: 10px 12px 14px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pc-dayModalRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.pc-dayModalRow:hover {
+  border-color: #146b6b;
+  box-shadow: 0 2px 8px rgba(20,107,107,0.12);
+}
+.pc-dayModalRowTitle {
+  font-weight: 700;
+  font-size: 14px;
+  color: #0f172a;
+}
+.pc-dayModalRowSub {
   font-size: 12px;
-  color: #374151;
-  padding-left: 2px;
+  color: #64748b;
+  margin-top: 3px;
 }
 @media (max-width: 900px) {
-  .pc-grid { grid-auto-rows: 120px; }
+  .pc-grid { grid-auto-rows: minmax(128px, auto); }
+  .pc-cell { min-height: 128px; }
 }
       `}</style>
 
@@ -283,8 +440,8 @@ export default function ProjectsCalendar({
           {days.map((d, idx) => {
             const items = byDay.get(d.key) ?? [];
             const isToday = d.key === todayKey;
-            const visible = items.slice(0, 3);
-            const overflow = items.length - visible.length;
+            const visible = items.slice(0, MAX_CHIPS_INLINE);
+            const moreCount = items.length - visible.length;
             return (
               <div
                 key={idx}
@@ -294,36 +451,103 @@ export default function ProjectsCalendar({
               >
                 <div className="pc-dateNum">{d.date.getDate()}</div>
 
-                {visible.map((project, i) => (
-                  <div
-                    key={project.id ?? i}
-                    className="pc-chip"
-                    onClick={() => onProjectClick?.(project)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if ((e.key === 'Enter' || e.key === ' ') && project?.id != null) {
-                        e.preventDefault();
-                        onProjectClick?.(project);
-                      }
-                    }}
-                    title={subtitleForProject(project) || undefined}
-                  >
-                    <span className="pc-dot" />
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      <div className="pc-chipTitle">{titleForProject(project)}</div>
-                      {subtitleForProject(project) ? (
-                        <div className="pc-chipSub">{subtitleForProject(project)}</div>
-                      ) : null}
+                <div className="pc-cellBody">
+                  {visible.map((project, i) => (
+                    <div
+                      key={project.id ?? i}
+                      className="pc-chip pc-chip--compact"
+                      onClick={() => onProjectClick?.(project)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if ((e.key === 'Enter' || e.key === ' ') && project?.id != null) {
+                          e.preventDefault();
+                          onProjectClick?.(project);
+                        }
+                      }}
+                      title={`${titleForProject(project)}${subtitleForProject(project) ? ` — ${subtitleForProject(project)}` : ''}`}
+                    >
+                      <span className="pc-dot" />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
+                        <div className="pc-chipTitle">{titleForProject(project)}</div>
+                        {subtitleForProject(project) ? (
+                          <div className="pc-chipSub">{subtitleForProject(project)}</div>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
 
-                {overflow > 0 && <div className="pc-more">+{overflow} more</div>}
+                  {moreCount > 0 && (
+                    <button
+                      type="button"
+                      className="pc-moreBtn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openDayModal(d.key, items);
+                      }}
+                    >
+                      +{moreCount} more {moreCount === 1 ? 'job' : 'jobs'}
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
         </div>
+
+        {dayModal && (
+          <div
+            className="pc-dayOverlay"
+            role="presentation"
+            onClick={() => setDayModal(null)}
+          >
+            <div
+              className="pc-dayModal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="pc-day-modal-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="pc-dayModalHead">
+                <div>
+                  <h4 id="pc-day-modal-title" className="pc-dayModalTitle">
+                    Jobs this day
+                  </h4>
+                  <p className="pc-dayModalMeta">{dayModal.label}</p>
+                </div>
+                <button
+                  type="button"
+                  className="pc-dayModalClose"
+                  aria-label="Close"
+                  onClick={() => setDayModal(null)}
+                >
+                  ×
+                </button>
+              </div>
+              <div className="pc-dayModalList">
+                {dayModal.items.map((project, i) => (
+                  <button
+                    key={project.id ?? i}
+                    type="button"
+                    className="pc-dayModalRow"
+                    onClick={() => {
+                      onProjectClick?.(project);
+                      setDayModal(null);
+                    }}
+                  >
+                    <span className="pc-dot" style={{ marginTop: 4 }} />
+                    <div style={{ minWidth: 0 }}>
+                      <div className="pc-dayModalRowTitle">{titleForProject(project)}</div>
+                      {subtitleForProject(project) ? (
+                        <div className="pc-dayModalRowSub">{subtitleForProject(project)}</div>
+                      ) : null}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );

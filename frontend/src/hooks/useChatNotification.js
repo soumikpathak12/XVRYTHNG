@@ -42,12 +42,16 @@ export function useChatNotifications(options = {}) {
         }
       }
 
-      if (!showEvenIfActive && conversationId === activeConvIdRef.current) {
+      const cid = Number(conversationId);
+      const activeId = activeConvIdRef.current;
+      if (!showEvenIfActive && (cid === Number(activeId) || String(conversationId) === String(activeId))) {
         return;
       }
 
       const bm = bumpMapRef.current;
-      bm.set(conversationId, (bm.get(conversationId) ?? 0) + 1);
+      if (Number.isFinite(cid)) {
+        bm.set(cid, (bm.get(cid) ?? 0) + 1);
+      }
 
       setBumpVersion((v) => v + 1);
     },
@@ -162,15 +166,18 @@ export function useChatNotifications(options = {}) {
 
   const markConversationAsRead = useCallback(
     async (convId) => {
+      const idNum = Number(convId);
+      if (!Number.isFinite(idNum)) return;
       try {
-        await markChatRead(convId, selectedCompanyId ?? undefined);
+        await markChatRead(idNum, selectedCompanyId ?? undefined);
 
-        // Clear temporary bump & set unreadCount=0 locally
+        // Clear temporary bumps for this conversation (keys may be number or string from WS)
         const bm = bumpMapRef.current;
-        bm.delete(convId);
+        bm.delete(idNum);
+        bm.delete(String(idNum));
 
         setConversations((prev) =>
-          prev.map((c) => (c.id === convId ? { ...c, unreadCount: 0 } : c))
+          prev.map((c) => (Number(c.id) === idNum ? { ...c, unreadCount: 0 } : c))
         );
 
         // Ensure recalculation of totals after marking as read

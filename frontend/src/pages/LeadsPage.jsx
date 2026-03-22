@@ -32,6 +32,7 @@ export default function LeadsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [openAdd, setOpenAdd] = useState(false);
+  const [leadCreatedModalOpen, setLeadCreatedModalOpen] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [toast, setToast] = useState('');
@@ -72,6 +73,12 @@ export default function LeadsPage() {
     },
     [view, navigate, location.pathname, location.search]
   );
+
+  const handleLeadCreatedOk = useCallback(() => {
+    setLeadCreatedModalOpen(false);
+    navigate({ pathname: location.pathname, search: '?view=kanban' }, { replace: true });
+    setView('kanban');
+  }, [navigate, location.pathname]);
 
   useEffect(() => {
     const id = setTimeout(() => setDebouncedSearch(search.trim()), 250);
@@ -497,7 +504,42 @@ export default function LeadsPage() {
       </div>
 
       <Modal open={openAdd} onClose={() => setOpenAdd(false)} title="Add New Lead" width={720}>
-        <AddLeadForm embedded onCancel={() => setOpenAdd(false)} onSubmit={handleCreateLead} />
+        <AddLeadForm
+          embedded
+          suppressInlineSuccess
+          onAfterCreate={() => setLeadCreatedModalOpen(true)}
+          onCancel={() => setOpenAdd(false)}
+          onSubmit={handleCreateLead}
+        />
+      </Modal>
+
+      <Modal
+        open={leadCreatedModalOpen}
+        onClose={() => setLeadCreatedModalOpen(false)}
+        title="Lead created"
+        width={440}
+      >
+        <div style={{ padding: '4px 0 12px', textAlign: 'center' }}>
+          <p style={{ margin: '0 0 22px', color: '#374151', fontSize: 15, lineHeight: 1.55 }}>
+            Your lead was saved successfully.
+          </p>
+          <button
+            type="button"
+            onClick={handleLeadCreatedOk}
+            style={{
+              padding: '12px 32px',
+              borderRadius: 10,
+              border: 'none',
+              background: '#1A7B7B',
+              color: '#fff',
+              fontWeight: 700,
+              fontSize: 15,
+              cursor: 'pointer',
+            }}
+          >
+            OK
+          </button>
+        </div>
       </Modal>
 
       {/* Sync Modal */}
