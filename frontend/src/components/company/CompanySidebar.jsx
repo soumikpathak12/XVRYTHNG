@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, UsersRound, Boxes, HardHat, Factory,
-  Clock3, Share2, MessageSquare, MessageCircle, Settings, ChevronLeft, ChevronRight, Wrench
+  Clock3, MessageSquare, MessageCircle, Settings, ChevronLeft, ChevronRight, Wrench
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
@@ -14,7 +14,7 @@ const MODULE_NAV = {
   operations: { to: '/dashboard/operations', label: 'Operations',    icon: Factory },
   attendance: { to: '/dashboard/attendance', label: 'Attendance',    icon: Clock3 },
   payroll:    { to: '/dashboard/payroll',    label: 'Payroll',       icon: Clock3 },
-  referrals:  { to: '/dashboard/referrals',  label: 'Referrals',     icon: Share2 },
+  // Referrals is now accessible inside Settings → Referral Program tab
   messages:   { to: '/dashboard/messages',   label: 'Messages',      icon: MessageSquare },
   support:       { to: '/dashboard/support-tickets',    label: 'Support Tickets',  icon: MessageCircle },
   installation:  { to: '/dashboard/installation',       label: 'Installation Day', icon: Wrench },

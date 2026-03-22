@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../../context/AuthContext.jsx';
 import RequirePermission from '../../components/RequirePermission.jsx';
 import RolesPage from './RolesPage.jsx';
+import ReferralsPage from '../ReferralsPage.jsx';
 import { getAdminMe, updateAdminMe } from '../../services/api.js';
 
 const palette = {
@@ -65,8 +66,7 @@ const ALL_SECTIONS = [
   { key: 'workflow', label: 'Workflow Configuration', icon: Workflow },
   { key: 'roles', label: 'Roles & Permissions', icon: Shield, permission: { resource: 'roles', action: 'view' } },
   { key: 'referrals', label: 'Referral Program', icon: Share2 },
-  { key: 'integrations', label: 'Integrations', icon: PlugZap },
-  { key: 'notifications', label: 'Notifications', icon: Bell },
+
 ];
 
 export default function SettingsPage() {
@@ -89,7 +89,8 @@ export default function SettingsPage() {
                 <RolesPage />
               </RequirePermission>
             )}
-            {active !== 'company' && active !== 'roles' && (
+            {active === 'referrals' && <ReferralsPage />}
+            {active !== 'company' && active !== 'roles' && active !== 'referrals' && (
               <PlaceholderSection
                 title={ALL_SECTIONS.find((s) => s.key === active)?.label || 'Settings'}
                 message="This section will be available in the next phase."
@@ -291,9 +292,8 @@ function CompanyProfileForm() {
             borderRadius: 10,
             background: serverErrors && Object.keys(serverErrors).length ? '#FFF2F2' : '#E9F7F1',
             color: serverErrors && Object.keys(serverErrors).length ? palette.danger : palette.success,
-            border: `1px solid ${
-              serverErrors && Object.keys(serverErrors).length ? '#FAD1D1' : '#CDEFD9'
-            }`,
+            border: `1px solid ${serverErrors && Object.keys(serverErrors).length ? '#FAD1D1' : '#CDEFD9'
+              }`,
             fontWeight: 700,
           }}
         >
@@ -540,9 +540,8 @@ function ChangePasswordForm() {
             borderRadius: 10,
             background: serverErrors && Object.keys(serverErrors).length ? '#FFF2F2' : '#E9F7F1',
             color: serverErrors && Object.keys(serverErrors).length ? palette.danger : palette.success,
-            border: `1px solid ${
-              serverErrors && Object.keys(serverErrors).length ? '#FAD1D1' : '#CDEFD9'
-            }`,
+            border: `1px solid ${serverErrors && Object.keys(serverErrors).length ? '#FAD1D1' : '#CDEFD9'
+              }`,
             fontWeight: 700,
           }}
         >
