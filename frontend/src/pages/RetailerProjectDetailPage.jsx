@@ -324,6 +324,12 @@ export default function RetailerProjectDetailPage() {
                       <span className="lead-detail-card-label">System Size</span>
                       <span className="lead-detail-card-value">{project.system_size_kw != null ? `${project.system_size_kw} kW` : '—'}</span>
                     </div>
+                    <div className="lead-detail-card">
+                      <span className="lead-detail-card-label">Cost (expenses)</span>
+                      <span className="lead-detail-card-value" title="Approved claims matched to code, customer, or installation jobs">
+                        {fmtAUD(project.approved_expense_total)}
+                      </span>
+                    </div>
                   </div>
                   <RetailerProjectDetailDetails
                     project={project}
@@ -357,6 +363,13 @@ export default function RetailerProjectDetailPage() {
                   <p>
                     <strong>Estimated Value: </strong> 
                     {project?.value_amount ? new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(project.value_amount) : 'Not specified'}
+                  </p>
+                  <p>
+                    <strong>Cost (approved expenses): </strong>
+                    {fmtAUD(project?.approved_expense_total)}
+                  </p>
+                  <p style={{ fontSize: 13, color: '#64748b', marginTop: 12 }}>
+                    Cost includes approved claims linked to this project code, customer/client name, or Installation Day jobs tied to this retailer project.
                   </p>
                 </div>
               ) : activeTab === 'documents' ? (

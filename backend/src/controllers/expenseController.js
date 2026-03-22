@@ -1,3 +1,4 @@
+import fs from 'fs';
 import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -11,6 +12,11 @@ const __dirname  = path.dirname(__filename);
 const storage = multer.diskStorage({
   destination: (req, _file, cb) => {
     const dir = path.join(__dirname, '..', 'uploads', 'receipts');
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+    } catch (e) {
+      return cb(e);
+    }
     cb(null, dir);
   },
   filename: (_req, file, cb) => {
@@ -50,10 +56,10 @@ export async function submitExpense(req, res) {
     const employeeId = await attendanceService.getEmployeeIdByUserId(companyId, req.user.id);
 
     const receiptPath = req.file ? `/uploads/receipts/${req.file.filename}` : null;
-    const { projectName, category, amount, expenseDate, description } = req.body;
+    const { projectName, category, amount, expenseDate, description, installationJobId } = req.body;
 
     const data = await expenseService.submitExpense(companyId, employeeId, {
-      projectName, category, amount, expenseDate, description,
+      projectName, category, amount, expenseDate, description, installationJobId,
     }, receiptPath);
 
     return res.status(201).json({ success: true, data });
@@ -68,7 +74,16 @@ export async function myExpenses(req, res) {
     const companyId = resolveCompanyId(req);
     if (!companyId) return res.status(400).json({ success: false, message: 'Missing company context' });
     const employeeId = await attendanceService.getEmployeeIdByUserId(companyId, req.user.id);
-    const data = await expenseService.getMyExpenses(companyId, employeeId);
+    const installationJobId = req.query.installationJobId != null && String(req.query.installationJobId).trim() !== ''
+      ? Number(req.query.installationJobId)
+      : null;
+    const data = await expenseService.getMyExpenses(
+      companyId,
+      employeeId,
+      Number.isFinite(installationJobId) && installationJobId > 0
+        ? { installationJobId }
+        : {}
+    );
     return res.status(200).json({ success: true, data });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });

@@ -442,6 +442,11 @@ useEffect(() => {
             <LabelValue label="Client Type">{fields.clientType ?? '—'}</LabelValue>
             <LabelValue label="Client Name">{fields.clientName ?? '—'}</LabelValue>
             <LabelValue label="Price (AUD)">{formatMoney(fields.price)}</LabelValue>
+            <LabelValue label="Cost (expenses)">
+              {project?._raw?.approved_expense_total != null
+                ? formatMoney(project._raw.approved_expense_total)
+                : '—'}
+            </LabelValue>
             <LabelValue label="Scheduled Date">
               {fields.scheduledDate ? String(fields.scheduledDate) : '—'}
             </LabelValue>

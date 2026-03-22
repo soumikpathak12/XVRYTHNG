@@ -2065,10 +2065,8 @@ export async function deleteInstallationChecklistItem(itemId) {
 // Installation photos (T-245/246/247/248)
 export async function uploadInstallationPhoto(jobId, formData) {
   // formData is a FormData object containing: photo (file), section, caption, lat, lng, taken_at
-  const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
-  const res = await fetch(`/api/installation-jobs/${jobId}/photos`, {
+  const res = await authFetch(`/api/installation-jobs/${jobId}/photos`, {
     method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,
   });
   return res.json();

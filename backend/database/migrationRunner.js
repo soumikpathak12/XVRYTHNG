@@ -377,6 +377,18 @@ const MIGRATIONS = [
     },
   },
 
+  /* ── V009: Expense currency AUD ── */
+  {
+    version: 'V009__expense_currency_aud',
+    description: 'Expense claims default and storage currency AUD',
+    up: async () => {
+      await db.query(`
+        ALTER TABLE expense_claims
+        MODIFY COLUMN currency VARCHAR(3) NOT NULL DEFAULT 'AUD'
+      `);
+    },
+  },
+
 ];
 
 /* ═══════ Runner ═══════ */

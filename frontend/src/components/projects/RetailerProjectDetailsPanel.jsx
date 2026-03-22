@@ -397,6 +397,12 @@ export default function RetailerProjectDetailsPanel({
               <KV label="Client Type" value={projectInfo.client_type} />
               <KV label="Client Name" value={projectInfo.client_name} />
               <KV label="Price (AUD)" value={fmtAUD(projectInfo.price)} />
+              <KV
+                label="Cost (expenses)"
+                value={fmtAUD(
+                  project?._raw?.approved_expense_total ?? project?.approved_expense_total
+                )}
+              />
               <KV label="Scheduled Date" value={date || '—'} />
             </div>
           </div>

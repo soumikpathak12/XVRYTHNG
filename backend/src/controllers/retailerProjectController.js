@@ -11,6 +11,7 @@ import {
   saveRetailerProjectSchedule,getRetailerProjectAssignees,saveRetailerProjectAssignees,
   getRetailerProjectById
 } from '../services/retailerProjectService.js';
+import * as expenseService from '../services/expenseService.js';
 
 function resolveCompanyId(req) {
   // Same pattern as your existing controllers
@@ -49,7 +50,14 @@ export async function retailerGetById(req, res) {
 
     const projectId = Number(req.params.id);
     const project = await getRetailerProjectById(companyId, projectId);
-    return res.status(200).json({ success: true, project });
+    const approvedExpenseTotal = await expenseService.approvedExpenseTotalForRetailerProject(
+      companyId,
+      projectId
+    );
+    return res.status(200).json({
+      success: true,
+      project: { ...project, approved_expense_total: approvedExpenseTotal },
+    });
   } catch (err) {
     const status = err.statusCode ?? err.status ?? 500;
     return res.status(status).json({ success: false, message: err.message ?? 'Failed to load project.' });

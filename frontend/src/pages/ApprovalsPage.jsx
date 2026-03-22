@@ -14,9 +14,17 @@ const BRAND_MID  = '#8fb3b3';
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 const fmtTime     = iso => iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
-const fmtDate     = iso => iso ? new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
+const fmtDate     = iso => iso ? new Date(iso).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
 const fmtDateTime = iso => iso ? `${fmtDate(iso)}, ${fmtTime(iso)}` : '-';
-const fmtCurrency = amt  => `₹${Number(amt).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+const fmtCurrency = amt =>
+  new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 2 }).format(Number(amt));
+/** Human-readable label for job-linked expense claims from Installation Day */
+const fmtExpenseProjectName = (name) => {
+  if (!name) return '';
+  const m = /^Installation job #(\d+)$/i.exec(String(name).trim());
+  if (m) return `Installation Day · Job #${m[1]}`;
+  return name;
+};
 const relTime = iso => {
   if (!iso) return '';
   const diff = Date.now() - new Date(iso).getTime();
@@ -278,7 +286,7 @@ function ExpenseCard({ item, busy, notes, onNoteChange, onReview }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 14 }}>
             <InfoBox label="Amount" accent>
               <div style={{ fontSize: 24, fontWeight: 900, color: BRAND, lineHeight: 1 }}>{fmtCurrency(item.amount)}</div>
-              <div style={{ fontSize: 11, color: BRAND_MID, marginTop: 2 }}>{item.currency || 'INR'}</div>
+              <div style={{ fontSize: 11, color: BRAND_MID, marginTop: 2 }}>{item.currency || 'AUD'}</div>
             </InfoBox>
             <InfoBox label="Expense Date">
               <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>
@@ -288,7 +296,7 @@ function ExpenseCard({ item, busy, notes, onNoteChange, onReview }) {
             </InfoBox>
             {item.project_name && (
               <InfoBox label="Project">
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{item.project_name}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{fmtExpenseProjectName(item.project_name)}</div>
               </InfoBox>
             )}
           </div>

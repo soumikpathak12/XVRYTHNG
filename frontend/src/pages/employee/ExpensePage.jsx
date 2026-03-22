@@ -15,8 +15,9 @@ const CATEGORIES = [
   { value: 'other',     label: 'Other',     color: '#6B7280' },
 ];
 
-const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
-const fmtCurrency = (amt) => `₹${Number(amt).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
+const fmtCurrency = (amt) =>
+  new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 2 }).format(Number(amt));
 
 const statusBadge = (s) => {
   const map = { pending: ['#FEF3C7', '#92400E'], approved: ['#DCFCE7', '#166534'], rejected: ['#FEE2E2', '#991B1B'], cancelled: ['#F3F4F6', '#6B7280'] };
@@ -54,11 +55,10 @@ function ExpenseForm({ onSubmitted }) {
 
     try {
       setSaving(true);
-      const token = localStorage.getItem('token');
       const companyId = localStorage.getItem('companyId');
-      const resp = await fetch(`/api/employees/expenses${companyId ? `?companyId=${companyId}` : ''}`, {
+      const qs = companyId ? `?companyId=${encodeURIComponent(companyId)}` : '';
+      const resp = await api.authFetch(`/api/employees/expenses${qs}`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
         body: fd,
       });
       const data = await resp.json();
@@ -94,7 +94,7 @@ function ExpenseForm({ onSubmitted }) {
             </select>
           </div>
           <div>
-            <label style={labelStyle}>Amount (₹) *</label>
+            <label style={labelStyle}>Amount (AUD) *</label>
             <input type="number" min="0" step="0.01" style={inputStyle} placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} required />
           </div>
           <div>

@@ -22,6 +22,16 @@ import ProjectMilestoneProgress from '../components/projects/ProjectMilestonePro
 const INST_BRAND = '#146b6b';
 const INST_BRAND_BG = '#E6F4F1';
 
+function fmtAud0(v) {
+  if (v == null || Number.isNaN(Number(v))) return '—';
+  return new Intl.NumberFormat('en-AU', {
+    style: 'currency',
+    currency: 'AUD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Number(v));
+}
+
 const INST_STATUS_CFG = {
   scheduled: { label: 'Scheduled', bg: '#EFF6FF', color: '#1D4ED8', dot: '#2563EB' },
   in_progress: { label: 'In Progress', bg: '#FFF7ED', color: '#C2410C', dot: '#EA580C' },
@@ -503,6 +513,12 @@ export default function ProjectDetailPage() {
                   <span className="lead-detail-card-label">System Size</span>
                   <span className="lead-detail-card-value">{project.system_size_kw != null ? `${project.system_size_kw} kW` : '—'}</span>
                 </div>
+                <div className="lead-detail-card">
+                  <span className="lead-detail-card-label">Cost (expenses)</span>
+                  <span className="lead-detail-card-value" title="Approved claims matched to this project (code, name, customer, installation jobs)">
+                    {fmtAud0(project.approved_expense_total)}
+                  </span>
+                </div>
               </div>
               <RetailerProjectDetailDetails
                 project={project}
@@ -681,6 +697,13 @@ export default function ProjectDetailPage() {
               <p>
                 <strong>Estimated Value: </strong>
                 {project?.value_amount ? new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(project.value_amount) : 'Not specified'}
+              </p>
+              <p>
+                <strong>Cost (approved expenses): </strong>
+                {fmtAud0(project?.approved_expense_total)}
+              </p>
+              <p style={{ fontSize: 13, color: '#64748b', marginTop: 12 }}>
+                Cost includes approved expense claims linked by project code/name, customer, lead name, or Installation Day job for this project.
               </p>
             </div>
           ) : activeTab === 'activity' ? (
