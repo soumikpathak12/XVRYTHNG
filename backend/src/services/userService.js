@@ -1,6 +1,7 @@
 // src/services/userService.js
 import bcrypt from 'bcryptjs';
 import db from '../config/db.js';
+import { sendEmployeeCredentialEmail } from './emailService.js';
 
 const STATIC_ORG_ROLES = new Set(['ELE-LEAD','APP','SAL-MGR','SAL-EXE','OPS-MGR','PM-MGR','DIR']);
 
@@ -13,6 +14,45 @@ async function roleExists(code) {
     // fallback nếu bảng org_roles chưa có
   }
   return STATIC_ORG_ROLES.has(code);
+}
+
+async function getCompanyDisplayName(companyId) {
+  if (companyId == null || companyId === '') return null;
+  try {
+    const [[row]] = await db.execute(
+      'SELECT name FROM companies WHERE id = ? LIMIT 1',
+      [Number(companyId)]
+    );
+    return row?.name != null ? String(row.name) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Email login details via Resend (best-effort; does not fail user creation). */
+async function notifyNewUserCredentials({
+  notify_email,
+  email,
+  name,
+  password,
+  company_id,
+}) {
+  if (notify_email === 0 || notify_email === false || notify_email === '0') return;
+  const to = String(email ?? '').trim().toLowerCase();
+  if (!to) return;
+  try {
+    const companyName = (await getCompanyDisplayName(company_id)) || 'XVRYTHNG';
+    await sendEmployeeCredentialEmail({
+      to,
+      employeeName: String(name ?? '').trim(),
+      email: to,
+      tempPassword: String(password),
+      companyName,
+      appUrl: process.env.APP_BASE_URL || 'http://localhost:5173',
+    });
+  } catch (mailErr) {
+    console.error('[createUser] Send credential email failed:', mailErr?.message || mailErr);
+  }
 }
 
 async function generateEmployeeCode(conn, code) {
@@ -83,12 +123,13 @@ export async function createUser(payload, ctx = {}) {
       const [ok] = await conn.execute(
         `INSERT INTO users
            (company_id, role_id, org_role_code, employee_code, email,
-            password_hash, name, phone, department, status, notify_email, notify_sms)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+            password_hash, name, phone, department, status, notify_email, notify_sms, must_change_password)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [
           company_id, role_id, org_code, emp_code,
           email.trim().toLowerCase(), password_hash, name.trim(),
-          phone, department, status, notify_email ? 1 : 0, notify_sms ? 1 : 0
+          phone, department, status, notify_email ? 1 : 0, notify_sms ? 1 : 0,
+          1,
         ]
       );
       console.log('[SERVICE createUser] insertId=', ok?.insertId);
@@ -110,6 +151,13 @@ export async function createUser(payload, ctx = {}) {
         const employee_code = await generateEmployeeCode(conn, org_role_code);
         try {
           const user = await insertAndReturn({ org_code: org_role_code, emp_code: employee_code });
+          await notifyNewUserCredentials({
+            notify_email,
+            email,
+            name,
+            password,
+            company_id,
+          });
           return user; // ✅ luôn return
         } catch (e) {
           if (e.code === 'ER_DUP_ENTRY') {
@@ -127,6 +175,13 @@ export async function createUser(payload, ctx = {}) {
 
     // Nhánh không có org_role_code
     const user = await insertAndReturn({ org_code: null, emp_code: null });
+    await notifyNewUserCredentials({
+      notify_email,
+      email,
+      name,
+      password,
+      company_id,
+    });
     return user; // ✅ luôn return
 
   } catch (e) {

@@ -81,7 +81,8 @@ export default function CreateUserPage() {
         phone: form.phone || null,
         department: form.department || null,
         status: form.status,
-        // ❌ removed: notify_email, notify_sms
+        notify_email: 1,
+        notify_sms: 0,
       };
 
       // DEBUG logs để theo dõi luồng gọi
@@ -97,7 +98,9 @@ export default function CreateUserPage() {
         throw new Error('Create succeeded but server did not return the created user');
       }
 
-      setMsg(`✅ Created: ${user.name} (${user.employee_code || 'no employee code'})`);
+      setMsg(
+        `✅ Created: ${user.name} (${user.employee_code || 'no employee code'}). Login details were sent to ${form.email.trim()}.`
+      );
 
       // Clear password fields, giữ lại các field khác để tạo liên tiếp
       setForm((f) => ({ ...f, password: '', confirm: '' }));

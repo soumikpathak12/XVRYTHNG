@@ -9,6 +9,19 @@ function asNumberOrNull(v) {
   return Number.isFinite(n) ? n : null;
 }
 
+async function getCompanyDisplayName(companyId) {
+  if (companyId == null || companyId === '') return 'XVRYTHNG';
+  try {
+    const [[row]] = await db.execute(
+      'SELECT name FROM companies WHERE id = ? LIMIT 1',
+      [Number(companyId)]
+    );
+    return row?.name != null ? String(row.name) : 'XVRYTHNG';
+  } catch {
+    return 'XVRYTHNG';
+  }
+}
+
 
 export async function createEmployee(companyId, payload) {
   const conn = await db.getConnection();
@@ -127,12 +140,13 @@ export async function createEmployee(companyId, payload) {
     
     try {
       if (_newLoginEmail) {
+        const companyName = await getCompanyDisplayName(companyId);
         await sendEmployeeCredentialEmail({
           to: _newLoginEmail,
           employeeName: `${personal.first_name ?? ''} ${personal.last_name ?? ''}`.trim(),
           email: _newLoginEmail,
           tempPassword: _tempPassword,
-          companyName: 'XVRYTHNG',
+          companyName,
           appUrl: process.env.APP_BASE_URL || 'http://localhost:5173',
         });
      }
@@ -194,11 +208,13 @@ export async function createEmployeeAccount(companyId, employeeId, password) {
   await conn.commit();
 
    try {
+     const companyName = await getCompanyDisplayName(companyId);
      await sendEmployeeCredentialEmail({
        to: email,
        employeeName: fullName,
        email,
-       tempPassword: password, 
+       tempPassword: password,
+       companyName,
        appUrl: process.env.APP_BASE_URL || 'http://localhost:5173',
      });
    } catch (mailErr) {

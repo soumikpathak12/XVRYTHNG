@@ -11,6 +11,14 @@ export function isValidEmail(addr) {
   return !!addr && EMAIL_RE.test(String(addr).trim());
 }
 
+/** Escape minimal HTML when interpolating plain text into templates. */
+function escapeHtml(s = '') {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 export function renderBrandedFollowup({ customerName, round = 1 }) {
   const title = round === 1 ? 'Following up on your solar enquiry' : 'Quick follow-up';
   return `
@@ -125,9 +133,13 @@ export function renderEmployeeCredentialEmail({
   companyName = 'your company',
   appUrl = process.env.APP_BASE_URL || 'http://localhost:5173',
 }) {
-  const safeName = (employeeName || '').trim() || 'there';
-  const title = `Your ${companyName} login details`;
-  const signInUrl = appUrl.replace(/\/+$/, '') + '/login';
+  const rawCompany = companyName || 'your company';
+  const safeName = escapeHtml((employeeName || '').trim() || 'there');
+  const safeCompany = escapeHtml(rawCompany);
+  const safeEmail = escapeHtml(String(email ?? ''));
+  const safePwd = escapeHtml(String(tempPassword ?? ''));
+  const title = `Your ${rawCompany} login details`;
+  const signInUrl = `${String(appUrl || '').replace(/\/+$/, '')}/login`;
 
   return `
 <!doctype html>
@@ -135,7 +147,7 @@ export function renderEmployeeCredentialEmail({
   <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <title>${title}</title>
+    <title>${escapeHtml(title)}</title>
   </head>
   <body style="margin:0;padding:0;background:#f6f9fc;font-family:Arial,sans-serif;color:#0f172a;">
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#f6f9fc;">
@@ -152,10 +164,10 @@ export function renderEmployeeCredentialEmail({
             <tr>
               <td style="padding:20px;">
                 <p style="margin:0 0 12px;">Hi ${safeName},</p>
-                <p style="margin:0 0 12px;">Your ${companyName} account has been created. Here are your login details:</p>
+                <p style="margin:0 0 12px;">Your ${safeCompany} account has been created. Here are your login details:</p>
                 <ul style="margin:0 0 12px 20px;padding:0;line-height:1.6">
-                  <li><strong>Email:</strong> ${email}</li>
-                  <li><strong>Temporary password:</strong> ${tempPassword}</li>
+                  <li><strong>Email:</strong> ${safeEmail}</li>
+                  <li><strong>Temporary password:</strong> ${safePwd}</li>
                 </ul>
 
                 <p style="margin:0 0 12px;">
@@ -163,7 +175,7 @@ export function renderEmployeeCredentialEmail({
                 </p>
 
                 <p style="margin:16px 0 20px;">
-                  <a href="${signInUrl}"
+                  <a href="${escapeHtml(signInUrl)}"
                      style="display:inline-block;background:#1A7B7B;color:#fff;text-decoration:none;padding:10px 16px;border-radius:10px;font-weight:700">
                     Sign in
                   </a>
@@ -199,6 +211,10 @@ export async function sendEmployeeCredentialEmail({
   headers = {},
 }) {
   if (!isValidEmail(to)) throw new Error(`Invalid recipient email: ${to}`);
+  if (!process.env.RESEND_API_KEY?.trim()) {
+    console.warn('[ONBOARD] RESEND_API_KEY is not set; skipping credential email to', to);
+    return null;
+  }
 
   const subject = `${companyName || 'XVRYTHNG'} — Your login details`;
   const html = renderEmployeeCredentialEmail({ employeeName, email, tempPassword, companyName, appUrl });
@@ -221,17 +237,6 @@ export async function sendEmployeeCredentialEmail({
 
   console.log('[ONBOARD] Resend OK, id =', data?.id);
   return data?.id || null;
-}
-
-
-/**
- * Escape minimal HTML to protect rendering when interpolating plain text.
- */
-function escapeHtml(s = '') {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
 }
 
 /**
