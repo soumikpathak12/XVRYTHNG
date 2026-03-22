@@ -54,7 +54,6 @@ export default function LeadDetailPage() {
   const [loadingTestLink, setLoadingTestLink] = useState(false);
   const [creatingProposal, setCreatingProposal] = useState(false); // NEW
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
-  const [toast, setToast] = useState({ text: '', type: 'success' }); // success | error
 
   const loadLead = useCallback(async () => {
     if (!leadId) return;
@@ -95,16 +94,9 @@ export default function LeadDetailPage() {
       source: payload.source || null,
       site_inspection_date: payload.site_inspection_date || null,
     };
-    try {
-      setError('');
-      await updateLead(leadId, dbPayload);
-      await loadLead();
-      setToast({ text: 'Lead updated successfully', type: 'success' });
-      setTimeout(() => setToast({ text: '', type: 'success' }), 3000);
-    } catch (err) {
-      setToast({ text: err?.message || 'Failed to update lead', type: 'error' });
-      setTimeout(() => setToast({ text: '', type: 'success' }), 4000);
-    }
+    setError('');
+    await updateLead(leadId, dbPayload);
+    await loadLead();
   };
 
   const handleMarkLost = async () => {
@@ -268,16 +260,6 @@ export default function LeadDetailPage() {
             </div>
           ) : null}
         </header>
-
-        {toast.text && (
-          <div
-            className={`lead-detail-toast ${toast.type === 'success' ? 'lead-detail-toast-success' : ''}`}
-            style={toast.type === 'error' ? { background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b' } : undefined}
-            role="alert"
-          >
-            {toast.text}
-          </div>
-        )}
 
         {credentialsSent && (
           <CredentialsSentModal

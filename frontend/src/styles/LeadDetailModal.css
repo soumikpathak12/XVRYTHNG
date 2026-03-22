@@ -782,3 +782,120 @@
   background: #fef2f2;
   border-color: #b91c1c;
 }
+
+/* Save confirmation (lead details) — in-app dialog, not browser confirm */
+.lead-save-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.lead-save-confirm-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.lead-save-confirm-panel {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 440px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.2);
+  border: 1px solid #e2e8f0;
+  padding: 24px 28px 22px;
+}
+
+.lead-save-confirm-title {
+  margin: 0 0 10px;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+.lead-save-confirm-text {
+  margin: 0 0 20px;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: #475569;
+}
+
+.lead-save-confirm-error {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  font-size: 0.875rem;
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+}
+
+.lead-save-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.lead-save-confirm-btn {
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.875rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.lead-save-confirm-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.lead-save-confirm-btn.secondary {
+  background: #f1f5f9;
+  color: #334155;
+  border-color: #e2e8f0;
+}
+
+.lead-save-confirm-btn.secondary:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.lead-save-confirm-btn.primary {
+  background: #1a7b7b;
+  color: #fff;
+  border-color: #1a7b7b;
+}
+
+.lead-save-confirm-btn.primary:hover:not(:disabled) {
+  background: #146b6b;
+  border-color: #146b6b;
+}
+
+.lead-result-dialog-panel--success {
+  border-color: #99f6e4;
+  box-shadow: 0 24px 64px rgba(26, 123, 123, 0.12);
+}
+
+.lead-result-dialog-title--success {
+  color: #0f766e;
+}
+
+.lead-result-dialog-title--error {
+  color: #b91c1c;
+}
+
+.lead-result-dialog-message {
+  margin-bottom: 20px;
+}

@@ -1,6 +1,7 @@
 // components/leads/LeadDetailDetails.jsx – editable Details tab (core form + extras + 2 nút ở cuối)
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import LeadForm from './LeadForm.jsx';
+import '../../styles/LeadDetailModal.css';
 
 function formatDateTimeLocal(isoString) {
   if (!isoString) return '';
@@ -201,23 +202,46 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
   const updateExtra = (key, value) =>
     setExtras((prev) => ({ ...prev, [key]: value }));
 
+  /** After save: in-app result (success / error), not browser alert or top toast */
+  const [resultDialog, setResultDialog] = useState(null);
+
+  const closeResultDialog = useCallback(() => {
+    setResultDialog(null);
+  }, []);
+
+  useEffect(() => {
+    if (!resultDialog) return;
+    const onKey = (e) => {
+      if (e.key === 'Escape') closeResultDialog();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [resultDialog, closeResultDialog]);
+
+  /** API / inputs may return numbers; `(n || '').trim` throws — coerce first. */
+  const trimOrNull = (v) => {
+    if (v == null || v === '') return null;
+    const s = String(v).trim();
+    return s || null;
+  };
+
   const handleSubmit = async (corePayload) => {
     // SYSTEM TYPE
     const system_type =
       extras.system_type_sel === 'Other'
-        ? ((extras.system_type_other || '').trim() || null)
+        ? trimOrNull(extras.system_type_other)
         : (extras.system_type_sel || null);
 
     // House Storey
     const house_storey =
       extras.house_storey_sel === 'Other'
-        ? ((extras.house_storey_other || '').trim() || null)
+        ? trimOrNull(extras.house_storey_other)
         : (extras.house_storey_sel || null);
 
     // Roof Type
     const roof_type =
       extras.roof_type_sel === 'Other'
-        ? ((extras.roof_type_other || '').trim() || null)
+        ? trimOrNull(extras.roof_type_other)
         : (extras.roof_type_sel || null);
 
     const meter_phase = extras.meter_phase_sel || null;
@@ -236,39 +260,90 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
       access_to_inverter:
         extras.access_to_inverter == null ? null : !!extras.access_to_inverter,
 
-      pre_approval_reference_no:
-        (extras.pre_approval_reference_no || '').trim() || null,
-      energy_retailer: (extras.energy_retailer || '').trim() || null,
-      energy_distributor: (extras.energy_distributor || '').trim() || null,
+      pre_approval_reference_no: trimOrNull(extras.pre_approval_reference_no),
+      energy_retailer: trimOrNull(extras.energy_retailer),
+      energy_distributor: trimOrNull(extras.energy_distributor),
 
       solar_vic_eligibility:
         extras.solar_vic_eligibility == null ? null : !!extras.solar_vic_eligibility,
 
-      nmi_number: (extras.nmi_number || '').trim() || null,
-      meter_number: (extras.meter_number || '').trim() || null,
+      nmi_number: trimOrNull(extras.nmi_number),
+      meter_number: trimOrNull(extras.meter_number),
 
-      // PV system details
-      pv_system_size_kw: (extras.pv_system_size_kw || '').trim() || null,
-      pv_inverter_size_kw: (extras.pv_inverter_size_kw || '').trim() || null,
-      pv_inverter_brand: (extras.pv_inverter_brand || '').trim() || null,
-      pv_panel_brand: (extras.pv_panel_brand || '').trim() || null,
-      pv_panel_module_watts: (extras.pv_panel_module_watts || '').trim() || null,
+      // PV system details (numeric fields from DB must use trimOrNull)
+      pv_system_size_kw: trimOrNull(extras.pv_system_size_kw),
+      pv_inverter_size_kw: trimOrNull(extras.pv_inverter_size_kw),
+      pv_inverter_brand: trimOrNull(extras.pv_inverter_brand),
+      pv_panel_brand: trimOrNull(extras.pv_panel_brand),
+      pv_panel_module_watts: trimOrNull(extras.pv_panel_module_watts),
 
       // EV charger details
-      ev_charger_brand: (extras.ev_charger_brand || '').trim() || null,
-      ev_charger_model: (extras.ev_charger_model || '').trim() || null,
+      ev_charger_brand: trimOrNull(extras.ev_charger_brand),
+      ev_charger_model: trimOrNull(extras.ev_charger_model),
 
       // Battery details
-      battery_size_kwh: (extras.battery_size_kwh || '').trim() || null,
-      battery_brand: (extras.battery_brand || '').trim() || null,
-      battery_model: (extras.battery_model || '').trim() || null,
+      battery_size_kwh: trimOrNull(extras.battery_size_kwh),
+      battery_brand: trimOrNull(extras.battery_brand),
+      battery_model: trimOrNull(extras.battery_model),
     };
 
-    return onSubmit(merged);
+    try {
+      await onSubmit(merged);
+      setResultDialog({ variant: 'success', message: 'Lead updated successfully.' });
+    } catch (err) {
+      setResultDialog({
+        variant: 'error',
+        message: err?.message || 'Failed to save changes.',
+      });
+    }
   };
 
   return (
     <div className="lead-detail-details" style={{ display: 'grid', gap: 16 }}>
+      {resultDialog && (
+        <div
+          className="lead-save-confirm-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="lead-result-dialog-title"
+        >
+          <button
+            type="button"
+            className="lead-save-confirm-backdrop"
+            aria-label="Dismiss"
+            onClick={closeResultDialog}
+          />
+          <div
+            className={`lead-save-confirm-panel ${resultDialog.variant === 'success' ? 'lead-result-dialog-panel--success' : ''}`}
+          >
+            <h2
+              id="lead-result-dialog-title"
+              className={`lead-save-confirm-title ${resultDialog.variant === 'success' ? 'lead-result-dialog-title--success' : 'lead-result-dialog-title--error'}`}
+            >
+              {resultDialog.variant === 'success' ? 'Saved' : 'Could not save'}
+            </h2>
+            <p
+              className={
+                resultDialog.variant === 'error'
+                  ? 'lead-save-confirm-error lead-result-dialog-message'
+                  : 'lead-save-confirm-text lead-result-dialog-message'
+              }
+              role={resultDialog.variant === 'error' ? 'alert' : undefined}
+            >
+              {resultDialog.message}
+            </p>
+            <div className="lead-save-confirm-actions">
+              <button
+                type="button"
+                className="lead-save-confirm-btn primary"
+                onClick={closeResultDialog}
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <LeadForm
         initialValues={initialValues}
         onSubmit={handleSubmit}
@@ -277,6 +352,7 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
         title=""
         submitLabel="Save changes"
         embedded
+        suppressInlineSuccess
         formId="lead-core-form"
         hideActions
       />

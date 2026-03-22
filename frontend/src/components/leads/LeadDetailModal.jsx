@@ -62,12 +62,9 @@ export default function LeadDetailModal({ leadId, onClose, onLeadUpdated }) {
   }, [leadId, loadLead]);
 
   const handleDetailsSubmit = async (payload) => {
-    try {
-      await updateLead(leadId, payload); onLeadUpdated?.(leadId);
-      await loadLead(); //
-    } catch (err) {
-      setError(err?.message || 'Failed to save changes');
-    }
+    await updateLead(leadId, payload);
+    onLeadUpdated?.(leadId);
+    await loadLead();
   };
 
   const handleMarkLost = async () => {

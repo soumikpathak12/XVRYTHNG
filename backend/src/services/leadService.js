@@ -505,7 +505,17 @@ export async function updateLead(leadId, payload) {
   await db.execute(sql, params);
 
   const [updated] = await db.execute('SELECT * FROM leads WHERE id = ? LIMIT 1', [leadId]);
-  return updated[0];
+  const lead = updated[0];
+  // Match updateLeadStage/createLead: in-house project rows are created when a lead is won.
+  // Lead detail & modal save via PUT /api/leads/:id (this path) previously skipped that step.
+  if (lead && (lead.stage === 'closed_won' || Number(lead.is_won) === 1)) {
+    try {
+      await ensureProjectForLead(leadId);
+    } catch (e) {
+      console.error('ensureProjectForLead after updateLead failed:', e);
+    }
+  }
+  return lead;
 }
 
 /** -------------------- UPDATE STAGE (set contacted_at when entering 'contacted') -------------------- */

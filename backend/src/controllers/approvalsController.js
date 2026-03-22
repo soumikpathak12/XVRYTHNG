@@ -126,20 +126,21 @@ export async function getPendingCount(req, res) {
     const cond = companyId ? 'company_id = ? AND status = \'pending\'' : 'status = \'pending\'';
     const p    = companyId ? [companyId] : [];
 
-    const [[{ leave }]] = await db.query(
-      `SELECT COUNT(*) AS leave FROM leave_requests WHERE ${cond}`, p
+    // Avoid SQL reserved words as column aliases (`leave` breaks MariaDB).
+    const [[{ leave_cnt }]] = await db.query(
+      `SELECT COUNT(*) AS leave_cnt FROM leave_requests WHERE ${cond}`, p
     );
-    const [[{ expense }]] = await db.query(
-      `SELECT COUNT(*) AS expense FROM expense_claims WHERE ${cond}`, p
+    const [[{ expense_cnt }]] = await db.query(
+      `SELECT COUNT(*) AS expense_cnt FROM expense_claims WHERE ${cond}`, p
     );
-    const [[{ attendance }]] = await db.query(
-      `SELECT COUNT(*) AS attendance FROM attendance_edit_requests WHERE ${cond}`, p
+    const [[{ attendance_cnt }]] = await db.query(
+      `SELECT COUNT(*) AS attendance_cnt FROM attendance_edit_requests WHERE ${cond}`, p
     );
 
     const byType = {
-      leave:      Number(leave),
-      expense:    Number(expense),
-      attendance: Number(attendance),
+      leave:      Number(leave_cnt),
+      expense:    Number(expense_cnt),
+      attendance: Number(attendance_cnt),
     };
     const pending = byType.leave + byType.expense + byType.attendance;
 
