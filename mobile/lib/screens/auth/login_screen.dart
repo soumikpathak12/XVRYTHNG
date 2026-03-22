@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../services/auth_service.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,10 +17,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _rememberMe = false;
   bool _obscure = true;
-  bool _loading = false;
-  String? _error;
-
-  final _auth = AuthService();
+  bool _submitting = false;
 
   @override
   void dispose() {
@@ -30,37 +29,30 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    setState(() => _submitting = true);
 
-    try {
-      final result = await _auth.login(
-        email: _email.text.trim(),
-        password: _password.text,
-        rememberMe: _rememberMe,
-      );
+    final auth = context.read<AuthProvider>();
+    await auth.login(
+      _email.text.trim(),
+      _password.text,
+      rememberMe: _rememberMe,
+    );
 
-      if (!mounted) return;
+    if (!mounted) return;
+    setState(() => _submitting = false);
 
+    if (auth.isAuthenticated) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Welcome, ${result.user.name}!')),
+        SnackBar(content: Text('Welcome, ${auth.user!.name}!')),
       );
-
-      Navigator.of(context).pushReplacementNamed('/home');
-    } on AuthException catch (e) {
-      setState(() => _error = e.message);
-    } catch (_) {
-      setState(() => _error = 'Something went wrong. Please try again.');
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      context.go(auth.getDefaultRoute());
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final auth = context.watch<AuthProvider>();
 
     return Scaffold(
       body: SafeArea(
@@ -68,48 +60,41 @@ class _LoginScreenState extends State<LoginScreen> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
               child: Form(
                 key: _formKey,
                 child: ListView(
                   shrinkWrap: true,
                   children: [
                     const SizedBox(height: 24),
-
-                    /// --- Logo ---
                     Center(
-                      child: Semantics(
-                        label: 'XVRYTHNG Logo',
-                        child: Container(
-                          width: 88,
-                          height: 88,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.08),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                            color: theme.colorScheme.surface,
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          child: Image.asset(
-                            'assets/icon/app_icon.jpeg',
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, _, __) => Icon(
-                              Icons.broken_image_outlined,
-                              color: theme.colorScheme.outline,
+                      child: Container(
+                        width: 88,
+                        height: 88,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.08),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
                             ),
+                          ],
+                          color: theme.colorScheme.surface,
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: Image.asset(
+                          'assets/icon/app_icon.jpeg',
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Icon(
+                            Icons.broken_image_outlined,
+                            color: theme.colorScheme.outline,
                           ),
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 16),
-
-                    /// --- Brand & Tagline ---
                     Text(
                       'XVRYTHNG',
                       textAlign: TextAlign.center,
@@ -126,11 +111,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         color: Colors.grey[700],
                       ),
                     ),
-
                     const SizedBox(height: 28),
-
-                    /// --- Error Banner ---
-                    if (_error != null)
+                    if (auth.error != null)
                       Container(
                         padding: const EdgeInsets.all(14),
                         margin: const EdgeInsets.only(bottom: 16),
@@ -139,14 +121,13 @@ class _LoginScreenState extends State<LoginScreen> {
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Icon(Icons.error_outline,
                                 color: Colors.red.shade700),
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
-                                _error!,
+                                auth.error!,
                                 style: TextStyle(
                                   color: Colors.red.shade700,
                                   fontSize: 14,
@@ -156,8 +137,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           ],
                         ),
                       ),
-
-                    /// --- Email ---
                     TextFormField(
                       controller: _email,
                       decoration: const InputDecoration(
@@ -169,15 +148,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       validator: (v) {
                         v = v?.trim() ?? '';
                         if (v.isEmpty) return 'Please enter your email';
-                        if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(v)) {
+                        if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+                            .hasMatch(v)) {
                           return 'Please enter a valid email';
                         }
                         return null;
                       },
                     ),
                     const SizedBox(height: 16),
-
-                    /// --- Password ---
                     TextFormField(
                       controller: _password,
                       decoration: InputDecoration(
@@ -195,37 +173,31 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       obscureText: _obscure,
-                      validator: (v) =>
-                          (v == null || v.isEmpty)
-                              ? 'Please enter your password'
-                              : null,
+                      validator: (v) => (v == null || v.isEmpty)
+                          ? 'Please enter your password'
+                          : null,
                     ),
-
                     const SizedBox(height: 12),
-
-                    /// --- Remember + Forgot ---
                     Row(
                       children: [
                         Checkbox(
                           value: _rememberMe,
-                          onChanged: _loading
+                          onChanged: _submitting
                               ? null
-                              : (v) => setState(() => _rememberMe = v ?? false),
+                              : (v) =>
+                                  setState(() => _rememberMe = v ?? false),
                         ),
                         const Text('Remember me'),
                         const Spacer(),
                         TextButton(
-                          onPressed: _loading
+                          onPressed: _submitting
                               ? null
-                              : () => Navigator.of(context)
-                                  .pushNamed('/forgot-password'),
+                              : () => context.push('/forgot-password'),
                           child: const Text('Forgot password?'),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
-
-                    /// --- Sign in ---
                     SizedBox(
                       height: 54,
                       child: ElevatedButton(
@@ -234,8 +206,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               borderRadius: BorderRadius.circular(30)),
                           backgroundColor: theme.colorScheme.primary,
                         ),
-                        onPressed: _loading ? null : _submit,
-                        child: _loading
+                        onPressed: _submitting ? null : _submit,
+                        child: _submitting
                             ? const SizedBox(
                                 height: 22,
                                 width: 22,
@@ -253,7 +225,6 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                       ),
                     ),
-
                     const SizedBox(height: 30),
                   ],
                 ),

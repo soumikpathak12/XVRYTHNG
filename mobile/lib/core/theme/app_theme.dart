@@ -111,11 +111,13 @@ class AppTheme {
       ),
 
       // Floating Action Button Theme
+      // Do not set `shape` here: CircleBorder forces extended FABs into a
+      // circle and clips labels like "New Lead". Defaults give circular
+      // small FABs and stadium-shaped extended FABs.
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.white,
         elevation: 4,
-        shape: CircleBorder(),
       ),
 
       // Input Decoration Theme
@@ -436,6 +438,12 @@ class AppTheme {
         color: AppColors.secondary,
         linearTrackColor: AppColors.darkCard,
         circularTrackColor: AppColors.darkCard,
+      ),
+
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: AppColors.primary,
+        foregroundColor: AppColors.white,
+        elevation: 4,
       ),
 
       // Bottom Sheet Theme
