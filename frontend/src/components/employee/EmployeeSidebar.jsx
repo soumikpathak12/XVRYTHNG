@@ -39,7 +39,6 @@ const EMP_MODULE_NAV = {
   expenses:   { to: '/employee/expenses',   label: 'Expenses',       icon: Receipt },
   operations: { to: '/employee/operations', label: 'Operations',     icon: Briefcase },
   projects:   { to: '/employee/projects',   label: 'Projects',       icon: Building2 },
-  referrals:  { to: '/employee/referrals',  label: 'Referrals',      icon: Gift },
   support:    { to: '/employee/support-tickets', label: 'Support Tickets', icon: MessageCircle },
 
   // Employee Operations sub-items (currently routed to the same placeholder page)

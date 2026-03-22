@@ -14,7 +14,6 @@ const MODULE_NAV = {
   operations: { to: '/dashboard/operations', label: 'Operations',    icon: Factory },
   attendance: { to: '/dashboard/attendance', label: 'Attendance',    icon: Clock3 },
   payroll:    { to: '/dashboard/payroll',    label: 'Payroll',       icon: Clock3 },
-  referrals:  { to: '/dashboard/referrals',  label: 'Referrals',     icon: Share2 },
   messages:   { to: '/dashboard/messages',   label: 'Messages',      icon: MessageSquare },
   support:       { to: '/dashboard/support-tickets',    label: 'Support Tickets',  icon: MessageCircle },
   installation:  { to: '/dashboard/installation',       label: 'Installation Day', icon: Wrench },

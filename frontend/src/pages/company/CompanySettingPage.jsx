@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { getCompanyProfile, updateCompanyProfile } from '../../services/api.js';
 import ChangePasswordCard from '../../components/settings/ChangePasswordCard.jsx';
+import ReferralsPage from '../ReferralsPage.jsx';
 
 import {
   Building2,
@@ -11,7 +12,7 @@ import {
   Share2,
   PlugZap,
   Bell,
-  ImagePlus,Lock
+  ImagePlus, Lock
 } from 'lucide-react';
 
 const palette = {
@@ -63,9 +64,7 @@ const sections = [
   { key: 'workflow', label: 'Workflow Configuration', icon: Workflow },
   { key: 'roles', label: 'Employee Roles', icon: UsersRound },
   { key: 'referrals', label: 'Referral Program', icon: Share2 },
-  { key: 'integrations', label: 'Integrations', icon: PlugZap },
-  { key: 'notifications', label: 'Notifications', icon: Bell },
-    { key: 'security', label: 'Security', icon: Lock },
+  { key: 'security', label: 'Security', icon: Lock },
 
 ];
 
@@ -82,8 +81,9 @@ export default function SettingsPage() {
           {/* Right content */}
           <div style={{ padding: 12 }}>
             {active === 'company' && <CompanyProfileForm />}
-             {active === 'security'  && <ChangePasswordCard />}
-            {active !== 'company' && active !== 'security' && (
+            {active === 'security' && <ChangePasswordCard />}
+            {active === 'referrals' && <ReferralsPage />}
+            {active !== 'company' && active !== 'security' && active !== 'referrals' && (
               <PlaceholderSection
                 title={sections.find((s) => s.key === active)?.label || 'Settings'}
                 message="This section will be available in the next phase."
@@ -222,16 +222,16 @@ function CompanyProfileForm() {
     try {
       setSaving(true);
 
-     const { data } = await updateCompanyProfile(form);
+      const { data } = await updateCompanyProfile(form);
 
-      
-        setForm({
+
+      setForm({
         companyName: data.companyName ?? '',
         abn: data.abn ?? '',
         email: data.email ?? '',
         phone: data.phone ?? '',
-        });
-    
+      });
+
 
       if (data.image_url) setLogo({ url: data.image_url, file: undefined });
 
@@ -279,9 +279,8 @@ function CompanyProfileForm() {
             borderRadius: 10,
             background: serverErrors && Object.keys(serverErrors).length ? '#FFF2F2' : '#E9F7F1',
             color: serverErrors && Object.keys(serverErrors).length ? palette.danger : palette.success,
-            border: `1px solid ${
-              serverErrors && Object.keys(serverErrors).length ? '#FAD1D1' : '#CDEFD9'
-            }`,
+            border: `1px solid ${serverErrors && Object.keys(serverErrors).length ? '#FAD1D1' : '#CDEFD9'
+              }`,
             fontWeight: 700,
           }}
         >
