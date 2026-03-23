@@ -33,6 +33,7 @@ import SupportTicketsPage from './pages/customer/SupportTicketsPage.jsx';
 
 import ReferralsPage from './pages/ReferralsPage.jsx';
 import AdminTemplatesPage from './pages/admin/AdminTemplatePage.jsx';
+import ChecklistTemplatesPage from './pages/admin/ChecklistTemplatesPage.jsx';
 import SiteInspectionPage from './pages/admin/SiteInspectionPage.jsx';
 import CreateUser from './pages/admin/CreateUserPage.jsx';
 
@@ -426,6 +427,7 @@ function App() {
           <Route path="roles" element={<Navigate to="/admin/settings" replace />} />
 
           <Route path="settings/inspection-templates" element={<AdminTemplatesPage />} />
+          <Route path="settings/checklist-templates" element={<ChecklistTemplatesPage />} />
         </Route>
 
         {/* Company Admin / Manager */}

@@ -22,6 +22,7 @@ import {
   Calculator,
   TrendingUp,
   Cog,
+  CheckSquare,
 } from 'lucide-react';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -62,7 +63,19 @@ const RAW_NAV = [
   { to: '/admin/messages', label: 'Messages', icon: MessageSquare, permission: { resource: 'messages', action: 'view' } },
   { to: '/admin/support-tickets', label: 'Support Tickets', icon: MessageCircle, permission: { resource: 'support', action: 'view' } },
   { to: '/admin/trial-users', label: 'Trial Users', icon: UsersRound, permission: { resource: 'users', action: 'view' } },
-  { to: '/admin/settings', label: 'Settings', icon: Settings, permission: { resource: 'settings', action: 'view' } },
+  
+  // --- SETTINGS (parent) ---
+  {
+    key: 'settings',
+    label: 'Settings',
+    icon: Settings,
+    permission: { resource: 'settings', action: 'view' },
+    children: [
+      { to: '/admin/settings', label: 'General', permission: { resource: 'settings', action: 'view' } },
+      { to: '/admin/settings/inspection-templates', label: 'Inspection Templates', permission: { resource: 'settings', action: 'view' } },
+      { to: '/admin/settings/checklist-templates', label: 'Checklist Templates', icon: CheckSquare, permission: { resource: 'settings', action: 'view' } },
+    ],
+  },
 ];
 
 export default function SuperAdminSidebar({

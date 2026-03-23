@@ -971,7 +971,7 @@ function SignoffPanel({ job, onSignoff }) {
               display: 'block', width: '100%', cursor: 'crosshair', touchAction: 'none',
             }}
           />
-          <button onClick={clear} style={{ marginTop: 5, fontSize: 12, color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+          <button onClick={clear} style={{ marginTop: 10, padding: '10px 16px', fontSize: 13, fontWeight: 700, color: '#FAFAFA', background: '#1A7B7B', border: '1px solid #D1D5DB', borderRadius: 10, cursor: 'pointer', transition: 'all 0.2s' }}>
             Clear signature
           </button>
         </div>
