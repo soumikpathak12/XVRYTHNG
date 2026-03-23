@@ -49,6 +49,7 @@ export async function getPermissionsForUser(userId) {
   const u = users[0];
   if (!u) return [];
 
+  let permissions = [];
   try {
     if (u.custom_role_id) {
       const [rows] = await db.execute(
@@ -58,21 +59,37 @@ export async function getPermissionsForUser(userId) {
          WHERE crp.custom_role_id = ?`,
         [u.custom_role_id]
       );
-      return rows.map(r => `${r.resource}:${r.action}`);
+      permissions = rows.map(r => `${r.resource}:${r.action}`);
+    } else {
+      const [rows] = await db.execute(
+        `SELECT p.resource, p.action
+         FROM role_permissions rp
+         INNER JOIN permissions p ON rp.permission_id = p.id
+         WHERE rp.role_id = ?`,
+        [u.role_id]
+      );
+      if (rows.length) {
+        permissions = rows.map(r => `${r.resource}:${r.action}`);
+      } else {
+        throw new Error('No permissions found');
+      }
     }
-    const [rows] = await db.execute(
-      `SELECT p.resource, p.action
-       FROM role_permissions rp
-       INNER JOIN permissions p ON rp.permission_id = p.id
-       WHERE rp.role_id = ?`,
-      [u.role_id]
-    );
-    if (rows.length) return rows.map(r => `${r.resource}:${r.action}`);
   } catch (_) {
     // bảng có thể chưa migrate; fallback theo role name
+    const roleName = (u.role_name || '').toLowerCase();
+    permissions = FALLBACK_BY_ROLE[roleName] || [];
   }
-  const roleName = (u.role_name || '').toLowerCase();
-  return FALLBACK_BY_ROLE[roleName] || [];
+
+  // Add permissions for enabled modules (job role modules)
+  const enabledModules = await getEnabledModulesForUser(userId);
+  enabledModules.forEach(module => {
+    const viewPerm = `${module}:view`;
+    const editPerm = `${module}:edit`;
+    if (!permissions.includes(viewPerm)) permissions.push(viewPerm);
+    if (!permissions.includes(editPerm)) permissions.push(editPerm);
+  });
+
+  return permissions;
 } 
 let _modulesCache = null;
 async function getAllModuleKeys() {

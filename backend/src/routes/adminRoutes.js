@@ -1,6 +1,7 @@
 // src/routes/adminRoutes.js
 import { Router } from 'express';
 import fileUpload from 'express-fileupload';
+import db from '../config/db.js';
 import {
   requireAuth,
   requireSuperAdmin,
@@ -82,5 +83,57 @@ router.post('/support-tickets/:id/replies', requirePermission('support', 'edit')
 router.patch('/support-tickets/:id/status', requirePermission('support', 'edit'), updateStatus);
 
 router.post('/users', requireSuperAdmin, createUser);
+
+// List all site inspections with optional status filter
+router.get('/site-inspections', requireSuperAdmin, async (req, res) => {
+  try {
+    const { status, search } = req.query;
+    let query = `
+      SELECT 
+        si.id,
+        si.lead_id,
+        si.status,
+        si.inspected_at,
+        si.inspector_name,
+        si.roof_type,
+        si.roof_pitch_deg,
+        si.additional_notes,
+        si.created_at,
+        si.updated_at,
+        l.customer_name,
+        l.email,
+        l.phone,
+        l.suburb,
+        l.stage as lead_stage,
+        l.site_inspection_date,
+        l.system_size_kw
+      FROM lead_site_inspections si
+      INNER JOIN leads l ON si.lead_id = l.id
+      WHERE 1=1
+    `;
+    const params = [];
+
+    // Filter by status if provided
+    if (status && ['draft', 'submitted'].includes(status)) {
+      query += ' AND si.status = ?';
+      params.push(status);
+    }
+
+    // Filter by customer name or suburb if search provided
+    if (search) {
+      query += ' AND (l.customer_name LIKE ? OR l.suburb LIKE ? OR l.email LIKE ?)';
+      const searchTerm = `%${search}%`;
+      params.push(searchTerm, searchTerm, searchTerm);
+    }
+
+    query += ' ORDER BY si.updated_at DESC LIMIT 1000';
+
+    const [rows] = await db.execute(query, params);
+    res.json({ success: true, data: rows || [] });
+  } catch (e) {
+    console.error('[ADMIN-SITE-INSPECTIONS] GET error:', e);
+    res.status(500).json({ success: false, message: 'Failed to load site inspections' });
+  }
+});
 
 export default router;

@@ -52,6 +52,7 @@ import DashboardPage from './pages/admin/DashboardPage.jsx';
 import ProjectsPage from './pages/ProjectsPage.jsx';
 import TrialUsersPage from './pages/admin/TrialUsersPage.jsx';
 import AdminSupportTicketsPage from './pages/admin/AdminSupportTicketsPage.jsx';
+import AdminOnFieldPage from './pages/admin/AdminOnFieldPage.jsx';
 import ApprovalsPage from './pages/ApprovalsPage.jsx';
 import RetailerProjectsPage from './pages/RetailerProjectsPage.jsx';
 import RetailerProjectDetailPage from './pages/RetailerProjectDetailPage.jsx';
@@ -74,7 +75,6 @@ function PlaceholderPage({ title, message, children }) {
 
 const AdminOverview = () => <PlaceholderPage title="Dashboard" message="Overview metrics & quick actions." />;
 const AdminProjects = () => <PlaceholderPage title="Projects" message="In-house & retailer projects." />;
-const AdminOnField = () => <PlaceholderPage title="On-Field" message="Field schedules & activities." />;
 const AdminOperations = () => <ApprovalsPage />;
 
 // ---------- Login Page ----------
@@ -312,7 +312,7 @@ function App() {
             path="on-field"
             element={
               <RequirePermission resource="on_field" action="view">
-                <AdminOnField />
+                <AdminOnFieldPage />
               </RequirePermission>
             }
           />
@@ -563,12 +563,44 @@ function App() {
           {/* On-Field: calendar + route (US-053, US-054) */}
           <Route path="on-field" element={<RequirePermission resource="on_field" action="view"><OnFieldPage /></RequirePermission>} />
 
-          {/* Projects */}
+          {/* Projects with nested routes */}
           <Route
             path="projects"
             element={
               <RequirePermission resource="projects" action="view">
-                <PlaceholderPage title="Projects" message="Employee projects." />
+                <ProjectsPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="projects/:id"
+            element={
+              <RequirePermission resource="projects" action="view">
+                <ProjectDetailPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="projects/dashboard"
+            element={
+              <RequirePermission resource="projects" action="view">
+                <ProjectManagementDashboard />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="projects/retailer"
+            element={
+              <RequirePermission resource="projects" action="view">
+                <RetailerProjectsPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="projects/retailer/:id"
+            element={
+              <RequirePermission resource="projects" action="view">
+                <RetailerProjectDetailPage />
               </RequirePermission>
             }
           />

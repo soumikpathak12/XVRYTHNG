@@ -686,9 +686,10 @@ export async function changePassword({ currentPassword, newPassword }) {
 // src/services/api.js
 export async function getCompanySidebar() {
   const res = await authFetch('/api/me/sidebar', { method: 'GET' });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message ?? 'Failed to load sidebar');
-  return data.data ?? { role: null, modules: [] };
+  const response = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(response.message ?? 'Failed to load sidebar');
+  // Response is wrapped: { success: true, data: { role, modules } }
+  return response.data ?? { role: null, modules: [] };
 }
 export async function getCompanyProfile() {
   return authFetchJSON('/api/company/me', { method: 'GET' });

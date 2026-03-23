@@ -18,14 +18,14 @@ export default function EmployeePage() {
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#F9FAFB' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#F9FAFB', overflow: 'hidden' }}>
       <EmployeeSidebar />
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         {/* Header */}
         <EmployeeHeader user={user} onLogout={handleLogout} />
 
-        <main style={{ flex: 1, padding: 16 }}>
+        <main style={{ flex: 1, padding: 16, overflow: 'auto', minWidth: 0 }}>
           <Outlet />
         </main>
       </div>
