@@ -37,14 +37,12 @@ const EMP_MODULE_NAV = {
   attendance: { to: '/employee/attendance', label: 'Attendance',     icon: ClipboardList },
   leave:      { to: '/employee/leave',      label: 'Leave',          icon: PalmtreeIcon },
   expenses:   { to: '/employee/expenses',   label: 'Expenses',       icon: Receipt },
-  operations: { to: '/employee/operations', label: 'Operations',     icon: Briefcase },
   referrals:  { to: '/employee/referrals',  label: 'Referrals',      icon: Gift },
   support:    { to: '/employee/support-tickets', label: 'Support Tickets', icon: MessageCircle },
 
-  // Employee Operations sub-items (currently routed to the same placeholder page)
-  approvals:  { to: '/employee/operations?tab=approvals', label: 'Approvals', icon: CheckCircle2 },
-  payroll:    { to: '/employee/operations?tab=payroll', label: 'Payroll', icon: Calculator },
-  billings:   { to: '/employee/operations?tab=billings', label: 'Billings & Payment', icon: CreditCard },
+  // Approvals and Payroll
+  approvals:  { to: '/employee/approvals', label: 'Approvals', icon: CheckCircle2 },
+  payroll:    { to: '/employee/payroll', label: 'Payroll', icon: Calculator },
 };
 
 export default function EmployeeSidebar() {
@@ -129,9 +127,10 @@ export default function EmployeeSidebar() {
     },
     {
       key: 'operations',
-      title: 'Operations Module',
+      title: 'Approvals & Payroll',
       items: [
-        ...(allowed.has('operations') ? [EMP_MODULE_NAV.approvals, EMP_MODULE_NAV.payroll, EMP_MODULE_NAV.billings] : []),
+        EMP_MODULE_NAV.approvals,
+        EMP_MODULE_NAV.payroll,
       ],
     },
     {

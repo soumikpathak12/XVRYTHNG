@@ -546,19 +546,25 @@ function App() {
           {/* Expenses */}
           <Route path="expenses" element={<ExpensePage />} />
 
-          {/* Operations */}
+          {/* Approvals */}
           <Route
-            path="operations"
+            path="approvals"
             element={
               <RequirePermission resource="operations" action="view">
-                <PlaceholderPage title="Operations" message="Approvals, payroll, billing (Employee)" />
+                <ApprovalsPage />
               </RequirePermission>
             }
           />
 
-          {/* Installation Day */}
-          <Route path="installation" element={<InstallationJobList />} />
-          <Route path="installation/:id" element={<InstallationJobCard />} />
+          {/* Payroll */}
+          <Route
+            path="payroll"
+            element={
+              <RequirePermission resource="operations" action="view">
+                <PayrollPage />
+              </RequirePermission>
+            }
+          />
 
           {/* On-Field: calendar + route (US-053, US-054) */}
           <Route path="on-field" element={<RequirePermission resource="on_field" action="view"><OnFieldPage /></RequirePermission>} />
