@@ -79,11 +79,8 @@ export default function PmDashboardPage() {
 
   const statusData = useMemo(() => dash?.projectsByStatus ?? [], [dash]);
 
-  // Drilldown handler: open list with filter or navigate to Kanban
   async function handleDrill(kind, key) {
-    // Option A: Navigate to existing page with filters
-    //   e.g., navigate('/retailer-projects?filter=...')
-    // Option B: Open modal table: example below fetches rows then navigates
+  
     navigate(`/projects?kind=${kind}${key ? `&key=${encodeURIComponent(key)}` : ''}`);
   }
 

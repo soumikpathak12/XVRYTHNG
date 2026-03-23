@@ -9,6 +9,13 @@ function asNumberOrNull(v) {
   return Number.isFinite(n) ? n : null;
 }
 
+function asDateOrNull(v) {
+  if (v == null || v === '') return null;
+  // Extract only YYYY-MM-DD from ISO strings like "2004-05-07T00:00:00.000Z"
+  const dateStr = String(v).split('T')[0];
+  return /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? dateStr : null;
+}
+
 async function getCompanyDisplayName(companyId) {
   if (companyId == null || companyId === '') return 'XVRYTHNG';
   try {
@@ -68,11 +75,11 @@ export async function createEmployee(companyId, payload) {
       `,
       [
         Number(companyId), finalCode ?? null,
-        personal.first_name ?? '', personal.last_name ?? '', personal.date_of_birth ?? null, personal.gender ?? null,
+        personal.first_name ?? '', personal.last_name ?? '', asDateOrNull(personal.date_of_birth), personal.gender ?? null,
         contact.email ?? '', contact.phone ?? null, contact.address_line1 ?? null, contact.address_line2 ?? null,
         contact.city ?? null, contact.state ?? null, contact.postal_code ?? null, contact.country ?? null,
         asNumberOrNull(employment.department_id), asNumberOrNull(employment.job_role_id), asNumberOrNull(employment.employment_type_id),
-        employment.start_date || null, employment.end_date || null,
+        asDateOrNull(employment.start_date), asDateOrNull(employment.end_date),
         employment.rate_type || 'monthly', Number(employment.rate_amount ?? 0),
         personal.avatar_url ?? null,
       ]
@@ -298,7 +305,7 @@ export async function updateEmployee(companyId, id, body = {}) {
   const map = {
     first_name: body?.personal?.first_name,
     last_name: body?.personal?.last_name,
-    date_of_birth: body?.personal?.date_of_birth,
+    date_of_birth: asDateOrNull(body?.personal?.date_of_birth),
     gender: body?.personal?.gender,
     avatar_url: body?.personal?.avatar_url,
 
@@ -314,8 +321,8 @@ export async function updateEmployee(companyId, id, body = {}) {
     department_id: asNumberOrNull(body?.employment?.department_id),
     job_role_id: asNumberOrNull(body?.employment?.job_role_id),
     employment_type_id: asNumberOrNull(body?.employment?.employment_type_id),
-    start_date: body?.employment?.start_date,
-    end_date: body?.employment?.end_date,
+    start_date: asDateOrNull(body?.employment?.start_date),
+    end_date: asDateOrNull(body?.employment?.end_date),
     rate_type: body?.employment?.rate_type,
     rate_amount: Number(body?.employment?.rate_amount ?? 0),
   };
