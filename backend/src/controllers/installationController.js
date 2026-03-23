@@ -7,6 +7,7 @@ import { getEmployeeIdByUserId } from '../services/attendanceService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
+const uploadsRoot = path.join(__dirname, '..', 'uploads');
 
 function resolveCompanyId(req) {
   return (
@@ -233,7 +234,7 @@ export async function uploadPhoto(req, res) {
       caption,
       lat:          lat     ? parseFloat(lat)  : null,
       lng:          lng     ? parseFloat(lng)  : null,
-      taken_at:     taken_at ?? null,
+      taken_at:     taken_at && !isNaN(new Date(taken_at)) ? new Date(taken_at).toISOString().slice(0, 19).replace('T', ' ') : null,
       device_info:  device_info ?? null,
     }, req.user?.id);
 
@@ -252,8 +253,16 @@ export async function deletePhoto(req, res) {
 
     // Remove file from disk (non-fatal if missing)
     try {
-      const diskPath = path.join(__dirname, '..', photo.storage_url);
-      if (fs.existsSync(diskPath)) fs.unlinkSync(diskPath);
+      // photo.storage_url is stored as "/uploads/..."; convert to local uploads path.
+      const relativeUploadPath = String(photo.storage_url || '')
+        .replace(/^\/+/, '')
+        .replace(/^uploads\/+/, '');
+      const diskPath = path.normalize(path.join(uploadsRoot, relativeUploadPath));
+
+      // Guard against path traversal / malformed URLs
+      if (diskPath.startsWith(path.normalize(uploadsRoot)) && fs.existsSync(diskPath)) {
+        fs.unlinkSync(diskPath);
+      }
     } catch (_) {}
 
     return res.json({ success: true });

@@ -464,6 +464,19 @@ export async function addPhoto(companyId, jobId, {
   );
   if (!job) throw notFound();
 
+  const normalizeMySqlDateTime = (value) => {
+    if (!value) return null;
+    if (value instanceof Date) {
+      if (isNaN(value.getTime())) return null;
+      return value.toISOString().slice(0, 19).replace('T', ' ');
+    }
+    const parsed = new Date(value);
+    if (isNaN(parsed.getTime())) return null;
+    return parsed.toISOString().slice(0, 19).replace('T', ' ');
+  };
+
+  const takenAtNormalized = normalizeMySqlDateTime(taken_at);
+
   const [result] = await db.execute(
     `INSERT INTO installation_photos
        (job_id, company_id, section, storage_url, filename, mime_type, size_bytes,
@@ -472,7 +485,7 @@ export async function addPhoto(companyId, jobId, {
     [
       Number(jobId), Number(companyId), section, storage_url, filename,
       mime_type ?? null, size_bytes ?? null, caption ?? null,
-      lat ?? null, lng ?? null, taken_at ?? null, device_info ?? null, uploadedBy ?? null,
+      lat ?? null, lng ?? null, takenAtNormalized, device_info ?? null, uploadedBy ?? null,
     ]
   );
 
