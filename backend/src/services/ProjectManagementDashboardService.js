@@ -246,9 +246,11 @@ export async function buildDashboard(
     })
     .filter(r => r.attention_reason);
 
-  const recent = [...rows].sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)).slice(0, 5);
-  const recentRetailer = recent.filter(r => r.type === 'retailer');
-  const recentClassic = recent.filter(r => r.type === 'project');
+  // Get ALL recent projects of EACH type, sorted by updated_at DESC
+  const sortedByDate = [...rows].sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+  const recentRetailer = sortedByDate.filter(r => r.type === 'retailer');
+  const recentClassic = sortedByDate.filter(r => r.type === 'project');
+  const recent = sortedByDate;
 
   return {
     summaryCards: {

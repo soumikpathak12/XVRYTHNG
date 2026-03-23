@@ -1,22 +1,23 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, UsersRound, Boxes, HardHat, Factory,
-  Clock3, Share2, MessageSquare, MessageCircle, Settings, ChevronLeft, ChevronRight, Wrench
+  Clock3, MessageSquare, MessageCircle, Settings, ChevronLeft, ChevronRight, Wrench
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { getCompanySidebar, getApprovalsPendingCount } from '../../services/api.js';
 
 const MODULE_NAV = {
-  leads:      { to: '/dashboard/leads',      label: 'Lead Pipeline', icon: UsersRound },
-  projects:   { to: '/dashboard/projects',   label: 'Projects',      icon: Boxes },
-  on_field:   { to: '/dashboard/on-field',   label: 'On-Field',      icon: HardHat },
-  operations: { to: '/dashboard/operations', label: 'Operations',    icon: Factory },
-  attendance: { to: '/dashboard/attendance', label: 'Attendance',    icon: Clock3 },
-  payroll:    { to: '/dashboard/payroll',    label: 'Payroll',       icon: Clock3 },
-  messages:   { to: '/dashboard/messages',   label: 'Messages',      icon: MessageSquare },
-  support:       { to: '/dashboard/support-tickets',    label: 'Support Tickets',  icon: MessageCircle },
-  installation:  { to: '/dashboard/installation',       label: 'Installation Day', icon: Wrench },
+  leads: { to: '/dashboard/leads', label: 'Lead Pipeline', icon: UsersRound },
+  projects: { to: '/dashboard/projects', label: 'Projects', icon: Boxes },
+  on_field: { to: '/dashboard/on-field', label: 'On-Field', icon: HardHat },
+  operations: { to: '/dashboard/operations', label: 'Operations', icon: Factory },
+  attendance: { to: '/dashboard/attendance', label: 'Attendance', icon: Clock3 },
+  payroll: { to: '/dashboard/payroll', label: 'Payroll', icon: Clock3 },
+  // Referrals is now accessible inside Settings → Referral Program tab
+  messages: { to: '/dashboard/messages', label: 'Messages', icon: MessageSquare },
+  support: { to: '/dashboard/support-tickets', label: 'Support Tickets', icon: MessageCircle },
+  installation: { to: '/dashboard/installation', label: 'Installation Day', icon: Wrench },
 };
 
 function getRoleFixedItems(role) {
@@ -58,7 +59,7 @@ export default function CompanySidebar({ apiBase = '/api', logoSrc }) {
       try {
         const res = await getApprovalsPendingCount();
         if (alive) setPendingCount(res?.pending ?? 0);
-      } catch (_) {}
+      } catch (_) { }
     };
     fetchCount();
     const interval = setInterval(fetchCount, 60000);
@@ -106,7 +107,7 @@ export default function CompanySidebar({ apiBase = '/api', logoSrc }) {
           justifyContent: 'center', background: '#fff'
         }}>
           {logoSrc ? <img src={logoSrc} alt="Logo" style={{ width: 44, height: 44, objectFit: 'cover' }} />
-                   : <span style={{ fontWeight: 800, color: '#146b6b' }}>⚡</span>}
+            : <span style={{ fontWeight: 800, color: '#146b6b' }}>⚡</span>}
         </div>
         <div style={brandText}>
           <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2, color: '#6B7280' }}>XVRYTHNG</div>

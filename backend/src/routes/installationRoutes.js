@@ -28,7 +28,7 @@ import {
 
 const __filename   = fileURLToPath(import.meta.url);
 const __dirname    = path.dirname(__filename);
-const uploadsRoot  = path.join(__dirname, '..', 'uploads');
+const uploadsRoot  = path.join(__dirname, '..', '..', 'uploads');
 
 // Multer – store photos at uploads/installation-jobs/:jobId/:section/
 const storage = multer.diskStorage({

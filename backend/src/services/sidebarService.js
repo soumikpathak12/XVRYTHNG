@@ -31,9 +31,13 @@ export async function getSidebarForUserRoleOnly(userId, companyId = null) {
     `,
     [userId, companyId ?? null, companyId ?? null]
   );
-  if (!rows.length) return { role: null, modules: [] };
+  if (!rows.length) {
+    console.log('[getSidebarForUserRoleOnly] No user found for userId:', userId);
+    return { role: null, modules: [] };
+  }
 
-  const { platform_role, job_role_id } = rows[0];
+  const { company_id, platform_role, job_role_id } = rows[0];
+  console.log('[getSidebarForUserRoleOnly] userId:', userId, 'company_id:', company_id, 'job_role_id:', job_role_id, 'platform_role:', platform_role);
   const role = (platform_role || '').toLowerCase();
 
   const allowSet = new Set();
@@ -42,8 +46,9 @@ export async function getSidebarForUserRoleOnly(userId, companyId = null) {
       `SELECT module_key FROM job_role_modules WHERE job_role_id = ? ORDER BY module_key`,
       [job_role_id]
     );
+    console.log('[getSidebarForUserRoleOnly] job_role_id:', job_role_id, 'modules from DB:', mods);
     (mods ?? []).forEach(m => allowSet.add(m.module_key));
-    allowSet.add('attendance'); // Add attendance for all employees
+    allowSet.add('messages'); // Add messages for all employees
     allowSet.add('leave');     // Add leave for all employees
     allowSet.add('expenses'); // Add expenses for all employees
   }
@@ -64,6 +69,7 @@ export async function getSidebarForUserRoleOnly(userId, companyId = null) {
   ]);
   const modules = [...allowSet].filter(k => KNOWN_FOR_EMPLOYEE.has(k)).sort();
 
+  console.log('[getSidebarForUserRoleOnly] final modules:', modules);
   return { role: platform_role, modules };
 }
 

@@ -10,6 +10,16 @@ import {
   getLeads,
   getCompanyInspectionTemplates,
 } from '../../services/api.js';
+
+// Fetch checklist templates from API (add this API function)
+async function getChecklistTemplates(companyId = null) {
+  const endpoint = companyId 
+    ? `/api/site-inspection-checklists?companyId=${companyId}`
+    : `/api/site-inspection-checklists`;
+  const res = await fetch(endpoint);
+  if (!res.ok) throw new Error('Failed to load checklist templates');
+  return res.json();
+}
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import FormRenderer from '../../components/FormRenderer.jsx';
@@ -73,6 +83,189 @@ const btn = (variant = 'secondary') => ({
   alignItems: 'center',
   gap: 8,
 });
+// ================= Checklist Component (Templates Only - No Persistence) =================
+function ChecklistWidget({ companyId = null }) {
+  const [templates, setTemplates] = useState([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState(null);
+  const [checklistItems, setChecklistItems] = useState([]);
+  const [isExpanded, setIsExpanded] = useState(true);
+  const [loading, setLoading] = useState(false);
+
+  // Load templates on mount
+  useEffect(() => {
+    async function loadTemplates() {
+      try {
+        setLoading(true);
+        const data = await getChecklistTemplates(companyId);
+        setTemplates(Array.isArray(data) ? data : data.data || []);
+        // Auto-select first active template
+        const first = data.find?.(t => t.is_active) || data[0];
+        if (first) {
+          setSelectedTemplateId(first.id);
+          const items = Array.isArray(first.items) ? first.items : JSON.parse(first.items || '[]');
+          setChecklistItems(items.map(item => ({ ...item, completed: false })));
+        }
+      } catch (err) {
+        console.error('[Checklist] Load error:', err);
+        setTemplates([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadTemplates();
+  }, [companyId]);
+
+  const handleSelectTemplate = (templateId) => {
+    setSelectedTemplateId(templateId);
+    const template = templates.find(t => t.id === templateId);
+    if (template) {
+      const items = Array.isArray(template.items) ? template.items : JSON.parse(template.items || '[]');
+      setChecklistItems(items.map(item => ({ ...item, completed: false })));
+    }
+  };
+
+  const handleToggleItem = (index) => {
+    setChecklistItems(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], completed: !updated[index].completed };
+      return updated;
+    });
+  };
+
+  const completedCount = checklistItems.filter(item => item.completed).length;
+  const totalCount = checklistItems.length;
+
+  return (
+    <div
+      style={{
+        ...card,
+        position: 'sticky',
+        top: 20,
+        zIndex: 10,
+        background: UI.color.bg,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          cursor: 'pointer',
+          marginBottom: isExpanded ? 12 : 0,
+        }}
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <div style={{ fontWeight: 800, fontSize: 14, color: UI.color.navy }}>
+           CHECKLIST TEMPLATES
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: UI.color.muted }}>
+            {completedCount}/{totalCount}
+          </span>
+          <span style={{ fontSize: 12 }}>{isExpanded ? '−' : '+'}</span>
+        </div>
+      </div>
+
+      {isExpanded && (
+        <>
+          {/* Template Selector */}
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 6, display: 'block' }}>
+              Select Template:
+            </label>
+            <select
+              value={selectedTemplateId || ''}
+              onChange={(e) => handleSelectTemplate(Number(e.target.value))}
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                border: `1px solid ${UI.color.border}`,
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+              disabled={loading || templates.length === 0}
+            >
+              <option value="">Choose a template...</option>
+              {templates.filter(t => t.is_active).map(t => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+            {templates.length === 0 && (
+              <div style={{ fontSize: 12, color: UI.color.muted, marginTop: 6 }}>
+                No checklist templates available
+              </div>
+            )}
+          </div>
+
+          {/* Progress bar */}
+          {totalCount > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={barWrap}>
+                <div
+                  style={{
+                    ...barFill,
+                    width: `${totalCount === 0 ? 0 : (completedCount / totalCount) * 100}%`,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Checklist items */}
+          <div style={{ display: 'grid', gap: 8 }}>
+            {checklistItems.length === 0 ? (
+              <div style={{ color: UI.color.muted, fontSize: 13, fontStyle: 'italic' }}>
+                Select a template to view checklist items
+              </div>
+            ) : (
+              checklistItems.map((item, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '10px',
+                    background: '#F8FAFC',
+                    border: `1px solid ${UI.color.border}`,
+                    borderRadius: 8,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={item.completed || false}
+                    onChange={() => handleToggleItem(idx)}
+                    style={{
+                      width: 18,
+                      height: 18,
+                      cursor: 'pointer',
+                    }}
+                  />
+                  <span
+                    style={{
+                      flex: 1,
+                      textDecoration: item.completed ? 'line-through' : 'none',
+                      color: item.completed ? UI.color.muted : UI.color.navy,
+                      fontSize: 13,
+                    }}
+                  >
+                    {item.text}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+
+          
+        </>
+      )}
+    </div>
+  );
+}
+
 // ================= Toolbar =================
 function TemplateToolbar({ templates, selectedId, onSelect, onRefresh }) {
   return (
@@ -460,7 +653,11 @@ const meta = base?.meta && typeof base.meta === 'string'
   // -------- Save / Submit --------
   function buildPayload() {
     const t = template || {};
-    const additional_notes = JSON.stringify({ _t: t.key || 'default', _v: t.version ?? 1, ...form });
+    const additional_notes = JSON.stringify({ 
+      _t: t.key || 'default', 
+      _v: t.version ?? 1,
+      ...form 
+    });
     return {
       ...form,
       additional_notes,
@@ -680,7 +877,9 @@ const meta = base?.meta && typeof base.meta === 'string'
   if (loading) return <div style={card}>Loading site inspection…</div>;
 
   return (
-    <div style={{ display: 'grid', gap: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 12 }}>
+      {/* Main content */}
+      <div style={{ display: 'grid', gap: 12 }}>
       {/* Header */}
       {lead && (
         <div style={{ ...card, position: 'relative' }}>
@@ -1010,5 +1209,9 @@ const meta = base?.meta && typeof base.meta === 'string'
         )}
       </div>
     </div>
+
+    {/* Right sidebar - Checklist */}
+    <ChecklistWidget companyId={form.company_id} />
+  </div>
   );
 }

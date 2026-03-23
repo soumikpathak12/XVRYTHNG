@@ -165,12 +165,18 @@ function ActionList() {
 
 /* ----------------------------- Edit Form (modal) ----------------------------- */
 function EmployeeEditForm({ initial, onCancel, onSubmit, companyId }) {
+  // Helper to extract YYYY-MM-DD from ISO string
+  const getDateValue = (dateStr) => {
+    if (!dateStr) return '';
+    return String(dateStr).split('T')[0]; // Extract YYYY-MM-DD from ISO
+  };
+
   const [form, setForm] = useState(() => ({
     employee_code: initial?.employee_code ?? '',
     personal: {
       first_name: initial?.first_name ?? '',
       last_name: initial?.last_name ?? '',
-      date_of_birth: initial?.date_of_birth ?? '',
+      date_of_birth: getDateValue(initial?.date_of_birth),
       gender: initial?.gender ?? '',
       avatar_url: initial?.avatar_url ?? '',
     },
@@ -188,8 +194,8 @@ function EmployeeEditForm({ initial, onCancel, onSubmit, companyId }) {
       department_id: initial?.department_id ?? '',
       job_role_id: initial?.job_role_id ?? '',
       employment_type_id: initial?.employment_type_id ?? '',
-      start_date: initial?.start_date ?? '',
-      end_date: initial?.end_date ?? '',
+      start_date: getDateValue(initial?.start_date),
+      end_date: getDateValue(initial?.end_date),
       rate_type: initial?.rate_type ?? 'monthly',
       rate_amount: initial?.rate_amount ?? 0,
     },

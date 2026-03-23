@@ -73,7 +73,17 @@ export async function myExpenses(req, res) {
   try {
     const companyId = resolveCompanyId(req);
     if (!companyId) return res.status(400).json({ success: false, message: 'Missing company context' });
-    const employeeId = await attendanceService.getEmployeeIdByUserId(companyId, req.user.id);
+    let employeeId = null;
+    try {
+      employeeId = await attendanceService.getEmployeeIdByUserId(companyId, req.user.id);
+    } catch (err) {
+      // Some roles (e.g. admin/company users) do not have an employees row.
+      // For "my expenses" list we return empty instead of failing the whole page.
+      if ((err?.message || '').toLowerCase().includes('employee not found or inactive')) {
+        return res.status(200).json({ success: true, data: [] });
+      }
+      throw err;
+    }
     const installationJobId = req.query.installationJobId != null && String(req.query.installationJobId).trim() !== ''
       ? Number(req.query.installationJobId)
       : null;

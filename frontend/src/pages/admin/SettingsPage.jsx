@@ -291,9 +291,8 @@ function CompanyProfileForm() {
             borderRadius: 10,
             background: serverErrors && Object.keys(serverErrors).length ? '#FFF2F2' : '#E9F7F1',
             color: serverErrors && Object.keys(serverErrors).length ? palette.danger : palette.success,
-            border: `1px solid ${
-              serverErrors && Object.keys(serverErrors).length ? '#FAD1D1' : '#CDEFD9'
-            }`,
+            border: `1px solid ${serverErrors && Object.keys(serverErrors).length ? '#FAD1D1' : '#CDEFD9'
+              }`,
             fontWeight: 700,
           }}
         >
@@ -540,9 +539,8 @@ function ChangePasswordForm() {
             borderRadius: 10,
             background: serverErrors && Object.keys(serverErrors).length ? '#FFF2F2' : '#E9F7F1',
             color: serverErrors && Object.keys(serverErrors).length ? palette.danger : palette.success,
-            border: `1px solid ${
-              serverErrors && Object.keys(serverErrors).length ? '#FAD1D1' : '#CDEFD9'
-            }`,
+            border: `1px solid ${serverErrors && Object.keys(serverErrors).length ? '#FAD1D1' : '#CDEFD9'
+              }`,
             fontWeight: 700,
           }}
         >

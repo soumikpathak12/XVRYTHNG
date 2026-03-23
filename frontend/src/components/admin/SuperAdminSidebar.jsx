@@ -7,7 +7,6 @@ import {
   HardHat,
   Factory,
   Clock3,
-  Share2,
   MessageSquare,
   MessageCircle,
   Settings,
@@ -23,6 +22,7 @@ import {
   Calculator,
   TrendingUp,
   Cog,
+  CheckSquare,
 } from 'lucide-react';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -59,11 +59,23 @@ const RAW_NAV = [
   { to: '/admin/operations', label: 'Operations', icon: Factory, permission: { resource: 'operations', action: 'view' } },
   { to: '/admin/payroll', label: 'Payroll', icon: Calculator, permission: { resource: 'payroll', action: 'view' } },
   { to: '/admin/attendance', label: 'Attendance', icon: Clock3, permission: { resource: 'attendance', action: 'view' } },
+  // Referrals is now accessible inside Settings → Referral Program tab
   { to: '/admin/messages', label: 'Messages', icon: MessageSquare, permission: { resource: 'messages', action: 'view' } },
   { to: '/admin/support-tickets', label: 'Support Tickets', icon: MessageCircle, permission: { resource: 'support', action: 'view' } },
   { to: '/admin/trial-users', label: 'Trial Users', icon: UsersRound, permission: { resource: 'users', action: 'view' } },
-  { to: '/admin/settings', label: 'Settings', icon: Settings, permission: { resource: 'settings', action: 'view' } },
-  
+
+  // --- SETTINGS (parent) ---
+  {
+    key: 'settings',
+    label: 'Settings',
+    icon: Settings,
+    permission: { resource: 'settings', action: 'view' },
+    children: [
+      { to: '/admin/settings', label: 'General', permission: { resource: 'settings', action: 'view' } },
+      { to: '/admin/settings/inspection-templates', label: 'Inspection Templates', permission: { resource: 'settings', action: 'view' } },
+      { to: '/admin/settings/checklist-templates', label: 'Checklist Templates', icon: CheckSquare, permission: { resource: 'settings', action: 'view' } },
+    ],
+  },
 ];
 
 export default function SuperAdminSidebar({
@@ -89,7 +101,7 @@ export default function SuperAdminSidebar({
       try {
         const res = await getApprovalsPendingCount();
         if (alive) setPendingCount(res?.pending ?? 0);
-      } catch (_) {}
+      } catch (_) { }
     };
     fetchCount();
     const interval = setInterval(fetchCount, 60000);

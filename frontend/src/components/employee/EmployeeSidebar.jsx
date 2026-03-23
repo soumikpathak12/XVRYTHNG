@@ -20,7 +20,7 @@ import {
   Calculator,
   CreditCard,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { getCompanySidebar } from '../../services/api.js';
 
 const EMP_MODULE_NAV = {
@@ -30,21 +30,21 @@ const EMP_MODULE_NAV = {
   // Module-driven items
   leads_pipeline: { to: '/employee/leads', label: 'Leads Pipeline', icon: UsersRound },
   site_inspection: { to: '/employee/site-inspection', label: 'Site Inspection', icon: UsersRound },
-  on_field:     { to: '/employee/on-field',       label: 'On-Field',         icon: HardHat },
-  installation: { to: '/employee/installation',   label: 'Installation Day', icon: Wrench },
-  messages:   { to: '/employee/messages',   label: 'Messages',       icon: MessageSquare },
-  settings:   { to: '/employee/settings',   label: 'Settings',       icon: Settings },
-  attendance: { to: '/employee/attendance', label: 'Attendance',     icon: ClipboardList },
-  leave:      { to: '/employee/leave',      label: 'Leave',          icon: PalmtreeIcon },
-  expenses:   { to: '/employee/expenses',   label: 'Expenses',       icon: Receipt },
-  operations: { to: '/employee/operations', label: 'Operations',     icon: Briefcase },
-  projects:   { to: '/employee/projects',   label: 'Projects',       icon: Building2 },
-  support:    { to: '/employee/support-tickets', label: 'Support Tickets', icon: MessageCircle },
+  on_field: { to: '/employee/on-field', label: 'On-Field', icon: HardHat },
+  installation: { to: '/employee/installation', label: 'Installation Day', icon: Wrench },
+  messages: { to: '/employee/messages', label: 'Messages', icon: MessageSquare },
+  settings: { to: '/employee/settings', label: 'Settings', icon: Settings },
+  attendance: { to: '/employee/attendance', label: 'Attendance', icon: ClipboardList },
+  leave: { to: '/employee/leave', label: 'Leave', icon: PalmtreeIcon },
+  expenses: { to: '/employee/expenses', label: 'Expenses', icon: Receipt },
+  operations: { to: '/employee/operations', label: 'Operations', icon: Briefcase },
+  projects: { to: '/employee/projects', label: 'Projects', icon: Building2 },
+  referrals: { to: '/employee/referrals', label: 'Referrals', icon: Gift },
+  support: { to: '/employee/support-tickets', label: 'Support Tickets', icon: MessageCircle },
 
-  // Employee Operations sub-items (currently routed to the same placeholder page)
-  approvals:  { to: '/employee/operations?tab=approvals', label: 'Approvals', icon: CheckCircle2 },
-  payroll:    { to: '/employee/operations?tab=payroll', label: 'Payroll', icon: Calculator },
-  billings:   { to: '/employee/operations?tab=billings', label: 'Billings & Payment', icon: CreditCard },
+  // Approvals and Payroll
+  approvals: { to: '/employee/approvals', label: 'Approvals', icon: CheckCircle2 },
+  payroll: { to: '/employee/payroll', label: 'Payroll', icon: Calculator },
 };
 
 export default function EmployeeSidebar() {
@@ -60,9 +60,13 @@ export default function EmployeeSidebar() {
         setLoading(true);
         const data = await getCompanySidebar(); // GET /api/me/sidebar
         console.log('[EmployeeSidebar] sidebar data:', data);
+        console.log('[EmployeeSidebar] modules:', data?.modules);
         if (!alive) return;
         const mods = Array.isArray(data?.modules) ? data.modules : [];
+        console.log('[EmployeeSidebar] setting modules:', mods);
         setModules(mods);
+      } catch (err) {
+        console.error('[EmployeeSidebar] Error loading sidebar:', err);
       } finally {
         if (alive) setLoading(false);
       }
@@ -72,6 +76,16 @@ export default function EmployeeSidebar() {
 
   const allowed = new Set(modules ?? []);
 
+  // Track expanded/collapsed state for parent items like Projects
+  const [openKeys, setOpenKeys] = useState(() => {
+    const isProjectsPath = location.pathname.startsWith('/employee/projects');
+    return { projects: isProjectsPath };
+  });
+
+  const toggleOpen = useCallback((key) => {
+    setOpenKeys((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
+
   // Grouped nav structure
   const sections = [
     {
@@ -80,6 +94,18 @@ export default function EmployeeSidebar() {
       items: [
         EMP_MODULE_NAV.dashboard,
         ...(allowed.has('leads') ? [EMP_MODULE_NAV.leads_pipeline] : []),
+        ...(allowed.has('projects') ? [
+          {
+            key: 'projects',
+            label: 'Projects',
+            icon: Building2,
+            children: [
+              { to: '/employee/projects/dashboard', label: 'Dashboard' },
+              { to: '/employee/projects', label: 'In-house', end: true },
+              { to: '/employee/projects/retailer', label: 'Retailer' },
+            ],
+          },
+        ] : []),
       ],
     },
     {
@@ -89,13 +115,31 @@ export default function EmployeeSidebar() {
         ...(allowed.has('attendance') ? [EMP_MODULE_NAV.attendance] : []),
         ...(allowed.has('on_field') ? [EMP_MODULE_NAV.on_field] : []),
         ...(allowed.has('site_inspection') ? [EMP_MODULE_NAV.site_inspection] : []),
+        ...(allowed.has('installation') ? [EMP_MODULE_NAV.installation] : []),
+      ],
+    },
+    {
+      key: 'communications',
+      title: 'Communications',
+      items: [
+        ...(allowed.has('messages') ? [EMP_MODULE_NAV.messages] : []),
+        ...(allowed.has('referrals') ? [EMP_MODULE_NAV.referrals] : []),
+        ...(allowed.has('support') ? [EMP_MODULE_NAV.support] : []),
       ],
     },
     {
       key: 'operations',
-      title: 'Operations Module',
+      title: 'Approvals & Payroll',
       items: [
-        ...(allowed.has('operations') ? [EMP_MODULE_NAV.approvals, EMP_MODULE_NAV.payroll, EMP_MODULE_NAV.billings] : []),
+        EMP_MODULE_NAV.approvals,
+        EMP_MODULE_NAV.payroll,
+      ],
+    },
+    {
+      key: 'settings',
+      title: 'Settings',
+      items: [
+        ...(allowed.has('settings') ? [EMP_MODULE_NAV.settings] : []),
       ],
     },
   ].map((s) => ({
@@ -138,12 +182,21 @@ export default function EmployeeSidebar() {
   };
 
   const pathname = location.pathname || '';
-  const isSalesPath = pathname === '/employee' || pathname.startsWith('/employee/leads');
+  const isSalesPath =
+    pathname === '/employee' ||
+    pathname.startsWith('/employee/leads') ||
+    pathname.startsWith('/employee/projects');
   const isOnFieldPath =
     pathname.startsWith('/employee/attendance') ||
     pathname.startsWith('/employee/on-field') ||
-    pathname.startsWith('/employee/site-inspection');
+    pathname.startsWith('/employee/site-inspection') ||
+    pathname.startsWith('/employee/installation');
+  const isCommunicationsPath =
+    pathname.startsWith('/employee/messages') ||
+    pathname.startsWith('/employee/referrals') ||
+    pathname.startsWith('/employee/support-tickets');
   const isOperationsPath = pathname.startsWith('/employee/operations');
+  const isSettingsPath = pathname.startsWith('/employee/settings');
 
   return (
     <aside
@@ -173,7 +226,9 @@ export default function EmployeeSidebar() {
               const isActiveHeader =
                 (sec.key === 'sales' && isSalesPath) ||
                 (sec.key === 'on_field' && isOnFieldPath) ||
-                (sec.key === 'operations' && isOperationsPath);
+                (sec.key === 'communications' && isCommunicationsPath) ||
+                (sec.key === 'operations' && isOperationsPath) ||
+                (sec.key === 'settings' && isSettingsPath);
 
               nodes.push(
                 <div
@@ -188,22 +243,118 @@ export default function EmployeeSidebar() {
               );
             }
             sec.items.forEach((it) => {
-              const Icon = it.icon;
-              const isDashboard = it.to === '/employee';
-              nodes.push(
-                <NavLink
-                  key={it.to}
-                  to={it.to}
-                  end={isDashboard}
-                  style={({ isActive }) => ({
-                    ...linkBase,
-                    ...(isActive ? activeStyle : {}),
-                  })}
-                >
-                  <Icon size={20} />
-                  <span style={{ display: collapsed ? 'none' : 'inline', fontSize: 13 }}>{it.label}</span>
-                </NavLink>
-              );
+              // Check if this is a parent item with children (like Projects)
+              if (it.children && it.children.length > 0) {
+                const Icon = it.icon;
+                const anyChildActive = it.children.some((c) => location.pathname.startsWith(c.to));
+                const isOpen = openKeys[it.key] ?? anyChildActive;
+
+                // When collapsed, show only the icon
+                if (collapsed) {
+                  nodes.push(
+                    <div
+                      key={it.key}
+                      onClick={() => toggleOpen(it.key)}
+                      style={{
+                        ...linkBase,
+                        justifyContent: 'center',
+                        padding: 10,
+                        cursor: 'pointer',
+                        ...(anyChildActive ? { background: 'rgba(20,107,107,0.10)', color: '#0f1a2b', boxShadow: 'inset 4px 0 0 #146b6b', borderRadius: 12 } : {}),
+                      }}
+                      aria-expanded={!!isOpen}
+                    >
+                      <Icon size={20} />
+                    </div>
+                  );
+                } else {
+                  // When expanded, show the parent with expand/collapse arrow
+                  nodes.push(
+                    <div key={it.key}>
+                      <div
+                        onClick={() => toggleOpen(it.key)}
+                        style={{
+                          ...linkBase,
+                          cursor: 'pointer',
+                          justifyContent: 'space-between',
+                          ...(anyChildActive ? activeStyle : {}),
+                        }}
+                        aria-expanded={!!isOpen}
+                      >
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+                          <Icon size={20} />
+                          <span>{it.label}</span>
+                        </span>
+                        <ChevronRight
+                          size={18}
+                          style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s ease' }}
+                        />
+                      </div>
+
+                      {isOpen && (
+                        <div
+                          role="group"
+                          aria-label={`${it.label} submenu`}
+                          style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}
+                        >
+                          {it.children.map((child) => {
+                            const isChildActive = child.end
+                              ? location.pathname === child.to
+                              : location.pathname.startsWith(child.to);
+
+                            return (
+                              <NavLink
+                                key={child.to}
+                                to={child.to}
+                                end={child.end}
+                                style={{
+                                  ...linkBase,
+                                  padding: '8px 12px',
+                                  borderRadius: 12,
+                                  marginLeft: 14,
+                                  fontWeight: 600,
+                                  fontSize: 11,
+                                  ...(isChildActive ? { background: 'rgba(20,107,107,0.10)', color: '#0f1a2b', boxShadow: 'inset 3px 0 0 #146b6b' } : {}),
+                                }}
+                              >
+                                <span
+                                  aria-hidden
+                                  style={{
+                                    width: 6,
+                                    height: 6,
+                                    borderRadius: 999,
+                                    background: isChildActive ? '#146b6b' : '#94a3b8',
+                                    display: 'inline-block',
+                                  }}
+                                />
+                                <span>{child.label}</span>
+                              </NavLink>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+              } else {
+                // Regular single link item
+                const Icon = it.icon;
+                const isDashboard = it.to === '/employee';
+                nodes.push(
+                  <NavLink
+                    key={it.to}
+                    to={it.to}
+                    end={isDashboard}
+                    style={({ isActive }) => ({
+                      ...linkBase,
+                      ...(isActive ? activeStyle : {}),
+                    })}
+                  >
+                    <Icon size={20} />
+                    <span style={{ display: collapsed ? 'none' : 'inline', fontSize: 13 }}>{it.label}</span>
+                  </NavLink>
+                );
+              }
             });
             return nodes;
           })

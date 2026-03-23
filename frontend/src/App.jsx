@@ -33,6 +33,7 @@ import SupportTicketsPage from './pages/customer/SupportTicketsPage.jsx';
 
 import ReferralsPage from './pages/ReferralsPage.jsx';
 import AdminTemplatesPage from './pages/admin/AdminTemplatePage.jsx';
+import ChecklistTemplatesPage from './pages/admin/ChecklistTemplatesPage.jsx';
 import SiteInspectionPage from './pages/admin/SiteInspectionPage.jsx';
 import CreateUser from './pages/admin/CreateUserPage.jsx';
 
@@ -51,6 +52,7 @@ import DashboardPage from './pages/admin/DashboardPage.jsx';
 import ProjectsPage from './pages/ProjectsPage.jsx';
 import TrialUsersPage from './pages/admin/TrialUsersPage.jsx';
 import AdminSupportTicketsPage from './pages/admin/AdminSupportTicketsPage.jsx';
+import AdminOnFieldPage from './pages/admin/AdminOnFieldPage.jsx';
 import ApprovalsPage from './pages/ApprovalsPage.jsx';
 import RetailerProjectsPage from './pages/RetailerProjectsPage.jsx';
 import RetailerProjectDetailPage from './pages/RetailerProjectDetailPage.jsx';
@@ -73,7 +75,6 @@ function PlaceholderPage({ title, message, children }) {
 
 const AdminOverview = () => <PlaceholderPage title="Dashboard" message="Overview metrics & quick actions." />;
 const AdminProjects = () => <PlaceholderPage title="Projects" message="In-house & retailer projects." />;
-const AdminOnField = () => <PlaceholderPage title="On-Field" message="Field schedules & activities." />;
 const AdminOperations = () => <ApprovalsPage />;
 
 // ---------- Login Page ----------
@@ -311,7 +312,7 @@ function App() {
             path="on-field"
             element={
               <RequirePermission resource="on_field" action="view">
-                <AdminOnField />
+                <AdminOnFieldPage />
               </RequirePermission>
             }
           />
@@ -426,6 +427,7 @@ function App() {
           <Route path="roles" element={<Navigate to="/admin/settings" replace />} />
 
           <Route path="settings/inspection-templates" element={<AdminTemplatesPage />} />
+          <Route path="settings/checklist-templates" element={<ChecklistTemplatesPage />} />
         </Route>
 
         {/* Company Admin / Manager */}
@@ -544,29 +546,67 @@ function App() {
           {/* Expenses */}
           <Route path="expenses" element={<ExpensePage />} />
 
-          {/* Operations */}
+          {/* Approvals */}
           <Route
-            path="operations"
+            path="approvals"
             element={
               <RequirePermission resource="operations" action="view">
-                <PlaceholderPage title="Operations" message="Approvals, payroll, billing (Employee)" />
+                <ApprovalsPage />
               </RequirePermission>
             }
           />
 
-          {/* Installation Day */}
-          <Route path="installation" element={<InstallationJobList />} />
-          <Route path="installation/:id" element={<InstallationJobCard />} />
+          {/* Payroll */}
+          <Route
+            path="payroll"
+            element={
+              <RequirePermission resource="operations" action="view">
+                <PayrollPage />
+              </RequirePermission>
+            }
+          />
 
           {/* On-Field: calendar + route (US-053, US-054) */}
           <Route path="on-field" element={<RequirePermission resource="on_field" action="view"><OnFieldPage /></RequirePermission>} />
 
-          {/* Projects */}
+          {/* Projects with nested routes */}
           <Route
             path="projects"
             element={
               <RequirePermission resource="projects" action="view">
-                <PlaceholderPage title="Projects" message="Employee projects." />
+                <ProjectsPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="projects/:id"
+            element={
+              <RequirePermission resource="projects" action="view">
+                <ProjectDetailPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="projects/dashboard"
+            element={
+              <RequirePermission resource="projects" action="view">
+                <ProjectManagementDashboard />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="projects/retailer"
+            element={
+              <RequirePermission resource="projects" action="view">
+                <RetailerProjectsPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="projects/retailer/:id"
+            element={
+              <RequirePermission resource="projects" action="view">
+                <RetailerProjectDetailPage />
               </RequirePermission>
             }
           />

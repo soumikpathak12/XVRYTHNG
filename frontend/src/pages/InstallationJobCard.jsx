@@ -382,6 +382,7 @@ function PhotoSection({ jobId, photos: initialPhotos, photoRequirements, disable
 
   // Keep in sync when parent reloads job
   useEffect(() => { setPhotos(initialPhotos ?? []); }, [initialPhotos]);
+  useEffect(() => { onPhotosChange?.(photos); }, [photos, onPhotosChange]);
 
   const tabPhotos = photos.filter(p => p.section === activeTab);
   const tab       = PHOTO_TABS.find(t => t.key === activeTab);
@@ -409,19 +410,15 @@ function PhotoSection({ jobId, photos: initialPhotos, photoRequirements, disable
 
     for (const file of files) {
       const fd = new FormData();
-      fd.append('photo',    file);
       fd.append('section',  activeTab);
+      fd.append('photo',    file);
       fd.append('taken_at', new Date().toISOString());
       if (gps) { fd.append('lat', gps.lat); fd.append('lng', gps.lng); }
 
       try {
         const res = await uploadInstallationPhoto(jobId, fd);
         if (res?.data) {
-          setPhotos(prev => {
-            const next = [...prev, res.data];
-            onPhotosChange?.(next);
-            return next;
-          });
+          setPhotos(prev => [...prev, res.data]);
         }
       } catch (_) { /* individual failure, continue */ }
     }
@@ -434,12 +431,17 @@ function PhotoSection({ jobId, photos: initialPhotos, photoRequirements, disable
     if (!window.confirm('Delete this photo?')) return;
     try {
       await deleteInstallationPhoto(jobId, photo.id);
-      setPhotos(prev => {
-        const next = prev.filter(p => p.id !== photo.id);
-        onPhotosChange?.(next);
-        return next;
-      });
+      setPhotos(prev => prev.filter(p => p.id !== photo.id));
     } catch (e) { alert(e?.message ?? 'Delete failed'); }
+  };
+
+  const withGeneralFallback = (e) => {
+    const current = e.currentTarget?.getAttribute('src') ?? '';
+    if (!current || e.currentTarget?.dataset?.fallbackTried === '1') return;
+    if (!/\/(before|during|after)\//.test(current)) return;
+    const fallback = current.replace(/\/(before|during|after)\//, '/general/');
+    e.currentTarget.dataset.fallbackTried = '1';
+    e.currentTarget.src = fallback;
   };
 
   return (
@@ -495,7 +497,7 @@ function PhotoSection({ jobId, photos: initialPhotos, photoRequirements, disable
       )}
 
       {/* Gallery grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8, marginBottom: 12 }}>
         {tabPhotos.map(photo => (
           <div key={photo.id} style={{ position: 'relative', aspectRatio: '1', borderRadius: 10, overflow: 'hidden', background: '#F3F4F6' }}>
             <img
@@ -503,6 +505,7 @@ function PhotoSection({ jobId, photos: initialPhotos, photoRequirements, disable
               alt={photo.caption ?? `${activeTab} photo`}
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', cursor: 'pointer' }}
               onClick={() => setLightbox(photo)}
+              onError={withGeneralFallback}
               loading="lazy"
             />
             {/* Timestamp overlay */}
@@ -601,6 +604,7 @@ function PhotoSection({ jobId, photos: initialPhotos, photoRequirements, disable
             alt=""
             style={{ maxWidth: '95vw', maxHeight: '80vh', objectFit: 'contain', borderRadius: 10 }}
             onClick={e => e.stopPropagation()}
+            onError={withGeneralFallback}
           />
           <div style={{ marginTop: 14, textAlign: 'center' }}>
             {lightbox.caption && <div style={{ color: '#fff', fontSize: 14, marginBottom: 6 }}>{lightbox.caption}</div>}
@@ -971,7 +975,7 @@ function SignoffPanel({ job, onSignoff }) {
               display: 'block', width: '100%', cursor: 'crosshair', touchAction: 'none',
             }}
           />
-          <button onClick={clear} style={{ marginTop: 5, fontSize: 12, color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+          <button onClick={clear} style={{ marginTop: 10, padding: '10px 16px', fontSize: 13, fontWeight: 700, color: '#FAFAFA', background: '#1A7B7B', border: '1px solid #D1D5DB', borderRadius: 10, cursor: 'pointer', transition: 'all 0.2s' }}>
             Clear signature
           </button>
         </div>

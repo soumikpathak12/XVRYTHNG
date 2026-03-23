@@ -27,6 +27,7 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import siteInspectionRoutes from './routes/siteInspectionRoutes.js';
 import siteInspectionFilesRoutes from './routes/siteInspectionFilesRoutes.js'
+import checklistRoutes from './routes/checklistRoutes.js';
 
 import inspectionTemplateRoutes from './routes/inspectionTemplateRoutes.js';
 import leadProposalRoutes from './routes/leadProposalRoutes.js';
@@ -52,7 +53,7 @@ import activityRoutes from './routes/activityRoutes.js';
 import approvalsRoutes from './routes/approvalsRoutes.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const uploadsDir = path.join(__dirname, 'uploads');
+const uploadsDir = path.join(__dirname, '..', 'uploads');
 
 const app = express();
 app.use((req, _res, next) => { req.db = db; next(); });
@@ -108,6 +109,7 @@ app.use('/api', meController);
 app.use('/api/webhooks/email', express.json({ limit: '1mb' }), emailRoutes);
 app.use('/api/leads/:leadId/documents', documentRoutes);
 app.use('/api/leads/:leadId/site-inspection', siteInspectionRoutes);
+app.use('/api/site-inspection-checklists', checklistRoutes);
 app.use('/api/company/settings/inspection-templates', inspectionTemplateRoutes);
 app.use('/api/leads', leadProposalRoutes);
 app.use('/api/employees', employeeRoutes);
