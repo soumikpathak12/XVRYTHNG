@@ -25,6 +25,10 @@ class ApiException implements Exception {
       case DioExceptionType.cancel:
         return ApiException(message: 'Request cancelled');
       case DioExceptionType.connectionError:
+        if ((error.message ?? '').toLowerCase().contains('cleartext')) {
+          return ApiException(
+              message: 'Insecure HTTP blocked on Android (cleartext).');
+        }
         return ApiException(message: 'No internet connection');
       default:
         return ApiException(message: 'Something went wrong');
@@ -32,5 +36,6 @@ class ApiException implements Exception {
   }
 
   @override
-  String toString() => 'ApiException($statusCode): $message';
+  String toString() =>
+      statusCode == null ? 'ApiException: $message' : 'ApiException($statusCode): $message';
 }
