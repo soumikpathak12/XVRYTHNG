@@ -38,6 +38,16 @@ function formatStage(stage) {
   return STAGE_LABELS[stage] || stage.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
+function paginateArray(arr, pageNum, itemsPerPage = 5) {
+  const startIdx = (pageNum - 1) * itemsPerPage;
+  const endIdx = startIdx + itemsPerPage;
+  return arr.slice(startIdx, endIdx);
+}
+
+function getTotalPages(arrLength, itemsPerPage = 5) {
+  return Math.ceil(arrLength / itemsPerPage) || 1;
+}
+
 export default function PmDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [dash, setDash] = useState(null);
@@ -45,6 +55,8 @@ export default function PmDashboardPage() {
   const [stage, setStage] = useState('');
   const [pm, setPm] = useState('');
   const [toast, setToast] = useState('');
+  const [pageRetailer, setPageRetailer] = useState(1);
+  const [pageClassic, setPageClassic] = useState(1);
 
   const navigate = useNavigate();
 
@@ -53,6 +65,8 @@ export default function PmDashboardPage() {
       setLoading(true);
       const resp = await getPmDashboard({ range, stage: stage || undefined, pm: pm || undefined });
       setDash(resp?.data ?? null);
+      setPageRetailer(1);
+      setPageClassic(1);
     } catch (err) {
       setToast(err.message || 'Failed to load dashboard');
       setTimeout(() => setToast(''), 2500);
@@ -205,7 +219,7 @@ export default function PmDashboardPage() {
               <tr><th>PROJECT ID</th><th>STAGE</th><th>SCHEDULED</th><th>VALUE</th></tr>
             </thead>
             <tbody>
-              {(dash?.recentRetailerProjects ?? (dash?.recentProjects ?? []).filter(r => r.type === 'retailer')).map(r => (
+              {paginateArray(dash?.recentRetailerProjects ?? [], pageRetailer).map(r => (
                 <tr key={`retailer-${r.id}`}>
                   <td>{r.code || `PRU-${r.id}`}</td>
                   <td>{formatStage(r.stage)}</td>
@@ -215,16 +229,58 @@ export default function PmDashboardPage() {
               ))}
             </tbody>
           </table>
+          {(dash?.recentRetailerProjects ?? []).length > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderTop: '1px solid #e2e8f0' }}>
+              <span style={{ fontSize: '14px', color: '#64748b' }}>
+                Showing {Math.min(5, (dash?.recentRetailerProjects ?? []).length)} of {(dash?.recentRetailerProjects ?? []).length} projects
+              </span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button 
+                  onClick={() => setPageRetailer(Math.max(1, pageRetailer - 1))}
+                  disabled={pageRetailer === 1}
+                  style={{ 
+                    padding: '6px 12px', 
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '4px',
+                    backgroundColor: pageRetailer === 1 ? '#f1f5f9' : '#fff',
+                    cursor: pageRetailer === 1 ? 'not-allowed' : 'pointer',
+                    color: pageRetailer === 1 ? '#94a3b8' : '#000',
+                    fontSize: '14px'
+                  }}
+                >
+                  Previous
+                </button>
+                <span style={{ padding: '6px 12px', fontSize: '14px' }}>
+                  Page {pageRetailer} of {getTotalPages((dash?.recentRetailerProjects ?? []).length)}
+                </span>
+                <button 
+                  onClick={() => setPageRetailer(pageRetailer + 1)}
+                  disabled={pageRetailer >= getTotalPages((dash?.recentRetailerProjects ?? []).length)}
+                  style={{ 
+                    padding: '6px 12px', 
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '4px',
+                    backgroundColor: pageRetailer >= getTotalPages((dash?.recentRetailerProjects ?? []).length) ? '#f1f5f9' : '#fff',
+                    cursor: pageRetailer >= getTotalPages((dash?.recentRetailerProjects ?? []).length) ? 'not-allowed' : 'pointer',
+                    color: pageRetailer >= getTotalPages((dash?.recentRetailerProjects ?? []).length) ? '#94a3b8' : '#000',
+                    fontSize: '14px'
+                  }}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="pmdb-card">
-          <div className="pmdb-card-title">Recent Classic Projects</div>
+          <div className="pmdb-card-title">Recent In-house Projects</div>
           <table className="pmdb-table">
             <thead>
               <tr><th>PROJECT ID</th><th>STAGE</th><th>SCHEDULED</th><th>VALUE</th></tr>
             </thead>
             <tbody>
-              {(dash?.recentClassicProjects ?? (dash?.recentProjects ?? []).filter(r => r.type === 'project')).map(r => (
+              {paginateArray(dash?.recentClassicProjects ?? [], pageClassic).map(r => (
                 <tr key={`project-${r.id}`}>
                   <td>{r.code || r.id}</td>
                   <td>{formatStage(r.stage)}</td>
@@ -234,6 +290,48 @@ export default function PmDashboardPage() {
               ))}
             </tbody>
           </table>
+          {(dash?.recentClassicProjects ?? []).length > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderTop: '1px solid #e2e8f0' }}>
+              <span style={{ fontSize: '14px', color: '#64748b' }}>
+                Showing {Math.min(5, (dash?.recentClassicProjects ?? []).length)} of {(dash?.recentClassicProjects ?? []).length} projects
+              </span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button 
+                  onClick={() => setPageClassic(Math.max(1, pageClassic - 1))}
+                  disabled={pageClassic === 1}
+                  style={{ 
+                    padding: '6px 12px', 
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '4px',
+                    backgroundColor: pageClassic === 1 ? '#f1f5f9' : '#fff',
+                    cursor: pageClassic === 1 ? 'not-allowed' : 'pointer',
+                    color: pageClassic === 1 ? '#94a3b8' : '#000',
+                    fontSize: '14px'
+                  }}
+                >
+                  Previous
+                </button>
+                <span style={{ padding: '6px 12px', fontSize: '14px' }}>
+                  Page {pageClassic} of {getTotalPages((dash?.recentClassicProjects ?? []).length)}
+                </span>
+                <button 
+                  onClick={() => setPageClassic(pageClassic + 1)}
+                  disabled={pageClassic >= getTotalPages((dash?.recentClassicProjects ?? []).length)}
+                  style={{ 
+                    padding: '6px 12px', 
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '4px',
+                    backgroundColor: pageClassic >= getTotalPages((dash?.recentClassicProjects ?? []).length) ? '#f1f5f9' : '#fff',
+                    cursor: pageClassic >= getTotalPages((dash?.recentClassicProjects ?? []).length) ? 'not-allowed' : 'pointer',
+                    color: pageClassic >= getTotalPages((dash?.recentClassicProjects ?? []).length) ? '#94a3b8' : '#000',
+                    fontSize: '14px'
+                  }}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </section>
     </div>
