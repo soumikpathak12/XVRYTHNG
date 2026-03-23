@@ -203,7 +203,7 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
             isScrollable: true,
             indicatorColor: AppColors.white,
             labelColor: AppColors.white,
-            unselectedLabelColor: AppColors.white.withOpacity(0.6),
+            unselectedLabelColor: Colors.white70,
             tabAlignment: TabAlignment.start,
             tabs: List.generate(_typeFilters.length, (i) {
               final count = _countForTab(i);

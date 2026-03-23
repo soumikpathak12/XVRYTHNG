@@ -22,17 +22,6 @@ class _AdminShellState extends State<AdminShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   List<DrawerItem> get _drawerItems => [
-        const DrawerItem.divider(label: 'Sales'),
-        const DrawerItem(
-          label: 'Dashboard',
-          icon: Icons.dashboard_outlined,
-          route: '/admin',
-        ),
-        const DrawerItem(
-          label: 'Lead Pipeline',
-          icon: Icons.people_outline,
-          route: '/admin/leads',
-        ),
         const DrawerItem.divider(label: 'Operation'),
         const DrawerItem(
           label: 'Companies',

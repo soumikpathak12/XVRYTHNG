@@ -22,23 +22,7 @@ class _EmployeeShellState extends State<EmployeeShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   List<DrawerItem> get _drawerItems => const [
-        DrawerItem.divider(label: 'Sales'),
-        DrawerItem(
-          label: 'Dashboard',
-          icon: Icons.dashboard_outlined,
-          route: '/employee',
-        ),
-        DrawerItem(
-          label: 'Leads Pipeline',
-          icon: Icons.people_outline,
-          route: '/employee/leads',
-        ),
         DrawerItem.divider(label: 'On-Field'),
-        DrawerItem(
-          label: 'Attendance',
-          icon: Icons.access_time_outlined,
-          route: '/employee/attendance',
-        ),
         DrawerItem(
           label: 'On-Field',
           icon: Icons.engineering_outlined,

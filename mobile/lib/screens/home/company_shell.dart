@@ -23,21 +23,6 @@ class _CompanyShellState extends State<CompanyShell> {
 
   List<DrawerItem> get _drawerItems => const [
         DrawerItem(
-          label: 'Dashboard',
-          icon: Icons.dashboard_outlined,
-          route: '/dashboard',
-        ),
-        DrawerItem(
-          label: 'Leads',
-          icon: Icons.people_outline,
-          route: '/dashboard/leads',
-        ),
-        DrawerItem(
-          label: 'Projects',
-          icon: Icons.inventory_2_outlined,
-          route: '/dashboard/projects',
-        ),
-        DrawerItem(
           label: 'Installation',
           icon: Icons.build_outlined,
           route: '/dashboard/installation',

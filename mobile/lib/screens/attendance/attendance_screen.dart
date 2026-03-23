@@ -259,7 +259,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
           controller: _tabController,
           indicatorColor: AppColors.white,
           labelColor: AppColors.white,
-          unselectedLabelColor: AppColors.white.withOpacity(0.6),
+          unselectedLabelColor: Colors.white70,
           tabs: const [
             Tab(text: 'Today'),
             Tab(text: 'History'),

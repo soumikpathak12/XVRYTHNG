@@ -160,9 +160,9 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
                 ),
                 bottom: TabBar(
                   controller: _tabCtrl,
-                  labelColor: AppColors.primary,
-                  unselectedLabelColor: AppColors.textSecondary,
-                  indicatorColor: AppColors.primary,
+                  labelColor: AppColors.white,
+                  unselectedLabelColor: Colors.white70,
+                  indicatorColor: AppColors.white,
                   indicatorWeight: 3,
                   tabs: const [
                     Tab(text: 'Overview'),

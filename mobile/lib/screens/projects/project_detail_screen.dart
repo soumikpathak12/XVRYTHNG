@@ -45,9 +45,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
         actions: ShellScaffoldScope.notificationActions(),
         bottom: TabBar(
           controller: _tabController,
-          labelColor: AppColors.primary,
-          unselectedLabelColor: AppColors.textSecondary,
-          indicatorColor: AppColors.primary,
+          labelColor: AppColors.white,
+          unselectedLabelColor: Colors.white70,
+          indicatorColor: AppColors.white,
           isScrollable: true,
           tabAlignment: TabAlignment.start,
           tabs: const [
