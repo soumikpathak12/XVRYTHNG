@@ -53,7 +53,7 @@ import activityRoutes from './routes/activityRoutes.js';
 import approvalsRoutes from './routes/approvalsRoutes.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const uploadsDir = path.join(__dirname, 'uploads');
+const uploadsDir = path.join(__dirname, '..', 'uploads');
 
 const app = express();
 app.use((req, _res, next) => { req.db = db; next(); });

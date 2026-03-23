@@ -7,7 +7,7 @@ import { getEmployeeIdByUserId } from '../services/attendanceService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
-const uploadsRoot = path.join(__dirname, '..', 'uploads');
+const uploadsRoot = path.join(__dirname, '..', '..', 'uploads');
 
 function resolveCompanyId(req) {
   return (
@@ -24,6 +24,26 @@ function companyOrFail(req, res) {
   const id = resolveCompanyId(req);
   if (!id) { res.status(400).json({ success: false, message: 'Missing company context' }); return null; }
   return id;
+}
+
+function toAbsoluteUploadUrl(req, storageUrl) {
+  const raw = String(storageUrl || '').trim();
+  if (!raw) return raw;
+  if (/^https?:\/\//i.test(raw)) return raw;
+
+  const normalizedPath = raw.startsWith('/') ? raw : `/${raw}`;
+  const envBase = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || '';
+  if (envBase) return `${envBase.replace(/\/+$/, '')}${normalizedPath}`;
+
+  const forwardedProto = String(req.headers['x-forwarded-proto'] || '')
+    .split(',')[0]
+    .trim();
+  const forwardedHost = String(req.headers['x-forwarded-host'] || '')
+    .split(',')[0]
+    .trim();
+  const protocol = forwardedProto || req.protocol || 'http';
+  const host = forwardedHost || req.get('host');
+  return host ? `${protocol}://${host}${normalizedPath}` : normalizedPath;
 }
 
 // GET /api/installation-jobs
@@ -56,6 +76,48 @@ export async function getJob(req, res) {
     const companyId = companyOrFail(req, res);
     if (!companyId) return;
     const job = await svc.getJob(companyId, req.params.id);
+
+    // Normalize photo URLs against disk state to avoid broken previews.
+    if (Array.isArray(job?.photos) && job.photos.length) {
+      const toDiskPath = (storageUrl) => {
+        const relativeUploadPath = String(storageUrl || '')
+          .replace(/^\/+/, '')
+          .replace(/^uploads\/+/, '');
+        return path.normalize(path.join(uploadsRoot, relativeUploadPath));
+      };
+
+      job.photos = job.photos
+        .map((photo) => {
+          const currentPath = toDiskPath(photo.storage_url);
+          if (currentPath.startsWith(path.normalize(uploadsRoot)) && fs.existsSync(currentPath)) {
+            return photo;
+          }
+
+          // Backward compatibility for older rows where DB stored before/during/after
+          // but file was saved under /general.
+          const fallbackUrl = String(photo.storage_url || '').replace(
+            /\/(before|during|after)\//,
+            '/general/',
+          );
+          if (fallbackUrl !== photo.storage_url) {
+            const fallbackPath = toDiskPath(fallbackUrl);
+            if (
+              fallbackPath.startsWith(path.normalize(uploadsRoot)) &&
+              fs.existsSync(fallbackPath)
+            ) {
+              return { ...photo, storage_url: fallbackUrl };
+            }
+          }
+
+          // Drop rows pointing to missing files so frontend does not render broken images.
+          return null;
+        })
+        .filter(Boolean)
+        .map((photo) => ({
+          ...photo,
+          storage_url: toAbsoluteUploadUrl(req, photo.storage_url),
+        }));
+    }
     return res.json({ success: true, data: job });
   } catch (err) {
     return res.status(err.statusCode ?? 500).json({ success: false, message: err.message });
@@ -238,7 +300,10 @@ export async function uploadPhoto(req, res) {
       device_info:  device_info ?? null,
     }, req.user?.id);
 
-    return res.status(201).json({ success: true, data: photo });
+    return res.status(201).json({
+      success: true,
+      data: { ...photo, storage_url: toAbsoluteUploadUrl(req, photo.storage_url) },
+    });
   } catch (err) {
     return res.status(err.statusCode ?? 500).json({ success: false, message: err.message });
   }

@@ -772,12 +772,22 @@ export default function EmployeesPage() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{ background: '#fff', borderRadius: 12, padding: 18, width: 760, maxWidth: '98%' }}
+            style={{
+              background: '#fff',
+              borderRadius: 12,
+              padding: 18,
+              width: 760,
+              maxWidth: '98%',
+              maxHeight: '88vh',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+            }}
           >
             <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#111827' }}>
               Edit Employee
             </h4>
-            <div style={{ marginTop: 10 }}>
+            <div style={{ marginTop: 10, overflowY: 'auto', paddingRight: 6 }}>
               {editLoading ? (
                 <div>Loading…</div>
               ) : (
