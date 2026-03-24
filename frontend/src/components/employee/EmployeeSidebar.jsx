@@ -9,7 +9,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
-  Building2,
   Gift,
   LayoutDashboard,
   PalmtreeIcon,
@@ -74,7 +73,6 @@ export default function EmployeeSidebar() {
   const [openKeys, setOpenKeys] = useState(() => {
     const pathname = location.pathname || '';
     return {
-      projects: pathname.startsWith('/employee/projects'),
       sales: pathname === '/employee' || pathname.startsWith('/employee/leads'),
       project_manager: pathname.startsWith('/employee/projects'),
       attendance: pathname.startsWith('/employee/attendance'),
@@ -116,18 +114,13 @@ export default function EmployeeSidebar() {
       key: 'project_manager',
       title: 'Project Manager Module',
       items: [
-        ...(allowed.has('projects') ? [
-          {
-            key: 'projects',
-            label: 'Projects',
-            icon: Building2,
-            children: [
-              { to: '/employee/projects/dashboard', label: 'Dashboard' },
-              { to: '/employee/projects', label: 'In-house', end: true },
-              { to: '/employee/projects/retailer', label: 'Retailer' },
-            ],
-          },
-        ] : []),
+        ...(allowed.has('projects')
+          ? [
+              { to: '/employee/projects/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+              { to: '/employee/projects', label: 'In-house Project', icon: Wrench, end: true },
+              { to: '/employee/projects/retailer', label: 'Retailer Project', icon: Wrench },
+            ]
+          : []),
       ],
     },
     {

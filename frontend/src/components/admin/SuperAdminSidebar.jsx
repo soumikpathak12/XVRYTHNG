@@ -30,7 +30,7 @@ import { getApprovalsPendingCount } from '../../services/api.js';
 
 /**
  * Top-level nav items.
- * NOTE: Projects is now a parent with 3 children (Dashboard, In-house, Retailer).
+ * NOTE: Project Manager module uses 3 direct items (no nested Projects dropdown).
  */
 const RAW_NAV = [
   { to: '/admin/overview', label: 'Dashboard', icon: LayoutDashboard, permission: { resource: 'overview', action: 'view' } },
@@ -39,20 +39,9 @@ const RAW_NAV = [
   { to: '/admin/leads', label: 'Lead Pipeline', icon: UsersRound, permission: { resource: 'leads', action: 'view' } },
   { to: '/admin/employees', label: 'Employees', icon: UserCog, permission: { resource: 'employees', action: 'view' } },
 
-  // --- PROJECTS (parent) ---
-  {
-    key: 'projects',
-    label: 'Projects',
-    icon: Boxes,
-    permission: { resource: 'projects', action: 'view' },
-    // Children use the same 'projects:view' permission by default (can be customized per item if needed)
-    children: [
-      { to: '/admin/projects/dashboard', label: 'Dashboard', permission: { resource: 'projects', action: 'view' } },
-      // "In-house" goes to the existing ProjectsPage (your current route)
-      { to: '/admin/projects', label: 'In-house', permission: { resource: 'projects', action: 'view' } },
-      { to: '/admin/projects/retailer', label: 'Retailer', permission: { resource: 'projects', action: 'view' } },
-    ],
-  },
+  { to: '/admin/projects/dashboard', label: 'Dashboard', icon: Boxes, permission: { resource: 'projects', action: 'view' } },
+  { to: '/admin/projects', label: 'In-house Project', icon: Boxes, permission: { resource: 'projects', action: 'view' } },
+  { to: '/admin/projects/retailer', label: 'Retailer Project', icon: Boxes, permission: { resource: 'projects', action: 'view' } },
 
   { to: '/admin/installation', label: 'Installation Day', icon: Wrench, permission: { resource: 'installation', action: 'view' } },
   { to: '/admin/on-field', label: 'On-Field', icon: HardHat, permission: { resource: 'on_field', action: 'view' } },
@@ -138,7 +127,9 @@ export default function SuperAdminSidebar({
     ]);
 
     const projectManagerItems = pick([
-      findByKey('projects'),
+      findByTo('/admin/projects/dashboard'),
+      findByTo('/admin/projects'),
+      findByTo('/admin/projects/retailer'),
     ]);
 
     const attendanceItems = pick([
@@ -199,7 +190,6 @@ export default function SuperAdminSidebar({
         pathname.startsWith('/admin/companies') ||
         pathname.startsWith('/admin/profile'),
       settings: pathname.startsWith('/admin/settings'),
-      projects: pathname.startsWith('/admin/projects'),
     };
   });
 
