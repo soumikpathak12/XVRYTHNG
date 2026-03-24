@@ -466,9 +466,23 @@ function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<PlaceholderPage title="Dashboard" message="Your tasks, KPIs & quick actions." />} />
+          <Route
+            index
+            element={
+              <RequirePermission resource="overview" action="view">
+                <DashboardPage />
+              </RequirePermission>
+            }
+          />
 
-          <Route path="dashboard" element={<PlaceholderPage title="Dashboard" message="Your tasks, KPIs & quick actions." />} />
+          <Route
+            path="dashboard"
+            element={
+              <RequirePermission resource="overview" action="view">
+                <DashboardPage />
+              </RequirePermission>
+            }
+          />
 
           <Route path="change-password" element={<EmployeeChangePasswordPage />} />
 

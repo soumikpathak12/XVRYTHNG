@@ -17,6 +17,7 @@ import {
   Wrench,
   CheckCircle2,
   Calculator,
+  TrendingUp,
 } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { getCompanySidebar } from '../../services/api.js';
@@ -72,7 +73,10 @@ export default function EmployeeSidebar() {
   // Track expanded/collapsed state for parent items like Projects
   const [openKeys, setOpenKeys] = useState(() => {
     const isProjectsPath = location.pathname.startsWith('/employee/projects');
-    return { projects: isProjectsPath };
+    const isSalesPath =
+      location.pathname === '/employee' ||
+      location.pathname.startsWith('/employee/leads');
+    return { projects: isProjectsPath, sales: isSalesPath };
   });
 
   const toggleOpen = useCallback((key) => {
@@ -188,6 +192,13 @@ export default function EmployeeSidebar() {
     boxShadow: 'inset 4px 0 0 #146b6b',
     borderRadius: 12,
   };
+  const moduleItemsWrapper = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+    paddingLeft: 8,
+    marginTop: 4,
+  };
 
   const pathname = location.pathname || '';
   const isSalesPath =
@@ -242,19 +253,57 @@ export default function EmployeeSidebar() {
                 (sec.key === 'operations' && isOperationsPath) ||
                 (sec.key === 'settings' && isSettingsPath);
 
-              nodes.push(
-                <div
-                  key={`hdr-${sec.key}`}
-                  style={{
-                    ...moduleHeader,
-                    ...(isActiveHeader ? moduleHeaderActiveStyle : {}),
-                  }}
-                >
-                  {sec.title}
-                </div>
-              );
+              if (sec.key === 'sales') {
+                const isSalesOpen = (openKeys.sales ?? false) || isSalesPath;
+                nodes.push(
+                  <div
+                    key={`hdr-${sec.key}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => toggleOpen('sales')}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') toggleOpen('sales');
+                    }}
+                    aria-expanded={!!isSalesOpen}
+                    style={{
+                      ...linkBase,
+                      ...moduleHeader,
+                      cursor: 'pointer',
+                      justifyContent: 'space-between',
+                      ...(isActiveHeader ? moduleHeaderActiveStyle : {}),
+                      userSelect: 'none',
+                    }}
+                  >
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+                      <TrendingUp size={18} />
+                      <span style={{ color: isActiveHeader ? '#0f1a2b' : moduleHeader.color }}>
+                        {sec.title}
+                      </span>
+                    </span>
+                    <ChevronRight
+                      size={18}
+                      style={{ transform: isSalesOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s ease' }}
+                    />
+                  </div>
+                );
+              } else {
+                nodes.push(
+                  <div
+                    key={`hdr-${sec.key}`}
+                    style={{
+                      ...moduleHeader,
+                      ...(isActiveHeader ? moduleHeaderActiveStyle : {}),
+                    }}
+                  >
+                    {sec.title}
+                  </div>
+                );
+              }
             }
+            const shouldRenderItems = collapsed || sec.key !== 'sales' || ((openKeys.sales ?? false) || isSalesPath);
+            const itemRenderTarget = !collapsed && sec.key === 'sales' ? [] : nodes;
             sec.items.forEach((it) => {
+              if (!shouldRenderItems) return;
               // Check if this is a parent item with children (like Projects)
               if (it.children && it.children.length > 0) {
                 const Icon = it.icon;
@@ -263,7 +312,7 @@ export default function EmployeeSidebar() {
 
                 // When collapsed, show only the icon
                 if (collapsed) {
-                  nodes.push(
+                  itemRenderTarget.push(
                     <div
                       key={it.key}
                       onClick={() => toggleOpen(it.key)}
@@ -281,7 +330,7 @@ export default function EmployeeSidebar() {
                   );
                 } else {
                   // When expanded, show the parent with expand/collapse arrow
-                  nodes.push(
+                  itemRenderTarget.push(
                     <div key={it.key}>
                       <div
                         onClick={() => toggleOpen(it.key)}
@@ -352,7 +401,7 @@ export default function EmployeeSidebar() {
                 // Regular single link item
                 const Icon = it.icon;
                 const isDashboard = it.to === '/employee';
-                nodes.push(
+                itemRenderTarget.push(
                   <NavLink
                     key={it.to}
                     to={it.to}
@@ -368,6 +417,13 @@ export default function EmployeeSidebar() {
                 );
               }
             });
+            if (!collapsed && sec.key === 'sales' && shouldRenderItems && sec.items.length > 0) {
+              nodes.push(
+                <div key={`sales-items-${sec.key}`} style={moduleItemsWrapper}>
+                  {itemRenderTarget}
+                </div>
+              );
+            }
             return nodes;
           })
         )}
