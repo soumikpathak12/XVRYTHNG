@@ -145,6 +145,7 @@ export default function RetailerProjectsPage() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState('');
+  const [toastType, setToastType] = useState('error'); // 'success' | 'error'
 
   // Search/filter state
   const [search, setSearch] = useState('');
@@ -189,6 +190,7 @@ export default function RetailerProjectsPage() {
           setProjects(rows.map(normalizeProject));
         }
       } catch (err) {
+        setToastType('error');
         setToast(err.message || 'Failed to load projects');
         setTimeout(() => setToast(''), 3000);
       } finally {
@@ -237,6 +239,7 @@ export default function RetailerProjectsPage() {
         )
       );
       setToast(err.message || 'Failed to update stage');
+      setToastType('error');
       setTimeout(() => setToast(''), 3000);
     } finally {
       // Clear the reverting flag
@@ -299,6 +302,7 @@ export default function RetailerProjectsPage() {
           setDetailsAssignees(assignees.map(Number));
         }
       } catch (err) {
+        setToastType('error');
         setToast(err.message || 'Failed to save schedule');
         setTimeout(() => setToast(''), 3000);
       }
@@ -501,7 +505,11 @@ export default function RetailerProjectsPage() {
         </div>
       </header>
 
-      {toast && <div className="leads-toast">{toast}</div>}
+      {toast && (
+        <div className={`leads-toast ${toastType === 'success' ? 'leads-toast-success' : ''}`}>
+          {toast}
+        </div>
+      )}
 
       <div className="leads-page-content">
         {loading ? (
@@ -556,6 +564,7 @@ export default function RetailerProjectsPage() {
           const created = resp?.data;
           if (created) {
             setProjects((prev) => [normalizeProject(created), ...prev]);
+            setToastType('success');
             setToast(`Created ${created.code} successfully`);
             setTimeout(() => setToast(''), 2500);
           }

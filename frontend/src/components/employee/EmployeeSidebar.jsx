@@ -9,7 +9,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
-  Briefcase,
   Building2,
   Gift,
   LayoutDashboard,
@@ -18,7 +17,6 @@ import {
   Wrench,
   CheckCircle2,
   Calculator,
-  CreditCard,
 } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { getCompanySidebar } from '../../services/api.js';
@@ -57,11 +55,8 @@ export default function EmployeeSidebar() {
       try {
         setLoading(true);
         const data = await getCompanySidebar(); // GET /api/me/sidebar
-        console.log('[EmployeeSidebar] sidebar data:', data);
-        console.log('[EmployeeSidebar] modules:', data?.modules);
         if (!alive) return;
         const mods = Array.isArray(data?.modules) ? data.modules : [];
-        console.log('[EmployeeSidebar] setting modules:', mods);
         setModules(mods);
       } catch (err) {
         console.error('[EmployeeSidebar] Error loading sidebar:', err);
@@ -84,7 +79,12 @@ export default function EmployeeSidebar() {
     setOpenKeys((prev) => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
-  // Grouped nav structure
+  const hasOps = allowed.has('operations');
+  const hasPayroll = allowed.has('payroll');
+  const operationsTitle =
+    hasOps && hasPayroll ? 'Approvals & Payroll' : hasOps ? 'Approvals' : 'Payroll';
+
+  // Grouped nav structure (DB: approvals → module `operations`, payroll → module `payroll`)
   const sections = [
     {
       key: 'sales',
@@ -92,6 +92,12 @@ export default function EmployeeSidebar() {
       items: [
         EMP_MODULE_NAV.dashboard,
         ...(allowed.has('leads') ? [EMP_MODULE_NAV.leads_pipeline] : []),
+      ],
+    },
+    {
+      key: 'project_manager',
+      title: 'Project Manager Module',
+      items: [
         ...(allowed.has('projects') ? [
           {
             key: 'projects',
@@ -107,10 +113,14 @@ export default function EmployeeSidebar() {
       ],
     },
     {
+      key: 'attendance',
+      title: 'Attendance',
+      items: [...(allowed.has('attendance') ? [EMP_MODULE_NAV.attendance] : [])],
+    },
+    {
       key: 'on_field',
       title: 'On-Field Module',
       items: [
-        ...(allowed.has('attendance') ? [EMP_MODULE_NAV.attendance] : []),
         ...(allowed.has('on_field') ? [EMP_MODULE_NAV.on_field] : []),
         ...(allowed.has('site_inspection') ? [EMP_MODULE_NAV.site_inspection] : []),
         ...(allowed.has('installation') ? [EMP_MODULE_NAV.installation] : []),
@@ -127,10 +137,10 @@ export default function EmployeeSidebar() {
     },
     {
       key: 'operations',
-      title: 'Approvals & Payroll',
+      title: operationsTitle,
       items: [
-        EMP_MODULE_NAV.approvals,
-        EMP_MODULE_NAV.payroll,
+        ...(hasOps ? [EMP_MODULE_NAV.approvals] : []),
+        ...(hasPayroll ? [EMP_MODULE_NAV.payroll] : []),
       ],
     },
     {
@@ -180,12 +190,12 @@ export default function EmployeeSidebar() {
   };
 
   const pathname = location.pathname || '';
-  const isSalesPath = 
-    pathname === '/employee' || 
-    pathname.startsWith('/employee/leads') ||
-    pathname.startsWith('/employee/projects');
+  const isSalesPath =
+    pathname === '/employee' ||
+    pathname.startsWith('/employee/leads');
+  const isProjectManagerPath = pathname.startsWith('/employee/projects');
+  const isAttendancePath = pathname.startsWith('/employee/attendance');
   const isOnFieldPath =
-    pathname.startsWith('/employee/attendance') ||
     pathname.startsWith('/employee/on-field') ||
     pathname.startsWith('/employee/site-inspection') ||
     pathname.startsWith('/employee/installation');
@@ -193,7 +203,9 @@ export default function EmployeeSidebar() {
     pathname.startsWith('/employee/messages') ||
     pathname.startsWith('/employee/referrals') ||
     pathname.startsWith('/employee/support-tickets');
-  const isOperationsPath = pathname.startsWith('/employee/operations');
+  const isOperationsPath =
+    pathname.startsWith('/employee/approvals') ||
+    pathname.startsWith('/employee/payroll');
   const isSettingsPath = pathname.startsWith('/employee/settings');
 
   return (
@@ -223,6 +235,8 @@ export default function EmployeeSidebar() {
               if (idx > 0) nodes.push(<div key={`sep-${sec.key}`} style={{ height: 1, background: '#F3F4F6', margin: '8px 0' }} />);
               const isActiveHeader =
                 (sec.key === 'sales' && isSalesPath) ||
+                (sec.key === 'project_manager' && isProjectManagerPath) ||
+                (sec.key === 'attendance' && isAttendancePath) ||
                 (sec.key === 'on_field' && isOnFieldPath) ||
                 (sec.key === 'communications' && isCommunicationsPath) ||
                 (sec.key === 'operations' && isOperationsPath) ||

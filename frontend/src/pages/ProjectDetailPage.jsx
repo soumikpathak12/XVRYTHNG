@@ -148,16 +148,6 @@ export default function ProjectDetailPage() {
   const [documents, setDocuments] = useState([]);
   const [expectedCompletionDate, setExpectedCompletionDate] = useState('');
   const [installationJobs, setInstallationJobs] = useState([]);
-  const [postInstallRef, setPostInstallRef] = useState('');
-  const [utilityForm, setUtilityForm] = useState({
-    preApprovalRef: '',
-    energyRetailer: '',
-    energyDistributor: '',
-    solarVic: '',
-    nmiNumber: '',
-    meterNumber: '',
-  });
-  const [isEditingUtility, setIsEditingUtility] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview'); // overview, schedule, financials, documents, activity, communication
@@ -185,6 +175,8 @@ export default function ProjectDetailPage() {
           customer_contact: raw.lead_phone,
           address: raw.address ?? raw.lead_suburb,
           system_size_kw: raw.lead_system_size_kw ?? raw.system_size_kw,
+          lead_value_amount: raw.lead_value_amount ?? raw.value_amount,
+          value_amount: raw.lead_value_amount ?? raw.value_amount,
           system_type: raw.lead_system_type ?? raw.system_type,
           house_storey: raw.lead_house_storey ?? raw.house_storey,
           roof_type: raw.lead_roof_type ?? raw.roof_type,
@@ -194,6 +186,16 @@ export default function ProjectDetailPage() {
           client_type: raw.client_type || 'Residential',
           access_to_two_storey: raw.lead_access_to_second_storey ? 'Yes' : 'No',
           access_to_inverter: raw.lead_access_to_inverter ? 'Yes' : 'No',
+          pv_system_size_kw: raw.lead_pv_system_size_kw ?? raw.pv_system_size_kw,
+          pv_inverter_size_kw: raw.lead_pv_inverter_size_kw ?? raw.pv_inverter_size_kw,
+          pv_inverter_brand: raw.lead_pv_inverter_brand ?? raw.pv_inverter_brand,
+          pv_panel_brand: raw.lead_pv_panel_brand ?? raw.pv_panel_brand,
+          pv_panel_module_watts: raw.lead_pv_panel_module_watts ?? raw.pv_panel_module_watts,
+          ev_charger_brand: raw.lead_ev_charger_brand ?? raw.ev_charger_brand,
+          ev_charger_model: raw.lead_ev_charger_model ?? raw.ev_charger_model,
+          battery_size_kwh: raw.lead_battery_size_kwh ?? raw.battery_size_kwh,
+          battery_brand: raw.lead_battery_brand ?? raw.battery_brand,
+          battery_model: raw.lead_battery_model ?? raw.battery_model,
           // Utility information (from joined lead)
           pre_approval_reference_no:
             raw.lead_pre_approval_reference_no ?? raw.pre_approval_reference_no,
@@ -215,21 +217,6 @@ export default function ProjectDetailPage() {
           // ensure yyyy-mm-dd format
           setExpectedCompletionDate(raw.expected_completion_date.split('T')[0]);
         }
-        setPostInstallRef(mapped.post_install_reference_no || '');
-        setUtilityForm({
-          preApprovalRef: mapped.pre_approval_reference_no || '',
-          energyRetailer: mapped.energy_retailer || '',
-          energyDistributor: mapped.energy_distributor || '',
-          solarVic:
-            mapped.solar_vic_eligibility == null
-              ? ''
-              : mapped.solar_vic_eligibility
-              ? '1'
-              : '0',
-          nmiNumber: mapped.nmi_number || '',
-          meterNumber: mapped.meter_number || '',
-        });
-        setIsEditingUtility(false);
       } else if (pResp.status === 'rejected') {
         throw new Error(pResp.reason?.message || 'Failed to load project');
       }
@@ -327,43 +314,66 @@ export default function ProjectDetailPage() {
     }
   };
 
-  const handleSavePostInstallRef = async () => {
-    try {
-      await updateProjectApi(projectId, { post_install_reference_no: postInstallRef || null });
-      setToast('Post-install reference number updated!');
+  const handleSaveInHouseDetails = async (form) => {
+    if (!project?.lead_id) return;
+    const numOrNull = (v) => {
+      if (v === '' || v == null) return null;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    };
+    const leadPayload = {
+      customer_name: String(form.customer_name || '').trim(),
+      email: String(form.email || '').trim() || null,
+      phone: String(form.phone || '').trim() || null,
+      suburb: String(form.suburb || '').trim() || null,
+      system_size_kw: numOrNull(form.system_size_kw),
+      value_amount: numOrNull(form.value_amount),
+      system_type: form.system_type || null,
+      house_storey: form.house_storey || null,
+      roof_type: form.roof_type || null,
+      meter_phase: form.meter_phase || null,
+      access_to_second_storey: !!form.access_to_second_storey,
+      access_to_inverter: !!form.access_to_inverter,
+      pv_system_size_kw: numOrNull(form.pv_system_size_kw),
+      pv_inverter_size_kw: numOrNull(form.pv_inverter_size_kw),
+      pv_inverter_brand: form.pv_inverter_brand || null,
+      pv_panel_brand: form.pv_panel_brand || null,
+      pv_panel_module_watts: numOrNull(form.pv_panel_module_watts),
+      ev_charger_brand: form.ev_charger_brand || null,
+      ev_charger_model: form.ev_charger_model || null,
+      battery_size_kwh: numOrNull(form.battery_size_kwh),
+      battery_brand: form.battery_brand || null,
+      battery_model: form.battery_model || null,
+      pre_approval_reference_no: String(form.preApprovalRef ?? '').trim() || null,
+      energy_retailer: String(form.energyRetailer ?? '').trim() || null,
+      energy_distributor: String(form.energyDistributor ?? '').trim() || null,
+      solar_vic_eligibility: form.solarVic === '' ? null : form.solarVic === '1',
+      nmi_number: String(form.nmiNumber ?? '').trim() || null,
+      meter_number: String(form.meterNumber ?? '').trim() || null,
+    };
+    if (!leadPayload.customer_name) {
+      setToast('Customer name is required.');
       setTimeout(() => setToast(''), 3000);
-      loadData();
-    } catch (err) {
-      console.error(err);
-      setToast(err.message || 'Failed to update post-install reference number');
-      setTimeout(() => setToast(''), 3000);
+      throw new Error('Customer name is required.');
     }
-  };
-
-  const handleSaveUtilityInfo = async () => {
     try {
-      if (project?.lead_id) {
-        await updateLead(project.lead_id, {
-          pre_approval_reference_no: utilityForm.preApprovalRef || null,
-          energy_retailer: utilityForm.energyRetailer || null,
-          energy_distributor: utilityForm.energyDistributor || null,
-          solar_vic_eligibility:
-            utilityForm.solarVic === ''
-              ? null
-              : utilityForm.solarVic === '1',
-          nmi_number: utilityForm.nmiNumber || null,
-          meter_number: utilityForm.meterNumber || null,
-        });
-      }
-      await handleSavePostInstallRef();
-      setToast('Utility information updated!');
+      await updateLead(project.lead_id, leadPayload);
+      await updateProjectApi(projectId, {
+        customer_name: leadPayload.customer_name,
+        email: leadPayload.email,
+        phone: leadPayload.phone,
+        suburb: leadPayload.suburb,
+        system_size_kw: leadPayload.system_size_kw,
+        value_amount: leadPayload.value_amount,
+        post_install_reference_no: String(form.postInstallRef ?? '').trim() || null,
+      });
+      setToast('Project details updated.');
       setTimeout(() => setToast(''), 3000);
       loadData();
-      setIsEditingUtility(false);
-    } catch (err) {
-      console.error(err);
-      setToast(err.message || 'Failed to update utility information');
+    } catch (e) {
+      setToast(e.message || 'Failed to save project details');
       setTimeout(() => setToast(''), 3000);
+      throw e;
     }
   };
 
@@ -532,150 +542,9 @@ export default function ProjectDetailPage() {
                 onChangeExpectedCompletionDate={handleSaveExpectedCompletionDate}
                 hideJobType={true}
                 projectStages={DIRECT_PROJECT_STAGES}
+                inHouseEditable={!!project.lead_id}
+                onSaveInHouseDetails={handleSaveInHouseDetails}
               />
-
-              {/* Utility Information (moved to bottom of overview tab) */}
-              <div className="lead-detail-card" style={{ marginTop: '24px', marginBottom: '32px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                  <span className="lead-detail-card-label">Utility Information</span>
-                  <button
-                    type="button"
-                    className="lead-detail-btn secondary"
-                    onClick={() => {
-                      if (!isEditingUtility) {
-                        // Enter edit mode: seed form from latest project snapshot
-                        setUtilityForm({
-                          preApprovalRef: project.pre_approval_reference_no || '',
-                          energyRetailer: project.energy_retailer || '',
-                          energyDistributor: project.energy_distributor || '',
-                          solarVic:
-                            project.solar_vic_eligibility == null
-                              ? ''
-                              : project.solar_vic_eligibility
-                              ? '1'
-                              : '0',
-                          nmiNumber: project.nmi_number || '',
-                          meterNumber: project.meter_number || '',
-                        });
-                        setPostInstallRef(project.post_install_reference_no || '');
-                        setIsEditingUtility(true);
-                      } else {
-                        // Save in edit mode
-                        handleSaveUtilityInfo();
-                      }
-                    }}
-                  >
-                    {isEditingUtility ? 'Save' : 'Edit'}
-                  </button>
-                </div>
-                {!isEditingUtility ? (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: '12px', marginTop: '8px' }}>
-                    <div className="lead-detail-field">
-                      <span className="lead-detail-label">Pre-approval Reference Number</span>
-                      <span className="lead-detail-card-value">{project.pre_approval_reference_no || '—'}</span>
-                    </div>
-                    <div className="lead-detail-field">
-                      <span className="lead-detail-label">Energy Retailer</span>
-                      <span className="lead-detail-card-value">{project.energy_retailer || '—'}</span>
-                    </div>
-                    <div className="lead-detail-field">
-                      <span className="lead-detail-label">Energy Distributor</span>
-                      <span className="lead-detail-card-value">{project.energy_distributor || '—'}</span>
-                    </div>
-                    <div className="lead-detail-field">
-                      <span className="lead-detail-label">Solar Victoria Eligibility</span>
-                      <span className="lead-detail-card-value">
-                        {project.solar_vic_eligibility == null
-                          ? '—'
-                          : project.solar_vic_eligibility
-                          ? 'Eligible'
-                          : 'Not eligible'}
-                      </span>
-                    </div>
-                    <div className="lead-detail-field">
-                      <span className="lead-detail-label">NMI Number</span>
-                      <span className="lead-detail-card-value">{project.nmi_number || '—'}</span>
-                    </div>
-                    <div className="lead-detail-field">
-                      <span className="lead-detail-label">Meter Number</span>
-                      <span className="lead-detail-card-value">{project.meter_number || '—'}</span>
-                    </div>
-                    <div className="lead-detail-field">
-                      <span className="lead-detail-label">Post-install Reference Number</span>
-                      <span className="lead-detail-card-value">{project.post_install_reference_no || '—'}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: '12px', marginTop: '8px' }}>
-                    <div className="lead-detail-field">
-                      <span className="lead-detail-label">Pre-approval Reference Number</span>
-                      <input
-                        type="text"
-                        value={utilityForm.preApprovalRef}
-                        onChange={(e) => setUtilityForm((f) => ({ ...f, preApprovalRef: e.target.value }))}
-                        className="lead-detail-input"
-                      />
-                    </div>
-                    <div className="lead-detail-field">
-                      <span className="lead-detail-label">Energy Retailer</span>
-                      <input
-                        type="text"
-                        value={utilityForm.energyRetailer}
-                        onChange={(e) => setUtilityForm((f) => ({ ...f, energyRetailer: e.target.value }))}
-                        className="lead-detail-input"
-                      />
-                    </div>
-                    <div className="lead-detail-field">
-                      <span className="lead-detail-label">Energy Distributor</span>
-                      <input
-                        type="text"
-                        value={utilityForm.energyDistributor}
-                        onChange={(e) => setUtilityForm((f) => ({ ...f, energyDistributor: e.target.value }))}
-                        className="lead-detail-input"
-                      />
-                    </div>
-                    <div className="lead-detail-field">
-                      <span className="lead-detail-label">Solar Victoria Eligibility</span>
-                      <select
-                        value={utilityForm.solarVic}
-                        onChange={(e) => setUtilityForm((f) => ({ ...f, solarVic: e.target.value }))}
-                        className="lead-detail-input"
-                      >
-                        <option value="">Select</option>
-                        <option value="1">Eligible</option>
-                        <option value="0">Not eligible</option>
-                      </select>
-                    </div>
-                    <div className="lead-detail-field">
-                      <span className="lead-detail-label">NMI Number</span>
-                      <input
-                        type="text"
-                        value={utilityForm.nmiNumber}
-                        onChange={(e) => setUtilityForm((f) => ({ ...f, nmiNumber: e.target.value }))}
-                        className="lead-detail-input"
-                      />
-                    </div>
-                    <div className="lead-detail-field">
-                      <span className="lead-detail-label">Meter Number</span>
-                      <input
-                        type="text"
-                        value={utilityForm.meterNumber}
-                        onChange={(e) => setUtilityForm((f) => ({ ...f, meterNumber: e.target.value }))}
-                        className="lead-detail-input"
-                      />
-                    </div>
-                    <div className="lead-detail-field">
-                      <span className="lead-detail-label">Post-install Reference Number</span>
-                      <input
-                        type="text"
-                        value={postInstallRef}
-                        onChange={(e) => setPostInstallRef(e.target.value)}
-                        className="lead-detail-input"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
           ) : activeTab === 'schedule' ? (
             <RetailerProjectDetailDetails
@@ -690,6 +559,8 @@ export default function ProjectDetailPage() {
               onChangeExpectedCompletionDate={handleSaveExpectedCompletionDate}
               hideJobType={true}
               projectStages={DIRECT_PROJECT_STAGES}
+              inHouseEditable={!!project.lead_id}
+              onSaveInHouseDetails={handleSaveInHouseDetails}
             />
           ) : activeTab === 'financials' ? (
             <div className="fade-in" style={{ padding: '24px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>

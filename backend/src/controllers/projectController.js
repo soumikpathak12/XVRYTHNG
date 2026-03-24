@@ -70,6 +70,24 @@ export async function updateProject(req, res) {
      if ('post_install_reference_no' in body) {
        allowedUpdates.post_install_reference_no = body.post_install_reference_no;
      }
+    if ('customer_name' in body) {
+      allowedUpdates.customer_name = body.customer_name;
+    }
+    if ('email' in body) {
+      allowedUpdates.email = body.email;
+    }
+    if ('phone' in body) {
+      allowedUpdates.phone = body.phone;
+    }
+    if ('suburb' in body) {
+      allowedUpdates.suburb = body.suburb;
+    }
+    if ('system_size_kw' in body) {
+      allowedUpdates.system_size_kw = body.system_size_kw;
+    }
+    if ('value_amount' in body) {
+      allowedUpdates.value_amount = body.value_amount;
+    }
 
     const updated = await projectService.updateProject(projectId, allowedUpdates);
     return res.status(200).json({ success: true, data: updated });

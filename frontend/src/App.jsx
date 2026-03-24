@@ -560,7 +560,7 @@ function App() {
           <Route
             path="payroll"
             element={
-              <RequirePermission resource="operations" action="view">
+              <RequirePermission resource="payroll" action="view">
                 <PayrollPage />
               </RequirePermission>
             }

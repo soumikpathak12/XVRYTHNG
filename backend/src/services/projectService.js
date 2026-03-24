@@ -135,6 +135,61 @@ const PROJECT_STAGE_ORDER = [
   'project_completed',
 ];
 
+/**
+ * Enforce business rules when changing to a different pipeline stage.
+ * `project` must be a row from getProjectById (includes lead_* columns).
+ */
+async function assertProjectStageChangeAllowed(project, projectId, nextStage) {
+  if (!project || String(project.stage) === String(nextStage)) {
+    return;
+  }
+
+  const idxCurrent = PROJECT_STAGE_ORDER.indexOf(project.stage);
+  const idxNext = PROJECT_STAGE_ORDER.indexOf(nextStage);
+  const isForward = idxCurrent !== -1 && idxNext !== -1 && idxNext > idxCurrent;
+
+  if (isForward) {
+    const pre = String(project.lead_pre_approval_reference_no ?? '').trim();
+    if (!pre) {
+      const err = new Error(
+        'Pre-approval reference number is required before moving this project to a later stage. Add it under Utility information on the project.',
+      );
+      err.statusCode = 422;
+      throw err;
+    }
+    const solar = project.lead_solar_vic_eligibility;
+    if (solar == null || solar === '') {
+      const err = new Error(
+        'Solar Victoria eligibility must be set (eligible or not eligible) before moving this project to a later stage. Update Utility information on the project.',
+      );
+      err.statusCode = 422;
+      throw err;
+    }
+  }
+
+  // Business rules: for Grid Connection stage and beyond, ensure post‑install info is present.
+  const idxTarget = PROJECT_STAGE_ORDER.indexOf(nextStage);
+  const idxGrid = PROJECT_STAGE_ORDER.indexOf('inspection_grid_connection');
+
+  if (idxTarget !== -1 && idxGrid !== -1 && idxTarget >= idxGrid) {
+    if (!project.post_install_reference_no) {
+      const err = new Error('Please enter Post-install reference number before moving to this stage.');
+      err.statusCode = 422;
+      throw err;
+    }
+    const [rows] = await db.execute(
+      'SELECT COUNT(*) AS cnt FROM project_documents WHERE project_id = ?',
+      [projectId],
+    );
+    const count = rows?.[0]?.cnt ?? 0;
+    if (!count) {
+      const err = new Error('Please upload at least one post-install document before moving to this stage.');
+      err.statusCode = 422;
+      throw err;
+    }
+  }
+}
+
 export async function updateProjectStage(projectId, nextStage) {
   if (!projectId || Number.isNaN(Number(projectId))) {
     const err = new Error('Invalid project id');
@@ -147,42 +202,46 @@ export async function updateProjectStage(projectId, nextStage) {
     throw err;
   }
 
-  // Business rules: for Grid Connection stage and beyond, ensure post‑install info is present.
   const project = await getProjectById(projectId);
-  const idxTarget = PROJECT_STAGE_ORDER.indexOf(nextStage);
-  const idxGrid = PROJECT_STAGE_ORDER.indexOf('inspection_grid_connection');
+  await assertProjectStageChangeAllowed(project, projectId, nextStage);
 
-  if (idxTarget !== -1 && idxGrid !== -1 && idxTarget >= idxGrid) {
-    if (!project.post_install_reference_no) {
-      const err = new Error('Please enter Post-install reference number before moving to this stage.');
-      err.statusCode = 422;
-      throw err;
-    }
-    // Require at least one document uploaded for this project.
-    const [rows] = await db.execute(
-      'SELECT COUNT(*) AS cnt FROM project_documents WHERE project_id = ?',
-      [projectId]
-    );
-    const count = rows?.[0]?.cnt ?? 0;
-    if (!count) {
-      const err = new Error('Please upload at least one post-install document before moving to this stage.');
-      err.statusCode = 422;
-      throw err;
+  return updateProject(projectId, { stage: nextStage }, { skipStageValidation: true });
+}
+
+export async function updateProject(projectId, updates = {}, options = {}) {
+  if (updates.stage !== undefined && !options.skipStageValidation) {
+    const current = await getProjectById(projectId);
+    if (String(current.stage) !== String(updates.stage)) {
+      await assertProjectStageChangeAllowed(current, projectId, updates.stage);
     }
   }
 
-  return updateProject(projectId, { stage: nextStage });
-}
-
-export async function updateProject(projectId, updates = {}) {
   // Extract only allowed fields
-  const allowed = ['expected_completion_date', 'stage', 'post_install_reference_no'];
+  const allowed = [
+    'expected_completion_date',
+    'stage',
+    'post_install_reference_no',
+    'customer_name',
+    'email',
+    'phone',
+    'suburb',
+    'system_size_kw',
+    'value_amount',
+  ];
   const sets = [];
   const params = [];
   for (const k of allowed) {
     if (updates[k] !== undefined) {
       sets.push(`${k} = ?`);
-      params.push(updates[k] === '' ? null : updates[k]);
+      if (k === 'system_size_kw' || k === 'value_amount') {
+        const v = updates[k];
+        params.push(v === '' || v == null ? null : Number(v));
+      } else if (k === 'customer_name') {
+        const v = updates[k];
+        params.push(v == null || v === '' ? '' : String(v).trim());
+      } else {
+        params.push(updates[k] === '' ? null : updates[k]);
+      }
     }
   }
 
@@ -228,7 +287,17 @@ export async function getProjectById(projectId) {
       l.energy_distributor AS lead_energy_distributor,
       l.solar_vic_eligibility AS lead_solar_vic_eligibility,
       l.nmi_number   AS lead_nmi_number,
-      l.meter_number AS lead_meter_number
+      l.meter_number AS lead_meter_number,
+      l.pv_system_size_kw AS lead_pv_system_size_kw,
+      l.pv_inverter_size_kw AS lead_pv_inverter_size_kw,
+      l.pv_inverter_brand AS lead_pv_inverter_brand,
+      l.pv_panel_brand AS lead_pv_panel_brand,
+      l.pv_panel_module_watts AS lead_pv_panel_module_watts,
+      l.ev_charger_brand AS lead_ev_charger_brand,
+      l.ev_charger_model AS lead_ev_charger_model,
+      l.battery_size_kwh AS lead_battery_size_kwh,
+      l.battery_brand AS lead_battery_brand,
+      l.battery_model AS lead_battery_model
     FROM projects p
     LEFT JOIN leads l ON l.id = p.lead_id
     WHERE p.id = ?

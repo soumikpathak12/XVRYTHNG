@@ -8,6 +8,7 @@ const ALL_KNOWN_MODULES = [
   'on_field',
   'installation', // Installation Day (field jobs)
   'operations',
+  'payroll',
   'attendance',
   'referrals',
   'messages',

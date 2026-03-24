@@ -15,6 +15,14 @@ import {
 } from '../services/api.js';
 import '../styles/LeadsKanban.css';
 
+const PROJECT_STAGE_ORDER_KEYS = DEFAULT_PROJECT_STAGES.map((s) => s.key);
+
+function isForwardProjectStageMove(currentStage, nextStage) {
+  const a = PROJECT_STAGE_ORDER_KEYS.indexOf(currentStage);
+  const b = PROJECT_STAGE_ORDER_KEYS.indexOf(nextStage);
+  return a !== -1 && b !== -1 && b > a;
+}
+
 function normalizeProject(row) {
   const sizeKw = row.lead_system_size_kw ?? row.system_size_kw;
   const sysType = row.lead_system_type ?? row.system_type;
@@ -121,24 +129,19 @@ export default function ProjectsPage() {
   }, [projects, daysFilter]);
 
   const handleStageChange = useCallback(async (projectId, nextStage) => {
-    // Guardrails: block moving forward from "New" when required Utility fields are missing.
     const current = projects.find((p) => String(p.id) === String(projectId));
-    if (current && current.stage === 'new' && nextStage !== 'new') {
+    if (current && isForwardProjectStageMove(current.stage, nextStage)) {
       const raw = current._raw || {};
-      const preRef =
-        raw.lead_pre_approval_reference_no ??
-        raw.pre_approval_reference_no ??
-        null;
-      const solarVic =
-        raw.lead_solar_vic_eligibility ??
-        raw.solar_vic_eligibility ??
-        null;
+      const preRef = String(
+        raw.lead_pre_approval_reference_no ?? raw.pre_approval_reference_no ?? '',
+      ).trim();
+      const solarVic = raw.lead_solar_vic_eligibility ?? raw.solar_vic_eligibility;
 
-      if (!preRef || solarVic == null) {
+      if (!preRef || solarVic == null || solarVic === '') {
         setToast(
-          'Please fill Pre‑approval reference number and Solar Vic eligibility in Utility Information before moving this project.'
+          'Pre-approval reference number and Solar Victoria eligibility are required before moving to a later stage. Open the project and complete Utility information.',
         );
-        setTimeout(() => setToast(''), 4000);
+        setTimeout(() => setToast(''), 5000);
         return;
       }
     }

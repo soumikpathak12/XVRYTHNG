@@ -9,6 +9,57 @@ const JOB_TYPES = [
   { key: 'full_system',     label: 'Full System' },
 ];
 
+/** Matches Lead / retailer create flows */
+const SYSTEM_TYPES = [
+  'PV only',
+  'PV + Battery',
+  'Only Battery',
+  'Only EV Charger',
+  'PV + Battery + EV Charger',
+  'Battery + EV Charger',
+  'PV + EV Chargers',
+];
+
+function seedInHouseForm(p) {
+  if (!p) return null;
+  return {
+    customer_name: p.customer_name || '',
+    email: p.customer_email || '',
+    phone: p.customer_contact || '',
+    suburb: p.address || '',
+    system_size_kw: p.system_size_kw ?? '',
+    value_amount: p.lead_value_amount ?? p.value_amount ?? '',
+    system_type: p.system_type || '',
+    house_storey: p.house_storey || '',
+    roof_type: p.roof_type || '',
+    meter_phase: p.meter_phase || '',
+    access_to_second_storey: p.access_to_two_storey === 'Yes',
+    access_to_inverter: p.access_to_inverter === 'Yes',
+    pv_system_size_kw: p.pv_system_size_kw ?? '',
+    pv_inverter_size_kw: p.pv_inverter_size_kw ?? '',
+    pv_inverter_brand: p.pv_inverter_brand || '',
+    pv_panel_brand: p.pv_panel_brand || '',
+    pv_panel_module_watts: p.pv_panel_module_watts ?? '',
+    ev_charger_brand: p.ev_charger_brand || '',
+    ev_charger_model: p.ev_charger_model || '',
+    battery_size_kwh: p.battery_size_kwh ?? '',
+    battery_brand: p.battery_brand || '',
+    battery_model: p.battery_model || '',
+    preApprovalRef: p.pre_approval_reference_no || '',
+    energyRetailer: p.energy_retailer || '',
+    energyDistributor: p.energy_distributor || '',
+    solarVic:
+      p.solar_vic_eligibility == null || p.solar_vic_eligibility === ''
+        ? ''
+        : Number(p.solar_vic_eligibility) === 1
+          ? '1'
+          : '0',
+    nmiNumber: p.nmi_number || '',
+    meterNumber: p.meter_number || '',
+    postInstallRef: p.post_install_reference_no || '',
+  };
+}
+
 const RETAILER_STAGES = [
   { key: 'site_inspection', label: 'Site Inspection' },
   { key: 'stage_one', label: 'Stage One' },
@@ -166,7 +217,9 @@ function KV({ label, value }) {
   return (
     <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
       <label className="lead-detail-label" style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>{label}</label>
-      <div style={{ fontSize: '0.9375rem', fontWeight: '600', color: '#0F172A', minHeight: '1.5rem' }}>{value || '—'}</div>
+      <div style={{ fontSize: '0.9375rem', fontWeight: '600', color: '#0F172A', minHeight: '1.5rem' }}>
+        {value === null || value === undefined || value === '' ? '—' : String(value)}
+      </div>
     </div>
   );
 }
@@ -197,7 +250,13 @@ export default function RetailerProjectDetailDetails({
   onChangeExpectedCompletionDate,
   hideJobType,
   projectStages,
+  inHouseEditable,
+  onSaveInHouseDetails,
 }) {
+  const [isEditingInHouse, setIsEditingInHouse] = useState(false);
+  const [detailForm, setDetailForm] = useState(null);
+  const [savingInHouse, setSavingInHouse] = useState(false);
+
   const [status, setStatus] = useState(project?.stage ?? '');
   const [jobType, setJobType] = useState('');
   const [date, setDate] = useState('');
@@ -309,8 +368,6 @@ export default function RetailerProjectDetailDetails({
     );
   }
 
-  // Active Tab === Details (Read-only view mimicking the initial form state, user requested layout)
-  // For next phase, this could be editable fields like LeadDetailDetails.
   const Icons = {
     info: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>,
     user: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
@@ -318,8 +375,74 @@ export default function RetailerProjectDetailDetails({
     home: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
   };
 
+  const editMode = inHouseEditable && onSaveInHouseDetails && isEditingInHouse && detailForm;
+  const sysTypeForFlags = editMode ? (detailForm?.system_type ?? '') : (project?.system_type ?? '');
+  const hasPV = /PV/i.test(sysTypeForFlags);
+  const hasEV = /EV/i.test(sysTypeForFlags);
+  const hasBattery = /Battery/i.test(sysTypeForFlags);
+
+  const solarVicLabel =
+    project?.solar_vic_eligibility === null ||
+    project?.solar_vic_eligibility === undefined ||
+    project?.solar_vic_eligibility === ''
+      ? null
+      : Number(project.solar_vic_eligibility) === 1
+        ? 'Eligible'
+        : 'Not eligible';
+
+  const inputStyle = { width: '100%', padding: '0.65rem', border: '1px solid #CBD5E1', borderRadius: '8px', fontSize: '0.95rem', color: '#0F172A', outline: 'none', backgroundColor: '#fff' };
+  const labelStyle = { fontWeight: 700, fontSize: '0.75rem', color: '#64748B', marginBottom: '0.4rem', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' };
+
+  async function handleInHouseSaveClick() {
+    if (!detailForm || !onSaveInHouseDetails) return;
+    setSavingInHouse(true);
+    try {
+      await onSaveInHouseDetails(detailForm);
+      setIsEditingInHouse(false);
+      setDetailForm(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSavingInHouse(false);
+    }
+  }
+
   return (
     <div className="fade-in" style={{ display: 'grid', gap: '1.5rem', gridTemplateColumns: 'minmax(0, 1fr)' }}>
+      {inHouseEditable && onSaveInHouseDetails && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {!isEditingInHouse ? (
+            <button
+              type="button"
+              className="lead-detail-btn secondary"
+              onClick={() => {
+                setDetailForm(seedInHouseForm(project));
+                setIsEditingInHouse(true);
+              }}
+            >
+              Edit project
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="lead-detail-btn secondary"
+                disabled={savingInHouse}
+                onClick={() => {
+                  setIsEditingInHouse(false);
+                  setDetailForm(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button type="button" className="lead-detail-btn primary" disabled={savingInHouse} onClick={handleInHouseSaveClick}>
+                {savingInHouse ? 'Saving…' : 'Save'}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       <SectionCard title="Project Information" icon={Icons.info}>
         <KV label="Project Code" value={project.code} />
         <KV label="Category" value={project.client_type} />
@@ -332,8 +455,8 @@ export default function RetailerProjectDetailDetails({
               Expected Completion
             </label>
             {onChangeExpectedCompletionDate ? (
-              <input 
-                type="date" 
+              <input
+                type="date"
                 value={expectedCompletionDate || ''}
                 onChange={(e) => onChangeExpectedCompletionDate(e.target.value)}
                 style={{
@@ -350,27 +473,255 @@ export default function RetailerProjectDetailDetails({
       </SectionCard>
 
       <SectionCard title="Customer Details" icon={Icons.user}>
-        <KV label="Customer Name" value={project.customer_name} />
-        <KV label="Email" value={project.customer_email} />
-        <KV label="Phone" value={project.customer_contact} />
-        <KV label="Address" value={project.address} />
+        {editMode ? (
+          <>
+            <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+              <label style={labelStyle}>Customer name</label>
+              <input style={inputStyle} value={detailForm.customer_name} onChange={(e) => setDetailForm((f) => ({ ...f, customer_name: e.target.value }))} />
+            </div>
+            <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+              <label style={labelStyle}>Email</label>
+              <input style={inputStyle} type="email" value={detailForm.email} onChange={(e) => setDetailForm((f) => ({ ...f, email: e.target.value }))} />
+            </div>
+            <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+              <label style={labelStyle}>Phone</label>
+              <input style={inputStyle} value={detailForm.phone} onChange={(e) => setDetailForm((f) => ({ ...f, phone: e.target.value }))} />
+            </div>
+            <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+              <label style={labelStyle}>Address / suburb</label>
+              <input style={inputStyle} value={detailForm.suburb} onChange={(e) => setDetailForm((f) => ({ ...f, suburb: e.target.value }))} />
+            </div>
+            <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+              <label style={labelStyle}>Estimated value (AUD)</label>
+              <input style={inputStyle} type="number" step="any" min="0" value={detailForm.value_amount} onChange={(e) => setDetailForm((f) => ({ ...f, value_amount: e.target.value }))} />
+            </div>
+          </>
+        ) : (
+          <>
+            <KV label="Customer Name" value={project.customer_name} />
+            <KV label="Email" value={project.customer_email} />
+            <KV label="Phone" value={project.customer_contact} />
+            <KV label="Address" value={project.address} />
+          </>
+        )}
       </SectionCard>
 
       <SectionCard title="System Specifications" icon={Icons.zap}>
-        <KV label="System Type" value={project.system_type} />
-        <KV label="System Size" value={project.system_size_kw != null ? `${project.system_size_kw} kW` : null} />
-        <KV label="Panel Brand" value={project.panel_brand} />
-        <KV label="Panel Power" value={project.panel_module_watts != null ? `${project.panel_module_watts} W` : null} />
-        <KV label="Inverter Brand" value={project.inverter_brand} />
-        <KV label="Inverter Size" value={project.inverter_size_kw != null ? `${project.inverter_size_kw} kW` : null} />
+        {editMode ? (
+          <>
+            <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+              <label style={labelStyle}>System type</label>
+              <select
+                style={inputStyle}
+                value={detailForm.system_type}
+                onChange={(e) => setDetailForm((f) => ({ ...f, system_type: e.target.value }))}
+              >
+                <option value="">Select</option>
+                {SYSTEM_TYPES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+            <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+              <label style={labelStyle}>System size (kW)</label>
+              <input style={inputStyle} type="number" step="any" min="0" value={detailForm.system_size_kw} onChange={(e) => setDetailForm((f) => ({ ...f, system_size_kw: e.target.value }))} />
+            </div>
+            {hasPV && (
+              <>
+                <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+                  <label style={labelStyle}>PV system size (kW)</label>
+                  <input style={inputStyle} type="number" step="any" min="0" value={detailForm.pv_system_size_kw} onChange={(e) => setDetailForm((f) => ({ ...f, pv_system_size_kw: e.target.value }))} />
+                </div>
+                <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+                  <label style={labelStyle}>PV inverter size (kW)</label>
+                  <input style={inputStyle} type="number" step="any" min="0" value={detailForm.pv_inverter_size_kw} onChange={(e) => setDetailForm((f) => ({ ...f, pv_inverter_size_kw: e.target.value }))} />
+                </div>
+                <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+                  <label style={labelStyle}>PV inverter brand</label>
+                  <input style={inputStyle} value={detailForm.pv_inverter_brand} onChange={(e) => setDetailForm((f) => ({ ...f, pv_inverter_brand: e.target.value }))} />
+                </div>
+                <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+                  <label style={labelStyle}>PV panel brand</label>
+                  <input style={inputStyle} value={detailForm.pv_panel_brand} onChange={(e) => setDetailForm((f) => ({ ...f, pv_panel_brand: e.target.value }))} />
+                </div>
+                <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+                  <label style={labelStyle}>Panel module (W)</label>
+                  <input style={inputStyle} type="number" step="any" min="0" value={detailForm.pv_panel_module_watts} onChange={(e) => setDetailForm((f) => ({ ...f, pv_panel_module_watts: e.target.value }))} />
+                </div>
+              </>
+            )}
+            {hasEV && (
+              <>
+                <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+                  <label style={labelStyle}>EV charger brand</label>
+                  <input style={inputStyle} value={detailForm.ev_charger_brand} onChange={(e) => setDetailForm((f) => ({ ...f, ev_charger_brand: e.target.value }))} />
+                </div>
+                <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+                  <label style={labelStyle}>EV charger model</label>
+                  <input style={inputStyle} value={detailForm.ev_charger_model} onChange={(e) => setDetailForm((f) => ({ ...f, ev_charger_model: e.target.value }))} />
+                </div>
+              </>
+            )}
+            {hasBattery && (
+              <>
+                <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+                  <label style={labelStyle}>Battery size (kWh)</label>
+                  <input style={inputStyle} type="number" step="any" min="0" value={detailForm.battery_size_kwh} onChange={(e) => setDetailForm((f) => ({ ...f, battery_size_kwh: e.target.value }))} />
+                </div>
+                <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+                  <label style={labelStyle}>Battery brand</label>
+                  <input style={inputStyle} value={detailForm.battery_brand} onChange={(e) => setDetailForm((f) => ({ ...f, battery_brand: e.target.value }))} />
+                </div>
+                <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+                  <label style={labelStyle}>Battery model</label>
+                  <input style={inputStyle} value={detailForm.battery_model} onChange={(e) => setDetailForm((f) => ({ ...f, battery_model: e.target.value }))} />
+                </div>
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            <KV label="System Type" value={project.system_type} />
+            {hasPV && (
+              <>
+                <KV
+                  label="System Size"
+                  value={project.pv_system_size_kw != null ? `${project.pv_system_size_kw} kW` : project.system_size_kw != null ? `${project.system_size_kw} kW` : null}
+                />
+                <KV
+                  label="Inverter Size"
+                  value={project.pv_inverter_size_kw != null ? `${project.pv_inverter_size_kw} kW` : null}
+                />
+                <KV label="PV Inverter Brand" value={project.pv_inverter_brand} />
+                <KV label="PV Panel Brand" value={project.pv_panel_brand} />
+                <KV
+                  label="Panel Power"
+                  value={project.pv_panel_module_watts != null ? `${project.pv_panel_module_watts} W` : null}
+                />
+              </>
+            )}
+
+            {hasEV && (
+              <>
+                <KV label="EV Charger Brand" value={project.ev_charger_brand} />
+                <KV label="EV Charger Model" value={project.ev_charger_model} />
+              </>
+            )}
+
+            {hasBattery && (
+              <>
+                <KV
+                  label="Battery Size"
+                  value={project.battery_size_kwh != null ? `${project.battery_size_kwh} kWh` : null}
+                />
+                <KV label="Battery Brand" value={project.battery_brand} />
+                <KV label="Battery Model" value={project.battery_model} />
+              </>
+            )}
+          </>
+        )}
       </SectionCard>
 
       <SectionCard title="Property Characteristics" icon={Icons.home}>
-        <KV label="House Storeys" value={project.house_storey} />
-        <KV label="Roof Type" value={project.roof_type} />
-        <KV label="Meter Phase" value={project.meter_phase} />
-        <KV label="Access to 2nd Story" value={project.access_to_two_storey} />
-        <KV label="Access to Inverter" value={project.access_to_inverter} />
+        {editMode ? (
+          <>
+            <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+              <label style={labelStyle}>House storeys</label>
+              <input style={inputStyle} value={detailForm.house_storey} onChange={(e) => setDetailForm((f) => ({ ...f, house_storey: e.target.value }))} />
+            </div>
+            <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+              <label style={labelStyle}>Roof type</label>
+              <input style={inputStyle} value={detailForm.roof_type} onChange={(e) => setDetailForm((f) => ({ ...f, roof_type: e.target.value }))} />
+            </div>
+            <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+              <label style={labelStyle}>Meter phase</label>
+              <input style={inputStyle} value={detailForm.meter_phase} onChange={(e) => setDetailForm((f) => ({ ...f, meter_phase: e.target.value }))} />
+            </div>
+            <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+              <label style={labelStyle}>Access to 2nd Story</label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.95rem' }}>
+                <input
+                  type="checkbox"
+                  checked={!!detailForm.access_to_second_storey}
+                  onChange={(e) => setDetailForm((f) => ({ ...f, access_to_second_storey: e.target.checked }))}
+                />
+                Yes
+              </label>
+            </div>
+            <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+              <label style={labelStyle}>Access to inverter</label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.95rem' }}>
+                <input
+                  type="checkbox"
+                  checked={!!detailForm.access_to_inverter}
+                  onChange={(e) => setDetailForm((f) => ({ ...f, access_to_inverter: e.target.checked }))}
+                />
+                Yes
+              </label>
+            </div>
+          </>
+        ) : (
+          <>
+            <KV label="House Storeys" value={project.house_storey} />
+            <KV label="Roof Type" value={project.roof_type} />
+            <KV label="Meter Phase" value={project.meter_phase} />
+            <KV label="Access to 2nd Story" value={project.access_to_two_storey} />
+            <KV label="Access to Inverter" value={project.access_to_inverter} />
+          </>
+        )}
+      </SectionCard>
+
+      <SectionCard title="Utility Information" icon={Icons.info}>
+        {editMode && inHouseEditable ? (
+          <>
+            <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+              <label style={labelStyle}>Pre-approval reference number</label>
+              <input style={inputStyle} value={detailForm.preApprovalRef} onChange={(e) => setDetailForm((f) => ({ ...f, preApprovalRef: e.target.value }))} />
+            </div>
+            <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+              <label style={labelStyle}>Energy retailer</label>
+              <input style={inputStyle} value={detailForm.energyRetailer} onChange={(e) => setDetailForm((f) => ({ ...f, energyRetailer: e.target.value }))} />
+            </div>
+            <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+              <label style={labelStyle}>Energy distributor</label>
+              <input style={inputStyle} value={detailForm.energyDistributor} onChange={(e) => setDetailForm((f) => ({ ...f, energyDistributor: e.target.value }))} />
+            </div>
+            <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+              <label style={labelStyle}>Solar Victoria eligibility</label>
+              <select
+                style={inputStyle}
+                value={detailForm.solarVic}
+                onChange={(e) => setDetailForm((f) => ({ ...f, solarVic: e.target.value }))}
+              >
+                <option value="">Select</option>
+                <option value="1">Eligible</option>
+                <option value="0">Not eligible</option>
+              </select>
+            </div>
+            <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+              <label style={labelStyle}>NMI number</label>
+              <input style={inputStyle} value={detailForm.nmiNumber} onChange={(e) => setDetailForm((f) => ({ ...f, nmiNumber: e.target.value }))} />
+            </div>
+            <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+              <label style={labelStyle}>Meter number</label>
+              <input style={inputStyle} value={detailForm.meterNumber} onChange={(e) => setDetailForm((f) => ({ ...f, meterNumber: e.target.value }))} />
+            </div>
+            <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+              <label style={labelStyle}>Post-install reference number</label>
+              <input style={inputStyle} value={detailForm.postInstallRef} onChange={(e) => setDetailForm((f) => ({ ...f, postInstallRef: e.target.value }))} />
+            </div>
+          </>
+        ) : (
+          <>
+            <KV label="Pre-Approval Reference Number" value={project.pre_approval_reference_no} />
+            <KV label="Energy Retailer" value={project.energy_retailer} />
+            <KV label="Energy Distributor" value={project.energy_distributor} />
+            <KV label="Solar Victoria Eligibility" value={solarVicLabel} />
+            <KV label="NMI Number" value={project.nmi_number} />
+            <KV label="Meter Number" value={project.meter_number} />
+            <KV label="Post-install Reference Number" value={project.post_install_reference_no} />
+          </>
+        )}
       </SectionCard>
     </div>
   );

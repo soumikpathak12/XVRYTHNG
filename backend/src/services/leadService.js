@@ -374,6 +374,14 @@ export async function updateLead(leadId, payload) {
     updates.push('site_inspection_date = ?');
     params.push(site_inspection_date);
   }
+  if (payload.email !== undefined) {
+    updates.push('email = ?');
+    params.push(payload.email ? String(payload.email).trim() : null);
+  }
+  if (payload.phone !== undefined) {
+    updates.push('phone = ?');
+    params.push(payload.phone ? String(payload.phone).trim() : null);
+  }
 
   // NEW: System / Property / Utility
   if (payload.system_type !== undefined) {

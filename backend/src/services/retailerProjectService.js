@@ -100,6 +100,24 @@ export async function createRetailerProject(companyId, payload = {}, userId = nu
     access_to_two_storey,
     access_to_inverter,
 
+    // System-type driven extended fields (PV / EV / Battery + Utility)
+    pv_system_size_kw,
+    pv_inverter_size_kw,
+    pv_inverter_brand,
+    pv_panel_brand,
+    pv_panel_module_watts,
+    ev_charger_brand,
+    ev_charger_model,
+    battery_size_kwh,
+    battery_brand,
+    battery_model,
+    pre_approval_reference_no,
+    energy_retailer,
+    energy_distributor,
+    solar_vic_eligibility,
+    nmi_number,
+    meter_number,
+
     // Notes
     notes,
   } = payload;
@@ -141,17 +159,32 @@ export async function createRetailerProject(companyId, payload = {}, userId = nu
         address, suburb, location_url, client_type, client_name,
         system_type, system_size_kw, value_amount,
         house_storey, roof_type, meter_phase, access_to_two_storey, access_to_inverter,
+        pv_system_size_kw, pv_inverter_size_kw, pv_inverter_brand, pv_panel_brand, pv_panel_module_watts,
+        ev_charger_brand, ev_charger_model,
+        battery_size_kwh, battery_brand, battery_model,
+        pre_approval_reference_no, energy_retailer, energy_distributor, solar_vic_eligibility,
+        nmi_number, meter_number,
         notes, created_at, updated_at)
        VALUES (?, '', ?, ?, ?, ?, ?,
                ?, ?, ?, ?, ?,
                ?, ?, ?,
                ?, ?, ?, ?, ?,
+               ?, ?, ?, ?, ?,
+               ?, ?,
+               ?, ?, ?,
+               ?, ?, ?, ?,
+               ?, ?,
                ?, NOW(), NOW())`,
       [
         Number(companyId), job_type, stage, customer_name, nn(customer_email), nn(customer_contact),
         nn(address), nn(suburb), nn(location_url), nn(client_type), nn(client_name),
         nn(system_type), nn(system_size_kw), nn(value_amount),
         nn(house_storey), nn(roof_type), nn(meter_phase), nn(access_to_two_storey), nn(access_to_inverter),
+        nn(pv_system_size_kw), nn(pv_inverter_size_kw), nn(pv_inverter_brand), nn(pv_panel_brand), nn(pv_panel_module_watts),
+        nn(ev_charger_brand), nn(ev_charger_model),
+        nn(battery_size_kwh), nn(battery_brand), nn(battery_model),
+        nn(pre_approval_reference_no), nn(energy_retailer), nn(energy_distributor), nn(solar_vic_eligibility),
+        nn(nmi_number), nn(meter_number),
         nn(notes),
       ]
     );
