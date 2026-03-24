@@ -72,11 +72,25 @@ export default function EmployeeSidebar() {
 
   // Track expanded/collapsed state for parent items like Projects
   const [openKeys, setOpenKeys] = useState(() => {
-    const isProjectsPath = location.pathname.startsWith('/employee/projects');
-    const isSalesPath =
-      location.pathname === '/employee' ||
-      location.pathname.startsWith('/employee/leads');
-    return { projects: isProjectsPath, sales: isSalesPath };
+    const pathname = location.pathname || '';
+    return {
+      projects: pathname.startsWith('/employee/projects'),
+      sales: pathname === '/employee' || pathname.startsWith('/employee/leads'),
+      project_manager: pathname.startsWith('/employee/projects'),
+      attendance: pathname.startsWith('/employee/attendance'),
+      on_field:
+        pathname.startsWith('/employee/on-field') ||
+        pathname.startsWith('/employee/site-inspection') ||
+        pathname.startsWith('/employee/installation'),
+      communications:
+        pathname.startsWith('/employee/messages') ||
+        pathname.startsWith('/employee/referrals') ||
+        pathname.startsWith('/employee/support-tickets'),
+      operations:
+        pathname.startsWith('/employee/approvals') ||
+        pathname.startsWith('/employee/payroll'),
+      settings: pathname.startsWith('/employee/settings'),
+    };
   });
 
   const toggleOpen = useCallback((key) => {
@@ -240,31 +254,29 @@ export default function EmployeeSidebar() {
         ) : sections.length === 0 ? (
           <div style={{ color: '#6B7280', fontSize: 13, padding: '4px 10px' }}>No items.</div>
         ) : (
-          sections.flatMap((sec, idx) => {
-            const nodes = [];
-            if (!collapsed) {
-              if (idx > 0) nodes.push(<div key={`sep-${sec.key}`} style={{ height: 1, background: '#F3F4F6', margin: '8px 0' }} />);
-              const isActiveHeader =
-                (sec.key === 'sales' && isSalesPath) ||
-                (sec.key === 'project_manager' && isProjectManagerPath) ||
-                (sec.key === 'attendance' && isAttendancePath) ||
-                (sec.key === 'on_field' && isOnFieldPath) ||
-                (sec.key === 'communications' && isCommunicationsPath) ||
-                (sec.key === 'operations' && isOperationsPath) ||
-                (sec.key === 'settings' && isSettingsPath);
+          sections.map((sec, idx) => {
+            const isActiveHeader =
+              (sec.key === 'sales' && isSalesPath) ||
+              (sec.key === 'project_manager' && isProjectManagerPath) ||
+              (sec.key === 'attendance' && isAttendancePath) ||
+              (sec.key === 'on_field' && isOnFieldPath) ||
+              (sec.key === 'communications' && isCommunicationsPath) ||
+              (sec.key === 'operations' && isOperationsPath) ||
+              (sec.key === 'settings' && isSettingsPath);
+            const isOpen = (openKeys[sec.key] ?? false) || isActiveHeader;
 
-              if (sec.key === 'sales') {
-                const isSalesOpen = (openKeys.sales ?? false) || isSalesPath;
-                nodes.push(
+            return (
+              <div key={sec.key}>
+                {!collapsed && idx > 0 && <div style={{ height: 1, background: '#F3F4F6', margin: '8px 0' }} />}
+                {!collapsed && (
                   <div
-                    key={`hdr-${sec.key}`}
                     role="button"
                     tabIndex={0}
-                    onClick={() => toggleOpen('sales')}
+                    onClick={() => toggleOpen(sec.key)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') toggleOpen('sales');
+                      if (e.key === 'Enter' || e.key === ' ') toggleOpen(sec.key);
                     }}
-                    aria-expanded={!!isSalesOpen}
+                    aria-expanded={!!isOpen}
                     style={{
                       ...linkBase,
                       ...moduleHeader,
@@ -275,156 +287,132 @@ export default function EmployeeSidebar() {
                     }}
                   >
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
-                      <TrendingUp size={18} />
-                      <span style={{ color: isActiveHeader ? '#0f1a2b' : moduleHeader.color }}>
-                        {sec.title}
-                      </span>
+                      {sec.key === 'sales' ? <TrendingUp size={18} /> : null}
+                      <span style={{ color: isActiveHeader ? '#0f1a2b' : moduleHeader.color }}>{sec.title}</span>
                     </span>
                     <ChevronRight
                       size={18}
-                      style={{ transform: isSalesOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s ease' }}
+                      style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s ease' }}
                     />
                   </div>
-                );
-              } else {
-                nodes.push(
-                  <div
-                    key={`hdr-${sec.key}`}
-                    style={{
-                      ...moduleHeader,
-                      ...(isActiveHeader ? moduleHeaderActiveStyle : {}),
-                    }}
-                  >
-                    {sec.title}
-                  </div>
-                );
-              }
-            }
-            const shouldRenderItems = collapsed || sec.key !== 'sales' || ((openKeys.sales ?? false) || isSalesPath);
-            const itemRenderTarget = !collapsed && sec.key === 'sales' ? [] : nodes;
-            sec.items.forEach((it) => {
-              if (!shouldRenderItems) return;
-              // Check if this is a parent item with children (like Projects)
-              if (it.children && it.children.length > 0) {
-                const Icon = it.icon;
-                const anyChildActive = it.children.some((c) => location.pathname.startsWith(c.to));
-                const isOpen = openKeys[it.key] ?? anyChildActive;
+                )}
 
-                // When collapsed, show only the icon
-                if (collapsed) {
-                  itemRenderTarget.push(
-                    <div
-                      key={it.key}
-                      onClick={() => toggleOpen(it.key)}
-                      style={{
-                        ...linkBase,
-                        justifyContent: 'center',
-                        padding: 10,
-                        cursor: 'pointer',
-                        ...(anyChildActive ? { background: 'rgba(20,107,107,0.10)', color: '#0f1a2b', boxShadow: 'inset 4px 0 0 #146b6b', borderRadius: 12 } : {}),
-                      }}
-                      aria-expanded={!!isOpen}
-                    >
-                      <Icon size={20} />
-                    </div>
-                  );
-                } else {
-                  // When expanded, show the parent with expand/collapse arrow
-                  itemRenderTarget.push(
-                    <div key={it.key}>
-                      <div
-                        onClick={() => toggleOpen(it.key)}
-                        style={{
-                          ...linkBase,
-                          cursor: 'pointer',
-                          justifyContent: 'space-between',
-                          ...(anyChildActive ? activeStyle : {}),
-                        }}
-                        aria-expanded={!!isOpen}
-                      >
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
-                          <Icon size={20} />
-                          <span>{it.label}</span>
-                        </span>
-                        <ChevronRight
-                          size={18}
-                          style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s ease' }}
-                        />
-                      </div>
+                {(collapsed || isOpen) && (
+                  <div style={collapsed ? { display: 'flex', flexDirection: 'column', gap: 4 } : moduleItemsWrapper}>
+                    {sec.items.map((it) => {
+                      if (it.children && it.children.length > 0) {
+                        const Icon = it.icon;
+                        const anyChildActive = it.children.some((c) => location.pathname.startsWith(c.to));
+                        const isParentOpen = openKeys[it.key] ?? anyChildActive;
 
-                      {isOpen && (
-                        <div
-                          role="group"
-                          aria-label={`${it.label} submenu`}
-                          style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}
-                        >
-                          {it.children.map((child) => {
-                            const isChildActive = child.end
-                              ? location.pathname === child.to
-                              : location.pathname.startsWith(child.to);
+                        if (collapsed) {
+                          return (
+                            <div
+                              key={it.key}
+                              onClick={() => toggleOpen(it.key)}
+                              style={{
+                                ...linkBase,
+                                justifyContent: 'center',
+                                padding: 10,
+                                cursor: 'pointer',
+                                ...(anyChildActive ? { background: 'rgba(20,107,107,0.10)', color: '#0f1a2b', boxShadow: 'inset 4px 0 0 #146b6b', borderRadius: 12 } : {}),
+                              }}
+                              aria-expanded={!!isParentOpen}
+                            >
+                              <Icon size={20} />
+                            </div>
+                          );
+                        }
 
-                            return (
-                              <NavLink
-                                key={child.to}
-                                to={child.to}
-                                end={child.end}
-                                style={{
-                                  ...linkBase,
-                                  padding: '8px 12px',
-                                  borderRadius: 12,
-                                  marginLeft: 14,
-                                  fontWeight: 600,
-                                  fontSize: 11,
-                                  ...(isChildActive ? { background: 'rgba(20,107,107,0.10)', color: '#0f1a2b', boxShadow: 'inset 3px 0 0 #146b6b' } : {}),
-                                }}
+                        return (
+                          <div key={it.key}>
+                            <div
+                              onClick={() => toggleOpen(it.key)}
+                              style={{
+                                ...linkBase,
+                                cursor: 'pointer',
+                                justifyContent: 'space-between',
+                                ...(anyChildActive ? activeStyle : {}),
+                              }}
+                              aria-expanded={!!isParentOpen}
+                            >
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+                                <Icon size={20} />
+                                <span>{it.label}</span>
+                              </span>
+                              <ChevronRight
+                                size={18}
+                                style={{ transform: isParentOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s ease' }}
+                              />
+                            </div>
+
+                            {isParentOpen && (
+                              <div
+                                role="group"
+                                aria-label={`${it.label} submenu`}
+                                style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}
                               >
-                                <span
-                                  aria-hidden
-                                  style={{
-                                    width: 6,
-                                    height: 6,
-                                    borderRadius: 999,
-                                    background: isChildActive ? '#146b6b' : '#94a3b8',
-                                    display: 'inline-block',
-                                  }}
-                                />
-                                <span>{child.label}</span>
-                              </NavLink>
-                            );
+                                {it.children.map((child) => {
+                                  const isChildActive = child.end
+                                    ? location.pathname === child.to
+                                    : location.pathname.startsWith(child.to);
+
+                                  return (
+                                    <NavLink
+                                      key={child.to}
+                                      to={child.to}
+                                      end={child.end}
+                                      style={{
+                                        ...linkBase,
+                                        padding: '8px 12px',
+                                        borderRadius: 12,
+                                        marginLeft: 14,
+                                        fontWeight: 600,
+                                        fontSize: 11,
+                                        ...(isChildActive ? { background: 'rgba(20,107,107,0.10)', color: '#0f1a2b', boxShadow: 'inset 3px 0 0 #146b6b' } : {}),
+                                      }}
+                                    >
+                                      <span
+                                        aria-hidden
+                                        style={{
+                                          width: 6,
+                                          height: 6,
+                                          borderRadius: 999,
+                                          background: isChildActive ? '#146b6b' : '#94a3b8',
+                                          display: 'inline-block',
+                                        }}
+                                      />
+                                      <span>{child.label}</span>
+                                    </NavLink>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+
+                      const Icon = it.icon;
+                      const isDashboard = it.to === '/employee';
+                      return (
+                        <NavLink
+                          key={it.to}
+                          to={it.to}
+                          end={isDashboard}
+                          style={({ isActive }) => ({
+                            ...linkBase,
+                            ...(isActive ? activeStyle : {}),
                           })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                }
-              } else {
-                // Regular single link item
-                const Icon = it.icon;
-                const isDashboard = it.to === '/employee';
-                itemRenderTarget.push(
-                  <NavLink
-                    key={it.to}
-                    to={it.to}
-                    end={isDashboard}
-                    style={({ isActive }) => ({
-                      ...linkBase,
-                      ...(isActive ? activeStyle : {}),
+                        >
+                          <Icon size={20} />
+                          <span style={{ display: collapsed ? 'none' : 'inline', fontSize: 13 }}>{it.label}</span>
+                        </NavLink>
+                      );
                     })}
-                  >
-                    <Icon size={20} />
-                    <span style={{ display: collapsed ? 'none' : 'inline', fontSize: 13 }}>{it.label}</span>
-                  </NavLink>
-                );
-              }
-            });
-            if (!collapsed && sec.key === 'sales' && shouldRenderItems && sec.items.length > 0) {
-              nodes.push(
-                <div key={`sales-items-${sec.key}`} style={moduleItemsWrapper}>
-                  {itemRenderTarget}
-                </div>
-              );
-            }
-            return nodes;
+                  </div>
+                )}
+              </div>
+            );
           })
         )}
       </nav>

@@ -127,27 +127,80 @@ export default function SuperAdminSidebar({
       .filter(Boolean);
   }, [can]);
 
-  // Partition into 2 modules (Sales first, then Operation)
-  const salesRoutes = useMemo(() => new Set(['/admin/overview', '/admin/leads']), []);
-  const salesItems = useMemo(() => navItems.filter((i) => i.to && salesRoutes.has(i.to)), [navItems, salesRoutes]);
-  const operationItems = useMemo(
-    () => navItems.filter((i) => !(i.to && salesRoutes.has(i.to))),
-    [navItems, salesRoutes]
-  );
+  const sections = useMemo(() => {
+    const findByTo = (to) => navItems.find((i) => i.to === to);
+    const findByKey = (key) => navItems.find((i) => i.key === key);
+    const pick = (arr) => arr.filter(Boolean);
 
-  // Use route prefix directly (not permission-filtered items) so modules auto-open correctly.
-  const isSalesPath = location.pathname.startsWith('/admin/overview') || location.pathname.startsWith('/admin/leads');
-  const isOperationsPath = !isSalesPath;
+    const salesItems = pick([
+      findByTo('/admin/overview'),
+      findByTo('/admin/leads'),
+    ]);
+
+    const projectManagerItems = pick([
+      findByKey('projects'),
+    ]);
+
+    const attendanceItems = pick([
+      findByTo('/admin/attendance'),
+    ]);
+
+    const onFieldItems = pick([
+      findByTo('/admin/on-field'),
+      findByTo('/admin/installation'),
+    ]);
+
+    const communicationsItems = pick([
+      findByTo('/admin/messages'),
+      findByTo('/admin/support-tickets'),
+    ]);
+
+    const operationsItems = pick([
+      findByTo('/admin/operations'),
+      findByTo('/admin/payroll'),
+      findByTo('/admin/trial-users'),
+      findByTo('/admin/employees'),
+      findByTo('/admin/companies'),
+      findByTo('/admin/profile'),
+    ]);
+
+    const settingsItems = pick([
+      findByKey('settings'),
+    ]);
+
+    return [
+      { key: 'sales', title: 'Sales Module', icon: TrendingUp, items: salesItems },
+      { key: 'project_manager', title: 'Project Manager Module', icon: Boxes, items: projectManagerItems },
+      { key: 'attendance', title: 'Attendance', icon: Clock3, items: attendanceItems },
+      { key: 'on_field', title: 'On-Field Module', icon: HardHat, items: onFieldItems },
+      { key: 'communications', title: 'Communications', icon: MessageSquare, items: communicationsItems },
+      { key: 'operations', title: 'Operation', icon: Cog, items: operationsItems },
+      { key: 'settings', title: 'Settings', icon: Settings, items: settingsItems },
+    ].filter((s) => s.items.length > 0);
+  }, [navItems]);
 
   /**
    * Track which parent menus are expanded (e.g. sales, operations, projects submenu).
    * By default, open the submenu if the current path is inside it.
    */
   const [openKeys, setOpenKeys] = useState(() => {
-    const isSales = location.pathname.startsWith('/admin/overview') || location.pathname.startsWith('/admin/leads');
-    const isOperations = !isSales; // Default to operations if not sales
-    const isProjects = location.pathname.startsWith('/admin/projects');
-    return { sales: isSales, operations: isOperations, projects: isProjects };
+    const pathname = location.pathname || '';
+    return {
+      sales: pathname.startsWith('/admin/overview') || pathname.startsWith('/admin/leads'),
+      project_manager: pathname.startsWith('/admin/projects'),
+      attendance: pathname.startsWith('/admin/attendance'),
+      on_field: pathname.startsWith('/admin/on-field') || pathname.startsWith('/admin/installation'),
+      communications: pathname.startsWith('/admin/messages') || pathname.startsWith('/admin/support-tickets'),
+      operations:
+        pathname.startsWith('/admin/operations') ||
+        pathname.startsWith('/admin/payroll') ||
+        pathname.startsWith('/admin/trial-users') ||
+        pathname.startsWith('/admin/employees') ||
+        pathname.startsWith('/admin/companies') ||
+        pathname.startsWith('/admin/profile'),
+      settings: pathname.startsWith('/admin/settings'),
+      projects: pathname.startsWith('/admin/projects'),
+    };
   });
 
   const toggleOpen = useCallback((key) => {
@@ -432,99 +485,54 @@ export default function SuperAdminSidebar({
         {/* When sidebar is collapsed, show all items without module toggling */}
         {collapsed ? (
           <>
-            {salesItems.map(renderNavItem)}
-            {operationItems.map(renderNavItem)}
+            {sections.flatMap((sec) => sec.items).map(renderNavItem)}
           </>
         ) : (
           <>
-            {salesItems.length > 0 && (
-              <>
-                {(() => {
-                  const isSalesOpen = (openKeys.sales ?? false) || isSalesPath;
-                  return (
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => toggleOpen('sales')}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') toggleOpen('sales');
-                      }}
-                      aria-expanded={!!isSalesOpen}
-                      style={{
-                        ...linkBase,
-                        ...moduleHeader,
-                        cursor: 'pointer',
-                        justifyContent: 'space-between',
-                        ...(isSalesPath ? moduleHeaderActiveStyle : {}),
-                        userSelect: 'none',
-                      }}
-                    >
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
-                        <TrendingUp size={18} />
-                        <span style={{ color: isSalesPath ? '#0f1a2b' : moduleHeader.color }}>Sales Module</span>
-                      </span>
-                      <ChevronRight
-                        size={18}
-                        style={{ transform: isSalesOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s ease' }}
-                      />
-                    </div>
-                  );
-                })()}
-                {(() => {
-                  const isSalesOpen = (openKeys.sales ?? false) || isSalesPath;
-                  return isSalesOpen ? (
+            {sections.map((sec, idx) => {
+              const isPathActive = sec.items.some((item) => {
+                if (item.children?.length) return item.children.some((child) => location.pathname.startsWith(child.to));
+                return item.to ? location.pathname.startsWith(item.to) : false;
+              });
+              const isOpen = (openKeys[sec.key] ?? false) || isPathActive;
+              const SectionIcon = sec.icon;
+              return (
+                <div key={sec.key}>
+                  {idx > 0 && <div style={{ height: 1, background: '#F3F4F6', margin: '8px 0' }} />}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => toggleOpen(sec.key)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') toggleOpen(sec.key);
+                    }}
+                    aria-expanded={!!isOpen}
+                    style={{
+                      ...linkBase,
+                      ...moduleHeader,
+                      cursor: 'pointer',
+                      justifyContent: 'space-between',
+                      ...(isPathActive ? moduleHeaderActiveStyle : {}),
+                      userSelect: 'none',
+                    }}
+                  >
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+                      <SectionIcon size={18} />
+                      <span style={{ color: isPathActive ? '#0f1a2b' : moduleHeader.color }}>{sec.title}</span>
+                    </span>
+                    <ChevronRight
+                      size={18}
+                      style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s ease' }}
+                    />
+                  </div>
+                  {isOpen && (
                     <div style={moduleItemsWrapper}>
-                      {salesItems.map(renderNavItem)}
+                      {sec.items.map(renderNavItem)}
                     </div>
-                  ) : null;
-                })()}
-              </>
-            )}
-
-            {operationItems.length > 0 && (
-              <>
-                {salesItems.length > 0 && <div style={{ height: 1, background: '#F3F4F6', margin: '8px 0' }} />}
-                {(() => {
-                  const isOpsOpen = (openKeys.operations ?? false) || isOperationsPath;
-                  return (
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => toggleOpen('operations')}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') toggleOpen('operations');
-                      }}
-                      aria-expanded={!!isOpsOpen}
-                      style={{
-                        ...linkBase,
-                        ...moduleHeader,
-                        cursor: 'pointer',
-                        justifyContent: 'space-between',
-                        ...(isOperationsPath ? moduleHeaderActiveStyle : {}),
-                        userSelect: 'none',
-                      }}
-                    >
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
-                        <Cog size={18} />
-                        <span style={{ color: isOperationsPath ? '#0f1a2b' : moduleHeader.color }}>Operation</span>
-                      </span>
-                      <ChevronRight
-                        size={18}
-                        style={{ transform: isOpsOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s ease' }}
-                      />
-                    </div>
-                  );
-                })()}
-                {(() => {
-                  const isOpsOpen = (openKeys.operations ?? false) || isOperationsPath;
-                  return isOpsOpen ? (
-                    <div style={moduleItemsWrapper}>
-                      {operationItems.map(renderNavItem)}
-                    </div>
-                  ) : null;
-                })()}
-              </>
-            )}
+                  )}
+                </div>
+              );
+            })}
           </>
         )}
       </nav>
