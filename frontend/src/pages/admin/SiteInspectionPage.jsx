@@ -1,5 +1,5 @@
 // src/pages/admin/SiteInspectionPage.jsx
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import {
   getLead,
@@ -336,6 +336,15 @@ function getByPath(obj, path) {
   const norm = String(path).replace(/\[(\d+)\]/g, '.$1');
   return norm.split('.').reduce((acc, k) => (acc && Object.prototype.hasOwnProperty.call(acc, k) ? acc[k] : undefined), obj);
 }
+function flattenObject(input, prefix = '', out = {}) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return out;
+  for (const [k, v] of Object.entries(input)) {
+    const next = prefix ? `${prefix}.${k}` : k;
+    if (v && typeof v === 'object' && !Array.isArray(v)) flattenObject(v, next, out);
+    else out[next] = v;
+  }
+  return out;
+}
 /** NEW: đọc cả key phẳng và key lồng */
 function getValueFlex(form, key) {
   if (Object.prototype.hasOwnProperty.call(form, key)) return form[key]; // flat key, e.g. "jobDetails.licenseSelfie"
@@ -405,10 +414,46 @@ function buildMediaSummary(template, form) {
   return lines.join('\n');
 }
 
+/**
+ * Keep only persistable values for API payload / DB storage.
+ * - Remove client-only preview blobs (preview_data_url, data:image/... strings)
+ * - Keep uploaded file references (filename, storage_url)
+ */
+function sanitizeForPersist(value) {
+  if (value == null) return value;
+
+  if (typeof value === 'string') {
+    const s = value.trim();
+    // Base64 preview strings can easily exceed MySQL max_allowed_packet.
+    if (s.startsWith('data:')) return null;
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => sanitizeForPersist(item))
+      .filter((item) => item !== undefined && item !== null);
+  }
+
+  if (typeof value === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) {
+      if (k === 'preview_data_url' || k === 'previewDataUrl' || k === 'dataUrl') continue;
+      const sv = sanitizeForPersist(v);
+      if (sv !== undefined && sv !== null) out[k] = sv;
+    }
+    return out;
+  }
+
+  return value;
+}
+
 // ================= Page =================
 export default function SiteInspectionPage() {
   const params = useParams();
+  const location = useLocation();
   const leadId = params.id ?? params.leadId;
+  const basePath = location.pathname.startsWith('/employee') ? '/employee' : '/admin';
 
   // Lead + templates
   const [lead, setLead] = useState(null);
@@ -420,10 +465,19 @@ export default function SiteInspectionPage() {
   // Form
   const [form, setForm] = useState({});
   const [status, setStatus] = useState('draft');
+  const isSubmitted = status === 'submitted';
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+
+  // Signature (Customer sign-off)
+  const canvasRef = useRef(null);
+  const drawingRef = useRef(false);
+  const [customerName, setCustomerName] = useState('');
+  const [customerConfirmed, setCustomerConfirmed] = useState(false);
+  const [customerNotes, setCustomerNotes] = useState('');
+  const [signatureUrl, setSignatureUrl] = useState('');
 
   // Step
   const [stepIdx, setStepIdx] = useState(0);
@@ -453,7 +507,12 @@ export default function SiteInspectionPage() {
           } catch {
             extra = {};
           }
-          setForm({ ...extra, ...d });
+          const flatExtra = flattenObject(extra);
+          setForm({ ...extra, ...flatExtra, ...d });
+          setCustomerName(d.customer_name || '');
+          setCustomerNotes(d.customer_notes || '');
+          setSignatureUrl(d.signature_url || '');
+          setCustomerConfirmed(Boolean(d.signature_url || d.customer_name));
           const savedKey = extra?._t || d.template_key || null;
           const savedVer = extra?._v || d.template_version || null;
           if (savedKey) setForm((p) => ({ ...p, __savedTemplateKey: savedKey, __savedTemplateVer: savedVer }));
@@ -503,6 +562,19 @@ export default function SiteInspectionPage() {
   useEffect(() => {
     refreshTemplates();
   }, [lead]); // after lead loaded
+
+  // When opening an existing inspection, force template selection from saved metadata.
+  useEffect(() => {
+    const savedKey = form.__savedTemplateKey;
+    if (!savedKey || !Array.isArray(templates) || templates.length === 0) return;
+    const savedVer = Number(form.__savedTemplateVer || NaN);
+    const exact = templates.find((t) => t.key === savedKey && (isNaN(savedVer) || Number(t.version) === savedVer));
+    const any = templates.find((t) => t.key === savedKey);
+    const nextId = String((exact || any || {}).id || '');
+    if (nextId && String(selectedTemplateId || '') !== nextId) {
+      setSelectedTemplateId(nextId);
+    }
+  }, [templates, form.__savedTemplateKey, form.__savedTemplateVer, selectedTemplateId]);
 
   // -------- Compute effective template --------
   useEffect(() => {
@@ -650,26 +722,112 @@ const meta = base?.meta && typeof base.meta === 'string'
     });
   }
 
+  // -------- Signature Canvas Functions --------
+  const pt = (e) => {
+    const t = e.touches?.[0] ?? e;
+    const r = canvasRef.current?.getBoundingClientRect();
+    if (!r) return [0, 0];
+    return [t.clientX - r.left, t.clientY - r.top];
+  };
+
+  const startDraw = (e) => {
+    drawingRef.current = true;
+    const ctx = canvasRef.current?.getContext('2d');
+    if (!ctx) return;
+    const [x, y] = pt(e);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  };
+
+  const draw = (e) => {
+    if (!drawingRef.current) return;
+    e.preventDefault();
+    const ctx = canvasRef.current?.getContext('2d');
+    if (!ctx) return;
+    const [x, y] = pt(e);
+    ctx.lineTo(x, y);
+    ctx.strokeStyle = '#111827';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+  };
+
+  const endDraw = () => {
+    drawingRef.current = false;
+  };
+
+  const clearSignature = () => {
+    const ctx = canvasRef.current?.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    setSignatureUrl('');
+  };
+
+  // -------- Signature upload --------
+  const uploadSignature = async () => {
+    try {
+      const canvas = canvasRef.current;
+      if (!canvas) return null;
+
+      // Convert canvas to blob and upload through authenticated helper.
+      return new Promise((resolve) => {
+        canvas.toBlob(async (blob) => {
+          if (!blob) {
+            resolve(null);
+            return;
+          }
+
+          try {
+            const signatureFile = new File([blob], 'signature.png', { type: 'image/png' });
+            const uploaded = await uploadSiteInspectionFile(leadId, signatureFile, 'signature');
+            resolve(uploaded?.storage_url || null);
+          } catch (err) {
+            console.error('Signature upload failed:', err);
+            resolve(null);
+          }
+        }, 'image/png');
+      });
+    } catch (err) {
+      console.error('Signature upload error:', err);
+      return null;
+    }
+  };
+
   // -------- Save / Submit --------
-  function buildPayload() {
+  function buildPayload(sigUrl = null) {
     const t = template || {};
+    const safeForm = sanitizeForPersist(form) || {};
     const additional_notes = JSON.stringify({ 
       _t: t.key || 'default', 
       _v: t.version ?? 1,
-      ...form 
+      ...safeForm
     });
     return {
-      ...form,
+      ...safeForm,
+      id: safeForm.id ?? form.id ?? null,
       additional_notes,
       template_key: t.key || 'default',
       template_version: t.version ?? 1,
+      customer_name: customerName,
+      signature_url: sigUrl || signatureUrl,
+      customer_notes: customerNotes,
     };
   }
   async function onSaveDraft() {
     try {
       setSaving(true);
       setMsg('');
-      await saveSiteInspectionDraft(leadId, buildPayload());
+      let sigUrl = signatureUrl;
+      // Upload signature if canvas has data and no file stored yet
+      if (canvasRef.current && !signatureUrl) {
+        const uploaded = await uploadSignature();
+        if (uploaded) {
+          sigUrl = uploaded;
+          setSignatureUrl(uploaded);
+        }
+      }
+      await saveSiteInspectionDraft(leadId, buildPayload(sigUrl));
       setStatus('draft');
       setMsg('Draft saved');
       loadInspectionLists(20);
@@ -681,14 +839,42 @@ const meta = base?.meta && typeof base.meta === 'string'
   }
   async function onSubmit() {
     try {
+      if (isSubmitted) {
+        setMsg('This site inspection is already submitted.');
+        return;
+      }
       const missing = requiredKeys.filter((k) => !form[k] || String(form[k]).trim() === '');
       if (missing.length) {
         setMsg('Please complete all required fields.');
         return;
       }
+      // Check signature confirmation
+      if (!customerConfirmed) {
+        setMsg('Please confirm that the customer has signed.');
+        return;
+      }
+      if (!customerName.trim()) {
+        setMsg('Please enter the customer name.');
+        return;
+      }
       setSaving(true);
       setMsg('');
-      await submitSiteInspection(leadId, buildPayload());
+      
+      let sigUrl = signatureUrl;
+      // Upload signature if canvas has data and no file stored yet
+      if (canvasRef.current && !signatureUrl) {
+        const uploaded = await uploadSignature();
+        if (uploaded) {
+          sigUrl = uploaded;
+          setSignatureUrl(uploaded);
+        }
+      }
+      if (!sigUrl) {
+        setMsg('Please provide a customer signature before submitting.');
+        return;
+      }
+      
+      await submitSiteInspection(leadId, buildPayload(sigUrl));
       setStatus('submitted');
       setMsg('Submitted!');
       loadInspectionLists(20);
@@ -705,6 +891,7 @@ const meta = base?.meta && typeof base.meta === 'string'
       setExporting(true);
       const doc = new jsPDF({ unit: 'pt', format: 'a4' });
       const page = { w: doc.internal.pageSize.getWidth(), h: doc.internal.pageSize.getHeight() };
+      const API_BASE = String(import.meta.env.VITE_API_URL || '').trim();
       const BRAND = {
         primary: [20, 107, 107],
         dark: [30, 41, 59],
@@ -715,6 +902,34 @@ const meta = base?.meta && typeof base.meta === 'string'
       const margin = { l: 50, r: 50, t: 70, b: 60 };
       let y = margin.t;
       const clean = (v) => String(v ?? '').trim() || '—';
+      const resolveAssetUrl = (url) => {
+        const raw = String(url || '').trim();
+        if (!raw) return '';
+        // Handle Windows-style paths in DB payloads.
+        const s = raw.replace(/\\/g, '/').replace(/^\.?\//, '/');
+        if (/^https?:\/\//i.test(s)) return s;
+        if (API_BASE) return `${API_BASE}${s.startsWith('/') ? s : `/${s}`}`;
+        // Dev fallback: frontend at :5173, backend static uploads usually at :3000
+        if (window.location.port === '5173') {
+          return `${window.location.protocol}//${window.location.hostname}:3000${s.startsWith('/') ? s : `/${s}`}`;
+        }
+        return s;
+      };
+      const fetchImageAsDataUrl = async (url) => {
+        const src = resolveAssetUrl(url);
+        if (!src) return null;
+        const resp = await fetch(src);
+        if (!resp.ok) return null;
+        const type = String(resp.headers.get('content-type') || '');
+        if (!type.startsWith('image/')) return null;
+        const blob = await resp.blob();
+        return await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(blob);
+        });
+      };
       const section = (title) => {
         doc.setFillColor(...BRAND.light);
         doc.rect(margin.l, y, page.w - margin.l - margin.r, 32, 'F');
@@ -755,7 +970,10 @@ const meta = base?.meta && typeof base.meta === 'string'
         y += 10;
         doc.setDrawColor(...BRAND.border);
         doc.rect(margin.l, y, 220, 150);
-        const dataURL = fileObj?.preview_data_url;
+        let dataURL = fileObj?.preview_data_url || null;
+        if (!dataURL && fileObj?.storage_url) {
+          dataURL = await fetchImageAsDataUrl(fileObj.storage_url);
+        }
         if (dataURL) doc.addImage(dataURL, 'JPEG', margin.l + 5, y + 5, 210, 140);
         else {
           doc.setFontSize(10);
@@ -804,6 +1022,62 @@ const meta = base?.meta && typeof base.meta === 'string'
             if (tableRows.length) keyValueTable(tableRows);
             for (const im of imgs) await imageCard(im.title, im.fileObj);
           }
+        }
+      }
+
+      // Customer Sign-Off Section
+      const effectiveCustomerName = customerName || form.customer_name || '';
+      const effectiveCustomerNotes = customerNotes || form.customer_notes || '';
+      const effectiveSignatureUrl = signatureUrl || form.signature_url || '';
+      const effectiveCustomerConfirmed = customerConfirmed || Boolean(effectiveSignatureUrl || effectiveCustomerName);
+      const sigDataUrl = await (async () => {
+        if (!effectiveSignatureUrl) return null;
+        try {
+          return await fetchImageAsDataUrl(effectiveSignatureUrl);
+        } catch (err) {
+          console.warn('Failed to load signature image:', err);
+          return null;
+        }
+      })();
+      const canvasSigDataUrl = (() => {
+        try {
+          const cv = canvasRef.current;
+          if (!cv) return null;
+          const ctx = cv.getContext('2d');
+          if (!ctx) return null;
+          const pixels = ctx.getImageData(0, 0, cv.width, cv.height).data;
+          // Check if user has drawn at least one non-transparent pixel.
+          for (let i = 3; i < pixels.length; i += 4) {
+            if (pixels[i] !== 0) return cv.toDataURL('image/png');
+          }
+          return null;
+        } catch {
+          return null;
+        }
+      })();
+      const signatureForPdf = sigDataUrl || canvasSigDataUrl;
+      
+      if (effectiveCustomerName || signatureForPdf) {
+        section('Customer Sign-Off');
+        maybeNewPage(200);
+        const signOffRows = [
+          ['Customer Name', clean(effectiveCustomerName)],
+          ['Confirmed', effectiveCustomerConfirmed ? 'Yes' : 'No'],
+          ['Notes', clean(effectiveCustomerNotes)],
+        ];
+        keyValueTable(signOffRows);
+        
+        // Add signature image if available
+        if (signatureForPdf) {
+          maybeNewPage(200);
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(12);
+          doc.text('Customer Signature', margin.l, y);
+          y += 14;
+          doc.setDrawColor(...BRAND.border);
+          doc.rect(margin.l, y, 220, 100);
+          doc.addImage(signatureForPdf, 'PNG', margin.l + 5, y + 5, 210, 90);
+          y += 120;
         }
       }
 
@@ -1053,6 +1327,115 @@ const meta = base?.meta && typeof base.meta === 'string'
           </div>
         )}
 
+        {/* Customer Signature Section - Show on last step only */}
+        {(!template || stepIdx === steps.length - 1) && (
+          <div style={{ ...card, marginTop: 16, marginBottom: 16, border: `2px solid ${UI.color.teal}` }}>
+            <div style={{ fontWeight: 800, fontSize: 15, color: UI.color.navy, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+              ✍️ Customer Sign-Off
+              <span style={{ fontSize: 10, fontWeight: 800, color: '#EF4444', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 4, padding: '2px 6px', marginLeft: 'auto' }}>
+                REQUIRED
+              </span>
+            </div>
+
+            {/* Confirmation statement */}
+            <div style={{
+              padding: '14px 16px', borderRadius: 12,
+              background: `${UI.color.teal}11`, border: `1.5px solid ${UI.color.teal}33`,
+              marginBottom: 16,
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: UI.color.teal, lineHeight: 1.5, fontStyle: 'italic' }}>
+                "I confirm the site inspection has been completed and I approve all findings."
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gap: 12 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: UI.color.navy }}>Customer Name *</label>
+                <input
+                  type="text"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Full name"
+                  style={{ ...input, width: '100%', marginTop: 4 }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: UI.color.navy }}>Signature *</label>
+                <canvas
+                  ref={canvasRef}
+                  width={480}
+                  height={140}
+                  onMouseDown={startDraw}
+                  onMouseMove={draw}
+                  onMouseUp={endDraw}
+                  onMouseLeave={endDraw}
+                  onTouchStart={startDraw}
+                  onTouchMove={draw}
+                  onTouchEnd={endDraw}
+                  style={{
+                    border: '1.5px dashed #D1D5DB',
+                    borderRadius: 10,
+                    background: '#FAFAFA',
+                    display: 'block',
+                    width: '100%',
+                    cursor: 'crosshair',
+                    touchAction: 'none',
+                    marginTop: 4,
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={clearSignature}
+                  style={{
+                    marginTop: 10,
+                    padding: '10px 16px',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: '#fff',
+                    background: UI.color.teal,
+                    border: `1px solid ${UI.color.border}`,
+                    borderRadius: 10,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  Clear Signature
+                </button>
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={customerConfirmed}
+                  onChange={(e) => setCustomerConfirmed(e.target.checked)}
+                  style={{ marginTop: 2, accentColor: UI.color.teal, width: 16, height: 16, flexShrink: 0 }}
+                />
+                <span style={{ fontSize: 13, color: '#374151', lineHeight: 1.5 }}>
+                  I confirm the site inspection has been completed and I approve all findings.
+                </span>
+              </label>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: UI.color.navy }}>Notes (optional)</label>
+                <textarea
+                  value={customerNotes}
+                  onChange={(e) => setCustomerNotes(e.target.value)}
+                  rows={2}
+                  placeholder="Any additional notes…"
+                  style={{
+                    ...input,
+                    width: '100%',
+                    marginTop: 4,
+                    resize: 'vertical',
+                    fontFamily: 'inherit',
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', gap: 10 }}>
           <div style={{ color: UI.color.muted, fontSize: 12 }}>
             Status: <b>{status}</b> • Core completion: <b>{progress}%</b>
@@ -1090,8 +1473,13 @@ const meta = base?.meta && typeof base.meta === 'string'
                 Next
               </button>
             ) : (
-              <button type="button" onClick={onSubmit} disabled={saving} style={btn('primary')}>
-                {saving ? 'Submitting…' : 'Submit'}
+              <button
+                type="button"
+                onClick={onSubmit}
+                disabled={saving || isSubmitted || !customerConfirmed || !customerName.trim()}
+                style={btn('primary')}
+              >
+                {isSubmitted ? 'Submitted' : saving ? 'Submitting…' : 'Submit'}
               </button>
             )}
           </div>
@@ -1145,7 +1533,7 @@ const meta = base?.meta && typeof base.meta === 'string'
                 </div>
                 <button
                   type="button"
-                  onClick={() => window.open(`/admin/leads/${lead.id}/site-inspection`, '_blank')}
+                  onClick={() => window.open(`${basePath}/leads/${lead.id}/site-inspection`, '_blank')}
                   style={btn('secondary')}
                 >
                   Open
@@ -1198,7 +1586,7 @@ const meta = base?.meta && typeof base.meta === 'string'
                 </div>
                 <button
                   type="button"
-                  onClick={() => window.open(`/admin/leads/${lead.id}/site-inspection`, '_blank')}
+                  onClick={() => window.open(`${basePath}/leads/${lead.id}/site-inspection`, '_blank')}
                   style={btn('secondary')}
                 >
                   Open
