@@ -2,83 +2,135 @@ import React from 'react';
 
 export default function ProjectMilestoneProgress({ stages, currentStage }) {
   if (!stages || !stages.length) return null;
-  
-  const currentIndex = stages.findIndex(s => s.key === currentStage);
-  
+
+  const currentIndex = stages.findIndex((s) => s.key === currentStage);
+  const safeCurrentIndex = currentIndex >= 0 ? currentIndex : 0;
+  const total = stages.length;
+  const progressPct = total > 1 ? (safeCurrentIndex / (total - 1)) * 100 : 0;
+
   return (
-    <div style={{ padding: '24px 0', marginBottom: '32px', overflowX: 'auto', paddingBottom: '16px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', minWidth: `${stages.length * 100}px`, padding: '0 24px' }}>
-        {/* Background line */}
-        <div style={{ position: 'absolute', top: '22px', left: '48px', right: '48px', height: '4px', background: '#e2e8f0', zIndex: 0 }} />
-        
-        {/* Progress line */}
-        {currentIndex > 0 && (
-           <div style={{ 
-             position: 'absolute', 
-             top: '22px', 
-             left: '48px', 
-             height: '4px', 
-             background: '#0d9488', 
-             zIndex: 1, 
-             width: `calc(${(currentIndex / (stages.length - 1)) * 100}% - 96px)`, 
-             transition: 'width 0.3s ease' 
-           }} />
-        )}
-        
+    <div
+      style={{
+        marginBottom: 28,
+        border: '1px solid #E2E8F0',
+        borderRadius: 14,
+        background: '#fff',
+        padding: '16px 12px 12px',
+        overflowX: 'auto',
+        scrollbarWidth: 'thin',
+      }}
+    >
+      <div
+        style={{
+          position: 'relative',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          minWidth: `${Math.max(stages.length * 115, 760)}px`,
+          padding: '8px 14px 0',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            top: 24,
+            left: 34,
+            right: 34,
+            height: 3,
+            borderRadius: 999,
+            background: '#E2E8F0',
+            zIndex: 0,
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            top: 24,
+            left: 34,
+            width: `calc(${progressPct}% - ${(progressPct / 100) * 68}px)`,
+            minWidth: safeCurrentIndex > 0 ? 2 : 0,
+            height: 3,
+            borderRadius: 999,
+            background: '#0D9488',
+            zIndex: 1,
+            transition: 'width 220ms ease',
+          }}
+        />
+
         {stages.map((stage, idx) => {
           const isCompleted = idx < currentIndex;
           const isCurrent = idx === currentIndex;
-          // Determine stage type (e.g. cancelled)
           const isCancelled = stage.key === 'cancelled';
           const isCurrentCancelled = isCurrent && isCancelled;
 
-          let color = '#94a3b8';
-          let bgColor = '#fff';
-          let borderColor = '#cbd5e1';
-          
+          let borderColor = '#CBD5E1';
+          let dotBg = '#FFFFFF';
+          let labelColor = '#64748B';
+
           if (isCurrentCancelled) {
-             color = '#dc2626';
-             bgColor = '#fff';
-             borderColor = '#dc2626';
+            borderColor = '#DC2626';
+            labelColor = '#991B1B';
           } else if (isCompleted) {
-            color = '#fff';
-            bgColor = '#0d9488';
-            borderColor = '#0d9488';
+            borderColor = '#0D9488';
+            dotBg = '#0D9488';
+            labelColor = '#0F172A';
           } else if (isCurrent) {
-            color = '#0d9488';
-            bgColor = '#fff';
-            borderColor = '#0d9488';
+            borderColor = '#0D9488';
+            labelColor = '#0F172A';
           }
 
           return (
-            <div key={stage.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 2, background: 'transparent', width: '80px' }}>
-              <div style={{ 
-                width: isCurrent ? '24px' : '20px', 
-                height: isCurrent ? '24px' : '20px', 
-                borderRadius: '50%', 
-                background: bgColor,
-                border: `3px solid ${borderColor}`,
-                marginBottom: '12px',
-                marginTop: isCurrent ? '10px' : '12px',
+            <div
+              key={stage.key}
+              style={{
+                width: 96,
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: isCurrent ? `0 0 0 4px ${isCurrentCancelled ? 'rgba(220, 38, 38, 0.2)' : 'rgba(13, 148, 136, 0.2)'}` : 'none',
-                backgroundColor: '#fff' // override background to hide line behind
-              }}>
+                zIndex: 2,
+              }}
+            >
+              <div
+                style={{
+                  width: isCurrent ? 22 : 18,
+                  height: isCurrent ? 22 : 18,
+                  borderRadius: '50%',
+                  border: `3px solid ${borderColor}`,
+                  background: dotBg,
+                  marginBottom: 10,
+                  marginTop: isCurrent ? 5 : 7,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: isCurrent
+                    ? `0 0 0 4px ${isCurrentCancelled ? 'rgba(220,38,38,0.15)' : 'rgba(13,148,136,0.16)'}`
+                    : 'none',
+                }}
+              >
                 {isCompleted && (
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0d9488" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12"></polyline>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
                   </svg>
                 )}
                 {isCurrentCancelled && (
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
                 )}
               </div>
-              <span style={{ fontSize: '0.75rem', fontWeight: isCurrent ? '700' : '500', color: isCurrent || isCompleted ? '#0f172a' : '#64748b', textAlign: 'center', lineHeight: '1.2' }}>
+              <span
+                title={stage.label}
+                style={{
+                  fontSize: 11,
+                  fontWeight: isCurrent ? 700 : 600,
+                  color: labelColor,
+                  textAlign: 'center',
+                  lineHeight: 1.25,
+                  maxWidth: 92,
+                  wordBreak: 'break-word',
+                }}
+              >
                 {stage.label}
               </span>
             </div>

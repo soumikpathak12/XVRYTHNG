@@ -1,6 +1,6 @@
 // src/pages/ProjectDetailPage.jsx
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   getProject,
   getCompanyEmployees,
@@ -139,6 +139,7 @@ const DIRECT_PROJECT_STAGES = Object.entries(PROJECT_STAGE_LABELS).map(([key, la
 export default function ProjectDetailPage() {
   const { id: projectId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [project, setProject] = useState(null);
   const [schedule, setSchedule] = useState(null);
@@ -269,7 +270,8 @@ export default function ProjectDetailPage() {
   }, [loadData]);
 
   const handleBack = () => {
-    navigate('/admin/projects');
+    const inEmployeeArea = location.pathname.startsWith('/employee');
+    navigate(inEmployeeArea ? '/employee/projects' : '/admin/projects');
   };
 
   const handleSaveSchedule = async (payload) => {

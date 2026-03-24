@@ -1,6 +1,6 @@
 // src/pages/ProjectsPage.jsx
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import ProjectsKanbanBoard, { DEFAULT_PROJECT_STAGES } from '../components/projects/ProjectsKanbanBoard.jsx';
 import ProjectsTable from '../components/projects/ProjectsTable.jsx';
 import ProjectsCalendar from '../components/projects/ProjectCalendar.jsx';
@@ -70,6 +70,7 @@ function formatLocalTimeLabel(dateLike) {
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState('');
@@ -173,8 +174,9 @@ export default function ProjectsPage() {
   }, []);
 
   const openDetails = useCallback((id) => {
-    navigate(`/admin/projects/${id}`);
-  }, [navigate]);
+    const inEmployeeArea = location.pathname.startsWith('/employee');
+    navigate(inEmployeeArea ? `/employee/projects/${id}` : `/admin/projects/${id}`);
+  }, [navigate, location.pathname]);
 
   const switchView = useCallback((next) => {
     setView(next);
