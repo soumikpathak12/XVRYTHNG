@@ -13,8 +13,17 @@ const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString() : '-';
 const toLocalInput = (iso) => {
   if (!iso) return '';
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
   const pad = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+const toLocalInputFromRecord = (value, fallbackDate) => {
+  const direct = toLocalInput(value);
+  if (direct) return direct;
+  if (!value || !fallbackDate) return '';
+  // Handles time-only values like "22:32:00" by combining with record date.
+  const combined = toLocalInput(`${fallbackDate} ${value}`);
+  return combined || '';
 };
 const calcDuration = (ms) => {
   const s = Math.floor(ms / 1000);
@@ -29,11 +38,16 @@ const statusBadge = (s) => {
 
 /* ─────────────── Edit Request Form ─────────────── */
 function EditRequestForm({ record, onClose, onSubmitted }) {
-  const [reqCheckIn, setReqCheckIn] = useState(toLocalInput(record.check_in_time));
-  const [reqCheckOut, setReqCheckOut] = useState(toLocalInput(record.check_out_time));
+  const [reqCheckIn, setReqCheckIn] = useState(toLocalInputFromRecord(record.check_in_time, record.date));
+  const [reqCheckOut, setReqCheckOut] = useState(toLocalInputFromRecord(record.check_out_time, record.date));
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
+
+  useEffect(() => {
+    setReqCheckIn(toLocalInputFromRecord(record.check_in_time, record.date));
+    setReqCheckOut(toLocalInputFromRecord(record.check_out_time, record.date));
+  }, [record]);
 
   const submit = async (e) => {
     e.preventDefault();
