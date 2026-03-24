@@ -11,12 +11,18 @@ import {
   isBefore,
   startOfDay
 } from 'date-fns';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import './ProjectsTimeline.css';
+import { getAppBaseFromPathname } from '../../utils/routeBase.js';
 
 export default function ProjectsTimeline({ projects = [] }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [viewMode, setViewMode] = useState('weeks'); // 'weeks' or 'months'
+  const basePath = useMemo(
+    () => getAppBaseFromPathname(location.pathname),
+    [location.pathname]
+  );
 
   // Pre-process dates
   const processedProjects = useMemo(() => {
@@ -195,7 +201,7 @@ export default function ProjectsTimeline({ projects = [] }) {
               <div key={p.id} className={`projects-timeline-row ${p.isOverdue ? 'overdue' : ''}`}>
                 <div 
                   className="projects-timeline-label-col" 
-                  onClick={() => navigate(`/admin/projects/${p.id}`)}
+                  onClick={() => navigate(`${basePath}/projects/${p.id}`)}
                 >
                   <div className="pt-name" title={p.customerName}>{p.customerName}</div>
                   <div className="pt-stage">{p.stage.replace(/_/g, ' ')}</div>

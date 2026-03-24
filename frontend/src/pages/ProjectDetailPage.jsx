@@ -17,6 +17,7 @@ import LeadDetailActivity from '../components/leads/LeadDetailActivity.jsx';
 import ProjectDocuments from '../components/projects/ProjectDocuments.jsx';
 import ProjectCommunication from '../components/projects/ProjectCommunication.jsx';
 import ProjectMilestoneProgress from '../components/projects/ProjectMilestoneProgress.jsx';
+import { getAppBaseFromPathname } from '../utils/routeBase.js';
 
 // ─── brand tokens (local, no import needed) ──────────────────────────────────
 const INST_BRAND = '#146b6b';
@@ -39,7 +40,7 @@ const INST_STATUS_CFG = {
   completed: { label: 'Completed', bg: '#F0FDF4', color: '#15803D', dot: '#16A34A' },
 };
 
-function InstallationJobsPanel({ jobs, navigate }) {
+function InstallationJobsPanel({ jobs, navigate, basePath }) {
   if (!jobs.length) {
     return (
       <div style={{ textAlign: 'center', padding: '48px 24px', background: '#F9FAFB', borderRadius: 12, border: '1px dashed #E5E7EB' }}>
@@ -57,7 +58,7 @@ function InstallationJobsPanel({ jobs, navigate }) {
         return (
           <div
             key={job.id}
-            onClick={() => navigate(`/admin/installation/${job.id}`)}
+            onClick={() => navigate(`${basePath}/installation/${job.id}`)}
             style={{
               background: '#fff', border: '1px solid #E5E7EB', borderRadius: 14,
               padding: '16px 18px', cursor: 'pointer',
@@ -140,6 +141,10 @@ export default function ProjectDetailPage() {
   const { id: projectId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const basePath = useMemo(
+    () => getAppBaseFromPathname(location.pathname),
+    [location.pathname]
+  );
 
   const [project, setProject] = useState(null);
   const [schedule, setSchedule] = useState(null);
@@ -270,8 +275,7 @@ export default function ProjectDetailPage() {
   }, [loadData]);
 
   const handleBack = () => {
-    const inEmployeeArea = location.pathname.startsWith('/employee');
-    navigate(inEmployeeArea ? '/employee/projects' : '/admin/projects');
+    navigate(`${basePath}/projects`);
   };
 
   const handleSaveSchedule = async (payload) => {
@@ -606,7 +610,7 @@ export default function ProjectDetailPage() {
             </div>
           ) : activeTab === 'installation' ? (
             <div className="fade-in">
-              <InstallationJobsPanel jobs={installationJobs} navigate={navigate} />
+              <InstallationJobsPanel jobs={installationJobs} navigate={navigate} basePath={basePath} />
             </div>
           ) : null}
         </div>
