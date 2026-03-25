@@ -312,6 +312,64 @@ export async function getProjectById(projectId) {
   return rows[0];
 }
 
+/**
+ * Fetch a single project by `lead_id`.
+ * Used by the customer portal to show the same stage pipeline as ProjectsPage.
+ */
+export async function getProjectByLeadId(leadId) {
+  if (!leadId || Number.isNaN(Number(leadId))) {
+    const err = new Error('Invalid lead id');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const sql = `
+    SELECT
+      p.*,
+      l.email        AS lead_email,
+      l.phone        AS lead_phone,
+      l.suburb       AS lead_suburb,
+      l.system_size_kw AS lead_system_size_kw,
+      l.value_amount AS lead_value_amount,
+      l.source       AS lead_source,
+      l.referred_by_lead_id AS lead_referred_by_lead_id,
+      l.is_closed    AS lead_is_closed,
+      l.is_won       AS lead_is_won,
+      l.won_lost_at  AS lead_won_lost_at,
+      l.last_activity_at AS lead_last_activity_at,
+      l.site_inspection_date AS lead_site_inspection_date,
+      l.system_type  AS lead_system_type,
+      l.house_storey AS lead_house_storey,
+      l.roof_type    AS lead_roof_type,
+      l.meter_phase  AS lead_meter_phase,
+      l.access_to_second_storey AS lead_access_to_second_storey,
+      l.access_to_inverter AS lead_access_to_inverter,
+      l.pre_approval_reference_no AS lead_pre_approval_reference_no,
+      l.energy_retailer AS lead_energy_retailer,
+      l.energy_distributor AS lead_energy_distributor,
+      l.solar_vic_eligibility AS lead_solar_vic_eligibility,
+      l.nmi_number   AS lead_nmi_number,
+      l.meter_number AS lead_meter_number,
+      l.pv_system_size_kw AS lead_pv_system_size_kw,
+      l.pv_inverter_size_kw AS lead_pv_inverter_size_kw,
+      l.pv_inverter_brand AS lead_pv_inverter_brand,
+      l.pv_panel_brand AS lead_pv_panel_brand,
+      l.pv_panel_module_watts AS lead_pv_panel_module_watts,
+      l.ev_charger_brand AS lead_ev_charger_brand,
+      l.ev_charger_model AS lead_ev_charger_model,
+      l.battery_size_kwh AS lead_battery_size_kwh,
+      l.battery_brand AS lead_battery_brand,
+      l.battery_model AS lead_battery_model
+    FROM projects p
+    LEFT JOIN leads l ON l.id = p.lead_id
+    WHERE p.lead_id = ?
+    LIMIT 1
+  `;
+
+  const [rows] = await db.execute(sql, [leadId]);
+  return rows?.[0] ?? null;
+}
+
 /* ---------- site inspection (NEW) ---------- */
 /**
  * Get latest inspection by projectId (primary) or explicit leadId (fallback via req.query.leadId at controller).

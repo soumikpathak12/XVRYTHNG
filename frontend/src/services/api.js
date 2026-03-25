@@ -26,6 +26,33 @@ export function setCustomerToken(token) {
   else localStorage.removeItem('xvrythng_customer_token');
 }
 
+/**
+ * Customer portal (customer JWT):
+ * - staff JWT uses `xvrythng_token` and `authFetch`
+ * - customer JWT uses `xvrythng_customer_token`
+ */
+async function customerAuthFetch(url, options = {}) {
+  const token = getCustomerToken();
+  const headers = {
+    ...(options.headers ?? {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+  const res = await fetch(`${BASE}${url}`, { ...options, headers });
+  return res;
+}
+
+async function customerAuthFetchJSON(url, options = {}) {
+  const res = await customerAuthFetch(url, options);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.message || 'Request failed');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data;
+}
+
 /** Store sent credentials for a lead (simulated). Called when staff sends credentials. */
 export function saveCustomerCredentials(email, { leadId, otp, customerName }) {
   const raw = localStorage.getItem(CUSTOMER_CREDENTIALS_KEY);
@@ -886,6 +913,13 @@ export async function getLead(id) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message || 'Lead not found');
   return data; // { success: true, lead, activities, documents, communications }
+}
+
+/**
+ * Customer portal: GET /api/leads/:id using customer JWT.
+ */
+export async function getLeadCustomer(id) {
+  return customerAuthFetchJSON(`/api/leads/${encodeURIComponent(id)}`, { method: 'GET' });
 }
 
 /**
@@ -1752,6 +1786,31 @@ export async function getProject(projectId) {
     throw err;
   }
   return data; // { success:true, data:{...} }
+}
+
+/**
+ * GET /api/projects/by-lead/:leadId
+ * Fetch a single project by its associated lead_id.
+ */
+export async function getProjectByLeadId(leadId) {
+  const res = await authFetch(`/api/projects/by-lead/${encodeURIComponent(leadId)}`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to load project for lead');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+
+  return data; // { success:true, data:{...} }
+}
+
+/**
+ * Customer portal: GET /api/projects/by-lead/:leadId using customer JWT.
+ */
+export async function getProjectByLeadIdCustomer(leadId) {
+  return customerAuthFetchJSON(`/api/projects/by-lead/${encodeURIComponent(leadId)}`, { method: 'GET' });
 }
 
 export async function updateProjectStage(projectId, stage) {
