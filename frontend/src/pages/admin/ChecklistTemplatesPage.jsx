@@ -4,12 +4,14 @@ import { Trash2, Edit, Plus, X, GripVertical } from 'lucide-react';
 
 const UI = {
   colors: {
-    teal: '#14B8A6',
-    navy: '#1E3A8A',
+    teal: '#146b6b',
+    navy: '#0f1a2b',
     lightGray: '#F3F4F6',
     border: '#E5E7EB',
     text: '#1F2937',
     danger: '#EF4444',
+    darkText: '#0f1a2b',
+    sidebarText: '#556070',
   },
   pad: 16,
   gap: 12,
@@ -256,7 +258,7 @@ function TemplateForm({ template, onSave, onCancel, isLoading }) {
             type="button"
             onClick={handleAddItem}
             style={{
-              background: '#1A7B7B',
+              background: UI.colors.teal,
               color: 'white',
               border: 'none',
               padding: `${UI.gap}px ${UI.pad}px`,
@@ -350,7 +352,7 @@ function TemplateForm({ template, onSave, onCancel, isLoading }) {
           disabled={isLoading}
           style={{
             padding: `${UI.gap}px ${UI.pad}px`,
-            background: '#1A7B7B',
+            background: UI.colors.teal,
             color: 'white',
             border: 'none',
             borderRadius: UI.radius,
@@ -527,7 +529,7 @@ export default function ChecklistTemplatesPage() {
         <button
           onClick={() => setIsCreating(true)}
           style={{
-            background: '#1A7B7B',
+            background: UI.colors.teal,
             color: 'white',
             border: 'none',
             padding: `${UI.gap}px ${UI.pad}px`,
@@ -598,7 +600,7 @@ export default function ChecklistTemplatesPage() {
                 <button
                   onClick={() => setEditingId(template.id)}
                   style={{
-                    background: '#1A7B7B',
+                    background: UI.colors.teal,
                     color: 'white',
                     border: 'none',
                     padding: `${UI.gap}px ${UI.pad}px`,

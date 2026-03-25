@@ -23,6 +23,7 @@ import {
   TrendingUp,
   Cog,
   CheckSquare,
+  ClipboardList,
 } from 'lucide-react';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -53,18 +54,10 @@ const RAW_NAV = [
   { to: '/admin/support-tickets', label: 'Support Tickets', icon: MessageCircle, permission: { resource: 'support', action: 'view' } },
   { to: '/admin/trial-users', label: 'Trial Users', icon: UsersRound, permission: { resource: 'users', action: 'view' } },
   
-  // --- SETTINGS (parent) ---
-  {
-    key: 'settings',
-    label: 'Settings',
-    icon: Settings,
-    permission: { resource: 'settings', action: 'view' },
-    children: [
-      { to: '/admin/settings', label: 'General', permission: { resource: 'settings', action: 'view' } },
-      { to: '/admin/settings/inspection-templates', label: 'Inspection Templates', permission: { resource: 'settings', action: 'view' } },
-      { to: '/admin/settings/checklist-templates', label: 'Checklist Templates', icon: CheckSquare, permission: { resource: 'settings', action: 'view' } },
-    ],
-  },
+  // --- SETTINGS (flatten - no nested children) ---
+  { to: '/admin/settings', label: 'General', icon: Settings, permission: { resource: 'settings', action: 'view' } },
+  { to: '/admin/settings/inspection-templates', label: 'Inspection Templates', icon: ClipboardList, permission: { resource: 'settings', action: 'view' } },
+  { to: '/admin/settings/checklist-templates', label: 'Checklist Templates', icon: CheckSquare, permission: { resource: 'settings', action: 'view' } },
 ];
 
 export default function SuperAdminSidebar({
@@ -156,7 +149,9 @@ export default function SuperAdminSidebar({
     ]);
 
     const settingsItems = pick([
-      findByKey('settings'),
+      findByTo('/admin/settings'),
+      findByTo('/admin/settings/inspection-templates'),
+      findByTo('/admin/settings/checklist-templates'),
     ]);
 
     return [
