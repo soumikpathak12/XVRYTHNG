@@ -717,6 +717,39 @@ export async function updateCompanyProfile(payload) {
   if (!res.ok) throw new Error(data.message ?? 'Failed to update company profile');
   return data; // { success:true, data:{...} }
 }
+
+/** GET /api/company/module-settings — company_admin | manager */
+export async function getCompanyModuleSettings() {
+  return authFetchJSON('/api/company/module-settings', { method: 'GET' });
+}
+
+/** PATCH /api/company/module-settings — partial toggles, immediate save */
+export async function patchCompanyModuleSettings(partialToggles) {
+  return authFetchJSON('/api/company/module-settings', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(partialToggles ?? {}),
+  });
+}
+
+/** GET /api/company/workflow — enabled stages only (Kanban). */
+export async function getCompanyWorkflow() {
+  return authFetchJSON('/api/company/workflow', { method: 'GET' });
+}
+
+/** GET /api/company/workflow-settings — full config (admin). */
+export async function getCompanyWorkflowSettings() {
+  return authFetchJSON('/api/company/workflow-settings', { method: 'GET' });
+}
+
+/** PATCH /api/company/workflow-settings — body { pipeline, stages } */
+export async function patchCompanyWorkflowSettings(body) {
+  return authFetchJSON('/api/company/workflow-settings', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body ?? {}),
+  });
+}
 // --- add to: src/services/api.js ---
 
 /**

@@ -2,6 +2,8 @@ import * as leadService from '../services/leadService.js';
 import * as customerCredentialsService from '../services/customerCredentialsService.js';
 import * as db from '../config/db.js';
 import * as activityService from '../services/activityService.js';
+import * as companyWorkflowService from '../services/companyWorkflowService.js';
+
 const STAGES = [
   'new',
   'contacted',
@@ -14,6 +16,7 @@ const STAGES = [
   'closed_lost',
 ];
 
+/** @deprecated use company workflow — kept for dashboard bucket keys */
 const STAGES_SET = new Set(STAGES);
 
 function toMySQLDateTime(value) {
@@ -76,10 +79,6 @@ export async function createLead(req, res) {
       errors.suburb = 'Suburb is required.';
     }
 
-    if (!stage || !STAGES_SET.has(stage)) {
-      errors.stage = 'Invalid stage selected.';
-    }
-
     // Required email
     if (!email || !String(email).trim()) {
       errors.email = 'Email is required.';
@@ -117,6 +116,14 @@ export async function createLead(req, res) {
       errors.site_inspection_date = 'Invalid date format.';
     }
 
+    const companyId = req.tenantId ?? req.user?.companyId ?? null;
+    const { allKeys, enabledKeys } = await companyWorkflowService.getLeadStageSets(companyId);
+    if (!stage || !companyWorkflowService.isSafeStageKey(stage) || !allKeys.has(stage)) {
+      errors.stage = 'Invalid stage selected.';
+    } else if (!enabledKeys.has(stage)) {
+      errors.stage = 'This stage is disabled in your workflow settings.';
+    }
+
     if (Object.keys(errors).length > 0) {
       return res.status(422).json({ success: false, errors });
     }
@@ -139,7 +146,7 @@ export async function createLead(req, res) {
       site_inspection_date: normalizedInspection,
     };
 
-    const lead = await leadService.createLead(payload);
+    const lead = await leadService.createLead(payload, { allowedStageKeys: enabledKeys });
 
     // Log activity: lead created
     try {
@@ -182,7 +189,11 @@ export async function importLeads(req, res) {
       return res.status(400).json({ success: false, message: 'No leads provided.' });
     }
 
-    const { imported, failed, errors } = await leadService.importLeads(leads);
+    const companyId = req.tenantId ?? req.user?.companyId ?? null;
+    const { enabledKeys } = await companyWorkflowService.getLeadStageSets(companyId);
+    const { imported, failed, errors } = await leadService.importLeads(leads, {
+      allowedStageKeys: enabledKeys,
+    });
 
     return res.status(200).json({
       success: true,
@@ -346,8 +357,16 @@ export async function updateLead(req, res) {
       return res.status(200).json({ success: true, data: result.lead });
     }
 
-    if (payload.stage && !STAGES_SET.has(payload.stage)) {
-      return res.status(422).json({ success: false, errors: { stage: 'Invalid stage.' } });
+    if (payload.stage) {
+      const companyId = req.tenantId ?? req.user?.companyId ?? null;
+      const { allKeys, enabledKeys } = await companyWorkflowService.getLeadStageSets(companyId);
+      if (
+        !companyWorkflowService.isSafeStageKey(payload.stage) ||
+        !allKeys.has(payload.stage) ||
+        !enabledKeys.has(payload.stage)
+      ) {
+        return res.status(422).json({ success: false, errors: { stage: 'Invalid or disabled stage.' } });
+      }
     }
     const updated = await leadService.updateLead(leadId, payload);
     return res.status(200).json({ success: true, data: updated });
@@ -367,10 +386,12 @@ export async function updateLeadStage(req, res) {
     const leadId = req.params.id;
     const { stage } = req.body || {};
 
-    if (!stage || !STAGES_SET.has(stage)) {
+    const companyId = req.tenantId ?? req.user?.companyId ?? null;
+    const { enabledKeys } = await companyWorkflowService.getLeadStageSets(companyId);
+    if (!stage || !companyWorkflowService.isSafeStageKey(stage) || !enabledKeys.has(stage)) {
       return res.status(422).json({
         success: false,
-        errors: { stage: 'Invalid stage selected.' },
+        errors: { stage: 'Invalid stage selected or stage is disabled in your workflow.' },
       });
     }
 

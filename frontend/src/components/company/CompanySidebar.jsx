@@ -6,6 +6,7 @@ import {
 import { useEffect, useState } from 'react';
 
 import { getCompanySidebar, getApprovalsPendingCount } from '../../services/api.js';
+import { useSidebar } from '../../context/AuthContext.jsx';
 
 const MODULE_NAV = {
   leads:      { to: '/dashboard/leads',      label: 'Lead Pipeline', icon: UsersRound },
@@ -30,6 +31,7 @@ function getRoleFixedItems(role) {
 }
 
 export default function CompanySidebar({ apiBase = '/api', logoSrc }) {
+  const { sidebarVersion } = useSidebar();
   const [collapsed, setCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null);
@@ -50,7 +52,7 @@ export default function CompanySidebar({ apiBase = '/api', logoSrc }) {
       }
     })();
     return () => { alive = false; };
-  }, [apiBase]);
+  }, [apiBase, sidebarVersion]);
 
   // Poll pending approvals count for badge
   useEffect(() => {

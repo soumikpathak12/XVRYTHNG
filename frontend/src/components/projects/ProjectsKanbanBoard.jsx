@@ -54,9 +54,12 @@ export default function ProjectsKanbanBoard({
   // Group items by stage
   const byStage = useMemo(() => {
     const map = Object.fromEntries(PROJECT_STAGES.map((s) => [s.key, []]));
+    const firstKey = PROJECT_STAGES[0]?.key || 'new';
     for (const p of projects) {
       const normalized = normalizeStageKey(p.stage, STAGE_KEYS_SET, LEGACY_TO_NEW_STAGE_KEY);
-      const key = normalized && map[normalized] ? normalized : 'new';
+      let key = normalized && map[normalized] != null ? normalized : p.stage;
+      if (!STAGE_KEYS_SET.has(key)) key = firstKey;
+      if (!map[key]) map[key] = [];
       map[key].push(p);
     }
     return map;

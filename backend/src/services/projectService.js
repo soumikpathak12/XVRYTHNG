@@ -1,5 +1,6 @@
 // src/services/projectService.js
 import db from '../config/db.js';
+import * as companyWorkflowService from './companyWorkflowService.js';
 
 const PROJECT_STAGES = new Set([
   'new',
@@ -62,7 +63,7 @@ export async function getProjects(filters = {}) {
   const where = [];
   const params = [];
 
-  if (filters.stage && PROJECT_STAGES.has(filters.stage)) {
+  if (filters.stage && String(filters.stage).length <= 80) {
     where.push('p.stage = ?');
     params.push(filters.stage);
   }
@@ -120,7 +121,7 @@ export async function getProjects(filters = {}) {
   return rows;
 }
 
-const PROJECT_STAGE_ORDER = [
+const PROJECT_STAGE_ORDER_FALLBACK = [
   'new',
   'pre_approval',
   'state_rebate',
@@ -139,13 +140,14 @@ const PROJECT_STAGE_ORDER = [
  * Enforce business rules when changing to a different pipeline stage.
  * `project` must be a row from getProjectById (includes lead_* columns).
  */
-async function assertProjectStageChangeAllowed(project, projectId, nextStage) {
+async function assertProjectStageChangeAllowed(project, projectId, nextStage, orderKeys) {
   if (!project || String(project.stage) === String(nextStage)) {
     return;
   }
 
-  const idxCurrent = PROJECT_STAGE_ORDER.indexOf(project.stage);
-  const idxNext = PROJECT_STAGE_ORDER.indexOf(nextStage);
+  const order = Array.isArray(orderKeys) && orderKeys.length ? orderKeys : PROJECT_STAGE_ORDER_FALLBACK;
+  const idxCurrent = order.indexOf(project.stage);
+  const idxNext = order.indexOf(nextStage);
   const isForward = idxCurrent !== -1 && idxNext !== -1 && idxNext > idxCurrent;
 
   if (isForward) {
@@ -168,8 +170,8 @@ async function assertProjectStageChangeAllowed(project, projectId, nextStage) {
   }
 
   // Business rules: for Grid Connection stage and beyond, ensure post‑install info is present.
-  const idxTarget = PROJECT_STAGE_ORDER.indexOf(nextStage);
-  const idxGrid = PROJECT_STAGE_ORDER.indexOf('inspection_grid_connection');
+  const idxTarget = order.indexOf(nextStage);
+  const idxGrid = order.indexOf('inspection_grid_connection');
 
   if (idxTarget !== -1 && idxGrid !== -1 && idxTarget >= idxGrid) {
     if (!project.post_install_reference_no) {
@@ -190,29 +192,37 @@ async function assertProjectStageChangeAllowed(project, projectId, nextStage) {
   }
 }
 
-export async function updateProjectStage(projectId, nextStage) {
+export async function updateProjectStage(projectId, nextStage, companyId = null) {
   if (!projectId || Number.isNaN(Number(projectId))) {
     const err = new Error('Invalid project id');
     err.statusCode = 400;
     throw err;
   }
-  if (!PROJECT_STAGES.has(nextStage)) {
+  const { enabledKeys, orderKeys } = await companyWorkflowService.getProjectStageSets(companyId);
+  if (!companyWorkflowService.isSafeStageKey(nextStage) || !enabledKeys.has(nextStage)) {
     const err = new Error('Invalid stage transition');
     err.statusCode = 422;
     throw err;
   }
 
   const project = await getProjectById(projectId);
-  await assertProjectStageChangeAllowed(project, projectId, nextStage);
+  await assertProjectStageChangeAllowed(project, projectId, nextStage, orderKeys);
 
-  return updateProject(projectId, { stage: nextStage }, { skipStageValidation: true });
+  return updateProject(projectId, { stage: nextStage }, { skipStageValidation: true, companyId });
 }
 
 export async function updateProject(projectId, updates = {}, options = {}) {
   if (updates.stage !== undefined && !options.skipStageValidation) {
+    const companyId = options.companyId ?? null;
+    const { enabledKeys, orderKeys } = await companyWorkflowService.getProjectStageSets(companyId);
+    if (!companyWorkflowService.isSafeStageKey(updates.stage) || !enabledKeys.has(updates.stage)) {
+      const err = new Error('Invalid or disabled stage.');
+      err.statusCode = 422;
+      throw err;
+    }
     const current = await getProjectById(projectId);
     if (String(current.stage) !== String(updates.stage)) {
-      await assertProjectStageChangeAllowed(current, projectId, updates.stage);
+      await assertProjectStageChangeAllowed(current, projectId, updates.stage, orderKeys);
     }
   }
 

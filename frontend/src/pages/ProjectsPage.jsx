@@ -12,14 +12,14 @@ import {
   getCompanyEmployees,
   saveProjectScheduleAssign,
   getProjectScheduleAssign,
+  getCompanyWorkflow,
 } from '../services/api.js';
 import '../styles/LeadsKanban.css';
 
-const PROJECT_STAGE_ORDER_KEYS = DEFAULT_PROJECT_STAGES.map((s) => s.key);
-
-function isForwardProjectStageMove(currentStage, nextStage) {
-  const a = PROJECT_STAGE_ORDER_KEYS.indexOf(currentStage);
-  const b = PROJECT_STAGE_ORDER_KEYS.indexOf(nextStage);
+function isForwardProjectStageMove(currentStage, nextStage, orderKeys) {
+  const keys = orderKeys && orderKeys.length ? orderKeys : DEFAULT_PROJECT_STAGES.map((s) => s.key);
+  const a = keys.indexOf(currentStage);
+  const b = keys.indexOf(nextStage);
   return a !== -1 && b !== -1 && b > a;
 }
 
@@ -83,15 +83,39 @@ export default function ProjectsPage() {
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [scheduleMap, setScheduleMap] = useState(new Map()); // Map<projectId, { scheduled_at, status?, notes? }>
   const searchInputRef = useRef(null);
+  const [wfProjectStages, setWfProjectStages] = useState(null);
 
   // View state (kanban/table/calendar)
   const [view, setView] = useState('kanban');
+
+  const projectKanbanStages = useMemo(
+    () => (wfProjectStages && wfProjectStages.length ? wfProjectStages : DEFAULT_PROJECT_STAGES),
+    [wfProjectStages]
+  );
+  const projectOrderKeys = useMemo(() => projectKanbanStages.map((s) => s.key), [projectKanbanStages]);
 
   /** Debounce search */
   useEffect(() => {
     const id = setTimeout(() => setDebouncedSearch(search.trim()), 250);
     return () => clearTimeout(id);
   }, [search]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const body = await getCompanyWorkflow();
+        const d = body?.data ?? body;
+        const st = d?.project_management?.stages;
+        if (alive && Array.isArray(st) && st.length) setWfProjectStages(st);
+      } catch (_) {
+        if (alive) setWfProjectStages(null);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   /** Load projects */
   useEffect(() => {
@@ -131,7 +155,7 @@ export default function ProjectsPage() {
 
   const handleStageChange = useCallback(async (projectId, nextStage) => {
     const current = projects.find((p) => String(p.id) === String(projectId));
-    if (current && isForwardProjectStageMove(current.stage, nextStage)) {
+    if (current && isForwardProjectStageMove(current.stage, nextStage, projectOrderKeys)) {
       const raw = current._raw || {};
       const preRef = String(
         raw.lead_pre_approval_reference_no ?? raw.pre_approval_reference_no ?? '',
@@ -166,7 +190,7 @@ export default function ProjectsPage() {
     } finally {
       setProjects((prev) => prev.map((p) => ({ ...p, _reverting: undefined })));
     }
-  }, [projects]);
+  }, [projects, projectOrderKeys]);
 
   const focusSearch = useCallback((stageKey = null) => {
     setSearchStage(stageKey);
@@ -356,6 +380,7 @@ export default function ProjectsPage() {
         ) : view === 'table' ? (
           <ProjectsTable
             projects={filteredProjects}
+            stages={projectKanbanStages}
             onRowClick={(id) => openDetails(id)}
             onStageChange={handleStageChange}
           />
@@ -383,7 +408,7 @@ export default function ProjectsPage() {
         ) : (
           <ProjectsKanbanBoard
             projects={filteredProjects}
-            // Using DEFAULT_PROJECT_STAGES (12 columns) implicitly
+            stages={projectKanbanStages}
             onStageChange={handleStageChange}
             onFocusSearch={focusSearch}
             onSelectProject={(id) => openDetails(id)}

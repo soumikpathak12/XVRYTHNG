@@ -10,6 +10,7 @@ import {
   updateProjectApi,
   listInstallationJobs,
   updateLead,
+  getCompanyWorkflow,
 } from '../services/api.js';
 import '../styles/LeadDetailModal.css'; // Reuse lead detail styles
 import RetailerProjectDetailDetails from '../components/projects/RetailerProjectDetailDetails.jsx';
@@ -135,7 +136,10 @@ const PROJECT_STAGE_LABELS = {
   project_completed: 'Project completed',
 };
 
-const DIRECT_PROJECT_STAGES = Object.entries(PROJECT_STAGE_LABELS).map(([key, label]) => ({ key, label }));
+const DIRECT_PROJECT_STAGES_FALLBACK = Object.entries(PROJECT_STAGE_LABELS).map(([key, label]) => ({
+  key,
+  label,
+}));
 
 export default function ProjectDetailPage() {
   const { id: projectId } = useParams();
@@ -158,6 +162,24 @@ export default function ProjectDetailPage() {
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview'); // overview, schedule, financials, documents, activity, communication
   const [toast, setToast] = useState('');
+  const [directProjectStages, setDirectProjectStages] = useState(DIRECT_PROJECT_STAGES_FALLBACK);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const body = await getCompanyWorkflow();
+        const d = body?.data ?? body;
+        const arr = d?.project_management?.stages;
+        if (alive && Array.isArray(arr) && arr.length) setDirectProjectStages(arr);
+      } catch (_) {
+        /* keep fallback */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const loadData = useCallback(async () => {
     if (!projectId) return;
@@ -511,7 +533,7 @@ export default function ProjectDetailPage() {
         <div className="lead-detail-panel">
           {activeTab === 'overview' ? (
             <div className="fade-in">
-              <ProjectMilestoneProgress stages={DIRECT_PROJECT_STAGES} currentStage={project.stage} />
+              <ProjectMilestoneProgress stages={directProjectStages} currentStage={project.stage} />
               <div className="lead-detail-cards" style={{ margin: '0 0 32px 0' }}>
                 <div className="lead-detail-card">
                   <span className="lead-detail-card-label">Location</span>
@@ -547,7 +569,7 @@ export default function ProjectDetailPage() {
                 expectedCompletionDate={expectedCompletionDate}
                 onChangeExpectedCompletionDate={handleSaveExpectedCompletionDate}
                 hideJobType={true}
-                projectStages={DIRECT_PROJECT_STAGES}
+                projectStages={directProjectStages}
                 inHouseEditable={!!project.lead_id}
                 onSaveInHouseDetails={handleSaveInHouseDetails}
               />
@@ -564,7 +586,7 @@ export default function ProjectDetailPage() {
               expectedCompletionDate={expectedCompletionDate}
               onChangeExpectedCompletionDate={handleSaveExpectedCompletionDate}
               hideJobType={true}
-              projectStages={DIRECT_PROJECT_STAGES}
+              projectStages={directProjectStages}
               inHouseEditable={!!project.lead_id}
               onSaveInHouseDetails={handleSaveInHouseDetails}
             />

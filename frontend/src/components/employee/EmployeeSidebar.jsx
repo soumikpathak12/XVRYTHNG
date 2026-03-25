@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { getCompanySidebar } from '../../services/api.js';
+import { useSidebar } from '../../context/AuthContext.jsx';
 
 const EMP_MODULE_NAV = {
   // Always show Dashboard
@@ -45,6 +46,7 @@ const EMP_MODULE_NAV = {
 
 export default function EmployeeSidebar() {
   const location = useLocation();
+  const { sidebarVersion } = useSidebar();
   const [collapsed, setCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [modules, setModules] = useState([]);
@@ -65,7 +67,7 @@ export default function EmployeeSidebar() {
       }
     })();
     return () => { alive = false; };
-  }, []);
+  }, [sidebarVersion]);
 
   const allowed = new Set(modules ?? []);
 
