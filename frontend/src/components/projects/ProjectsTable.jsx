@@ -98,10 +98,16 @@ function Th({ children, sortKey, sort, onSort, align = 'left' }) {
 }
 
 /** Stage select styled like a mint pill */
-function StageSelect({ value, onChange }) {
+function StageSelect({ value, onChange, stages }) {
+  const list =
+    stages && stages.length
+      ? stages
+      : PROJECT_STAGES.map((k) => ({ key: k, label: STAGE_LABELS[k] ?? k }));
+  const keys = new Set(list.map((s) => s.key));
+  const v = keys.has(value) ? value : list[0]?.key;
   return (
     <select
-      value={value || ''}
+      value={v || ''}
       onChange={(e) => onChange?.(e.target.value)}
       style={{
         borderRadius: 999,
@@ -114,9 +120,12 @@ function StageSelect({ value, onChange }) {
         outline: 'none',
       }}
     >
-      {PROJECT_STAGES.map((s) => (
-        <option key={s} value={s}>
-          {STAGE_LABELS[s] ?? s}
+      {!keys.has(value) && value && (
+        <option value={value}>{STAGE_LABELS[value] ?? value} (inactive)</option>
+      )}
+      {list.map((s) => (
+        <option key={s.key} value={s.key}>
+          {s.label}
         </option>
       ))}
     </select>
@@ -145,7 +154,7 @@ function SourceBadge({ children }) {
 }
 
 /** Main table */
-export default function ProjectsTable({ projects = [], onRowClick, onStageChange }) {
+export default function ProjectsTable({ projects = [], onRowClick, onStageChange, stages }) {
   const [sort, setSort] = useState({ key: 'customerName', dir: 'asc' });
 
   const data = useMemo(() => {
@@ -216,6 +225,7 @@ export default function ProjectsTable({ projects = [], onRowClick, onStageChange
                 >
                   <StageSelect
                     value={p.stage}
+                    stages={stages}
                     onChange={(next) => onStageChange?.(p.id, next)}
                   />
                 </td>

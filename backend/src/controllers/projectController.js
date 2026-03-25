@@ -71,7 +71,8 @@ export async function updateProjectStage(req, res) {
     if (!stage) {
       return res.status(422).json({ success: false, errors: { stage: 'Stage is required.' } });
     }
-    const updated = await projectService.updateProjectStage(projectId, stage);
+    const companyId = req.tenantId ?? req.user?.companyId ?? null;
+    const updated = await projectService.updateProjectStage(projectId, stage, companyId);
     return res.status(200).json({ success: true, data: updated });
   } catch (err) {
     const status = err.statusCode ?? err.status ?? 500;
@@ -114,7 +115,8 @@ export async function updateProject(req, res) {
       allowedUpdates.value_amount = body.value_amount;
     }
 
-    const updated = await projectService.updateProject(projectId, allowedUpdates);
+    const companyId = req.tenantId ?? req.user?.companyId ?? null;
+    const updated = await projectService.updateProject(projectId, allowedUpdates, { companyId });
     return res.status(200).json({ success: true, data: updated });
   } catch (err) {
     const status = err.statusCode ?? err.status ?? 500;

@@ -1,5 +1,5 @@
 // components/leads/LeadForm.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 
 const STAGES = [
   'new',
@@ -73,8 +73,19 @@ export default function LeadForm({
   /** When true (new lead only), skip the green banner; parent can show a modal via onAfterCreate */
   suppressInlineSuccess = false,
   onAfterCreate = null,
+  /** Optional [{ key, label }] from company workflow (enabled stages only). */
+  stageOptions = null,
 }) {
   const SOURCE_OPTIONS = ['Website', 'Solar Quotes', 'Facebook', 'Other'];
+
+  const stageList = useMemo(() => {
+    if (Array.isArray(stageOptions) && stageOptions.length) {
+      return stageOptions.map((s) =>
+        typeof s === 'string' ? { key: s, label: STAGE_LABELS[s] || s } : s
+      );
+    }
+    return STAGES.map((k) => ({ key: k, label: STAGE_LABELS[k] || k }));
+  }, [stageOptions]);
   const [form, setForm] = useState({
     customer_name: '',
     email: '',
@@ -128,6 +139,11 @@ export default function LeadForm({
       });
     }
   }, [initialValues]);
+
+  useEffect(() => {
+    const keys = new Set(stageList.map((s) => s.key));
+    setForm((f) => (keys.has(f.stage) ? f : { ...f, stage: stageList[0]?.key || 'new' }));
+  }, [stageList]);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -189,7 +205,7 @@ export default function LeadForm({
       nextFieldErrors.phone = 'Invalid phone format.';
     }
     if (!form.suburb.trim()) nextFieldErrors.suburb = 'Location is required.';
-    if (!form.stage || !STAGES.includes(form.stage)) {
+    if (!form.stage || !stageList.some((s) => s.key === form.stage)) {
       nextFieldErrors.stage = 'Invalid stage selected.';
     }
 
@@ -394,9 +410,9 @@ export default function LeadForm({
               }}
               required
             >
-              {STAGES.map((s) => (
-                <option key={s} value={s}>
-                  {STAGE_LABELS[s] || s}
+              {stageList.map((s) => (
+                <option key={s.key} value={s.key}>
+                  {s.label}
                 </option>
               ))}
             </select>

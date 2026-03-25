@@ -30,7 +30,7 @@ router.get('/me/permissions', getMyPermissions);
 router.get('/me/sidebar', async (req, res, next) => {
   try {
     console.log('[ROUTE:/api/users/me/sidebar] userId:', req.user.id);
-    const data = await getSidebarForUser(req.user.id);
+    const data = await getSidebarForUser(req.user.id, req.user.companyId ?? null);
     console.log('[ROUTE:/api/users/me/sidebar] result:', data);
     res.json({ success: true, data });
   } catch (err) {

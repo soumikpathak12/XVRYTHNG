@@ -12,6 +12,7 @@ import {
   updateLeadStage as apiUpdateLeadStage,
   createLead as apiCreateLead,
   importSolarQuotesLeads,
+  getCompanyWorkflow,
 } from '../services/api.js';
 import ImportLeadsModal from '../components/leads/ImportLeadsModal.jsx';
 import '../styles/LeadsKanban.css';
@@ -39,6 +40,7 @@ export default function LeadsPage() {
   const [toastVariant, setToastVariant] = useState('error'); // 'success' | 'error'
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
+  const [workflowSalesStages, setWorkflowSalesStages] = useState(null);
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -84,6 +86,23 @@ export default function LeadsPage() {
     const id = setTimeout(() => setDebouncedSearch(search.trim()), 250);
     return () => clearTimeout(id);
   }, [search]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const body = await getCompanyWorkflow();
+        const d = body?.data ?? body;
+        const stages = d?.sales?.stages;
+        if (alive && Array.isArray(stages) && stages.length) setWorkflowSalesStages(stages);
+      } catch (_) {
+        if (alive) setWorkflowSalesStages(null);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [refreshTrigger]);
 
   // Accept both snake_case (GET) and camelCase (create API)
   const transformLead = useCallback((row) => {
@@ -213,7 +232,7 @@ export default function LeadsPage() {
   }, [leads]);
 
   function exportLeadsCsv() {
-    const stageLabelByKey = Object.fromEntries(STAGES.map((s) => [s.key, s.label]));
+    const stageLabelByKey = Object.fromEntries(kanbanStages.map((s) => [s.key, s.label]));
     const escape = (v) => {
       const s = (v ?? '').toString();
       if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
@@ -290,6 +309,11 @@ export default function LeadsPage() {
   }, [leads, debouncedSearch, sourceFilter, daysFilter, searchStage]);
 
   const boardLeads = filteredLeads;
+
+  const kanbanStages = useMemo(
+    () => (workflowSalesStages && workflowSalesStages.length ? workflowSalesStages : STAGES),
+    [workflowSalesStages]
+  );
 
   const calendarLeads = useMemo(
     () => boardLeads.filter((l) => l._raw?.site_inspection_date),
@@ -463,6 +487,7 @@ export default function LeadsPage() {
         ) : view === 'table' ? (
           <LeadsTable
             leads={boardLeads}
+            stages={kanbanStages}
             onStageChange={handleStageChange}
             onSelectLead={(id) => goLeadDetail(id)}
           />
@@ -496,6 +521,7 @@ export default function LeadsPage() {
         ) : (
           <KanbanBoard
             leads={boardLeads}
+            stages={kanbanStages}
             onStageChange={handleStageChange}
             onFocusSearch={focusSearch}
             onSelectLead={(id) => goLeadDetail(id)}
@@ -507,6 +533,7 @@ export default function LeadsPage() {
         <AddLeadForm
           embedded
           suppressInlineSuccess
+          stageOptions={kanbanStages}
           onAfterCreate={() => setLeadCreatedModalOpen(true)}
           onCancel={() => setOpenAdd(false)}
           onSubmit={handleCreateLead}

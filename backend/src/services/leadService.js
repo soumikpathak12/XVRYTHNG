@@ -1,4 +1,5 @@
 import db from '../config/db.js';
+import { isSafeStageKey } from './companyWorkflowService.js';
 
 const STAGES = new Set([
   'new',
@@ -21,7 +22,7 @@ function deriveFlags(stage) {
 /**
  * Insert a new lead and return the created row.
  */
-export async function createLead(payload) {
+export async function createLead(payload, options = {}) {
   const {
     stage,
     customer_name,
@@ -37,7 +38,8 @@ export async function createLead(payload) {
     marketing_payload_json = null,
   } = payload;
 
-  if (!STAGES.has(stage)) {
+  const allowed = options.allowedStageKeys ?? STAGES;
+  if (!isSafeStageKey(stage) || !allowed.has(stage)) {
     const err = new Error('Invalid stage');
     err.statusCode = 400;
     throw err;
@@ -106,7 +108,7 @@ export async function createLead(payload) {
  * @param {Array} leads
  * @returns {Promise<{ imported: number, failed: number, errors: Array<{ row: number, error: string }> }>}
  */
-export async function importLeads(leads) {
+export async function importLeads(leads, options = {}) {
   let imported = 0;
   let failed = 0;
   const errors = [];
@@ -114,7 +116,7 @@ export async function importLeads(leads) {
   for (let i = 0; i < leads.length; i++) {
     const lead = leads[i];
     try {
-      await createLead(lead);
+      await createLead(lead, { allowedStageKeys: options.allowedStageKeys });
       imported++;
     } catch (err) {
       failed++;
@@ -139,7 +141,7 @@ export async function getLeads(filters = {}) {
   const where = [];
   const params = [];
 
-  if (filters.stage && STAGES.has(filters.stage)) {
+  if (filters.stage && String(filters.stage).length <= 80) {
     where.push('stage = ?');
     params.push(filters.stage);
   }
@@ -533,7 +535,7 @@ export async function updateLeadStage(leadId, nextStage) {
     err.statusCode = 400;
     throw err;
   }
-  if (!STAGES.has(nextStage)) {
+  if (!isSafeStageKey(nextStage)) {
     const err = new Error('Invalid stage');
     err.statusCode = 400;
     throw err;

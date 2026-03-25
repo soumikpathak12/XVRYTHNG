@@ -16,6 +16,8 @@ import RequirePermission from '../../components/RequirePermission.jsx';
 import RolesPage from './RolesPage.jsx';
 import ReferralsPage from '../ReferralsPage.jsx';
 import { getAdminMe, updateAdminMe } from '../../services/api.js';
+import ModuleManagementSection from '../../components/settings/ModuleManagementSection.jsx';
+import WorkflowConfigurationSection from '../../components/settings/WorkflowConfigurationSection.jsx';
 
 const palette = {
   brand: '#146b6b',
@@ -71,10 +73,21 @@ const ALL_SECTIONS = [
 
 export default function SettingsPage() {
   const [active, setActive] = useState('company');
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const sections = useMemo(() => {
-    return ALL_SECTIONS.filter((s) => !s.permission || can(s.permission.resource, s.permission.action));
-  }, [can]);
+    const r = String(user?.role || '').toLowerCase();
+    // US-085: Super Admin can manage modules/workflow too (no companyId required for visibility).
+    const canModules = ['company_admin', 'manager', 'super_admin'].includes(r);
+    return ALL_SECTIONS.filter((s) => {
+      if ((s.key === 'modules' || s.key === 'workflow') && !canModules) return false;
+      if (s.permission && !can(s.permission.resource, s.permission.action)) return false;
+      return true;
+    });
+  }, [can, user]);
+
+  useEffect(() => {
+    if (!sections.some((s) => s.key === active)) setActive('company');
+  }, [sections, active]);
 
   return (
     <div style={{ padding: 16 }}>
@@ -90,7 +103,13 @@ export default function SettingsPage() {
               </RequirePermission>
             )}
             {active === 'referrals' && <ReferralsPage />}
-            {active !== 'company' && active !== 'roles' && active !== 'referrals' && (
+            {active === 'modules' && <ModuleManagementSection />}
+            {active === 'workflow' && <WorkflowConfigurationSection />}
+            {active !== 'company' &&
+              active !== 'roles' &&
+              active !== 'referrals' &&
+              active !== 'modules' &&
+              active !== 'workflow' && (
               <PlaceholderSection
                 title={ALL_SECTIONS.find((s) => s.key === active)?.label || 'Settings'}
                 message="This section will be available in the next phase."

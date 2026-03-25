@@ -391,10 +391,15 @@ export default function SuperAdminSidebar({
 
     // --- Normal single link ---
     const showBadge = item.to === '/admin/attendance' && pendingCount > 0;
+    const exactEnd =
+      item.to === '/admin/settings' ||
+      item.to === '/admin/settings/inspection-templates' ||
+      item.to === '/admin/settings/checklist-templates';
     return (
       <NavLink
         key={item.to}
         to={item.to}
+        end={exactEnd}
         style={({ isActive }) => ({
           ...linkBase,
           ...(isActive ? activeStyle : {}),

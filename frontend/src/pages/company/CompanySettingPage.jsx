@@ -1,7 +1,10 @@
 // src/pages/company/CompanySettingsPage.jsx
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { getCompanyProfile, updateCompanyProfile } from '../../services/api.js';
 import ChangePasswordCard from '../../components/settings/ChangePasswordCard.jsx';
+import ModuleManagementSection from '../../components/settings/ModuleManagementSection.jsx';
+import WorkflowConfigurationSection from '../../components/settings/WorkflowConfigurationSection.jsx';
+import { useAuth } from '../../context/AuthContext.jsx';
 
 import {
   Building2,
@@ -57,7 +60,7 @@ const helpStyle = {
   marginTop: 6,
 };
 
-const sections = [
+const ALL_SECTIONS = [
   { key: 'company', label: 'Company Profile', icon: Building2 },
   { key: 'modules', label: 'Module Management', icon: Boxes },
   { key: 'workflow', label: 'Workflow Configuration', icon: Workflow },
@@ -65,25 +68,43 @@ const sections = [
   { key: 'referrals', label: 'Referral Program', icon: Share2 },
   { key: 'integrations', label: 'Integrations', icon: PlugZap },
   { key: 'notifications', label: 'Notifications', icon: Bell },
-    { key: 'security', label: 'Security', icon: Lock },
-
+  { key: 'security', label: 'Security', icon: Lock },
 ];
 
 export default function SettingsPage() {
   const [active, setActive] = useState('company');
+  const { user } = useAuth();
+
+  const sections = useMemo(() => {
+    const r = String(user?.role || '').toLowerCase();
+    // US-085 / workflow config: Super Admin should see these tabs too.
+    const canModules = ['company_admin', 'manager', 'super_admin'].includes(r);
+    return ALL_SECTIONS.filter(
+      (s) => (s.key !== 'modules' && s.key !== 'workflow') || canModules
+    );
+  }, [user]);
+
+  useEffect(() => {
+    if (!sections.some((s) => s.key === active)) setActive('company');
+  }, [sections, active]);
 
   return (
     <div style={{ padding: 16 }}>
       <div style={{ ...card, padding: 12 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 16 }}>
           {/* Left nav */}
-          <SettingsNav active={active} onChange={setActive} />
+          <SettingsNav active={active} onChange={setActive} sections={sections} />
 
           {/* Right content */}
           <div style={{ padding: 12 }}>
             {active === 'company' && <CompanyProfileForm />}
-             {active === 'security'  && <ChangePasswordCard />}
-            {active !== 'company' && active !== 'security' && (
+            {active === 'modules' && <ModuleManagementSection />}
+            {active === 'workflow' && <WorkflowConfigurationSection />}
+            {active === 'security' && <ChangePasswordCard />}
+            {active !== 'company' &&
+              active !== 'security' &&
+              active !== 'modules' &&
+              active !== 'workflow' && (
               <PlaceholderSection
                 title={sections.find((s) => s.key === active)?.label || 'Settings'}
                 message="This section will be available in the next phase."
@@ -96,7 +117,8 @@ export default function SettingsPage() {
   );
 }
 
-function SettingsNav({ active, onChange }) {
+function SettingsNav({ active, onChange, sections }) {
+  const navSections = sections || ALL_SECTIONS;
   return (
     <aside
       style={{
@@ -117,7 +139,7 @@ function SettingsNav({ active, onChange }) {
       </div>
 
       <nav style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {sections.map((s) => {
+        {navSections.map((s) => {
           const Icon = s.icon;
           const isActive = s.key === active;
           return (

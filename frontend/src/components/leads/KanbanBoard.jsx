@@ -18,26 +18,43 @@ const COL_WIDTH = 300;
 const COL_GAP = 20;
 const BOARD_PADDING = 28;
 
+function bucketStageForLead(leadStage, stageList) {
+  const keys = stageList.map((s) => s.key);
+  const set = new Set(keys);
+  if (set.has(leadStage)) return leadStage;
+  return keys[0] || 'new';
+}
+
 /**
  * @param {{
  *   leads: Array<{ id: string|number, stage: string, [key: string]: any }>,
+ *   stages?: Array<{ key: string, label: string }>,
  *   onStageChange?: (leadId: string|number, nextStage: string) => void,
  * }} props
  */
-export default function KanbanBoard({ leads = [], onStageChange, onFocusSearch, onSelectLead }) {
+export default function KanbanBoard({
+  leads = [],
+  stages: stagesProp,
+  onStageChange,
+  onFocusSearch,
+  onSelectLead,
+}) {
+  const STAGES_LIST = stagesProp && stagesProp.length ? stagesProp : STAGES;
   const [dragLead, setDragLead] = useState(null);
   const scrollRef = useRef(null);
   const [scrollState, setScrollState] = useState({ canScrollLeft: false, canScrollRight: false });
   const [activeColumnIndex, setActiveColumnIndex] = useState(0);
 
   const byStage = useMemo(() => {
-    const map = Object.fromEntries(STAGES.map((s) => [s.key, []]));
+    const map = Object.fromEntries(STAGES_LIST.map((s) => [s.key, []]));
     for (const l of leads) {
-      const key = l.stage && map[l.stage] ? l.stage : 'new';
+      const raw = l.stage;
+      const key = bucketStageForLead(raw, STAGES_LIST);
+      if (!map[key]) map[key] = [];
       map[key].push(l);
     }
     return map;
-  }, [leads]);
+  }, [leads, STAGES_LIST]);
 
   function handleDragStart(e, lead) {
     setDragLead(lead);
@@ -60,7 +77,6 @@ export default function KanbanBoard({ leads = [], onStageChange, onFocusSearch, 
     setDragLead(null);
   }
 
-  /* Manual override lock */
   const ignoreScrollRef = useRef(false);
 
   function updateScrollState() {
@@ -74,14 +90,9 @@ export default function KanbanBoard({ leads = [], onStageChange, onFocusSearch, 
       canScrollRight: scrollLeft < scrollWidth - clientWidth - 8,
     });
 
-    // Check if we're at the very end of the scroll container
-    // Removed logic forcing last column to be active
-
-    // Determine index based on the left side of the viewport + offset
-    // (using center of viewport was causing issues for the first column on wide screens)
     const adjustedLeft = scrollLeft - BOARD_PADDING + (COL_WIDTH + COL_GAP) / 2;
     let index = Math.floor(adjustedLeft / (COL_WIDTH + COL_GAP));
-    index = Math.max(0, Math.min(STAGES.length - 1, index));
+    index = Math.max(0, Math.min(STAGES_LIST.length - 1, index));
     setActiveColumnIndex(index);
   }
 
@@ -96,7 +107,7 @@ export default function KanbanBoard({ leads = [], onStageChange, onFocusSearch, 
       el.removeEventListener('scroll', updateScrollState);
       ro.disconnect();
     };
-  }, [leads]);
+  }, [leads, STAGES_LIST.length]);
 
   const [highlightedStage, setHighlightedStage] = useState(null);
 
@@ -104,11 +115,10 @@ export default function KanbanBoard({ leads = [], onStageChange, onFocusSearch, 
     const el = scrollRef.current;
     if (!el) return;
 
-    // Lock scroll updates
     ignoreScrollRef.current = true;
     setActiveColumnIndex(index);
 
-    const s = STAGES[index];
+    const s = STAGES_LIST[index];
     if (s) {
       setHighlightedStage(s.key);
       setTimeout(() => setHighlightedStage(null), 1000);
@@ -117,7 +127,6 @@ export default function KanbanBoard({ leads = [], onStageChange, onFocusSearch, 
     const left = BOARD_PADDING + index * (COL_WIDTH + COL_GAP);
     el.scrollTo({ left, behavior: 'smooth' });
 
-    // Unlock after animation
     setTimeout(() => {
       ignoreScrollRef.current = false;
     }, 1000);
@@ -128,7 +137,6 @@ export default function KanbanBoard({ leads = [], onStageChange, onFocusSearch, 
     dragScrollSpeed.current = 0;
   }
 
-  /* Auto-scroll during drag */
   const dragScrollSpeed = useRef(0);
 
   useEffect(() => {
@@ -158,16 +166,12 @@ export default function KanbanBoard({ leads = [], onStageChange, onFocusSearch, 
     const { left, width } = el.getBoundingClientRect();
     const x = e.clientX - left;
 
-    // Scroll zone width (e.g. 100px from edge)
     const zone = 100;
 
     if (x < zone) {
-      // Scroll left
-      // Speed increases closer to edge, max ~20px per frame
       const intensity = 1 - x / zone;
       dragScrollSpeed.current = -15 * intensity - 5;
     } else if (x > width - zone) {
-      // Scroll right
       const intensity = 1 - (width - x) / zone;
       dragScrollSpeed.current = 15 * intensity + 5;
     } else {
@@ -178,7 +182,7 @@ export default function KanbanBoard({ leads = [], onStageChange, onFocusSearch, 
   return (
     <div className="leads-board-root">
       <div className="leads-column-jump" role="navigation" aria-label="Jump to pipeline stage">
-        {STAGES.map((s, i) => (
+        {STAGES_LIST.map((s, i) => (
           <button
             key={s.key}
             type="button"
@@ -200,7 +204,7 @@ export default function KanbanBoard({ leads = [], onStageChange, onFocusSearch, 
           onDragOver={handleContainerDragOver}
         >
           <div className="leads-board" role="list" aria-label="Sales pipeline kanban">
-            {STAGES.map((s) => (
+            {STAGES_LIST.map((s) => (
               <KanbanColumn
                 key={s.key}
                 title={s.label}
