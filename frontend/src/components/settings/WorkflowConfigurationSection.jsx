@@ -274,7 +274,9 @@ export default function WorkflowConfigurationSection() {
   const [full, setFull] = useState(null);
 
   const companyId = user?.companyId ?? null;
-  const roleOk = ['company_admin', 'manager'].includes(String(user?.role || '').toLowerCase());
+  const roleLower = String(user?.role || '').toLowerCase();
+  const roleOk = ['company_admin', 'manager', 'super_admin'].includes(roleLower);
+  const needsCompanyId = roleLower !== 'super_admin';
 
   const load = useCallback(async () => {
     setErr(null);
@@ -290,11 +292,11 @@ export default function WorkflowConfigurationSection() {
   }, []);
 
   useEffect(() => {
-    if (companyId != null && roleOk) load();
+    if (roleOk && (!needsCompanyId || companyId != null)) load();
     else setLoading(false);
-  }, [companyId, roleOk, load]);
+  }, [companyId, roleOk, needsCompanyId, load]);
 
-  if (companyId == null || !roleOk) {
+  if (!roleOk || (needsCompanyId && companyId == null)) {
     return (
       <div style={{ padding: 8 }}>
         <h2 style={{ margin: 0, color: palette.text }}>Workflow Configuration</h2>

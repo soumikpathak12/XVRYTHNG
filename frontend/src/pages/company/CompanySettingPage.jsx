@@ -77,7 +77,8 @@ export default function SettingsPage() {
 
   const sections = useMemo(() => {
     const r = String(user?.role || '').toLowerCase();
-    const canModules = user?.companyId != null && ['company_admin', 'manager'].includes(r);
+    // US-085 / workflow config: Super Admin should see these tabs too.
+    const canModules = ['company_admin', 'manager', 'super_admin'].includes(r);
     return ALL_SECTIONS.filter(
       (s) => (s.key !== 'modules' && s.key !== 'workflow') || canModules
     );

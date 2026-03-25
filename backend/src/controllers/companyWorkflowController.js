@@ -32,7 +32,7 @@ export async function getCompanyWorkflowPublic(req, res) {
 
 export async function getCompanyWorkflowSettings(req, res) {
   try {
-    const data = await getFullWorkflow(req.user.companyId);
+    const data = await getFullWorkflow(req.companyIdForSettings);
     return res.json({ success: true, data });
   } catch (err) {
     console.error('getCompanyWorkflowSettings', err);
@@ -43,7 +43,7 @@ export async function getCompanyWorkflowSettings(req, res) {
 export async function patchCompanyWorkflowSettings(req, res) {
   try {
     const { pipeline, stages } = req.body ?? {};
-    const full = await saveWorkflowPipeline(req.user.companyId, pipeline, stages);
+    const full = await saveWorkflowPipeline(req.companyIdForSettings, pipeline, stages);
     return res.json({ success: true, data: full });
   } catch (err) {
     console.error('patchCompanyWorkflowSettings', err);

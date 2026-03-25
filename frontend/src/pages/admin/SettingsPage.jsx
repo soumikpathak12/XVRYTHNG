@@ -76,7 +76,8 @@ export default function SettingsPage() {
   const { can, user } = useAuth();
   const sections = useMemo(() => {
     const r = String(user?.role || '').toLowerCase();
-    const canModules = user?.companyId != null && ['company_admin', 'manager'].includes(r);
+    // US-085: Super Admin can manage modules/workflow too (no companyId required for visibility).
+    const canModules = ['company_admin', 'manager', 'super_admin'].includes(r);
     return ALL_SECTIONS.filter((s) => {
       if ((s.key === 'modules' || s.key === 'workflow') && !canModules) return false;
       if (s.permission && !can(s.permission.resource, s.permission.action)) return false;

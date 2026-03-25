@@ -99,7 +99,9 @@ export default function ModuleManagementSection() {
   const [coreDescription, setCoreDescription] = useState('');
 
   const companyId = user?.companyId ?? null;
-  const roleOk = ['company_admin', 'manager'].includes(String(user?.role || '').toLowerCase());
+  const roleLower = String(user?.role || '').toLowerCase();
+  const roleOk = ['company_admin', 'manager', 'super_admin'].includes(roleLower);
+  const needsCompanyId = roleLower !== 'super_admin';
 
   const load = useCallback(async () => {
     setErr(null);
@@ -118,9 +120,9 @@ export default function ModuleManagementSection() {
   }, []);
 
   useEffect(() => {
-    if (companyId != null && roleOk) load();
+    if (roleOk && (!needsCompanyId || companyId != null)) load();
     else setLoading(false);
-  }, [companyId, roleOk, load]);
+  }, [companyId, roleOk, needsCompanyId, load]);
 
   const onToggle = async (id, enabled) => {
     setErr(null);
@@ -140,7 +142,7 @@ export default function ModuleManagementSection() {
     }
   };
 
-  if (companyId == null || !roleOk) {
+  if (!roleOk || (needsCompanyId && companyId == null)) {
     return (
       <div style={{ ...card, padding: 18 }}>
         <h2 style={{ margin: 0, color: palette.text }}>Module Management</h2>

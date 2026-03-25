@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { requireAuth } from '../controllers/adminController.js'; // tái dùng guard JWT của bạn
 import { getCompanyProfile, updateCompanyProfile } from '../controllers/adminCompanyController.js';
 import { getSidebarForUser } from '../services/sidebarService.js';
+import { tenantContext } from '../middleware/tenantContext.js';
 import {
   getCompanyModuleSettings,
   patchCompanyModuleSettings,
@@ -16,7 +17,7 @@ import {
 
 const router = Router();
 
-router.use(requireAuth);
+router.use(requireAuth, tenantContext);
 
 router.get('/me', getCompanyProfile);
 router.post('/me', updateCompanyProfile);
