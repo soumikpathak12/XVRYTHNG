@@ -2,6 +2,12 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import LeadForm from './LeadForm.jsx';
 import '../../styles/LeadDetailModal.css';
+import {
+  getCecBatteryBrands,
+  getCecBatteryModels,
+  getCecInverterBrands,
+  getCecPvPanelBrands,
+} from '../../services/api.js';
 
 function formatDateTimeLocal(isoString) {
   if (!isoString) return '';
@@ -201,6 +207,81 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
 
   const updateExtra = (key, value) =>
     setExtras((prev) => ({ ...prev, [key]: value }));
+
+  // ----- CEC Approved products options (cached) -----
+  const [cecOptions, setCecOptions] = useState({
+    pvPanelBrands: [],
+    inverterBrands: [],
+    batteryBrands: [],
+    batteryModels: [],
+    batteryModelsForBrand: '',
+    loading: false,
+  });
+
+  const currentType = extras.system_type_sel || '';
+  const hasPV = /PV/i.test(currentType);
+  const hasBattery = /Battery/i.test(currentType);
+
+  // Load brand lists lazily, only when needed by system type.
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!hasPV && !hasBattery) return;
+      setCecOptions((p) => ({ ...p, loading: true }));
+      try {
+        const [pvPanelBrands, inverterBrands, batteryBrands] = await Promise.all([
+          hasPV ? getCecPvPanelBrands().catch(() => []) : Promise.resolve([]),
+          hasPV ? getCecInverterBrands().catch(() => []) : Promise.resolve([]),
+          hasBattery ? getCecBatteryBrands().catch(() => []) : Promise.resolve([]),
+        ]);
+        if (cancelled) return;
+        setCecOptions((p) => ({
+          ...p,
+          pvPanelBrands: pvPanelBrands.length ? pvPanelBrands : p.pvPanelBrands,
+          inverterBrands: inverterBrands.length ? inverterBrands : p.inverterBrands,
+          batteryBrands: batteryBrands.length ? batteryBrands : p.batteryBrands,
+          loading: false,
+        }));
+      } catch {
+        if (cancelled) return;
+        setCecOptions((p) => ({ ...p, loading: false }));
+      }
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasPV, hasBattery]);
+
+  // Load battery models when brand changes (only for battery system types).
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!hasBattery) return;
+      const brand = (extras.battery_brand || '').trim();
+      if (!brand) {
+        setCecOptions((p) => ({ ...p, batteryModels: [], batteryModelsForBrand: '' }));
+        return;
+      }
+      if (cecOptions.batteryModelsForBrand && cecOptions.batteryModelsForBrand === brand) return;
+      try {
+        const models = await getCecBatteryModels(brand);
+        if (cancelled) return;
+        setCecOptions((p) => ({
+          ...p,
+          batteryModels: Array.isArray(models) ? models : [],
+          batteryModelsForBrand: brand,
+        }));
+      } catch {
+        if (cancelled) return;
+        setCecOptions((p) => ({ ...p, batteryModels: [], batteryModelsForBrand: brand }));
+      }
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasBattery, extras.battery_brand, cecOptions.batteryModelsForBrand]);
 
   /** After save: in-app result (success / error), not browser alert or top toast */
   const [resultDialog, setResultDialog] = useState(null);
@@ -417,17 +498,21 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
                   <Labeled label="INVERTER BRAND">
                     <input
                       type="text"
+                      list="cec-inverter-brands"
                       value={extras.pv_inverter_brand || ''}
                       onChange={(e) => updateExtra('pv_inverter_brand', e.target.value)}
                       style={inputStyle}
+                      placeholder={cecOptions.loading ? 'Loading approved brands…' : 'Start typing'}
                     />
                   </Labeled>
                   <Labeled label="PANEL BRAND">
                     <input
                       type="text"
+                      list="cec-pv-panel-brands"
                       value={extras.pv_panel_brand || ''}
                       onChange={(e) => updateExtra('pv_panel_brand', e.target.value)}
                       style={inputStyle}
+                      placeholder={cecOptions.loading ? 'Loading approved brands…' : 'Start typing'}
                     />
                   </Labeled>
                   <Labeled label="PANEL MODULE (WATTS)">
@@ -481,17 +566,25 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
                   <Labeled label="BATTERY BRAND">
                     <input
                       type="text"
+                      list="cec-battery-brands"
                       value={extras.battery_brand || ''}
                       onChange={(e) => updateExtra('battery_brand', e.target.value)}
                       style={inputStyle}
+                      placeholder={cecOptions.loading ? 'Loading approved brands…' : 'Start typing'}
                     />
                   </Labeled>
                   <Labeled label="BATTERY MODEL">
                     <input
                       type="text"
+                      list="cec-battery-models"
                       value={extras.battery_model || ''}
                       onChange={(e) => updateExtra('battery_model', e.target.value)}
                       style={inputStyle}
+                      placeholder={
+                        extras.battery_brand
+                          ? 'Start typing'
+                          : 'Select/enter brand first'
+                      }
                     />
                   </Labeled>
                 </FieldRow>
@@ -500,6 +593,28 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
           </>
         );
       })()}
+
+      {/* CEC Approved lists (datalists) */}
+      <datalist id="cec-pv-panel-brands">
+        {cecOptions.pvPanelBrands.map((b) => (
+          <option key={b} value={b} />
+        ))}
+      </datalist>
+      <datalist id="cec-inverter-brands">
+        {cecOptions.inverterBrands.map((b) => (
+          <option key={b} value={b} />
+        ))}
+      </datalist>
+      <datalist id="cec-battery-brands">
+        {cecOptions.batteryBrands.map((b) => (
+          <option key={b} value={b} />
+        ))}
+      </datalist>
+      <datalist id="cec-battery-models">
+        {cecOptions.batteryModels.map((m) => (
+          <option key={m} value={m} />
+        ))}
+      </datalist>
 
       <Section title="PROPERTY INFORMATION">
         <FieldRow two>
