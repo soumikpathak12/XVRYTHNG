@@ -1,35 +1,39 @@
 // src/components/projects/ProjectsTable.jsx
 import React, { useMemo, useState } from 'react';
 
-/** 12 project pipeline stages (same as DB enum) */
+/** Fallback when parent does not pass `stages` from workflow */
 const PROJECT_STAGES = [
   'new',
-  'pre_approval',
-  'state_rebate',
-  'design_engineering',
-  'procurement',
   'scheduled',
+  'to_be_rescheduled',
   'installation_in_progress',
   'installation_completed',
-  'compliance_check',
-  'inspection_grid_connection',
-  'rebate_stc_claims',
-  'project_completed',
+  'ces_certificate_applied',
+  'ces_certificate_received',
+  'grid_connection_initiated',
+  'grid_connection_completed',
+  'system_handover',
 ];
 
 const STAGE_LABELS = {
   new: 'New',
-  pre_approval: 'Pre-approval',
-  state_rebate: 'State rebate',
-  design_engineering: 'Design & engineering',
-  procurement: 'Procurement',
   scheduled: 'Scheduled',
+  to_be_rescheduled: 'To be rescheduled',
   installation_in_progress: 'Installation in progress',
   installation_completed: 'Installation completed',
-  compliance_check: 'Compliance check',
-  inspection_grid_connection: 'Inspection & grid connection',
-  rebate_stc_claims: 'Rebate & STC claims',
-  project_completed: 'Project completed',
+  ces_certificate_applied: 'CES certificate applied',
+  ces_certificate_received: 'CES certificate received',
+  grid_connection_initiated: 'GRID connection initiated',
+  grid_connection_completed: 'GRID connection completed',
+  system_handover: 'System handover',
+  pre_approval: 'Pre-approval (legacy)',
+  state_rebate: 'State rebate (legacy)',
+  design_engineering: 'Design & engineering (legacy)',
+  procurement: 'Procurement (legacy)',
+  compliance_check: 'Compliance check (legacy)',
+  inspection_grid_connection: 'Inspection & grid connection (legacy)',
+  rebate_stc_claims: 'Rebate & STC claims (legacy)',
+  project_completed: 'Project completed (legacy)',
 };
 
 function money(v) {

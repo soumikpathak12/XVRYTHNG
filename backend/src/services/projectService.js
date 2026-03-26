@@ -2,21 +2,6 @@
 import db from '../config/db.js';
 import * as companyWorkflowService from './companyWorkflowService.js';
 
-const PROJECT_STAGES = new Set([
-  'new',
-  'pre_approval',
-  'state_rebate',
-  'design_engineering',
-  'procurement',
-  'scheduled',
-  'installation_in_progress',
-  'installation_completed',
-  'compliance_check',
-  'inspection_grid_connection',
-  'rebate_stc_claims',
-  'project_completed',
-]);
-
 /* ---------- helpers ---------- */
 function toCamelInspection(row = {}) {
   return {
@@ -123,17 +108,15 @@ export async function getProjects(filters = {}) {
 
 const PROJECT_STAGE_ORDER_FALLBACK = [
   'new',
-  'pre_approval',
-  'state_rebate',
-  'design_engineering',
-  'procurement',
   'scheduled',
+  'to_be_rescheduled',
   'installation_in_progress',
   'installation_completed',
-  'compliance_check',
-  'inspection_grid_connection',
-  'rebate_stc_claims',
-  'project_completed',
+  'ces_certificate_applied',
+  'ces_certificate_received',
+  'grid_connection_initiated',
+  'grid_connection_completed',
+  'system_handover',
 ];
 
 /**
@@ -147,8 +130,9 @@ async function assertProjectStageChangeAllowed(project, projectId, nextStage, or
 
   const order = Array.isArray(orderKeys) && orderKeys.length ? orderKeys : PROJECT_STAGE_ORDER_FALLBACK;
   const idxCurrent = order.indexOf(project.stage);
-  const idxNext = order.indexOf(nextStage);
-  const isForward = idxCurrent !== -1 && idxNext !== -1 && idxNext > idxCurrent;
+  const nextStageIndex = order.indexOf(nextStage);
+  const isForward =
+    idxCurrent !== -1 && nextStageIndex !== -1 && nextStageIndex > idxCurrent;
 
   if (isForward) {
     const pre = String(project.lead_pre_approval_reference_no ?? '').trim();
@@ -169,13 +153,19 @@ async function assertProjectStageChangeAllowed(project, projectId, nextStage, or
     }
   }
 
-  // Business rules: for Grid Connection stage and beyond, ensure post‑install info is present.
-  const idxTarget = order.indexOf(nextStage);
-  const idxGrid = order.indexOf('inspection_grid_connection');
+  // Past "GRID Connection Initiated": post-install reference + at least one project document (Documents tab).
+  const idxGridInitiated = order.indexOf('grid_connection_initiated');
 
-  if (idxTarget !== -1 && idxGrid !== -1 && idxTarget >= idxGrid) {
-    if (!project.post_install_reference_no) {
-      const err = new Error('Please enter Post-install reference number before moving to this stage.');
+  if (
+    nextStageIndex !== -1
+    && idxGridInitiated !== -1
+    && nextStageIndex > idxGridInitiated
+  ) {
+    const ref = String(project.post_install_reference_no ?? '').trim();
+    if (!ref) {
+      const err = new Error(
+        'Post-install reference number is required before moving past GRID Connection Initiated. Add it on the project.',
+      );
       err.statusCode = 422;
       throw err;
     }
@@ -185,7 +175,9 @@ async function assertProjectStageChangeAllowed(project, projectId, nextStage, or
     );
     const count = rows?.[0]?.cnt ?? 0;
     if (!count) {
-      const err = new Error('Please upload at least one post-install document before moving to this stage.');
+      const err = new Error(
+        'Upload at least one file in the project Documents tab before moving past GRID Connection Initiated.',
+      );
       err.statusCode = 422;
       throw err;
     }
@@ -307,7 +299,9 @@ export async function getProjectById(projectId) {
       l.ev_charger_model AS lead_ev_charger_model,
       l.battery_size_kwh AS lead_battery_size_kwh,
       l.battery_brand AS lead_battery_brand,
-      l.battery_model AS lead_battery_model
+      l.battery_model AS lead_battery_model,
+      l.customer_portal_pre_approval_announced AS lead_customer_portal_pre_approval_announced,
+      l.customer_portal_solar_vic_announced AS lead_customer_portal_solar_vic_announced
     FROM projects p
     LEFT JOIN leads l ON l.id = p.lead_id
     WHERE p.id = ?
@@ -369,7 +363,9 @@ export async function getProjectByLeadId(leadId) {
       l.ev_charger_model AS lead_ev_charger_model,
       l.battery_size_kwh AS lead_battery_size_kwh,
       l.battery_brand AS lead_battery_brand,
-      l.battery_model AS lead_battery_model
+      l.battery_model AS lead_battery_model,
+      l.customer_portal_pre_approval_announced AS lead_customer_portal_pre_approval_announced,
+      l.customer_portal_solar_vic_announced AS lead_customer_portal_solar_vic_announced
     FROM projects p
     LEFT JOIN leads l ON l.id = p.lead_id
     WHERE p.lead_id = ?

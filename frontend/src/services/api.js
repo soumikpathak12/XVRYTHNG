@@ -1053,6 +1053,20 @@ export async function updateLead(id, payload) {
 }
 
 /**
+ * POST /api/leads/:id/customer-portal-announce — staff only; type: 'pre_approval' | 'solar_vic'
+ */
+export async function announceCustomerPortalUtility(leadId, type) {
+  const res = await authFetch(`/api/leads/${encodeURIComponent(leadId)}/customer-portal-announce`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Failed to update customer portal');
+  return data;
+}
+
+/**
  * POST /api/integrations/solarquotes/fetch
  * @param {{ startDate?: string, endDate?: string }} payload
  * @returns {Promise<{ success: boolean, count: number, results: Array }>}
@@ -1819,6 +1833,21 @@ export async function getProject(projectId) {
     throw err;
   }
   return data; // { success:true, data:{...} }
+}
+
+/**
+ * GET /api/projects/:id/documents — files uploaded on the project Documents tab.
+ */
+export async function getProjectDocuments(projectId) {
+  const res = await authFetch(`/api/projects/${encodeURIComponent(projectId)}/documents`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to load project documents');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data; // { success:true, data: [...] }
 }
 
 /**

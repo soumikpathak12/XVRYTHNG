@@ -15,17 +15,15 @@ export const DEFAULT_SALES_STAGES = [
 
 export const DEFAULT_PROJECT_STAGES = [
   { key: 'new', label: 'New', builtin: true },
-  { key: 'pre_approval', label: 'Pre-Approval', builtin: true },
-  { key: 'state_rebate', label: 'State Rebate', builtin: true },
-  { key: 'design_engineering', label: 'Design & Engineering', builtin: true },
-  { key: 'procurement', label: 'Procurement', builtin: true },
   { key: 'scheduled', label: 'Scheduled', builtin: true },
-  { key: 'installation_in_progress', label: 'Installation In Progress', builtin: true },
+  { key: 'to_be_rescheduled', label: 'To Be Rescheduled', builtin: true },
+  { key: 'installation_in_progress', label: 'Installation In-Progress', builtin: true },
   { key: 'installation_completed', label: 'Installation Completed', builtin: true },
-  { key: 'compliance_check', label: 'Compliance Check', builtin: true },
-  { key: 'inspection_grid_connection', label: 'Inspection & Grid Connection', builtin: true },
-  { key: 'rebate_stc_claims', label: 'Rebate & STC Claims', builtin: true },
-  { key: 'project_completed', label: 'Project Completed', builtin: true },
+  { key: 'ces_certificate_applied', label: 'CES Certificate Applied', builtin: true },
+  { key: 'ces_certificate_received', label: 'CES Certificate Received', builtin: true },
+  { key: 'grid_connection_initiated', label: 'GRID Connection Initiated', builtin: true },
+  { key: 'grid_connection_completed', label: 'GRID Connection Completed', builtin: true },
+  { key: 'system_handover', label: 'System Handover', builtin: true },
 ];
 
 const CUSTOM_KEY_RE = /^custom_[a-z0-9_]{1,48}$/i;

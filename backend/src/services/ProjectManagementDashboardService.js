@@ -19,7 +19,13 @@ function dlog(...args) {
 }
 
 // Stages considered closed (not active)
-const CLOSED_STAGES = new Set(['done', 'project_completed', 'cancelled', 'installation_completed']);
+const CLOSED_STAGES = new Set([
+  'done',
+  'project_completed',
+  'system_handover',
+  'cancelled',
+  'installation_completed',
+]);
 
 // Stage label mapping for display
 const STAGE_GROUPS = {
@@ -29,11 +35,17 @@ const STAGE_GROUPS = {
   design_engineering: 'Design & engineering',
   procurement: 'Procurement',
   scheduled: 'Scheduled',
+  to_be_rescheduled: 'To be rescheduled',
   installation_in_progress: 'Installation in progress',
   installation_completed: 'Installation completed',
   compliance_check: 'Compliance check',
   inspection_grid_connection: 'Inspection & grid connection',
   rebate_stc_claims: 'Rebate & STC claims',
+  ces_certificate_applied: 'CES certificate applied',
+  ces_certificate_received: 'CES certificate received',
+  grid_connection_initiated: 'GRID connection initiated',
+  grid_connection_completed: 'GRID connection completed',
+  system_handover: 'System handover',
   site_inspection: 'Site Inspection',
   stage_one: 'Stage One',
   stage_two: 'Stage Two',
@@ -287,10 +299,10 @@ export async function getDrilldown(companyId, { kind, key, range, from, to, allC
 
   switch (kind) {
     case 'active':
-      where += ` AND t.stage NOT IN ('installation_completed','done','project_completed','cancelled') `;
+      where += ` AND t.stage NOT IN ('installation_completed','done','project_completed','system_handover','cancelled') `;
       break;
     case 'upcoming':
-      where += ` AND t.stage NOT IN ('installation_completed','done','project_completed','cancelled')
+      where += ` AND t.stage NOT IN ('installation_completed','done','project_completed','system_handover','cancelled')
                  AND t.scheduled_date IS NOT NULL
                  AND DATE(t.scheduled_date) >= CURDATE()
                  AND DATE(t.scheduled_date) <= DATE_ADD(CURDATE(), INTERVAL 7 DAY) `;
@@ -303,7 +315,7 @@ export async function getDrilldown(companyId, { kind, key, range, from, to, allC
         HAVING
           CASE
             WHEN (t.scheduled_date IS NOT NULL AND t.scheduled_date < NOW()
-                  AND t.stage NOT IN ('installation_completed','done','project_completed','cancelled')) THEN 'overdue'
+                  AND t.stage NOT IN ('installation_completed','done','project_completed','system_handover','cancelled')) THEN 'overdue'
             WHEN (t.stage LIKE '%blocked%') THEN 'blocked'
             WHEN (t.stage IN ('pre_approval','state_rebate')) THEN 'pending_approval'
             ELSE NULL
@@ -319,7 +331,7 @@ export async function getDrilldown(companyId, { kind, key, range, from, to, allC
       break;
     }
     case 'revenue':
-      where += ` AND t.stage NOT IN ('cancelled','done','project_completed') `;
+      where += ` AND t.stage NOT IN ('cancelled','done','project_completed','system_handover') `;
       break;
     default:
     // no-op

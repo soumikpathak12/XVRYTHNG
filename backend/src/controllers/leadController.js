@@ -273,6 +273,25 @@ export async function listLeads(req, res) {
   }
 }
 
+/** POST /api/leads/:id/customer-portal-announce { type: 'pre_approval' | 'solar_vic' } — staff only */
+export async function announceCustomerPortalUtility(req, res) {
+  try {
+    if (String(req.user?.role || '').toLowerCase() === 'customer') {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+    const leadId = req.params.id;
+    const { type } = req.body || {};
+    const updated = await leadService.announceCustomerPortalUtilityToCustomer(leadId, type);
+    return res.status(200).json({ success: true, data: updated });
+  } catch (err) {
+    const status = err.statusCode || err.status || 500;
+    return res.status(status).json({
+      success: false,
+      message: err.message || 'Failed to update customer portal.',
+    });
+  }
+}
+
 // -------------------- GET BY ID (with relations) --------------------
 export async function getLeadById(req, res) {
   try {
@@ -322,6 +341,16 @@ export async function updateLead(req, res) {
 
     if (body.solar_vic_eligibility !== undefined)
       payload.solar_vic_eligibility = toBoolOrNull(body.solar_vic_eligibility);
+
+    const isCustomer = String(req.user?.role || '').toLowerCase() === 'customer';
+    if (!isCustomer) {
+      if (body.customer_portal_pre_approval_announced !== undefined) {
+        payload.customer_portal_pre_approval_announced = !!body.customer_portal_pre_approval_announced;
+      }
+      if (body.customer_portal_solar_vic_announced !== undefined) {
+        payload.customer_portal_solar_vic_announced = !!body.customer_portal_solar_vic_announced;
+      }
+    }
 
     if (body.nmi_number !== undefined) payload.nmi_number = trimOrNull(body.nmi_number, 50);
     if (body.meter_number !== undefined) payload.meter_number = trimOrNull(body.meter_number, 50);

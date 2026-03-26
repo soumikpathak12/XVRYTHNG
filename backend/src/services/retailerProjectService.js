@@ -241,7 +241,14 @@ export async function getRetailerProjectById(companyId, projectId) {
     const err = new Error('Invalid project id'); err.statusCode = 400; throw err;
   }
   const [[project]] = await db.execute(
-    'SELECT * FROM retailer_projects WHERE id = ? AND company_id = ? LIMIT 1',
+    `SELECT
+       rp.*,
+       l.customer_portal_pre_approval_announced  AS customer_portal_pre_approval_announced,
+       l.customer_portal_solar_vic_announced      AS customer_portal_solar_vic_announced
+     FROM retailer_projects rp
+     LEFT JOIN leads l ON l.id = rp.lead_id
+     WHERE rp.id = ? AND rp.company_id = ?
+     LIMIT 1`,
     [Number(projectId), Number(companyId)]
   );
   if (!project) {

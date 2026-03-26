@@ -11,6 +11,7 @@ import {
   listInstallationJobs,
   updateLead,
   getCompanyWorkflow,
+  announceCustomerPortalUtility,
 } from '../services/api.js';
 import '../styles/LeadDetailModal.css'; // Reuse lead detail styles
 import RetailerProjectDetailDetails from '../components/projects/RetailerProjectDetailDetails.jsx';
@@ -123,13 +124,19 @@ function InstallationJobsPanel({ jobs, navigate, basePath }) {
 
 const PROJECT_STAGE_LABELS = {
   new: 'New',
+  scheduled: 'Scheduled',
+  to_be_rescheduled: 'To be rescheduled',
+  installation_in_progress: 'Installation in progress',
+  installation_completed: 'Installation completed',
+  ces_certificate_applied: 'CES certificate applied',
+  ces_certificate_received: 'CES certificate received',
+  grid_connection_initiated: 'GRID connection initiated',
+  grid_connection_completed: 'GRID connection completed',
+  system_handover: 'System handover',
   pre_approval: 'Pre-approval',
   state_rebate: 'State rebate',
   design_engineering: 'Design & engineering',
   procurement: 'Procurement',
-  scheduled: 'Scheduled',
-  installation_in_progress: 'Installation in progress',
-  installation_completed: 'Installation completed',
   compliance_check: 'Compliance check',
   inspection_grid_connection: 'Inspection & grid connection',
   rebate_stc_claims: 'Rebate & STC claims',
@@ -224,7 +231,7 @@ export default function ProjectDetailPage() {
           battery_size_kwh: raw.lead_battery_size_kwh ?? raw.battery_size_kwh,
           battery_brand: raw.lead_battery_brand ?? raw.battery_brand,
           battery_model: raw.lead_battery_model ?? raw.battery_model,
-          // Utility information (from joined lead)
+    
           pre_approval_reference_no:
             raw.lead_pre_approval_reference_no ?? raw.pre_approval_reference_no,
           energy_retailer:
@@ -233,6 +240,10 @@ export default function ProjectDetailPage() {
             raw.lead_energy_distributor ?? raw.energy_distributor,
           solar_vic_eligibility:
             raw.lead_solar_vic_eligibility ?? raw.solar_vic_eligibility,
+          customer_portal_pre_approval_announced:
+            raw.lead_customer_portal_pre_approval_announced ?? raw.customer_portal_pre_approval_announced,
+          customer_portal_solar_vic_announced:
+            raw.lead_customer_portal_solar_vic_announced ?? raw.customer_portal_solar_vic_announced,
           nmi_number:
             raw.lead_nmi_number ?? raw.nmi_number,
           meter_number:
@@ -349,6 +360,7 @@ export default function ProjectDetailPage() {
       const n = Number(v);
       return Number.isFinite(n) ? n : null;
     };
+    const preRef = String(form.preApprovalRef ?? '').trim();
     const leadPayload = {
       customer_name: String(form.customer_name || '').trim(),
       email: String(form.email || '').trim() || null,
@@ -372,10 +384,12 @@ export default function ProjectDetailPage() {
       battery_size_kwh: numOrNull(form.battery_size_kwh),
       battery_brand: form.battery_brand || null,
       battery_model: form.battery_model || null,
-      pre_approval_reference_no: String(form.preApprovalRef ?? '').trim() || null,
+      pre_approval_reference_no: preRef || null,
       energy_retailer: String(form.energyRetailer ?? '').trim() || null,
       energy_distributor: String(form.energyDistributor ?? '').trim() || null,
       solar_vic_eligibility: form.solarVic === '' ? null : form.solarVic === '1',
+      ...(preRef ? {} : { customer_portal_pre_approval_announced: false }),
+      ...(form.solarVic === '' ? { customer_portal_solar_vic_announced: false } : {}),
       nmi_number: String(form.nmiNumber ?? '').trim() || null,
       meter_number: String(form.meterNumber ?? '').trim() || null,
     };
@@ -404,6 +418,22 @@ export default function ProjectDetailPage() {
       throw e;
     }
   };
+
+  const handleAnnounceUtilityToCustomer = useCallback(
+    async (type) => {
+      if (!project?.lead_id) return;
+      try {
+        await announceCustomerPortalUtility(project.lead_id, type);
+        setToast('Customer portal updated.');
+        setTimeout(() => setToast(''), 3000);
+        loadData();
+      } catch (e) {
+        setToast(e.message || 'Failed to update customer portal');
+        setTimeout(() => setToast(''), 4000);
+      }
+    },
+    [project?.lead_id, loadData],
+  );
 
   const handleSaveAssignees = async (newAssigneeIds) => {
     try {
@@ -572,6 +602,7 @@ export default function ProjectDetailPage() {
                 projectStages={directProjectStages}
                 inHouseEditable={!!project.lead_id}
                 onSaveInHouseDetails={handleSaveInHouseDetails}
+                onAnnounceUtilityToCustomer={handleAnnounceUtilityToCustomer}
               />
             </div>
           ) : activeTab === 'schedule' ? (
@@ -589,6 +620,7 @@ export default function ProjectDetailPage() {
               projectStages={directProjectStages}
               inHouseEditable={!!project.lead_id}
               onSaveInHouseDetails={handleSaveInHouseDetails}
+              onAnnounceUtilityToCustomer={handleAnnounceUtilityToCustomer}
             />
           ) : activeTab === 'financials' ? (
             <div className="fade-in" style={{ padding: '24px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>

@@ -394,7 +394,10 @@ export default function SuperAdminSidebar({
     const exactEnd =
       item.to === '/admin/settings' ||
       item.to === '/admin/settings/inspection-templates' ||
-      item.to === '/admin/settings/checklist-templates';
+      item.to === '/admin/settings/checklist-templates' ||
+      // Avoid prefix-match highlighting for project subroutes:
+      // "/admin/projects" should not appear active on "/admin/projects/retailer".
+      item.to === '/admin/projects';
     return (
       <NavLink
         key={item.to}

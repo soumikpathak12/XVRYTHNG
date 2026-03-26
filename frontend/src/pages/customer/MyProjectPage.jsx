@@ -26,28 +26,35 @@ function addDays(date, days) {
 function deriveCustomerStatus(projectStage, installationDateFormatted) {
   const stage = projectStage || 'new';
 
-  if (stage === 'project_completed') {
+  if (stage === 'system_handover' || stage === 'project_completed' || stage === 'done') {
     return {
       heading: 'Project completed',
       body: 'Thanks for choosing us. Your journey is complete and your team will be available if you need anything else.',
     };
   }
 
-  if (['rebate_stc_claims'].includes(stage)) {
+  if (['grid_connection_completed', 'rebate_stc_claims'].includes(stage)) {
     return {
-      heading: 'Final financial steps',
-      body: 'We are processing your rebate and STC claims. We’ll update you as soon as this step is finished.',
+      heading: 'Grid connection',
+      body: 'We’re finalising grid connection with your distributor. We’ll update you when energisation or handover is confirmed.',
     };
   }
 
-  if (['inspection_grid_connection', 'compliance_check'].includes(stage)) {
+  if (['grid_connection_initiated', 'inspection_grid_connection', 'compliance_check'].includes(stage)) {
     return {
-      heading: 'Final checks',
-      body: 'We’re completing compliance and coordinating grid connection. Your team will reach out when the next milestone is ready.',
+      heading: 'Grid paperwork',
+      body: 'We’re coordinating grid connection paperwork and compliance. Your team will reach out when the next milestone is ready.',
     };
   }
 
-  if (['scheduled', 'installation_in_progress', 'installation_completed'].includes(stage)) {
+  if (['ces_certificate_applied', 'ces_certificate_received', 'ces_certificate_submitted'].includes(stage)) {
+    return {
+      heading: 'Certificate & compliance',
+      body: 'We’re working with the inspector on your certificate. We’ll keep you posted as soon as it’s received.',
+    };
+  }
+
+  if (['scheduled', 'to_be_rescheduled', 'installation_in_progress', 'installation_completed'].includes(stage)) {
     return {
       heading: stage === 'installation_in_progress' ? 'Installation in progress' : 'Your installation is scheduled',
       body: (
@@ -194,6 +201,10 @@ export default function MyProjectPage() {
 
   const installationDisplayValue = showInstallationDate ? installationDateFormatted : 'Pending';
 
+  const portalPreAnnounced = Number(lead?.customer_portal_pre_approval_announced) === 1;
+  const portalSolarAnnounced = Number(lead?.customer_portal_solar_vic_announced) === 1;
+  const showPortalUtilityUpdates = portalPreAnnounced || portalSolarAnnounced;
+
   return (
     <div className="my-project-page">
       <div className="customer-portal-card my-project-status-card">
@@ -214,6 +225,24 @@ export default function MyProjectPage() {
         )}
         {!loading && (
           <ProjectMilestoneProgress stages={DEFAULT_PROJECT_STAGES} currentStage={currentStageKey} />
+        )}
+        {!loading && showPortalUtilityUpdates && (
+          <div className="my-project-portal-updates" role="status">
+            <h3 className="my-project-portal-updates-title">Updates for you</h3>
+            <ul className="my-project-portal-updates-list">
+              {portalPreAnnounced && <li>Pre-approval taken</li>}
+              {portalSolarAnnounced && (
+                <li>
+                  Solar Victoria eligibility recorded
+                  {lead?.solar_vic_eligibility != null && lead?.solar_vic_eligibility !== ''
+                    ? Number(lead.solar_vic_eligibility) === 1
+                      ? ' — Eligible'
+                      : ' — Not eligible'
+                    : ''}
+                </li>
+              )}
+            </ul>
+          </div>
         )}
         <div className="my-project-status-update">
           <div className="my-project-status-update-icon" aria-hidden>

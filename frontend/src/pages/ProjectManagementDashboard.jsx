@@ -31,6 +31,9 @@ const STAGE_LABELS = {
   ces_certificate_applied: 'CES certificate applied',
   ces_certificate_received: 'CES certificate received',
   ces_certificate_submitted: 'CES certificate submitted',
+  grid_connection_initiated: 'GRID connection initiated',
+  grid_connection_completed: 'GRID connection completed',
+  system_handover: 'System handover',
 };
 
 function formatStage(stage) {

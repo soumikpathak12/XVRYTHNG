@@ -54,7 +54,12 @@ export default function ProjectsTimeline({ projects = [] }) {
       // Check overdue (only if expected_completion_date exists and we aren't done)
       let isOverdue = false;
       if (expectedDateObj && isBefore(expectedDateObj, today)) {
-        if (p.stage !== 'project_completed' && p.stage !== 'done' && p.stage !== 'cancelled') {
+        if (
+          p.stage !== 'system_handover'
+          && p.stage !== 'project_completed'
+          && p.stage !== 'done'
+          && p.stage !== 'cancelled'
+        ) {
           isOverdue = true;
         }
       }

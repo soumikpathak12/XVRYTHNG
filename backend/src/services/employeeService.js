@@ -108,15 +108,15 @@ export async function createEmployee(companyId, payload) {
       }
     }
 
-    if (account?.enable_login) {
+    const tempPassword = (account?.password ?? '').trim();
+    // Create login if a password is provided (wizard now always generates one).
+    if (tempPassword) {
       const email = (contact.email ?? '').trim().toLowerCase();
       if (!email) throw new Error('Email is required to create login');
-      if (!account.password || account.password.length < 8) {
-        throw new Error('Password must be at least 8 characters');
-      }
+      if (tempPassword.length < 8) throw new Error('Password must be at least 8 characters');
       const platformRoleId = 4; // field_agent
       const fullName = `${personal.first_name ?? ''} ${personal.last_name ?? ''}`.trim() || email;
-      const passwordHash = await bcrypt.hash(account.password, 10);
+      const passwordHash = await bcrypt.hash(tempPassword, 10);
 
       const [userRes] = await conn.execute(
         `
@@ -138,7 +138,7 @@ export async function createEmployee(companyId, payload) {
       );
 
       _newLoginEmail = email;
-      _tempPassword = account.password;
+      _tempPassword = tempPassword;
 
     }
 

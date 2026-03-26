@@ -13,6 +13,7 @@ import {
   saveProjectScheduleAssign,
   getProjectScheduleAssign,
   getCompanyWorkflow,
+  getProjectDocuments,
 } from '../services/api.js';
 import '../styles/LeadsKanban.css';
 
@@ -22,6 +23,18 @@ function isForwardProjectStageMove(currentStage, nextStage, orderKeys) {
   const b = keys.indexOf(nextStage);
   return a !== -1 && b !== -1 && b > a;
 }
+
+/** Map DB / legacy stage keys onto the current default pipeline for kanban grouping */
+const LEGACY_PROJECT_STAGE_MAP = {
+  pre_approval: 'new',
+  state_rebate: 'new',
+  design_engineering: 'new',
+  procurement: 'new',
+  compliance_check: 'ces_certificate_applied',
+  inspection_grid_connection: 'grid_connection_initiated',
+  rebate_stc_claims: 'grid_connection_completed',
+  project_completed: 'system_handover',
+};
 
 function normalizeProject(row) {
   const sizeKw = row.lead_system_size_kw ?? row.system_size_kw;
@@ -155,7 +168,9 @@ export default function ProjectsPage() {
 
   const handleStageChange = useCallback(async (projectId, nextStage) => {
     const current = projects.find((p) => String(p.id) === String(projectId));
-    if (current && isForwardProjectStageMove(current.stage, nextStage, projectOrderKeys)) {
+    const keys = projectOrderKeys;
+
+    if (current && isForwardProjectStageMove(current.stage, nextStage, keys)) {
       const raw = current._raw || {};
       const preRef = String(
         raw.lead_pre_approval_reference_no ?? raw.pre_approval_reference_no ?? '',
@@ -170,6 +185,36 @@ export default function ProjectsPage() {
         return;
       }
     }
+
+    const idxGrid = keys.indexOf('grid_connection_initiated');
+    const idxNext = keys.indexOf(nextStage);
+    if (current && idxGrid !== -1 && idxNext !== -1 && idxNext > idxGrid) {
+      const raw = current._raw || {};
+      const postRef = String(raw.post_install_reference_no ?? '').trim();
+      if (!postRef) {
+        setToast(
+          'Post-install reference number is required before moving past GRID Connection Initiated. Open the project and add it, then try again.',
+        );
+        setTimeout(() => setToast(''), 5000);
+        return;
+      }
+      try {
+        const docBody = await getProjectDocuments(projectId);
+        const list = Array.isArray(docBody?.data) ? docBody.data : [];
+        if (list.length === 0) {
+          setToast(
+            'Upload at least one file in the project Documents tab before moving past GRID Connection Initiated.',
+          );
+          setTimeout(() => setToast(''), 5000);
+          return;
+        }
+      } catch (err) {
+        setToast(err.message || 'Could not verify documents');
+        setTimeout(() => setToast(''), 5000);
+        return;
+      }
+    }
+
     setProjects((prev) =>
       prev.map((p) =>
         String(p.id) === String(projectId) ? { ...p, stage: nextStage, _reverting: p.stage } : p
@@ -409,6 +454,7 @@ export default function ProjectsPage() {
           <ProjectsKanbanBoard
             projects={filteredProjects}
             stages={projectKanbanStages}
+            legacyStageMap={LEGACY_PROJECT_STAGE_MAP}
             onStageChange={handleStageChange}
             onFocusSearch={focusSearch}
             onSelectProject={(id) => openDetails(id)}
