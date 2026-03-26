@@ -14,6 +14,7 @@ const STAGES = [
 ];
 
 import { listEmployees } from '../../services/api';
+import { dbDatetimeToDatetimeLocalInput } from '../../utils/inspectionPrefillFromLead.js';
 
 const STAGE_LABELS = {
   new: 'New',
@@ -161,21 +162,23 @@ export default function LeadForm({
     }
   };
 
-  const formatDateTimeLocal = (isoString) => {
-    if (!isoString) return '';
-    const d = new Date(isoString);
-    if (Number.isNaN(d.getTime())) return '';
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mi = String(d.getMinutes()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+  const formatDateTimeLocal = (raw) => {
+    // site_inspection_date should be treated as naive wall-clock time.
+    // Avoid `new Date(...)` to prevent timezone shifts on server vs local.
+    return dbDatetimeToDatetimeLocalInput(raw) ?? '';
   };
 
   const toMySQLDateTime = (value) => {
     if (!value) return null;
-    const d = new Date(value);
+    const s = String(value).trim();
+    if (!s) return null;
+
+    // Expected from datetime-local: "YYYY-MM-DDTHH:mm"
+    const m = s.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})$/);
+    if (m) return `${m[1]} ${m[2]}:00`;
+
+    // Fallback: best-effort conversion
+    const d = new Date(s);
     if (Number.isNaN(d.getTime())) return null;
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, '0');
