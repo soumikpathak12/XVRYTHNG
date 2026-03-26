@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { listEmployees } from '../../services/api';
 import './InspectionScheduleModal.css';
+import { dbDatetimeToDatetimeLocalInput } from '../../utils/inspectionPrefillFromLead.js';
 
 /**
  * Parse lead's site_inspection_date (datetime string) into { date, time } for inputs.
@@ -9,13 +10,15 @@ import './InspectionScheduleModal.css';
  */
 function parseInspectionDateTime(siteInspectionDate) {
   if (!siteInspectionDate) return { date: '', time: '09:00' };
-  const d = new Date(siteInspectionDate);
-  if (Number.isNaN(d.getTime())) return { date: '', time: '09:00' };
+  const dtLocal = dbDatetimeToDatetimeLocalInput(siteInspectionDate);
+  if (!dtLocal) return { date: '', time: '09:00' };
+  const [datePart, timePart] = dtLocal.split('T');
+  if (!datePart || !timePart) return { date: '', time: '09:00' };
   const now = new Date();
-  if (d < now) return { date: '', time: '09:00' }; // past → don't pre-fill so Schedule stays enabled
-  const date = d.toISOString().slice(0, 10);
-  const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  return { date, time };
+  // Compare using the wall-clock parts we extracted (avoid UTC shifting).
+  const selected = new Date(`${datePart}T${timePart}:00`);
+  if (Number.isNaN(selected.getTime()) || selected < now) return { date: '', time: '09:00' }; // past → don't pre-fill
+  return { date: datePart, time: timePart };
 }
 
 /**

@@ -2,17 +2,11 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import LeadForm from './LeadForm.jsx';
 import '../../styles/LeadDetailModal.css';
+import { dbDatetimeToDatetimeLocalInput } from '../../utils/inspectionPrefillFromLead.js';
 
 function formatDateTimeLocal(isoString) {
-  if (!isoString) return '';
-  const d = new Date(isoString);
-  if (Number.isNaN(d.getTime())) return '';
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mi = String(d.getMinutes()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+  const v = dbDatetimeToDatetimeLocalInput(isoString);
+  return v ?? '';
 }
 // Coerce 0/1/"0"/"1"/"true"/"false"/"" → true/false/null
 function toBoolOrNull(v) {
