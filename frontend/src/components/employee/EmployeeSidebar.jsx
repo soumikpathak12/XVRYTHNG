@@ -258,7 +258,8 @@ export default function EmployeeSidebar() {
               (sec.key === 'communications' && isCommunicationsPath) ||
               (sec.key === 'operations' && isOperationsPath) ||
               (sec.key === 'settings' && isSettingsPath);
-            const isOpen = (openKeys[sec.key] ?? false) || isActiveHeader;
+            // Use openKeys as the source of truth so user can collapse even while inside the module route.
+            const isOpen = openKeys[sec.key] ?? false;
 
             return (
               <div key={sec.key}>

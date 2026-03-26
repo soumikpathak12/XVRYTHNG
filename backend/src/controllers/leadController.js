@@ -63,6 +63,7 @@ export async function createLead(req, res) {
       system_size_kw,
       value_amount,
       source = null,
+      inspector_id,
       site_inspection_date = null,
     } = req.body || {};
 
@@ -116,6 +117,15 @@ export async function createLead(req, res) {
       errors.site_inspection_date = 'Invalid date format.';
     }
 
+    // Optional inspector assignment for site inspection
+    if (inspector_id !== undefined) {
+      if (inspector_id === null || inspector_id === '') {
+        // treat empty as "not assigned"
+      } else if (Number.isNaN(Number(inspector_id))) {
+        errors.inspector_id = 'Invalid inspector_id.';
+      }
+    }
+
     const companyId = req.tenantId ?? req.user?.companyId ?? null;
     const { allKeys, enabledKeys } = await companyWorkflowService.getLeadStageSets(companyId);
     if (!stage || !companyWorkflowService.isSafeStageKey(stage) || !allKeys.has(stage)) {
@@ -144,6 +154,10 @@ export async function createLead(req, res) {
           : Number(value_amount),
       source: source ? String(source).trim() : null,
       site_inspection_date: normalizedInspection,
+      inspector_id:
+        inspector_id === undefined || inspector_id === null || inspector_id === ''
+          ? undefined
+          : Number(inspector_id),
     };
 
     const lead = await leadService.createLead(payload, { allowedStageKeys: enabledKeys });

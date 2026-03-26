@@ -598,6 +598,10 @@ export default function SiteInspectionPage() {
       const list = Array.isArray(resp?.data) ? resp.data : [];
       setTemplates(list);
 
+      // Always use the default inspection template (no manual selection)
+      setSelectedTemplateId(null);
+
+      /*
       const savedKey = form.__savedTemplateKey;
       const savedVer = Number(form.__savedTemplateVer || NaN);
       let chosenId = null;
@@ -607,6 +611,7 @@ export default function SiteInspectionPage() {
         chosenId = String((exact || any || {}).id || '');
       }
       setSelectedTemplateId(chosenId || null);
+      */
     } catch (e) {
       setMsg(e.message || 'Failed to load templates');
     } finally {
@@ -617,6 +622,7 @@ export default function SiteInspectionPage() {
     refreshTemplates();
   }, [lead]); // after lead loaded
 
+  /*
   // When opening an existing inspection, force template selection from saved metadata.
   useEffect(() => {
     const savedKey = form.__savedTemplateKey;
@@ -629,6 +635,7 @@ export default function SiteInspectionPage() {
       setSelectedTemplateId(nextId);
     }
   }, [templates, form.__savedTemplateKey, form.__savedTemplateVer, selectedTemplateId]);
+  */
 
   // -------- Compute effective template --------
   useEffect(() => {
@@ -1214,7 +1221,7 @@ const meta = base?.meta && typeof base.meta === 'string'
   if (loading) return <div style={card}>Loading site inspection…</div>;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
       {/* Main content */}
       <div style={{ display: 'grid', gap: 12 }}>
       {/* Header */}
@@ -1336,12 +1343,13 @@ const meta = base?.meta && typeof base.meta === 'string'
 
       {/* Form + Toolbar */}
       <div style={card}>
-        <TemplateToolbar
+        {/* Temporarily hidden: template selector (always use template default) */}
+        {/* <TemplateToolbar
           templates={templates}
           selectedId={selectedTemplateId}
           onSelect={(idOrNull) => setSelectedTemplateId(idOrNull)}
           onRefresh={refreshTemplates}
-        />
+        /> */}
 
         <Stepper />
 
@@ -1662,7 +1670,8 @@ const meta = base?.meta && typeof base.meta === 'string'
     </div>
 
     {/* Right sidebar - Checklist */}
-    <ChecklistWidget companyId={form.company_id} />
+    {/* Temporarily hidden: checklist widget */}
+    {/* <ChecklistWidget companyId={form.company_id} /> */}
   </div>
   );
 }

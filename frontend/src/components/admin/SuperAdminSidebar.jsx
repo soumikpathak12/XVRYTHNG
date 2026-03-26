@@ -56,8 +56,10 @@ const RAW_NAV = [
   
   // --- SETTINGS (flatten - no nested children) ---
   { to: '/admin/settings', label: 'General', icon: Settings, permission: { resource: 'settings', action: 'view' } },
+  /*
   { to: '/admin/settings/inspection-templates', label: 'Inspection Templates', icon: ClipboardList, permission: { resource: 'settings', action: 'view' } },
   { to: '/admin/settings/checklist-templates', label: 'Checklist Templates', icon: CheckSquare, permission: { resource: 'settings', action: 'view' } },
+  */
 ];
 
 export default function SuperAdminSidebar({
@@ -487,7 +489,8 @@ export default function SuperAdminSidebar({
                 if (item.children?.length) return item.children.some((child) => location.pathname.startsWith(child.to));
                 return item.to ? location.pathname.startsWith(item.to) : false;
               });
-              const isOpen = (openKeys[sec.key] ?? false) || isPathActive;
+              // Use openKeys as the source of truth so a user can collapse even when the current route is inside the module.
+              const isOpen = openKeys[sec.key] ?? false;
               const SectionIcon = sec.icon;
               return (
                 <div key={sec.key}>
