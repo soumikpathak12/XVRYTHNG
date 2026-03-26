@@ -25,6 +25,12 @@ import autoTable from 'jspdf-autotable';
 import FormRenderer from '../../components/FormRenderer.jsx';
 import { getRequiredKeys, formatValueForPdf } from '../../utils/template.js';
 import { buildStepsFromEnabled } from '../../templates/sectionCatalog.js';
+import {
+  mergeLeadDefaultsIntoInspectionForm,
+  getSystemTypeForInspection,
+  getInspectionScheduleDatetimeLocal,
+  isEmptyInspectionValue,
+} from '../../utils/inspectionPrefillFromLead.js';
 
 // ================= UI tokens =================
 // ================= UI tokens =================
@@ -368,7 +374,14 @@ function applyTemplateOverrides(tpl) {
     ...st,
     sections: (st.sections || []).map((sec) => ({
       ...sec,
-      fields: (sec.fields || []).map((f) => {
+      fields: (sec.fields || []).filter((f) => f?.key !== 'switchboard.flag').map((f) => {
+        if (f?.key === 'switchboard.voltageReadingPhotos' && f?.type === 'array') {
+          return {
+            ...f,
+            type: 'photo',
+            accept: f.accept || 'image/*,application/pdf',
+          };
+        }
         // Roof Type: allow custom "Other" input (store custom text, not "Other")
         const isRoofType =
           f?.key === 'roofProfile.roofMaterial' ||
@@ -430,9 +443,20 @@ function sanitizeForPersist(value) {
   }
 
   if (Array.isArray(value)) {
-    return value
+    const arr = value
       .map((item) => sanitizeForPersist(item))
       .filter((item) => item !== undefined && item !== null);
+    const allFileRefs =
+      arr.length > 0 &&
+      arr.every(
+        (x) =>
+          x &&
+          typeof x === 'object' &&
+          !Array.isArray(x) &&
+          (x.storage_url != null || x.filename != null)
+      );
+    if (allFileRefs) return arr[0];
+    return arr;
   }
 
   if (typeof value === 'object') {
@@ -500,29 +524,59 @@ export default function SiteInspectionPage() {
         const si = await getSiteInspection(leadId);
         if (!aborted && si?.data) {
           const d = si.data;
+          const { form: apiForm, ...dMeta } = d;
           setStatus(d.status ?? 'draft');
           let extra = {};
-          try {
-            extra = d.additional_notes ? JSON.parse(d.additional_notes) || {} : {};
-          } catch {
-            extra = {};
+          const usedColumnForm = apiForm && typeof apiForm === 'object' && !Array.isArray(apiForm);
+          if (usedColumnForm) {
+            extra = { ...apiForm };
+          } else {
+            try {
+              const rawForm =
+                d.form_data_json && String(d.form_data_json).trim()
+                  ? d.form_data_json
+                  : d.additional_notes;
+              extra = rawForm ? JSON.parse(rawForm) || {} : {};
+            } catch {
+              extra = {};
+            }
           }
-          const flatExtra = flattenObject(extra);
-          setForm({ ...extra, ...flatExtra, ...d });
+          // Only flatten legacy nested JSON; column-backed `apiForm` is already flat dotted keys.
+          const flatExtra = usedColumnForm ? {} : flattenObject(extra);
+          let merged = { ...extra, ...flatExtra, ...dMeta };
+          merged = mergeLeadDefaultsIntoInspectionForm(merged, leadData);
+          const schedLocal = getInspectionScheduleDatetimeLocal(leadData, d);
+          const isDraft = (d.status ?? 'draft') === 'draft';
+          if (isDraft && schedLocal) {
+            merged.inspected_at = schedLocal;
+          }
+          const savedKey = extra?._t || d.template_key || null;
+          const savedVer = extra?._v || d.template_version || null;
+          if (savedKey) {
+            merged.__savedTemplateKey = savedKey;
+            merged.__savedTemplateVer = savedVer;
+          }
+          setForm(merged);
           setCustomerName(d.customer_name || '');
           setCustomerNotes(d.customer_notes || '');
           setSignatureUrl(d.signature_url || '');
           setCustomerConfirmed(Boolean(d.signature_url || d.customer_name));
-          const savedKey = extra?._t || d.template_key || null;
-          const savedVer = extra?._v || d.template_version || null;
-          if (savedKey) setForm((p) => ({ ...p, __savedTemplateKey: savedKey, __savedTemplateVer: savedVer }));
         } else if (!aborted) {
-          const now = new Date();
-          const pad = (n) => String(n).padStart(2, '0');
-          const inspected_at = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(
-            now.getMinutes()
-          )}`;
-          setForm({ inspected_at });
+          let seeded = mergeLeadDefaultsIntoInspectionForm({}, leadData);
+          const schedLocal = getInspectionScheduleDatetimeLocal(leadData, null);
+          if (schedLocal) {
+            seeded = { ...seeded, inspected_at: schedLocal };
+          } else if (isEmptyInspectionValue(seeded.inspected_at)) {
+            const now = new Date();
+            const pad = (n) => String(n).padStart(2, '0');
+            seeded = {
+              ...seeded,
+              inspected_at: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(
+                now.getMinutes()
+              )}`,
+            };
+          }
+          setForm(seeded);
         }
       } catch (e) {
         if (!aborted) setMsg(e.message ?? 'Failed to load site inspection');
@@ -798,15 +852,24 @@ const meta = base?.meta && typeof base.meta === 'string'
   function buildPayload(sigUrl = null) {
     const t = template || {};
     const safeForm = sanitizeForPersist(form) || {};
-    const additional_notes = JSON.stringify({ 
-      _t: t.key || 'default', 
+    const form_data_json = JSON.stringify({
+      _t: t.key || 'default',
       _v: t.version ?? 1,
-      ...safeForm
-    });
-    return {
       ...safeForm,
+    });
+    // Persist structured fields in form_data_json; core columns duplicated for reporting / filters.
+    return {
       id: safeForm.id ?? form.id ?? null,
-      additional_notes,
+      inspected_at: safeForm.inspected_at ?? null,
+      inspector_name: safeForm.inspector_name ?? null,
+      roof_type: safeForm.roof_type ?? null,
+      roof_pitch_deg: safeForm.roof_pitch_deg ?? null,
+      house_storey: safeForm.house_storey ?? null,
+      meter_phase: safeForm.meter_phase ?? null,
+      inverter_location: safeForm.inverter_location ?? null,
+      msb_condition: safeForm.msb_condition ?? null,
+      shading: safeForm.shading ?? null,
+      form_data_json,
       template_key: t.key || 'default',
       template_version: t.version ?? 1,
       customer_name: customerName,
@@ -1177,7 +1240,7 @@ const meta = base?.meta && typeof base.meta === 'string'
             </div>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>System Type</div>
-              <div>{lead.system_type ?? '—'}</div>
+              <div>{getSystemTypeForInspection(lead) || '—'}</div>
             </div>
             {lead.pv_system_size_kw != null ||
               lead.pv_inverter_brand ||

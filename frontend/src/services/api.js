@@ -322,7 +322,14 @@ export async function authFetchJSON(url, options = {}) {
   const res = await authFetch(url, options);
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = new Error(body.message || 'Request failed');
+    const pieces = [
+      body.message,
+      body.sqlMessage,
+      body.error,
+      typeof body.detail === 'string' ? body.detail : null,
+    ].filter((x) => x != null && String(x).trim() !== '');
+    const primary = pieces.length > 0 ? pieces.join(' — ') : '';
+    const err = new Error(primary || `Request failed (${res.status})`);
     err.status = res.status;
     err.body = body;
     err.code = body.code;

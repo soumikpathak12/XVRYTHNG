@@ -1,6 +1,7 @@
 // src/services/projectService.js
 import db from '../config/db.js';
 import * as companyWorkflowService from './companyWorkflowService.js';
+import { inspectionFormFromRowWithLegacyFallback } from './siteInspectionFormMapper.js';
 
 const PROJECT_STAGES = new Set([
   'new',
@@ -33,6 +34,7 @@ function toCamelInspection(row = {}) {
     msbCondition: row.msb_condition,
     shading: row.shading,
     additionalNotesRaw: row.additional_notes,
+    formDataJsonRaw: row.form_data_json,
     templateKey: row.template_key,
     templateVersion: row.template_version,
     createdAt: row.created_at,
@@ -352,13 +354,13 @@ export async function getLatestInspectionForProject(projectId, { leadIdOverride 
 
   if (leadIdToUse) {
     const [irows] = await db.execute(
-      `SELECT
-          id, lead_id, status, inspected_at, inspector_name, roof_type, roof_pitch_deg,
-          house_storey, meter_phase, inverter_location, msb_condition, shading,
-          additional_notes, template_key, template_version, created_at, updated_at
+      `SELECT *
        FROM lead_site_inspections
        WHERE lead_id = ?
-       ORDER BY inspected_at DESC, id DESC
+       ORDER BY
+         CASE WHEN status = 'submitted' THEN 2 WHEN status = 'draft' THEN 1 ELSE 0 END DESC,
+         updated_at DESC,
+         id DESC
        LIMIT 1`,
       [leadIdToUse]
     );
@@ -370,7 +372,14 @@ export async function getLatestInspectionForProject(projectId, { leadIdOverride 
   let data = null;
   if (row) {
     data = toCamelInspection(row);
-    data.additionalNotes = parseAdditionalNotesDouble(row.additional_notes);
+    const formFromCols = inspectionFormFromRowWithLegacyFallback(row);
+    const formRaw = row.form_data_json && String(row.form_data_json).trim()
+      ? row.form_data_json
+      : row.additional_notes;
+    data.additionalNotes =
+      formFromCols && Object.keys(formFromCols).length > 0
+        ? formFromCols
+        : parseAdditionalNotesDouble(formRaw);
   }
 
   // 3) Return with meta for quick debugging at FE

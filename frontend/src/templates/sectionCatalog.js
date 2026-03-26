@@ -14,7 +14,7 @@ export function getSectionCatalog() {
         id: 'core-details', label: 'Core Details',
         fields: [
           { key: 'inspected_at', label: 'Inspected At', type: 'datetime', required: true },
-          { key: 'inspector_name', label: 'Inspector Name', type: 'select', options: ['Ashley Bronson', 'Liam Jackman', 'Clarke Dean'], required: true },
+          { key: 'inspector_name', label: 'Site Inspector Name', type: 'select', options: ['Ashley Bronson', 'Liam Jackman', 'Clarke Dean'], required: true },
           { 
             key: 'roof_type',
             label: 'Roof Type',
@@ -61,7 +61,6 @@ export function getSectionCatalog() {
       sections: [{
         id: 'msb', label: 'Switchboard / Main MSB',
         fields: [
-          { key: 'switchboard.flag', label: 'Flag', type: 'text', placeholder: 'Flag' },
           { key: 'switchboard.meterPhoto', label: 'Meter Photo', type: 'photo', accept: 'image/*,application/pdf' },
           { key: 'switchboard.meterNumber', label: 'Meter Number', type: 'text' },
           { key: 'switchboard.nmi', label: 'NMI', type: 'text' },
@@ -100,7 +99,7 @@ export function getSectionCatalog() {
           },
           { key: 'switchboard.photoSwitchboardOn', label: 'Image of Switchboard (with front cover ON)', type: 'photo', accept: 'image/*,application/pdf' },
           { key: 'switchboard.photoSwitchboardOff', label: 'Image of Switchboard (with front cover OFF)', type: 'photo', accept: 'image/*,application/pdf' },
-          { key: 'switchboard.voltageReadingPhotos', label: 'Voltage reading A–N / N–E / Phase to Phase', type: 'array' },
+          { key: 'switchboard.voltageReadingPhotos', label: 'Voltage reading A–N / N–E / Phase to Phase', type: 'photo', accept: 'image/*,application/pdf' },
           { key: 'switchboard.inverterConnectedToMSB', label: 'Is Inverter to be connected to this MSB?', type: 'select', options: ['Yes','No'] },
           { key: 'switchboard.spaceForSmartMeter', label: 'Is there space for Smart meter (if required)?', type: 'select', options: ['Yes','No'] },
           { key: 'switchboard.spareSpaceSolarBreaker', label: 'Spare space for Solar Main Breaker?', type: 'select', options: ['Yes','No'] },

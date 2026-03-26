@@ -1,5 +1,12 @@
 // frontend/src/components/FieldControl.jsx
 import React from 'react';
+import { resolveUploadUrl } from '../utils/resolveUploadUrl.js';
+import { openInspectionMediaInNewTab } from '../utils/openInspectionMedia.js';
+
+function isFileLikeObject(x) {
+  return x && typeof x === 'object' && !Array.isArray(x) &&
+    ('storage_url' in x || 'filename' in x || 'preview_data_url' in x);
+}
 
 export default function FieldControl({ field, value, onChange, onPickFile }) {
   const common = { style: { border: '1px solid #e5e7eb', borderRadius: 10, padding: '10px 12px', width: '100%' } };
@@ -86,11 +93,17 @@ export default function FieldControl({ field, value, onChange, onPickFile }) {
     }
     case 'photo':
     case 'file': {
-      const fileValue = value || {};
-      const src = fileValue.preview_data_url || fileValue.storage_url || '';
+      let fileValue = value;
+      if (Array.isArray(fileValue)) {
+        const files = fileValue.filter(isFileLikeObject);
+        fileValue = files[0] || (fileValue[0] && typeof fileValue[0] === 'object' ? fileValue[0] : null);
+      }
+      if (!fileValue || typeof fileValue !== 'object') fileValue = {};
+      const rawSrc = fileValue.preview_data_url || fileValue.storage_url || '';
+      const src = resolveUploadUrl(rawSrc);
       const isImg =
-        (src && src.startsWith('data:image/')) ||
-        (src && /\.(png|jpe?g|gif|webp|bmp)$/i.test(src.split('?')[0] || ''));
+        (rawSrc && rawSrc.startsWith('data:image/')) ||
+        (rawSrc && /\.(png|jpe?g|gif|webp|bmp)$/i.test(rawSrc.split('?')[0] || ''));
 
       const handleRename = (e) => {
         const nextName = e.target.value;
@@ -103,7 +116,7 @@ export default function FieldControl({ field, value, onChange, onPickFile }) {
 
       return (
         <div style={{display:'grid', gap:6}}>
-          <div style={{display:'flex', alignItems:'center', gap:10}}>
+          <div style={{display:'flex', flexWrap:'wrap', alignItems:'center', gap:10}}>
             <button
               type="button"
               onClick={() => onPickFile(field)}
@@ -112,10 +125,9 @@ export default function FieldControl({ field, value, onChange, onPickFile }) {
               Upload
             </button>
             {src && (
-              <a
-                href={src}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={() => openInspectionMediaInNewTab(rawSrc)}
                 style={{
                   padding:'6px 10px',
                   borderRadius:999,
@@ -123,12 +135,11 @@ export default function FieldControl({ field, value, onChange, onPickFile }) {
                   background:'#F9FAFB',
                   fontSize:11,
                   cursor:'pointer',
-                  textDecoration:'none',
-                  color:'#111827'
+                  color:'#111827',
                 }}
               >
                 View
-              </a>
+              </button>
             )}
             {value && (
               <button
@@ -161,14 +172,21 @@ export default function FieldControl({ field, value, onChange, onPickFile }) {
           )}
           {!isImg && fileValue.storage_url && (
             <div style={{fontSize:12}}>
-              <a
-                href={fileValue.storage_url}
-                target="_blank"
-                rel="noreferrer"
-                style={{ color: '#2563EB', textDecoration:'underline' }}
+              <button
+                type="button"
+                onClick={() => openInspectionMediaInNewTab(fileValue.storage_url)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  color: '#2563EB',
+                  textDecoration: 'underline',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                }}
               >
                 Download file
-              </a>
+              </button>
             </div>
           )}
           <input
