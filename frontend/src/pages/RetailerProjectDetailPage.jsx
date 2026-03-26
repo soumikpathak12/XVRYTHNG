@@ -9,7 +9,8 @@ import {
   getCompanyEmployees,
   getRetailerProjectAssignees,
   saveRetailerProjectAssignees,
-  updateRetailerProjectApi
+  updateRetailerProjectApi,
+  announceCustomerPortalUtility
 } from '../services/api.js';
 
 import RetailerProjectDetailDetails from '../components/projects/RetailerProjectDetailDetails.jsx';
@@ -133,6 +134,22 @@ export default function RetailerProjectDetailPage() {
       setLoading(false);
     }
   }, [projectId]);
+
+  const handleAnnounceUtilityToCustomer = useCallback(
+    async (type) => {
+      if (!project?.lead_id) return;
+      try {
+        await announceCustomerPortalUtility(project.lead_id, type);
+        setToast('Customer portal updated.');
+        setTimeout(() => setToast(''), 3000);
+        loadData();
+      } catch (e) {
+        setToast(e.message || 'Failed to update customer portal');
+        setTimeout(() => setToast(''), 4000);
+      }
+    },
+    [project?.lead_id, loadData],
+  );
 
   const handleSaveExpectedCompletionDate = async (newVal) => {
     try {
@@ -342,6 +359,7 @@ export default function RetailerProjectDetailPage() {
                     onChangeStage={handleChangeStage}
                     expectedCompletionDate={expectedCompletionDate}
                     onChangeExpectedCompletionDate={handleSaveExpectedCompletionDate}
+                    onAnnounceUtilityToCustomer={handleAnnounceUtilityToCustomer}
                   />
                 </div>
               ) : activeTab === 'schedule' ? (
@@ -356,6 +374,7 @@ export default function RetailerProjectDetailPage() {
                   onChangeStage={handleChangeStage}
                   expectedCompletionDate={expectedCompletionDate}
                   onChangeExpectedCompletionDate={handleSaveExpectedCompletionDate}
+                  onAnnounceUtilityToCustomer={handleAnnounceUtilityToCustomer}
                 />
               ) : activeTab === 'financials' ? (
                 <div className="fade-in" style={{ padding: '24px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>

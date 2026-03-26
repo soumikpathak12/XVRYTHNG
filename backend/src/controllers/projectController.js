@@ -39,6 +39,31 @@ export async function getProject(req, res) {
   }
 }
 
+/**
+ * GET /api/projects/by-lead/:leadId
+ * Used by customer portal to show project stage pipeline by leadId.
+ */
+export async function getProjectByLeadId(req, res) {
+  try {
+    const rawLeadId = req.params.leadId;
+    const leadId = rawLeadId != null ? String(rawLeadId).trim() : '';
+    if (!leadId) {
+      return res.status(422).json({ success: false, message: 'leadId is required.' });
+    }
+
+    const project = await projectService.getProjectByLeadId(leadId);
+    if (!project) {
+      return res.status(404).json({ success: false, message: 'Project not found for this lead.' });
+    }
+
+    // Keep response shape compatible with getProject(): { success:true, data: { ...project } }
+    return res.status(200).json({ success: true, data: project });
+  } catch (err) {
+    const status = err.statusCode ?? err.status ?? 500;
+    return res.status(status).json({ success: false, message: err.message ?? 'Failed to load project.' });
+  }
+}
+
 export async function updateProjectStage(req, res) {
   try {
     const projectId = req.params.id;

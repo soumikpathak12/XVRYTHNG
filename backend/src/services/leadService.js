@@ -440,6 +440,14 @@ export async function updateLead(leadId, payload) {
     updates.push('meter_number = ?');
     params.push(payload.meter_number ?? null);
   }
+  if (payload.customer_portal_pre_approval_announced !== undefined) {
+    updates.push('customer_portal_pre_approval_announced = ?');
+    params.push(payload.customer_portal_pre_approval_announced ? 1 : 0);
+  }
+  if (payload.customer_portal_solar_vic_announced !== undefined) {
+    updates.push('customer_portal_solar_vic_announced = ?');
+    params.push(payload.customer_portal_solar_vic_announced ? 1 : 0);
+  }
 
   // PV details
   if (payload.pv_system_size_kw !== undefined) {
@@ -526,6 +534,47 @@ export async function updateLead(leadId, payload) {
     }
   }
   return lead;
+}
+
+/** Staff-only: show “Pre-approval taken” / Solar Vic line on customer My Project after field is filled. */
+export async function announceCustomerPortalUtilityToCustomer(leadId, type) {
+  if (!leadId || Number.isNaN(Number(leadId))) {
+    const err = new Error('Invalid lead id');
+    err.statusCode = 400;
+    throw err;
+  }
+  const t = String(type || '').trim();
+  if (t !== 'pre_approval' && t !== 'solar_vic') {
+    const err = new Error('Invalid announcement type');
+    err.statusCode = 422;
+    throw err;
+  }
+  const [rows] = await db.execute(
+    'SELECT id, pre_approval_reference_no, solar_vic_eligibility FROM leads WHERE id = ? LIMIT 1',
+    [leadId],
+  );
+  const row = rows?.[0];
+  if (!row) {
+    const err = new Error('Lead not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  if (t === 'pre_approval') {
+    if (!String(row.pre_approval_reference_no ?? '').trim()) {
+      const err = new Error(
+        'Pre-approval reference number must be filled before notifying the customer.',
+      );
+      err.statusCode = 422;
+      throw err;
+    }
+    return updateLead(leadId, { customer_portal_pre_approval_announced: true });
+  }
+  if (row.solar_vic_eligibility == null) {
+    const err = new Error('Solar Victoria eligibility must be set before notifying the customer.');
+    err.statusCode = 422;
+    throw err;
+  }
+  return updateLead(leadId, { customer_portal_solar_vic_announced: true });
 }
 
 /** -------------------- UPDATE STAGE (set contacted_at when entering 'contacted') -------------------- */

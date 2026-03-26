@@ -26,6 +26,33 @@ export function setCustomerToken(token) {
   else localStorage.removeItem('xvrythng_customer_token');
 }
 
+/**
+ * Customer portal (customer JWT):
+ * - staff JWT uses `xvrythng_token` and `authFetch`
+ * - customer JWT uses `xvrythng_customer_token`
+ */
+async function customerAuthFetch(url, options = {}) {
+  const token = getCustomerToken();
+  const headers = {
+    ...(options.headers ?? {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+  const res = await fetch(`${BASE}${url}`, { ...options, headers });
+  return res;
+}
+
+async function customerAuthFetchJSON(url, options = {}) {
+  const res = await customerAuthFetch(url, options);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.message || 'Request failed');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data;
+}
+
 /** Store sent credentials for a lead (simulated). Called when staff sends credentials. */
 export function saveCustomerCredentials(email, { leadId, otp, customerName }) {
   const raw = localStorage.getItem(CUSTOMER_CREDENTIALS_KEY);
@@ -929,6 +956,13 @@ export async function getLead(id) {
 }
 
 /**
+ * Customer portal: GET /api/leads/:id using customer JWT.
+ */
+export async function getLeadCustomer(id) {
+  return customerAuthFetchJSON(`/api/leads/${encodeURIComponent(id)}`, { method: 'GET' });
+}
+
+/**
  * GET /api/leads/:id/customer-portal-test-link – create a portal login link for testing (no email sent).
  * Returns { success, loginUrl, email, message }.
  */
@@ -1022,6 +1056,20 @@ export async function updateLead(id, payload) {
     throw err;
   }
   if (!res.ok) throw new Error(data.message || 'Failed to update lead');
+  return data;
+}
+
+/**
+ * POST /api/leads/:id/customer-portal-announce — staff only; type: 'pre_approval' | 'solar_vic'
+ */
+export async function announceCustomerPortalUtility(leadId, type) {
+  const res = await authFetch(`/api/leads/${encodeURIComponent(leadId)}/customer-portal-announce`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Failed to update customer portal');
   return data;
 }
 
@@ -1792,6 +1840,46 @@ export async function getProject(projectId) {
     throw err;
   }
   return data; // { success:true, data:{...} }
+}
+
+/**
+ * GET /api/projects/:id/documents — files uploaded on the project Documents tab.
+ */
+export async function getProjectDocuments(projectId) {
+  const res = await authFetch(`/api/projects/${encodeURIComponent(projectId)}/documents`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to load project documents');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data; // { success:true, data: [...] }
+}
+
+/**
+ * GET /api/projects/by-lead/:leadId
+ * Fetch a single project by its associated lead_id.
+ */
+export async function getProjectByLeadId(leadId) {
+  const res = await authFetch(`/api/projects/by-lead/${encodeURIComponent(leadId)}`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to load project for lead');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+
+  return data; // { success:true, data:{...} }
+}
+
+/**
+ * Customer portal: GET /api/projects/by-lead/:leadId using customer JWT.
+ */
+export async function getProjectByLeadIdCustomer(leadId) {
+  return customerAuthFetchJSON(`/api/projects/by-lead/${encodeURIComponent(leadId)}`, { method: 'GET' });
 }
 
 export async function updateProjectStage(projectId, stage) {

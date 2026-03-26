@@ -393,7 +393,9 @@ export default function EmployeeSidebar() {
                         <NavLink
                           key={it.to}
                           to={it.to}
-                          end={isDashboard}
+                          // Ensure items like "/employee/projects" do not stay active on nested routes
+                          // (e.g. "/employee/projects/retailer").
+                          end={it.end ?? isDashboard}
                           style={({ isActive }) => ({
                             ...linkBase,
                             ...(isActive ? activeStyle : {}),

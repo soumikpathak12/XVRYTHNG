@@ -3,21 +3,6 @@ import db from '../config/db.js';
 import * as companyWorkflowService from './companyWorkflowService.js';
 import { inspectionFormFromRowWithLegacyFallback } from './siteInspectionFormMapper.js';
 
-const PROJECT_STAGES = new Set([
-  'new',
-  'pre_approval',
-  'state_rebate',
-  'design_engineering',
-  'procurement',
-  'scheduled',
-  'installation_in_progress',
-  'installation_completed',
-  'compliance_check',
-  'inspection_grid_connection',
-  'rebate_stc_claims',
-  'project_completed',
-]);
-
 /* ---------- helpers ---------- */
 function toCamelInspection(row = {}) {
   return {
@@ -125,17 +110,15 @@ export async function getProjects(filters = {}) {
 
 const PROJECT_STAGE_ORDER_FALLBACK = [
   'new',
-  'pre_approval',
-  'state_rebate',
-  'design_engineering',
-  'procurement',
   'scheduled',
+  'to_be_rescheduled',
   'installation_in_progress',
   'installation_completed',
-  'compliance_check',
-  'inspection_grid_connection',
-  'rebate_stc_claims',
-  'project_completed',
+  'ces_certificate_applied',
+  'ces_certificate_received',
+  'grid_connection_initiated',
+  'grid_connection_completed',
+  'system_handover',
 ];
 
 /**
@@ -149,8 +132,9 @@ async function assertProjectStageChangeAllowed(project, projectId, nextStage, or
 
   const order = Array.isArray(orderKeys) && orderKeys.length ? orderKeys : PROJECT_STAGE_ORDER_FALLBACK;
   const idxCurrent = order.indexOf(project.stage);
-  const idxNext = order.indexOf(nextStage);
-  const isForward = idxCurrent !== -1 && idxNext !== -1 && idxNext > idxCurrent;
+  const nextStageIndex = order.indexOf(nextStage);
+  const isForward =
+    idxCurrent !== -1 && nextStageIndex !== -1 && nextStageIndex > idxCurrent;
 
   if (isForward) {
     const pre = String(project.lead_pre_approval_reference_no ?? '').trim();
@@ -171,13 +155,19 @@ async function assertProjectStageChangeAllowed(project, projectId, nextStage, or
     }
   }
 
-  // Business rules: for Grid Connection stage and beyond, ensure post‑install info is present.
-  const idxTarget = order.indexOf(nextStage);
-  const idxGrid = order.indexOf('inspection_grid_connection');
+  // Past "GRID Connection Initiated": post-install reference + at least one project document (Documents tab).
+  const idxGridInitiated = order.indexOf('grid_connection_initiated');
 
-  if (idxTarget !== -1 && idxGrid !== -1 && idxTarget >= idxGrid) {
-    if (!project.post_install_reference_no) {
-      const err = new Error('Please enter Post-install reference number before moving to this stage.');
+  if (
+    nextStageIndex !== -1
+    && idxGridInitiated !== -1
+    && nextStageIndex > idxGridInitiated
+  ) {
+    const ref = String(project.post_install_reference_no ?? '').trim();
+    if (!ref) {
+      const err = new Error(
+        'Post-install reference number is required before moving past GRID Connection Initiated. Add it on the project.',
+      );
       err.statusCode = 422;
       throw err;
     }
@@ -187,7 +177,9 @@ async function assertProjectStageChangeAllowed(project, projectId, nextStage, or
     );
     const count = rows?.[0]?.cnt ?? 0;
     if (!count) {
-      const err = new Error('Please upload at least one post-install document before moving to this stage.');
+      const err = new Error(
+        'Upload at least one file in the project Documents tab before moving past GRID Connection Initiated.',
+      );
       err.statusCode = 422;
       throw err;
     }
@@ -309,7 +301,9 @@ export async function getProjectById(projectId) {
       l.ev_charger_model AS lead_ev_charger_model,
       l.battery_size_kwh AS lead_battery_size_kwh,
       l.battery_brand AS lead_battery_brand,
-      l.battery_model AS lead_battery_model
+      l.battery_model AS lead_battery_model,
+      l.customer_portal_pre_approval_announced AS lead_customer_portal_pre_approval_announced,
+      l.customer_portal_solar_vic_announced AS lead_customer_portal_solar_vic_announced
     FROM projects p
     LEFT JOIN leads l ON l.id = p.lead_id
     WHERE p.id = ?
@@ -322,6 +316,66 @@ export async function getProjectById(projectId) {
     throw err;
   }
   return rows[0];
+}
+
+/**
+ * Fetch a single project by `lead_id`.
+ * Used by the customer portal to show the same stage pipeline as ProjectsPage.
+ */
+export async function getProjectByLeadId(leadId) {
+  if (!leadId || Number.isNaN(Number(leadId))) {
+    const err = new Error('Invalid lead id');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const sql = `
+    SELECT
+      p.*,
+      l.email        AS lead_email,
+      l.phone        AS lead_phone,
+      l.suburb       AS lead_suburb,
+      l.system_size_kw AS lead_system_size_kw,
+      l.value_amount AS lead_value_amount,
+      l.source       AS lead_source,
+      l.referred_by_lead_id AS lead_referred_by_lead_id,
+      l.is_closed    AS lead_is_closed,
+      l.is_won       AS lead_is_won,
+      l.won_lost_at  AS lead_won_lost_at,
+      l.last_activity_at AS lead_last_activity_at,
+      l.site_inspection_date AS lead_site_inspection_date,
+      l.system_type  AS lead_system_type,
+      l.house_storey AS lead_house_storey,
+      l.roof_type    AS lead_roof_type,
+      l.meter_phase  AS lead_meter_phase,
+      l.access_to_second_storey AS lead_access_to_second_storey,
+      l.access_to_inverter AS lead_access_to_inverter,
+      l.pre_approval_reference_no AS lead_pre_approval_reference_no,
+      l.energy_retailer AS lead_energy_retailer,
+      l.energy_distributor AS lead_energy_distributor,
+      l.solar_vic_eligibility AS lead_solar_vic_eligibility,
+      l.nmi_number   AS lead_nmi_number,
+      l.meter_number AS lead_meter_number,
+      l.pv_system_size_kw AS lead_pv_system_size_kw,
+      l.pv_inverter_size_kw AS lead_pv_inverter_size_kw,
+      l.pv_inverter_brand AS lead_pv_inverter_brand,
+      l.pv_panel_brand AS lead_pv_panel_brand,
+      l.pv_panel_module_watts AS lead_pv_panel_module_watts,
+      l.ev_charger_brand AS lead_ev_charger_brand,
+      l.ev_charger_model AS lead_ev_charger_model,
+      l.battery_size_kwh AS lead_battery_size_kwh,
+      l.battery_brand AS lead_battery_brand,
+      l.battery_model AS lead_battery_model,
+      l.customer_portal_pre_approval_announced AS lead_customer_portal_pre_approval_announced,
+      l.customer_portal_solar_vic_announced AS lead_customer_portal_solar_vic_announced
+    FROM projects p
+    LEFT JOIN leads l ON l.id = p.lead_id
+    WHERE p.lead_id = ?
+    LIMIT 1
+  `;
+
+  const [rows] = await db.execute(sql, [leadId]);
+  return rows?.[0] ?? null;
 }
 
 /* ---------- site inspection (NEW) ---------- */

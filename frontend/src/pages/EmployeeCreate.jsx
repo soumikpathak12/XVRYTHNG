@@ -361,17 +361,15 @@ async function copyToClipboard(text) {
 }
 
 function AccountStep({ form, onChange, inputStyle, labelStyle }) {
-  const handleEnableLoginChange = (checked) => {
-    onChange(['account', 'enable_login'], checked);
-    if (checked) {
+  useEffect(() => {
+    // Always generate a password for the employee onboarding flow.
+    if (!form.account.password) {
       const pwd = generatePassword();
       onChange(['account', 'password'], pwd);
       onChange(['account', 'password_confirm'], pwd);
-    } else {
-      onChange(['account', 'password'], '');
-      onChange(['account', 'password_confirm'], '');
+      onChange(['account', 'enable_login'], true);
     }
-  };
+  }, [form.account.password, onChange]);
 
   const handleRegenerate = () => {
     const pwd = generatePassword();
@@ -393,41 +391,31 @@ function AccountStep({ form, onChange, inputStyle, labelStyle }) {
 
   return (
     <div style={{ display: 'grid', gap: 10 }}>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <input
-          type="checkbox"
-          checked={form.account.enable_login}
-          onChange={e => handleEnableLoginChange(e.target.checked)}
-        />
-        Enable login for this employee
-      </label>
-      {form.account.enable_login && (
-        <div style={{ display: 'grid', gap: 10 }}>
-          <div style={{ display: 'grid', gap: 6 }}>
-            <label style={labelStyle}>Generated password</label>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <input
-                type="text"
-                readOnly
-                style={{ ...inputStyle, flex: '1 1 200px', fontFamily: 'monospace' }}
-                value={form.account.password}
-                aria-label="Generated password"
-              />
-              <button type="button" onClick={handleRegenerate} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', cursor: 'pointer', fontWeight: 600 }}>
-                Regenerate
-              </button>
-              <button type="button" onClick={handleCopy} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', background: copied ? '#ECFDF5' : '#fff', cursor: 'pointer', fontWeight: 600 }}>
-                {copied ? 'Copied!' : 'Copy'}
-              </button>
-            </div>
-            <p style={{ fontSize: 12, color: '#6B7280', margin: 0 }}>
-              This password will be sent to the employee by email. They must change it on first login.
-            </p>
+      <div style={{ display: 'grid', gap: 10 }}>
+        <div style={{ display: 'grid', gap: 6 }}>
+          <label style={labelStyle}>Generated password</label>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              readOnly
+              style={{ ...inputStyle, flex: '1 1 200px', fontFamily: 'monospace' }}
+              value={form.account.password}
+              aria-label="Generated password"
+            />
+            <button type="button" onClick={handleRegenerate} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', cursor: 'pointer', fontWeight: 600 }}>
+              Regenerate
+            </button>
+            <button type="button" onClick={handleCopy} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #D1D5DB', background: copied ? '#ECFDF5' : '#fff', cursor: 'pointer', fontWeight: 600 }}>
+              {copied ? 'Copied!' : 'Copy'}
+            </button>
           </div>
+          <p style={{ fontSize: 12, color: '#6B7280', margin: 0 }}>
+            This password will be sent to the employee by email. They must change it on first login.
+          </p>
         </div>
-      )}
+      </div>
       <div style={{ fontSize: 12, color: '#6B7280', marginTop: -6 }}>
-        On save, an onboarding email will be sent to the employee (if enabled).
+        On save, an onboarding email will be sent to the employee.
       </div>
     </div>
   );
@@ -544,7 +532,7 @@ export default function EmployeeCreatePage() {
     },
     qualifications: [],
     emergency_contacts: [],
-    account: { enable_login: false, password: '', password_confirm: '' },
+    account: { enable_login: true, password: '', password_confirm: '' },
   }));
 
   const validateStep = (idx, f = form) => {
@@ -560,14 +548,12 @@ export default function EmployeeCreatePage() {
       case 'employment':
         return null;
       case 'account':
-        if (f.account.enable_login) {
-          if (!f.account.password || f.account.password.length < 8)
-            return fail('Password must be at least 8 characters');
-          if (f.account.password !== f.account.password_confirm)
-            return fail('Password does not match');
-          if (!f.contact.email?.trim())
-            return fail('Email is required when enabling login');
-        }
+        if (!f.account.password || f.account.password.length < 8)
+          return fail('Password must be at least 8 characters');
+        if (f.account.password !== f.account.password_confirm)
+          return fail('Password does not match');
+        if (!f.contact.email?.trim())
+          return fail('Email is required');
         return null;
       case 'emergency':
         return null;
@@ -661,7 +647,7 @@ export default function EmployeeCreatePage() {
       },
       qualifications: [],
       emergency_contacts: [],
-      account: { enable_login: false, password: '', password_confirm: '' },
+      account: { enable_login: true, password: '', password_confirm: '' },
     }),
     []
   );
@@ -687,14 +673,12 @@ export default function EmployeeCreatePage() {
       setSaving(true);
       setErrText('');
 
-      if (form.account.enable_login) {
-        if (!form.account.password || form.account.password.length < 8)
-          throw new Error('Password must be at least 8 characters');
-        if (form.account.password !== form.account.password_confirm)
-          throw new Error('Password does not match');
-        if (!form.contact.email)
-          throw new Error('Email is required when enabling login');
-      }
+      if (!form.account.password || form.account.password.length < 8)
+        throw new Error('Password must be at least 8 characters');
+      if (form.account.password !== form.account.password_confirm)
+        throw new Error('Password does not match');
+      if (!form.contact.email)
+        throw new Error('Email is required');
 
       const payload = { ...form };
       if (!payload.employment.department_id) payload.employment.department_id = '';
@@ -808,7 +792,7 @@ export default function EmployeeCreatePage() {
             <div style={{ border: '1px solid #E5E7EB', borderRadius: 10, padding: 12 }}>
               <div style={{ fontWeight: 700 }}>Account</div>
               <div style={{ fontSize: 13, color: '#374151' }}>
-                {form.account.enable_login ? 'Login: enabled' : 'Login: disabled'}
+                Login: will be created
               </div>
             </div>
 

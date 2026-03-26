@@ -252,10 +252,12 @@ export default function RetailerProjectDetailDetails({
   projectStages,
   inHouseEditable,
   onSaveInHouseDetails,
+  onAnnounceUtilityToCustomer,
 }) {
   const [isEditingInHouse, setIsEditingInHouse] = useState(false);
   const [detailForm, setDetailForm] = useState(null);
   const [savingInHouse, setSavingInHouse] = useState(false);
+  const [announcingUtility, setAnnouncingUtility] = useState(null);
 
   const [status, setStatus] = useState(project?.stage ?? '');
   const [jobType, setJobType] = useState('');
@@ -389,6 +391,36 @@ export default function RetailerProjectDetailDetails({
       : Number(project.solar_vic_eligibility) === 1
         ? 'Eligible'
         : 'Not eligible';
+
+  const preApprovalAnnounced =
+    Number(project?.customer_portal_pre_approval_announced) === 1
+    || Number(project?.lead_customer_portal_pre_approval_announced) === 1;
+  const solarVicPortalAnnounced =
+    Number(project?.customer_portal_solar_vic_announced) === 1
+    || Number(project?.lead_customer_portal_solar_vic_announced) === 1;
+
+  const announceBtnStyle = {
+    flexShrink: 0,
+    padding: '0.5rem 0.85rem',
+    fontSize: '0.75rem',
+    fontWeight: 700,
+    borderRadius: '8px',
+    border: '1px solid #0d9488',
+    background: '#f0fdfa',
+    color: '#0f766e',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  };
+
+  async function runAnnounce(type) {
+    if (!onAnnounceUtilityToCustomer) return;
+    setAnnouncingUtility(type);
+    try {
+      await onAnnounceUtilityToCustomer(type);
+    } finally {
+      setAnnouncingUtility(null);
+    }
+  }
 
   const inputStyle = { width: '100%', padding: '0.65rem', border: '1px solid #CBD5E1', borderRadius: '8px', fontSize: '0.95rem', color: '#0F172A', outline: 'none', backgroundColor: '#fff' };
   const labelStyle = { fontWeight: 700, fontSize: '0.75rem', color: '#64748B', marginBottom: '0.4rem', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' };
@@ -676,7 +708,13 @@ export default function RetailerProjectDetailDetails({
           <>
             <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
               <label style={labelStyle}>Pre-approval reference number</label>
-              <input style={inputStyle} value={detailForm.preApprovalRef} onChange={(e) => setDetailForm((f) => ({ ...f, preApprovalRef: e.target.value }))} />
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  style={{ ...inputStyle, flex: '1 1 200px', minWidth: 0, maxWidth: '100%' }}
+                  value={detailForm.preApprovalRef}
+                  onChange={(e) => setDetailForm((f) => ({ ...f, preApprovalRef: e.target.value }))}
+                />
+              </div>
             </div>
             <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
               <label style={labelStyle}>Energy retailer</label>
@@ -688,15 +726,17 @@ export default function RetailerProjectDetailDetails({
             </div>
             <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
               <label style={labelStyle}>Solar Victoria eligibility</label>
-              <select
-                style={inputStyle}
-                value={detailForm.solarVic}
-                onChange={(e) => setDetailForm((f) => ({ ...f, solarVic: e.target.value }))}
-              >
-                <option value="">Select</option>
-                <option value="1">Eligible</option>
-                <option value="0">Not eligible</option>
-              </select>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <select
+                  style={{ ...inputStyle, flex: '1 1 180px', minWidth: 0, maxWidth: '100%' }}
+                  value={detailForm.solarVic}
+                  onChange={(e) => setDetailForm((f) => ({ ...f, solarVic: e.target.value }))}
+                >
+                  <option value="">Select</option>
+                  <option value="1">Eligible</option>
+                  <option value="0">Not eligible</option>
+                </select>
+              </div>
             </div>
             <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
               <label style={labelStyle}>NMI number</label>
@@ -713,10 +753,46 @@ export default function RetailerProjectDetailDetails({
           </>
         ) : (
           <>
-            <KV label="Pre-Approval Reference Number" value={project.pre_approval_reference_no} />
+            <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={labelStyle}>Pre-Approval Reference Number</span>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.95rem', color: '#0F172A' }}>{project.pre_approval_reference_no || '—'}</span>
+                {String(project.pre_approval_reference_no || '').trim() && onAnnounceUtilityToCustomer && !preApprovalAnnounced ? (
+                  <button
+                    type="button"
+                    style={announceBtnStyle}
+                    disabled={!!announcingUtility}
+                    onClick={() => runAnnounce('pre_approval')}
+                  >
+                    {announcingUtility === 'pre_approval' ? 'Updating…' : 'Update to customer'}
+                  </button>
+                ) : null}
+                {preApprovalAnnounced ? (
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#059669' }}>Shared on customer portal</span>
+                ) : null}
+              </div>
+            </div>
             <KV label="Energy Retailer" value={project.energy_retailer} />
             <KV label="Energy Distributor" value={project.energy_distributor} />
-            <KV label="Solar Victoria Eligibility" value={solarVicLabel} />
+            <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={labelStyle}>Solar Victoria Eligibility</span>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.95rem', color: '#0F172A' }}>{solarVicLabel ?? '—'}</span>
+                {solarVicLabel != null && onAnnounceUtilityToCustomer && !solarVicPortalAnnounced ? (
+                  <button
+                    type="button"
+                    style={announceBtnStyle}
+                    disabled={!!announcingUtility}
+                    onClick={() => runAnnounce('solar_vic')}
+                  >
+                    {announcingUtility === 'solar_vic' ? 'Updating…' : 'Update to customer'}
+                  </button>
+                ) : null}
+                {solarVicPortalAnnounced ? (
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#059669' }}>Shared on customer portal</span>
+                ) : null}
+              </div>
+            </div>
             <KV label="NMI Number" value={project.nmi_number} />
             <KV label="Meter Number" value={project.meter_number} />
             <KV label="Post-install Reference Number" value={project.post_install_reference_no} />
