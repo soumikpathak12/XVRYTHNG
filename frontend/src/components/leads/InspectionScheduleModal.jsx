@@ -75,7 +75,10 @@ const InspectionScheduleModal = ({ open, onClose, leadId, lead, onScheduled }) =
         setConflicts([]);
       }
     } catch (e) {
-      setError('Could not check inspector schedule.');
+      // Non-blocking: if conflict-check fails, don't prevent scheduling.
+      // (The actual schedule save is handled by PATCH /api/leads/:leadId/schedule.)
+      setConflicts([]);
+      setError('');
     } finally {
       setLoading(false);
     }

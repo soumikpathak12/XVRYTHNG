@@ -169,6 +169,13 @@ export function dbDatetimeToDatetimeLocalInput(raw) {
     const m = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/);
     if (m) return `${m[1]}T${m[2]}:${m[3]}`;
   }
+
+  // MySQL DATETIME is timezone-less, but some drivers / serializers may return it with `Z`.
+  // For datetime-local inputs, we want the wall-clock parts (ignore timezone marker).
+  const wall = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})(?::\d{2})?/);
+  if (wall) return `${wall[1]}T${wall[2]}:${wall[3]}`;
+
+  // Fallback: best-effort parsing to local wall-clock.
   const d = new Date(s);
   if (Number.isNaN(d.getTime())) return null;
   const pad = (n) => String(n).padStart(2, '0');

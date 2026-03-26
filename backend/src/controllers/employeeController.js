@@ -1,5 +1,6 @@
 // src/controllers/employeeController.js
 import * as employeeService from '../services/employeeService.js';
+import db from '../config/db.js';
 
 function resolveCompanyId(req) {
   const fromTenant = req.tenantId != null ? Number(req.tenantId) : null;
@@ -13,6 +14,70 @@ function resolveCompanyId(req) {
       : null;
 
   return fromTenant ?? fromQuery ?? fromHeader ?? null;
+}
+
+/**
+ * GET /api/employees/:id/schedule?date=YYYY-MM-DD&time=HH:mm
+ * Used by InspectionScheduleModal to check inspector conflicts.
+ */
+export async function getInspectorScheduleConflicts(req, res) {
+  try {
+    const companyId = resolveCompanyId(req);
+    if (!companyId) {
+      return res.status(400).json({ success: false, message: 'Missing company context' });
+    }
+
+    const employeeId = Number(req.params.id);
+    if (!employeeId || Number.isNaN(employeeId)) {
+      return res.status(400).json({ success: false, message: 'Invalid employee id' });
+    }
+
+    const date = String(req.query.date ?? '').trim();
+    const time = String(req.query.time ?? '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
+      return res.status(400).json({
+        success: false,
+        message: 'date/time query params must be provided as date=YYYY-MM-DD&time=HH:mm',
+      });
+    }
+
+    const scheduledAt = `${date} ${time}:00`;
+
+    const [rows] = await db.execute(
+      `
+      SELECT
+        lsi.id AS conflict_id,
+        lsi.lead_id AS lead_id,
+        l.customer_name AS customer_name,
+        COALESCE(lsi.scheduled_at, l.site_inspection_date) AS effective_scheduled_at,
+        lsi.status AS inspection_status
+      FROM lead_site_inspections lsi
+      INNER JOIN leads l ON l.id = lsi.lead_id
+      WHERE l.company_id = ?
+        AND lsi.inspector_id = ?
+        AND (
+          (lsi.scheduled_at IS NOT NULL AND lsi.scheduled_at = ?)
+          OR (lsi.scheduled_at IS NULL AND l.site_inspection_date = ?)
+        )
+      LIMIT 50
+      `,
+      [Number(companyId), employeeId, scheduledAt, scheduledAt]
+    );
+
+    return res.status(200).json({
+      success: true,
+      conflicts: (rows || []).map((r) => ({
+        id: r.conflict_id,
+        lead_id: r.lead_id,
+        customer_name: r.customer_name || null,
+        scheduled_at: r.effective_scheduled_at || null,
+        status: r.inspection_status || null,
+      })),
+    });
+  } catch (err) {
+    console.error('getInspectorScheduleConflicts error:', err);
+    return res.status(500).json({ success: false, message: err.message ?? 'Failed to check conflicts' });
+  }
 }
 
 export async function createEmployee(req, res) {
