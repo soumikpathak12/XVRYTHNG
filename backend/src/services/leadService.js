@@ -34,6 +34,7 @@ export async function createLead(payload, options = {}) {
     source,
     referred_by_lead_id = null,
     site_inspection_date,
+    inspector_id,
     external_id = null,
     marketing_payload_json = null,
   } = payload;
@@ -97,6 +98,26 @@ export async function createLead(payload, options = {}) {
       await ensureProjectForLead(created.id);
     } catch (e) {
       console.error('ensureProjectForLead after createLead failed:', e);
+    }
+  }
+
+  // If caller provided inspector + site_inspection_date, we must create the
+  // lead_site_inspections row so employee sidebar/calendar can find assignments.
+  if (inspector_id && site_inspection_date) {
+    const siteDt = String(site_inspection_date);
+    const scheduledDate = siteDt.slice(0, 10); // YYYY-MM-DD
+    const scheduledTime = siteDt.slice(11, 16); // HH:mm
+    try {
+      const updated = await scheduleLeadInspection(created.id, {
+        scheduledDate,
+        scheduledTime,
+        inspectorId: inspector_id,
+      });
+      // Keep response consistent with what scheduleLeadInspection changes (e.g. stage).
+      return updated;
+    } catch (e) {
+      // If scheduleLeadInspection fails, fail the request so UI can surface it.
+      throw e;
     }
   }
 
