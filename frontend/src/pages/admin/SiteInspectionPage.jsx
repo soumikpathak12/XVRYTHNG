@@ -784,11 +784,15 @@ const meta = base?.meta && typeof base.meta === 'string'
   }
 
   // -------- Signature Canvas Functions --------
+  // Map pointer coords to canvas buffer pixels (internal width/height differ from CSS size when width: 100%).
   const pt = (e) => {
-    const t = e.touches?.[0] ?? e;
-    const r = canvasRef.current?.getBoundingClientRect();
-    if (!r) return [0, 0];
-    return [t.clientX - r.left, t.clientY - r.top];
+    const canvas = canvasRef.current;
+    const t = e.touches?.[0] ?? e.changedTouches?.[0] ?? e;
+    if (!canvas || !t) return [0, 0];
+    const r = canvas.getBoundingClientRect();
+    const sx = canvas.width / (r.width || 1);
+    const sy = canvas.height / (r.height || 1);
+    return [(t.clientX - r.left) * sx, (t.clientY - r.top) * sy];
   };
 
   const startDraw = (e) => {
@@ -802,7 +806,7 @@ const meta = base?.meta && typeof base.meta === 'string'
 
   const draw = (e) => {
     if (!drawingRef.current) return;
-    e.preventDefault();
+    // Do not call preventDefault here: React attaches touch handlers as passive; use touchAction: 'none' on canvas instead.
     const ctx = canvasRef.current?.getContext('2d');
     if (!ctx) return;
     const [x, y] = pt(e);
@@ -1250,16 +1254,29 @@ const meta = base?.meta && typeof base.meta === 'string'
               <div>{getSystemTypeForInspection(lead) || '—'}</div>
             </div>
             {lead.pv_system_size_kw != null ||
-              lead.pv_inverter_brand ||
-              lead.pv_panel_brand ? (
+              lead.pv_panel_brand ||
+              lead.pv_panel_module_watts != null ? (
               <div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>PV System</div>
                 <div>
                   {[
                     lead.pv_system_size_kw != null ? `${lead.pv_system_size_kw} kW` : null,
-                    lead.pv_inverter_brand ? `Inverter: ${lead.pv_inverter_brand}` : null,
                     lead.pv_panel_brand ? `Panel: ${lead.pv_panel_brand}` : null,
                     lead.pv_panel_module_watts != null ? `${lead.pv_panel_module_watts} W` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' • ') || '—'}
+                </div>
+              </div>
+            ) : null}
+
+            {lead.pv_inverter_size_kw != null || lead.pv_inverter_brand ? (
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>Inverter System</div>
+                <div>
+                  {[
+                    lead.pv_inverter_size_kw != null ? `Inverter Size: ${lead.pv_inverter_size_kw} kW` : null,
+                    lead.pv_inverter_brand ? `Inverter Brand: ${lead.pv_inverter_brand}` : null,
                   ]
                     .filter(Boolean)
                     .join(' • ') || '—'}

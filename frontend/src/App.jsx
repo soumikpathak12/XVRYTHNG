@@ -583,6 +583,24 @@ function App() {
           {/* On-Field: calendar + route (US-053, US-054) */}
           <Route path="on-field" element={<RequirePermission resource="on_field" action="view"><OnFieldPage /></RequirePermission>} />
 
+          {/* Installation Day */}
+          <Route
+            path="installation"
+            element={
+              <RequirePermission resource="installation" action="view">
+                <InstallationJobList />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="installation/:id"
+            element={
+              <RequirePermission resource="installation" action="view">
+                <InstallationJobCard />
+              </RequirePermission>
+            }
+          />
+
           {/* Projects with nested routes */}
           <Route
             path="projects"

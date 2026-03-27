@@ -389,6 +389,21 @@ const MIGRATIONS = [
     },
   },
 
+  /* ── V010: Site inspection shading free text ── */
+  {
+    version: 'V010__site_inspection_shading_text',
+    description: 'Allow free-text shading notes in lead_site_inspections',
+    up: async () => {
+      const schema = process.env.DB_NAME;
+      if (await columnExists(schema, 'lead_site_inspections', 'shading')) {
+        await db.query(`
+          ALTER TABLE lead_site_inspections
+          MODIFY COLUMN shading VARCHAR(255) NULL DEFAULT NULL
+        `);
+      }
+    },
+  },
+
 ];
 
 /* ═══════ Runner ═══════ */

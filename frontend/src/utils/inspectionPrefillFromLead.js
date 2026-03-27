@@ -112,7 +112,7 @@ export function getSystemTypeForInspection(lead) {
 
 /**
  * @param {object|null} lead – row from GET /api/leads/:id (snake_case)
- * @returns {{ roof_type?: string, meter_phase?: string, house_storey?: string }}
+ * @returns {{ roof_type?: string, meter_phase?: string, house_storey?: string, 'switchboard.meterNumber'?: string, 'switchboard.nmi'?: string }}
  */
 export function buildInspectionDefaultsFromLead(lead) {
   if (!lead) return {};
@@ -122,6 +122,14 @@ export function buildInspectionDefaultsFromLead(lead) {
   const roofFromLead = trimStr(lead.roof_type);
   const meterFromLead = trimStr(lead.meter_phase);
   const storeyFromLead = trimStr(lead.house_storey);
+  const meterNumberFromLead =
+    trimStr(lead.meter_number) ||
+    trimStr(lead.meterNumber) ||
+    trimStr(lead.lead_meter_number);
+  const nmiFromLead =
+    trimStr(lead.nmi_number) ||
+    trimStr(lead.nmiNumber) ||
+    trimStr(lead.lead_nmi_number);
 
   const mappedRoof = sq?.mappedRoofType != null ? trimStr(sq.mappedRoofType) : '';
   const storiesSq = fuzzySqValue(sq, ['stories', 'storeys', 'house_storey', 'housestorey', 'storiescount', 'floors']);
@@ -138,6 +146,8 @@ export function buildInspectionDefaultsFromLead(lead) {
   if (roof) out.roof_type = roof;
   if (meter) out.meter_phase = meter;
   if (storey) out.house_storey = storey;
+  if (meterNumberFromLead) out['switchboard.meterNumber'] = meterNumberFromLead;
+  if (nmiFromLead) out['switchboard.nmi'] = nmiFromLead;
   return out;
 }
 

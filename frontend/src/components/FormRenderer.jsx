@@ -8,6 +8,14 @@ export default function FormRenderer({ template, stepIndex, formData, setFormDat
   const steps = Array.isArray(template.steps) ? template.steps : JSON.parse(template.steps || '[]');
   const step = steps[stepIndex] || { sections: [] };
 
+  const getByPath = React.useCallback((obj, path) => {
+    if (!obj || !path) return undefined;
+    const norm = String(path).replace(/\[(\d+)\]/g, '.$1');
+    return norm
+      .split('.')
+      .reduce((acc, k) => (acc && Object.prototype.hasOwnProperty.call(acc, k) ? acc[k] : undefined), obj);
+  }, []);
+
   // Collect all media items (photos/files) across the entire template for Media Summary.
   const allMediaItems = React.useMemo(() => {
     const items = [];
@@ -107,7 +115,7 @@ export default function FormRenderer({ template, stepIndex, formData, setFormDat
                   </div>
                   <FieldControl
                     field={field}
-                    value={formData[field.key]}
+                    value={Object.prototype.hasOwnProperty.call(formData || {}, field.key) ? formData[field.key] : getByPath(formData, field.key)}
                     onChange={(v) => setFormData(prev => ({ ...prev, [field.key]: v }))}
                     onPickFile={onPickFile}
                   />
