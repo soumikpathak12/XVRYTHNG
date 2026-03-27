@@ -31,12 +31,85 @@ function canonicalKey(v) {
   return normalizeStr(v).toLowerCase();
 }
 
+const ALLOWED_INVERTER_BRANDS = [
+  'AERL', 'Afore', 'AKAI Energy', 'Alpha ESS', 'ALTIUS', 'Ambrion', 'AMPAURA', 'ANKER', 'APstorage', 'APsystems',
+  'Atess', 'Bluetti', 'CE+T POWER', 'Clenergy ESS', 'CSE', 'Dawn Solar', 'DELTA', 'Deye', 'DMEGC', 'DYNESS',
+  'Each Energy', 'Eaton', 'eCACTUS', 'ECOFLOW', 'Empower Energy', 'Energizer', 'Enermax', 'Enphase', 'ESY', 'ESYSUNHOME',
+  'EVANTRA', 'FelicityESS', 'FIMER', 'FOXESS', 'FRANKLINWH', 'Fronius', 'GE', 'GivEnergy', 'GoodWe', 'Growatt',
+  'GRUNDFOS', 'Haier', 'Hiconics', 'Hinen', 'Hoymiles', 'HYXiPOWER', 'iHot', 'IN-Power', 'INFYPOWER', 'iPotisEdge',
+  'iStore', 'iSUNA', 'Jinko', 'Koyoe', 'LAVO', 'Lorentz', 'MANGO POWER', 'MG ENERGY', 'Midea', 'Morningstar',
+  'NAHUI', 'NEOVOLT', 'NOARK', 'OLiPower', 'PIXII', 'Plasmatronics', 'PYLONTECH', 'RCT Power', 'Redback Technologies', 'Redx',
+  'Risen', 'ROYPOW', 'SAJ', 'Selectronic', 'Sigenergy', 'Sinexcel', 'SMA', 'SMART LIFESTYLE', 'SOFARSOLAR', 'SolarEdge',
+  'SolarEdge Technologies Ltd', 'SOLATHERM', 'SolaX', 'SolaX Power', 'Solinteg', 'Solis', 'Solplanet', 'SONNEN', 'SPHERE', 'SRNE',
+  'Star Charge', 'Stealth Energy', 'Studer', 'Sungrow', 'SUNPOWER', 'Sunsynk', 'Sunvolt', 'Sunways', 'Swatten', 'TBB POWER',
+  'Tesla', 'VACON', 'Victron Energy', 'WEIHENG', 'WHES',
+];
+const ALLOWED_INVERTER_BRAND_MAP = new Map(
+  ALLOWED_INVERTER_BRANDS.map((brand) => [canonicalKey(brand), brand])
+);
+
+function toAllowedInverterBrand(name) {
+  return ALLOWED_INVERTER_BRAND_MAP.get(canonicalKey(name)) || '';
+}
+
+const BRAND_STOPWORDS = new Set([
+  'single',
+  'three',
+  'phase',
+  'hybrid',
+  'battery',
+  'inverter',
+  'series',
+  'solar',
+  'energy',
+  'power',
+  'storage',
+  'grid',
+  'off',
+  'on',
+  'micro',
+  'string',
+]);
+
+function isLikelyModelToken(token) {
+  const t = normalizeStr(token);
+  return !t || /[\d()/]/.test(t);
+}
+
+function cleanCompanySuffix(name) {
+  return normalizeStr(name)
+    .replace(/\b(pty\.?\s*ltd\.?|ltd\.?|limited|inc\.?|llc|gmbh|co\.?)\b/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 function inferInverterBrand(row) {
-  return (
+  const direct = (
     normalizeStr(row?.Brand) ||
     normalizeStr(row?.['Brand Name']) ||
     normalizeStr(row?.brand)
   );
+  if (direct && !isLikelyModelToken(direct)) return direct;
+
+  const series = normalizeStr(row?.Series);
+  if (series) {
+    const beforeSeries = series.split(/\bSeries\b/i)[0].trim();
+    const tokens = beforeSeries.split(/\s+/).filter(Boolean);
+    for (const rawToken of tokens) {
+      const token = rawToken.replace(/[^A-Za-z+\-.]/g, '');
+      const key = canonicalKey(token);
+      if (!token) continue;
+      if (isLikelyModelToken(token)) continue;
+      if (BRAND_STOPWORDS.has(key)) continue;
+      if (token.length < 2) continue;
+      return token;
+    }
+  }
+
+  const manufacturer = cleanCompanySuffix(row?.Manufacturer);
+  if (!manufacturer) return '';
+  const token = manufacturer.split(/\s+/).filter(Boolean)[0] || '';
+  return isLikelyModelToken(token) ? '' : token;
 }
 
 function parseCsv(text) {
@@ -170,16 +243,115 @@ export async function getPvPanelModelsByBrand(brand) {
   return Array.from(set.values()).sort((a, b) => a.localeCompare(b));
 }
 
+function parsePanelWattsFromRow(row, model) {
+  const candidates = [
+    row?.['Module Power (W)'],
+    row?.['Power (W)'],
+    row?.['Rated Power (W)'],
+    row?.['Nominal Power (W)'],
+    row?.['Pmax (W)'],
+  ];
+  for (const raw of candidates) {
+    const n = Number(String(raw ?? '').replace(/[^\d.]/g, ''));
+    if (Number.isFinite(n) && n > 0) return Math.round(n);
+  }
+
+  // Fallback: infer watts from model number patterns (e.g. "...-425", "... 440W")
+  const s = normalizeStr(model);
+  if (!s) return null;
+  const mW = s.match(/(?:^|[^0-9])([2-8]\d{2})(?:\s*W\b|[^0-9]|$)/i);
+  if (mW) {
+    const n = Number(mW[1]);
+    if (Number.isFinite(n) && n >= 200 && n <= 900) return n;
+  }
+  return null;
+}
+
+export async function getPvPanelModelDetails(brand, model) {
+  await initFromDiskOnce();
+  const wantBrand = canonicalKey(brand);
+  const wantModel = canonicalKey(model);
+  if (!wantBrand || !wantModel) return null;
+
+  for (const r of memoryCache.pv_modules.rows || []) {
+    const b = normalizeStr(r['Manufacturer']) || normalizeStr(r['Licensee/Certificate Holder']);
+    if (!b || canonicalKey(b) !== wantBrand) continue;
+    const m = normalizeStr(r['Model Number']);
+    if (!m || canonicalKey(m) !== wantModel) continue;
+    return {
+      module_watts: parsePanelWattsFromRow(r, m),
+    };
+  }
+  return null;
+}
+
 export async function getInverterBrands() {
   await initFromDiskOnce();
   const set = new Map();
   for (const r of memoryCache.inverters.rows || []) {
-    const name = inferInverterBrand(r);
+    const name = toAllowedInverterBrand(inferInverterBrand(r));
     if (!name) continue;
     const key = canonicalKey(name);
     if (!set.has(key)) set.set(key, name);
   }
   return Array.from(set.values()).sort((a, b) => a.localeCompare(b));
+}
+
+export async function getInverterModelsByBrand(brand) {
+  await initFromDiskOnce();
+  const want = canonicalKey(toAllowedInverterBrand(brand));
+  if (!want) return [];
+  const set = new Map();
+  for (const r of memoryCache.inverters.rows || []) {
+    const b = toAllowedInverterBrand(inferInverterBrand(r));
+    if (!b || canonicalKey(b) !== want) continue;
+    const model = normalizeStr(r['Model Number']);
+    if (!model) continue;
+    const key = canonicalKey(model);
+    if (!set.has(key)) set.set(key, model);
+  }
+  return Array.from(set.values()).sort((a, b) => a.localeCompare(b));
+}
+
+export async function getInverterSeriesByBrandModel(brand, model = '') {
+  await initFromDiskOnce();
+  const wantBrand = canonicalKey(toAllowedInverterBrand(brand));
+  const wantModel = canonicalKey(model);
+  if (!wantBrand) return [];
+  const set = new Map();
+  for (const r of memoryCache.inverters.rows || []) {
+    const b = toAllowedInverterBrand(inferInverterBrand(r));
+    if (!b || canonicalKey(b) !== wantBrand) continue;
+    const m = normalizeStr(r['Model Number']);
+    if (wantModel && canonicalKey(m) !== wantModel) continue;
+    const series = normalizeStr(r['Series']);
+    if (!series) continue;
+    const key = canonicalKey(series);
+    if (!set.has(key)) set.set(key, series);
+  }
+  return Array.from(set.values()).sort((a, b) => a.localeCompare(b));
+}
+
+export async function getInverterModelDetails(brand, model) {
+  await initFromDiskOnce();
+  const wantBrand = canonicalKey(toAllowedInverterBrand(brand));
+  const wantModel = canonicalKey(model);
+  if (!wantBrand || !wantModel) return null;
+
+  for (const r of memoryCache.inverters.rows || []) {
+    const b = toAllowedInverterBrand(inferInverterBrand(r));
+    if (!b || canonicalKey(b) !== wantBrand) continue;
+    const m = normalizeStr(r['Model Number']);
+    if (!m || canonicalKey(m) !== wantModel) continue;
+    const series = normalizeStr(r['Series']) || null;
+    const powerKwRaw = normalizeStr(r['AC Power (kW)']);
+    const powerKw = powerKwRaw === '' ? null : Number(powerKwRaw);
+    return {
+      series,
+      power_kw: Number.isFinite(powerKw) ? powerKw : null,
+    };
+  }
+  return null;
 }
 
 export async function getBatteryBrands() {

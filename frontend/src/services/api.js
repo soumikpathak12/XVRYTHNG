@@ -1098,9 +1098,40 @@ export async function getCecPvPanelModels(brand) {
   return res.data ?? [];
 }
 
+export async function getCecPvPanelDetails(brand, model) {
+  const q = new URLSearchParams();
+  if (brand) q.set('brand', brand);
+  if (model) q.set('model', model);
+  const res = await authFetchJSON(`/api/cec/options/pv-panel-details${q.toString() ? `?${q.toString()}` : ''}`, { method: 'GET' });
+  return res.data ?? null;
+}
+
 export async function getCecInverterBrands() {
   const res = await authFetchJSON('/api/cec/options/inverter-brands', { method: 'GET' });
   return res.data ?? [];
+}
+
+export async function getCecInverterModels(brand) {
+  const q = new URLSearchParams();
+  if (brand) q.set('brand', brand);
+  const res = await authFetchJSON(`/api/cec/options/inverter-models${q.toString() ? `?${q.toString()}` : ''}`, { method: 'GET' });
+  return res.data ?? [];
+}
+
+export async function getCecInverterSeries(brand, model) {
+  const q = new URLSearchParams();
+  if (brand) q.set('brand', brand);
+  if (model) q.set('model', model);
+  const res = await authFetchJSON(`/api/cec/options/inverter-series${q.toString() ? `?${q.toString()}` : ''}`, { method: 'GET' });
+  return res.data ?? [];
+}
+
+export async function getCecInverterDetails(brand, model) {
+  const q = new URLSearchParams();
+  if (brand) q.set('brand', brand);
+  if (model) q.set('model', model);
+  const res = await authFetchJSON(`/api/cec/options/inverter-details${q.toString() ? `?${q.toString()}` : ''}`, { method: 'GET' });
+  return res.data ?? null;
 }
 
 export async function getCecBatteryBrands() {

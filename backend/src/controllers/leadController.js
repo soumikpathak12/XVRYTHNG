@@ -376,6 +376,14 @@ export async function updateLead(req, res) {
       payload.pv_inverter_size_kw = body.pv_inverter_size_kw;
     if (body.pv_inverter_brand !== undefined)
       payload.pv_inverter_brand = trimOrNull(body.pv_inverter_brand, 120);
+    if (body.pv_inverter_model !== undefined)
+      payload.pv_inverter_model = trimOrNull(body.pv_inverter_model, 120);
+    if (body.pv_inverter_series !== undefined)
+      payload.pv_inverter_series = trimOrNull(body.pv_inverter_series, 120);
+    if (body.pv_inverter_power_kw !== undefined)
+      payload.pv_inverter_power_kw = body.pv_inverter_power_kw;
+    if (body.pv_inverter_quantity !== undefined)
+      payload.pv_inverter_quantity = body.pv_inverter_quantity;
     if (body.pv_panel_brand !== undefined)
       payload.pv_panel_brand = trimOrNull(body.pv_panel_brand, 120);
     if (body.pv_panel_model !== undefined)

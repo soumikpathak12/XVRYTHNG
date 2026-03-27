@@ -5,9 +5,13 @@ import '../../styles/LeadDetailModal.css';
 import {
   getCecBatteryBrands,
   getCecBatteryModels,
+  getCecInverterDetails,
   getCecMeta,
   getCecInverterBrands,
+  getCecInverterModels,
+  getCecInverterSeries,
   getCecPvPanelModels,
+  getCecPvPanelDetails,
   getCecPvPanelBrands,
   syncCecNow,
 } from '../../services/api.js';
@@ -173,6 +177,22 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
         lead?.pv_inverter_brand ??
         lead?._raw?.pv_inverter_brand ??
         '',
+      pv_inverter_model:
+        lead?.pv_inverter_model ??
+        lead?._raw?.pv_inverter_model ??
+        '',
+      pv_inverter_series:
+        lead?.pv_inverter_series ??
+        lead?._raw?.pv_inverter_series ??
+        '',
+      pv_inverter_power_kw:
+        lead?.pv_inverter_power_kw ??
+        lead?._raw?.pv_inverter_power_kw ??
+        '',
+      pv_inverter_quantity:
+        lead?.pv_inverter_quantity ??
+        lead?._raw?.pv_inverter_quantity ??
+        '',
       pv_panel_brand:
         lead?.pv_panel_brand ??
         lead?._raw?.pv_panel_brand ??
@@ -225,6 +245,10 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
     pvPanelModels: [],
     pvPanelModelsForBrand: '',
     inverterBrands: [],
+    inverterModels: [],
+    inverterModelsForBrand: '',
+    inverterSeries: [],
+    inverterSeriesForBrandModel: '',
     batteryBrands: [],
     batteryModels: [],
     batteryModelsForBrand: '',
@@ -348,6 +372,149 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
     };
   }, [hasPV, extras.pv_panel_brand, cecOptions.pvPanelModelsForBrand]);
 
+  // Auto-fill panel module watts from selected panel model when available.
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!hasPV) return;
+      const brand = (extras.pv_panel_brand || '').trim();
+      const model = (extras.pv_panel_model || '').trim();
+      if (!brand || !model) return;
+      // Do not overwrite existing manual value.
+      if (String(extras.pv_panel_module_watts || '').trim() !== '') return;
+      try {
+        const details = await getCecPvPanelDetails(brand, model);
+        if (cancelled) return;
+        if (details?.module_watts != null && String(details.module_watts).trim() !== '') {
+          updateExtra('pv_panel_module_watts', String(details.module_watts));
+        }
+      } catch {
+        // silent - keep manual entry behavior
+      }
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasPV, extras.pv_panel_brand, extras.pv_panel_model, extras.pv_panel_module_watts]);
+
+  // Auto-calculate PV system size (kW) from panel quantity * panel module watts.
+  useEffect(() => {
+    if (!hasPV) return;
+    const qty = Number(extras.pv_panel_quantity);
+    const watts = Number(extras.pv_panel_module_watts);
+    if (!Number.isFinite(qty) || !Number.isFinite(watts) || qty <= 0 || watts <= 0) return;
+    const kw = (qty * watts) / 1000;
+    const next = String(Number(kw.toFixed(3)));
+    if (String(extras.pv_system_size_kw || '') === next) return;
+    updateExtra('pv_system_size_kw', next);
+  }, [hasPV, extras.pv_panel_quantity, extras.pv_panel_module_watts, extras.pv_system_size_kw]);
+
+  // Auto-calculate inverter size (kW) from inverter power * inverter quantity.
+  useEffect(() => {
+    if (!hasPV) return;
+    const powerKw = Number(extras.pv_inverter_power_kw);
+    const qty = Number(extras.pv_inverter_quantity);
+    if (!Number.isFinite(powerKw) || !Number.isFinite(qty) || powerKw <= 0 || qty <= 0) return;
+    const totalKw = powerKw * qty;
+    const next = String(Number(totalKw.toFixed(3)));
+    if (String(extras.pv_inverter_size_kw || '') === next) return;
+    updateExtra('pv_inverter_size_kw', next);
+  }, [hasPV, extras.pv_inverter_power_kw, extras.pv_inverter_quantity, extras.pv_inverter_size_kw]);
+
+  // Load inverter models when inverter brand changes.
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!hasPV) return;
+      const brand = (extras.pv_inverter_brand || '').trim();
+      if (!brand) {
+        setCecOptions((p) => ({
+          ...p,
+          inverterModels: [],
+          inverterModelsForBrand: '',
+          inverterSeries: [],
+          inverterSeriesForBrandModel: '',
+        }));
+        return;
+      }
+      if (cecOptions.inverterModelsForBrand && cecOptions.inverterModelsForBrand === brand) return;
+      try {
+        const models = await getCecInverterModels(brand);
+        if (cancelled) return;
+        setCecOptions((p) => ({
+          ...p,
+          inverterModels: Array.isArray(models) ? models : [],
+          inverterModelsForBrand: brand,
+          inverterSeries: [],
+          inverterSeriesForBrandModel: '',
+        }));
+      } catch {
+        if (cancelled) return;
+        setCecOptions((p) => ({
+          ...p,
+          inverterModels: [],
+          inverterModelsForBrand: brand,
+          inverterSeries: [],
+          inverterSeriesForBrandModel: '',
+        }));
+      }
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasPV, extras.pv_inverter_brand, cecOptions.inverterModelsForBrand]);
+
+  // Load inverter series/details when inverter model changes.
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!hasPV) return;
+      const brand = (extras.pv_inverter_brand || '').trim();
+      const model = (extras.pv_inverter_model || '').trim();
+      if (!brand || !model) {
+        setCecOptions((p) => ({ ...p, inverterSeries: [], inverterSeriesForBrandModel: '' }));
+        return;
+      }
+      const key = `${brand}::${model}`;
+      if (cecOptions.inverterSeriesForBrandModel && cecOptions.inverterSeriesForBrandModel === key) return;
+
+      try {
+        const [seriesList, details] = await Promise.all([
+          getCecInverterSeries(brand, model).catch(() => []),
+          getCecInverterDetails(brand, model).catch(() => null),
+        ]);
+        if (cancelled) return;
+        setCecOptions((p) => ({
+          ...p,
+          inverterSeries: Array.isArray(seriesList) ? seriesList : [],
+          inverterSeriesForBrandModel: key,
+        }));
+        if (!extras.pv_inverter_series && details?.series) {
+          updateExtra('pv_inverter_series', details.series);
+        }
+        if (!extras.pv_inverter_power_kw && details?.power_kw != null) {
+          updateExtra('pv_inverter_power_kw', String(details.power_kw));
+        }
+      } catch {
+        if (cancelled) return;
+        setCecOptions((p) => ({ ...p, inverterSeries: [], inverterSeriesForBrandModel: key }));
+      }
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    hasPV,
+    extras.pv_inverter_brand,
+    extras.pv_inverter_model,
+    extras.pv_inverter_series,
+    extras.pv_inverter_power_kw,
+    cecOptions.inverterSeriesForBrandModel,
+  ]);
+
   /** After save: in-app result (success / error), not browser alert or top toast */
   const [resultDialog, setResultDialog] = useState(null);
 
@@ -420,6 +587,10 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
       pv_system_size_kw: trimOrNull(extras.pv_system_size_kw),
       pv_inverter_size_kw: trimOrNull(extras.pv_inverter_size_kw),
       pv_inverter_brand: trimOrNull(extras.pv_inverter_brand),
+      pv_inverter_model: trimOrNull(extras.pv_inverter_model),
+      pv_inverter_series: trimOrNull(extras.pv_inverter_series),
+      pv_inverter_power_kw: trimOrNull(extras.pv_inverter_power_kw),
+      pv_inverter_quantity: trimOrNull(extras.pv_inverter_quantity),
       pv_panel_brand: trimOrNull(extras.pv_panel_brand),
       pv_panel_model: trimOrNull(extras.pv_panel_model),
       pv_panel_quantity: trimOrNull(extras.pv_panel_quantity),
@@ -627,6 +798,45 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
                       placeholder={cecOptions.loading ? 'Loading approved brands…' : 'Start typing'}
                     />
                   </Labeled>
+                  <Labeled label="INVERTER MODEL">
+                    <input
+                      type="text"
+                      list="cec-inverter-models"
+                      value={extras.pv_inverter_model || ''}
+                      onChange={(e) => updateExtra('pv_inverter_model', e.target.value)}
+                      style={inputStyle}
+                      placeholder={extras.pv_inverter_brand ? 'Start typing' : 'Select/enter inverter brand first'}
+                    />
+                  </Labeled>
+                  <Labeled label="INVERTER SERIES">
+                    <input
+                      type="text"
+                      list="cec-inverter-series"
+                      value={extras.pv_inverter_series || ''}
+                      onChange={(e) => updateExtra('pv_inverter_series', e.target.value)}
+                      style={inputStyle}
+                      placeholder={extras.pv_inverter_model ? 'Start typing' : 'Select/enter inverter model first'}
+                    />
+                  </Labeled>
+                  <Labeled label="INVERTER POWER (kW)">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={extras.pv_inverter_power_kw || ''}
+                      onChange={(e) => updateExtra('pv_inverter_power_kw', e.target.value)}
+                      style={inputStyle}
+                    />
+                  </Labeled>
+                  <Labeled label="NUMBER OF INVERTER">
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={extras.pv_inverter_quantity || ''}
+                      onChange={(e) => updateExtra('pv_inverter_quantity', e.target.value)}
+                      style={inputStyle}
+                    />
+                  </Labeled>
                   <Labeled label="PANEL BRAND">
                     <input
                       type="text"
@@ -745,6 +955,16 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
       <datalist id="cec-inverter-brands">
         {cecOptions.inverterBrands.map((b) => (
           <option key={b} value={b} />
+        ))}
+      </datalist>
+      <datalist id="cec-inverter-models">
+        {cecOptions.inverterModels.map((m) => (
+          <option key={m} value={m} />
+        ))}
+      </datalist>
+      <datalist id="cec-inverter-series">
+        {cecOptions.inverterSeries.map((s) => (
+          <option key={s} value={s} />
         ))}
       </datalist>
       <datalist id="cec-pv-panel-models">

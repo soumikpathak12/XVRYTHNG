@@ -496,6 +496,26 @@ export async function updateLead(leadId, payload) {
     updates.push('pv_inverter_brand = ?');
     params.push(payload.pv_inverter_brand ?? null);
   }
+  if (payload.pv_inverter_model !== undefined && leadColumns.has('pv_inverter_model')) {
+    updates.push('pv_inverter_model = ?');
+    params.push(payload.pv_inverter_model ?? null);
+  }
+  if (payload.pv_inverter_series !== undefined && leadColumns.has('pv_inverter_series')) {
+    updates.push('pv_inverter_series = ?');
+    params.push(payload.pv_inverter_series ?? null);
+  }
+  if (payload.pv_inverter_power_kw !== undefined && leadColumns.has('pv_inverter_power_kw')) {
+    updates.push('pv_inverter_power_kw = ?');
+    params.push(
+      payload.pv_inverter_power_kw == null ? null : Number(payload.pv_inverter_power_kw),
+    );
+  }
+  if (payload.pv_inverter_quantity !== undefined && leadColumns.has('pv_inverter_quantity')) {
+    updates.push('pv_inverter_quantity = ?');
+    params.push(
+      payload.pv_inverter_quantity == null ? null : Number(payload.pv_inverter_quantity),
+    );
+  }
   if (payload.pv_panel_brand !== undefined) {
     updates.push('pv_panel_brand = ?');
     params.push(payload.pv_panel_brand ?? null);

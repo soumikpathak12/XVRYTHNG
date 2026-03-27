@@ -3,6 +3,10 @@ import {
   getBatteryModelsByBrand,
   getCecCacheMeta,
   getInverterBrands,
+  getInverterModelDetails,
+  getPvPanelModelDetails,
+  getInverterModelsByBrand,
+  getInverterSeriesByBrandModel,
   getPvPanelBrands,
   getPvPanelModelsByBrand,
   syncCecApprovedProducts,
@@ -23,9 +27,36 @@ export async function listInverterBrands(_req, res) {
   return res.status(200).json({ success: true, data });
 }
 
+export async function listInverterModels(req, res) {
+  const brand = req.query.brand ?? '';
+  const data = await getInverterModelsByBrand(brand);
+  return res.status(200).json({ success: true, data });
+}
+
+export async function listInverterSeries(req, res) {
+  const brand = req.query.brand ?? '';
+  const model = req.query.model ?? '';
+  const data = await getInverterSeriesByBrandModel(brand, model);
+  return res.status(200).json({ success: true, data });
+}
+
+export async function getInverterDetails(req, res) {
+  const brand = req.query.brand ?? '';
+  const model = req.query.model ?? '';
+  const data = await getInverterModelDetails(brand, model);
+  return res.status(200).json({ success: true, data });
+}
+
 export async function listPvPanelModels(req, res) {
   const brand = req.query.brand ?? '';
   const data = await getPvPanelModelsByBrand(brand);
+  return res.status(200).json({ success: true, data });
+}
+
+export async function getPvPanelDetails(req, res) {
+  const brand = req.query.brand ?? '';
+  const model = req.query.model ?? '';
+  const data = await getPvPanelModelDetails(brand, model);
   return res.status(200).json({ success: true, data });
 }
 

@@ -1251,14 +1251,26 @@ const meta = base?.meta && typeof base.meta === 'string'
             </div>
             {lead.pv_system_size_kw != null ||
               lead.pv_inverter_brand ||
-              lead.pv_panel_brand ? (
+              lead.pv_inverter_model ||
+              lead.pv_inverter_series ||
+              lead.pv_inverter_power_kw != null ||
+              lead.pv_inverter_quantity != null ||
+              lead.pv_panel_brand ||
+              lead.pv_panel_model ||
+              lead.pv_panel_quantity != null ? (
               <div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>PV System</div>
                 <div>
                   {[
                     lead.pv_system_size_kw != null ? `${lead.pv_system_size_kw} kW` : null,
                     lead.pv_inverter_brand ? `Inverter: ${lead.pv_inverter_brand}` : null,
+                    lead.pv_inverter_model ? `Inverter Model: ${lead.pv_inverter_model}` : null,
+                    lead.pv_inverter_series ? `Inverter Series: ${lead.pv_inverter_series}` : null,
+                    lead.pv_inverter_power_kw != null ? `Inverter Power: ${lead.pv_inverter_power_kw} kW` : null,
+                    lead.pv_inverter_quantity != null ? `No. of Inverters: ${lead.pv_inverter_quantity}` : null,
                     lead.pv_panel_brand ? `Panel: ${lead.pv_panel_brand}` : null,
+                    lead.pv_panel_model ? `Panel Model: ${lead.pv_panel_model}` : null,
+                    lead.pv_panel_quantity != null ? `No. of Panels: ${lead.pv_panel_quantity}` : null,
                     lead.pv_panel_module_watts != null ? `${lead.pv_panel_module_watts} W` : null,
                   ]
                     .filter(Boolean)

@@ -1,6 +1,17 @@
 // src/components/projects/RetailerProjectDetailDetails.jsx
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import './RetailerProjectDetails.css'; // Re-use old panel styles if needed, or inline
+import {
+  getCecBatteryBrands,
+  getCecBatteryModels,
+  getCecInverterBrands,
+  getCecInverterDetails,
+  getCecInverterModels,
+  getCecInverterSeries,
+  getCecPvPanelBrands,
+  getCecPvPanelDetails,
+  getCecPvPanelModels,
+} from '../../services/api.js';
 
 const JOB_TYPES = [
   { key: 'site_inspection', label: 'Site Inspection' },
@@ -38,7 +49,13 @@ function seedInHouseForm(p) {
     pv_system_size_kw: p.pv_system_size_kw ?? '',
     pv_inverter_size_kw: p.pv_inverter_size_kw ?? '',
     pv_inverter_brand: p.pv_inverter_brand || '',
+    pv_inverter_model: p.pv_inverter_model || '',
+    pv_inverter_series: p.pv_inverter_series || '',
+    pv_inverter_power_kw: p.pv_inverter_power_kw ?? '',
+    pv_inverter_quantity: p.pv_inverter_quantity ?? '',
     pv_panel_brand: p.pv_panel_brand || '',
+    pv_panel_model: p.pv_panel_model || '',
+    pv_panel_quantity: p.pv_panel_quantity ?? '',
     pv_panel_module_watts: p.pv_panel_module_watts ?? '',
     ev_charger_brand: p.ev_charger_brand || '',
     ev_charger_model: p.ev_charger_model || '',
@@ -258,6 +275,20 @@ export default function RetailerProjectDetailDetails({
   const [detailForm, setDetailForm] = useState(null);
   const [savingInHouse, setSavingInHouse] = useState(false);
   const [announcingUtility, setAnnouncingUtility] = useState(null);
+  const [cecOptions, setCecOptions] = useState({
+    pvPanelBrands: [],
+    pvPanelModels: [],
+    pvPanelModelsForBrand: '',
+    inverterBrands: [],
+    inverterModels: [],
+    inverterModelsForBrand: '',
+    inverterSeries: [],
+    inverterSeriesForBrandModel: '',
+    batteryBrands: [],
+    batteryModels: [],
+    batteryModelsForBrand: '',
+    loading: false,
+  });
 
   const [status, setStatus] = useState(project?.stage ?? '');
   const [jobType, setJobType] = useState('');
@@ -382,6 +413,157 @@ export default function RetailerProjectDetailDetails({
   const hasPV = /PV/i.test(sysTypeForFlags);
   const hasEV = /EV/i.test(sysTypeForFlags);
   const hasBattery = /Battery/i.test(sysTypeForFlags);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!editMode) return;
+      if (!hasPV && !hasBattery) return;
+      setCecOptions((p) => ({ ...p, loading: true }));
+      try {
+        const [pvPanelBrands, inverterBrands, batteryBrands] = await Promise.all([
+          hasPV ? getCecPvPanelBrands().catch(() => []) : Promise.resolve([]),
+          hasPV ? getCecInverterBrands().catch(() => []) : Promise.resolve([]),
+          hasBattery ? getCecBatteryBrands().catch(() => []) : Promise.resolve([]),
+        ]);
+        if (cancelled) return;
+        setCecOptions((p) => ({
+          ...p,
+          pvPanelBrands: pvPanelBrands.length ? pvPanelBrands : p.pvPanelBrands,
+          inverterBrands: inverterBrands.length ? inverterBrands : p.inverterBrands,
+          batteryBrands: batteryBrands.length ? batteryBrands : p.batteryBrands,
+          loading: false,
+        }));
+      } catch {
+        if (cancelled) return;
+        setCecOptions((p) => ({ ...p, loading: false }));
+      }
+    }
+    run();
+    return () => { cancelled = true; };
+  }, [editMode, hasPV, hasBattery]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!editMode || !hasPV) return;
+      const brand = String(detailForm?.pv_panel_brand || '').trim();
+      if (!brand) {
+        setCecOptions((p) => ({ ...p, pvPanelModels: [], pvPanelModelsForBrand: '' }));
+        return;
+      }
+      if (cecOptions.pvPanelModelsForBrand === brand) return;
+      const models = await getCecPvPanelModels(brand).catch(() => []);
+      if (cancelled) return;
+      setCecOptions((p) => ({ ...p, pvPanelModels: Array.isArray(models) ? models : [], pvPanelModelsForBrand: brand }));
+    }
+    run();
+    return () => { cancelled = true; };
+  }, [editMode, hasPV, detailForm?.pv_panel_brand, cecOptions.pvPanelModelsForBrand]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!editMode || !hasPV) return;
+      const brand = String(detailForm?.pv_inverter_brand || '').trim();
+      if (!brand) {
+        setCecOptions((p) => ({ ...p, inverterModels: [], inverterModelsForBrand: '' }));
+        return;
+      }
+      if (cecOptions.inverterModelsForBrand === brand) return;
+      const models = await getCecInverterModels(brand).catch(() => []);
+      if (cancelled) return;
+      setCecOptions((p) => ({ ...p, inverterModels: Array.isArray(models) ? models : [], inverterModelsForBrand: brand }));
+    }
+    run();
+    return () => { cancelled = true; };
+  }, [editMode, hasPV, detailForm?.pv_inverter_brand, cecOptions.inverterModelsForBrand]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!editMode || !hasPV) return;
+      const brand = String(detailForm?.pv_inverter_brand || '').trim();
+      const model = String(detailForm?.pv_inverter_model || '').trim();
+      if (!brand || !model) {
+        setCecOptions((p) => ({ ...p, inverterSeries: [], inverterSeriesForBrandModel: '' }));
+        return;
+      }
+      const key = `${brand}::${model}`;
+      if (cecOptions.inverterSeriesForBrandModel === key) return;
+      const [seriesList, details] = await Promise.all([
+        getCecInverterSeries(brand, model).catch(() => []),
+        getCecInverterDetails(brand, model).catch(() => null),
+      ]);
+      if (cancelled) return;
+      setCecOptions((p) => ({ ...p, inverterSeries: Array.isArray(seriesList) ? seriesList : [], inverterSeriesForBrandModel: key }));
+      setDetailForm((f) => {
+        if (!f) return f;
+        const next = { ...f };
+        if (!next.pv_inverter_series && details?.series) next.pv_inverter_series = details.series;
+        if (!next.pv_inverter_power_kw && details?.power_kw != null) next.pv_inverter_power_kw = String(details.power_kw);
+        return next;
+      });
+    }
+    run();
+    return () => { cancelled = true; };
+  }, [editMode, hasPV, detailForm?.pv_inverter_brand, detailForm?.pv_inverter_model, cecOptions.inverterSeriesForBrandModel]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!editMode || !hasBattery) return;
+      const brand = String(detailForm?.battery_brand || '').trim();
+      if (!brand) {
+        setCecOptions((p) => ({ ...p, batteryModels: [], batteryModelsForBrand: '' }));
+        return;
+      }
+      if (cecOptions.batteryModelsForBrand === brand) return;
+      const models = await getCecBatteryModels(brand).catch(() => []);
+      if (cancelled) return;
+      setCecOptions((p) => ({ ...p, batteryModels: Array.isArray(models) ? models : [], batteryModelsForBrand: brand }));
+    }
+    run();
+    return () => { cancelled = true; };
+  }, [editMode, hasBattery, detailForm?.battery_brand, cecOptions.batteryModelsForBrand]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!editMode || !hasPV) return;
+      const brand = String(detailForm?.pv_panel_brand || '').trim();
+      const model = String(detailForm?.pv_panel_model || '').trim();
+      if (!brand || !model) return;
+      if (String(detailForm?.pv_panel_module_watts || '').trim() !== '') return;
+      const details = await getCecPvPanelDetails(brand, model).catch(() => null);
+      if (cancelled) return;
+      if (details?.module_watts != null) {
+        setDetailForm((f) => (f ? { ...f, pv_panel_module_watts: String(details.module_watts) } : f));
+      }
+    }
+    run();
+    return () => { cancelled = true; };
+  }, [editMode, hasPV, detailForm?.pv_panel_brand, detailForm?.pv_panel_model, detailForm?.pv_panel_module_watts]);
+
+  useEffect(() => {
+    if (!editMode || !hasPV || !detailForm) return;
+    const qty = Number(detailForm.pv_panel_quantity);
+    const watts = Number(detailForm.pv_panel_module_watts);
+    if (!Number.isFinite(qty) || !Number.isFinite(watts) || qty <= 0 || watts <= 0) return;
+    const nextKw = String(Number(((qty * watts) / 1000).toFixed(3)));
+    if (String(detailForm.system_size_kw || '') === nextKw) return;
+    setDetailForm((f) => (f ? { ...f, system_size_kw: nextKw, pv_system_size_kw: nextKw } : f));
+  }, [editMode, hasPV, detailForm?.pv_panel_quantity, detailForm?.pv_panel_module_watts, detailForm?.system_size_kw]);
+
+  useEffect(() => {
+    if (!editMode || !hasPV || !detailForm) return;
+    const powerKw = Number(detailForm.pv_inverter_power_kw);
+    const qty = Number(detailForm.pv_inverter_quantity);
+    if (!Number.isFinite(powerKw) || !Number.isFinite(qty) || powerKw <= 0 || qty <= 0) return;
+    const nextKw = String(Number((powerKw * qty).toFixed(3)));
+    if (String(detailForm.pv_inverter_size_kw || '') === nextKw) return;
+    setDetailForm((f) => (f ? { ...f, pv_inverter_size_kw: nextKw } : f));
+  }, [editMode, hasPV, detailForm?.pv_inverter_power_kw, detailForm?.pv_inverter_quantity, detailForm?.pv_inverter_size_kw]);
 
   const solarVicLabel =
     project?.solar_vic_eligibility === null ||
@@ -561,20 +743,40 @@ export default function RetailerProjectDetailDetails({
             {hasPV && (
               <>
                 <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
-                  <label style={labelStyle}>PV system size (kW)</label>
-                  <input style={inputStyle} type="number" step="any" min="0" value={detailForm.pv_system_size_kw} onChange={(e) => setDetailForm((f) => ({ ...f, pv_system_size_kw: e.target.value }))} />
-                </div>
-                <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
                   <label style={labelStyle}>PV inverter size (kW)</label>
                   <input style={inputStyle} type="number" step="any" min="0" value={detailForm.pv_inverter_size_kw} onChange={(e) => setDetailForm((f) => ({ ...f, pv_inverter_size_kw: e.target.value }))} />
                 </div>
                 <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
                   <label style={labelStyle}>PV inverter brand</label>
-                  <input style={inputStyle} value={detailForm.pv_inverter_brand} onChange={(e) => setDetailForm((f) => ({ ...f, pv_inverter_brand: e.target.value }))} />
+                  <input style={inputStyle} list="cec-rpdd-inverter-brands" value={detailForm.pv_inverter_brand} onChange={(e) => setDetailForm((f) => ({ ...f, pv_inverter_brand: e.target.value }))} />
+                </div>
+                <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+                  <label style={labelStyle}>PV inverter model</label>
+                  <input style={inputStyle} list="cec-rpdd-inverter-models" value={detailForm.pv_inverter_model || ''} onChange={(e) => setDetailForm((f) => ({ ...f, pv_inverter_model: e.target.value }))} />
+                </div>
+                <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+                  <label style={labelStyle}>PV inverter series</label>
+                  <input style={inputStyle} list="cec-rpdd-inverter-series" value={detailForm.pv_inverter_series || ''} onChange={(e) => setDetailForm((f) => ({ ...f, pv_inverter_series: e.target.value }))} />
+                </div>
+                <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+                  <label style={labelStyle}>Inverter power (kW)</label>
+                  <input style={inputStyle} type="number" step="any" min="0" value={detailForm.pv_inverter_power_kw || ''} onChange={(e) => setDetailForm((f) => ({ ...f, pv_inverter_power_kw: e.target.value }))} />
+                </div>
+                <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+                  <label style={labelStyle}>Number of inverter</label>
+                  <input style={inputStyle} type="number" step="1" min="0" value={detailForm.pv_inverter_quantity || ''} onChange={(e) => setDetailForm((f) => ({ ...f, pv_inverter_quantity: e.target.value }))} />
                 </div>
                 <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
                   <label style={labelStyle}>PV panel brand</label>
-                  <input style={inputStyle} value={detailForm.pv_panel_brand} onChange={(e) => setDetailForm((f) => ({ ...f, pv_panel_brand: e.target.value }))} />
+                  <input style={inputStyle} list="cec-rpdd-panel-brands" value={detailForm.pv_panel_brand} onChange={(e) => setDetailForm((f) => ({ ...f, pv_panel_brand: e.target.value }))} />
+                </div>
+                <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+                  <label style={labelStyle}>PV panel model</label>
+                  <input style={inputStyle} list="cec-rpdd-panel-models" value={detailForm.pv_panel_model || ''} onChange={(e) => setDetailForm((f) => ({ ...f, pv_panel_model: e.target.value }))} />
+                </div>
+                <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+                  <label style={labelStyle}>Quantity of panel</label>
+                  <input style={inputStyle} type="number" step="1" min="0" value={detailForm.pv_panel_quantity || ''} onChange={(e) => setDetailForm((f) => ({ ...f, pv_panel_quantity: e.target.value }))} />
                 </div>
                 <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
                   <label style={labelStyle}>Panel module (W)</label>
@@ -602,11 +804,11 @@ export default function RetailerProjectDetailDetails({
                 </div>
                 <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
                   <label style={labelStyle}>Battery brand</label>
-                  <input style={inputStyle} value={detailForm.battery_brand} onChange={(e) => setDetailForm((f) => ({ ...f, battery_brand: e.target.value }))} />
+                  <input style={inputStyle} list="cec-rpdd-battery-brands" value={detailForm.battery_brand} onChange={(e) => setDetailForm((f) => ({ ...f, battery_brand: e.target.value }))} />
                 </div>
                 <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
                   <label style={labelStyle}>Battery model</label>
-                  <input style={inputStyle} value={detailForm.battery_model} onChange={(e) => setDetailForm((f) => ({ ...f, battery_model: e.target.value }))} />
+                  <input style={inputStyle} list="cec-rpdd-battery-models" value={detailForm.battery_model} onChange={(e) => setDetailForm((f) => ({ ...f, battery_model: e.target.value }))} />
                 </div>
               </>
             )}
@@ -653,6 +855,31 @@ export default function RetailerProjectDetailDetails({
           </>
         )}
       </SectionCard>
+      {editMode && (
+        <>
+          <datalist id="cec-rpdd-panel-brands">
+            {cecOptions.pvPanelBrands.map((v) => <option key={v} value={v} />)}
+          </datalist>
+          <datalist id="cec-rpdd-panel-models">
+            {cecOptions.pvPanelModels.map((v) => <option key={v} value={v} />)}
+          </datalist>
+          <datalist id="cec-rpdd-inverter-brands">
+            {cecOptions.inverterBrands.map((v) => <option key={v} value={v} />)}
+          </datalist>
+          <datalist id="cec-rpdd-inverter-models">
+            {cecOptions.inverterModels.map((v) => <option key={v} value={v} />)}
+          </datalist>
+          <datalist id="cec-rpdd-inverter-series">
+            {cecOptions.inverterSeries.map((v) => <option key={v} value={v} />)}
+          </datalist>
+          <datalist id="cec-rpdd-battery-brands">
+            {cecOptions.batteryBrands.map((v) => <option key={v} value={v} />)}
+          </datalist>
+          <datalist id="cec-rpdd-battery-models">
+            {cecOptions.batteryModels.map((v) => <option key={v} value={v} />)}
+          </datalist>
+        </>
+      )}
 
       <SectionCard title="Property Characteristics" icon={Icons.home}>
         {editMode ? (

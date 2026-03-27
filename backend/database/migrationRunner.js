@@ -389,6 +389,27 @@ const MIGRATIONS = [
     },
   },
 
+  {
+    version: 'V010__lead_pv_detail_fields',
+    description: 'Add panel/inverter detail columns to leads',
+    up: async () => {
+      const schema = process.env.DB_NAME;
+      const cols = [
+        ['pv_panel_model', 'VARCHAR(120) NULL'],
+        ['pv_panel_quantity', 'INT NULL'],
+        ['pv_inverter_model', 'VARCHAR(120) NULL'],
+        ['pv_inverter_series', 'VARCHAR(120) NULL'],
+        ['pv_inverter_power_kw', 'DECIMAL(10,2) NULL'],
+        ['pv_inverter_quantity', 'INT NULL'],
+      ];
+      for (const [col, def] of cols) {
+        if (!(await columnExists(schema, 'leads', col))) {
+          await db.execute(`ALTER TABLE leads ADD COLUMN ${col} ${def}`);
+        }
+      }
+    },
+  },
+
 ];
 
 /* ═══════ Runner ═══════ */
