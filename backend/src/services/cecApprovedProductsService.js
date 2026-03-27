@@ -31,6 +31,14 @@ function canonicalKey(v) {
   return normalizeStr(v).toLowerCase();
 }
 
+function inferInverterBrand(row) {
+  return (
+    normalizeStr(row?.Brand) ||
+    normalizeStr(row?.['Brand Name']) ||
+    normalizeStr(row?.brand)
+  );
+}
+
 function parseCsv(text) {
   const res = Papa.parse(text, { header: true, skipEmptyLines: true });
   if (res.errors?.length) {
@@ -138,10 +146,26 @@ export async function getPvPanelBrands() {
   await initFromDiskOnce();
   const set = new Map(); // canonical -> display
   for (const r of memoryCache.pv_modules.rows || []) {
-    const name = normalizeStr(r['Licensee/Certificate Holder']);
+    const name = normalizeStr(r['Manufacturer']) || normalizeStr(r['Licensee/Certificate Holder']);
     if (!name) continue;
     const key = canonicalKey(name);
     if (!set.has(key)) set.set(key, name);
+  }
+  return Array.from(set.values()).sort((a, b) => a.localeCompare(b));
+}
+
+export async function getPvPanelModelsByBrand(brand) {
+  await initFromDiskOnce();
+  const want = canonicalKey(brand);
+  if (!want) return [];
+  const set = new Map();
+  for (const r of memoryCache.pv_modules.rows || []) {
+    const b = normalizeStr(r['Manufacturer']) || normalizeStr(r['Licensee/Certificate Holder']);
+    if (!b || canonicalKey(b) !== want) continue;
+    const model = normalizeStr(r['Model Number']);
+    if (!model) continue;
+    const key = canonicalKey(model);
+    if (!set.has(key)) set.set(key, model);
   }
   return Array.from(set.values()).sort((a, b) => a.localeCompare(b));
 }
@@ -150,7 +174,7 @@ export async function getInverterBrands() {
   await initFromDiskOnce();
   const set = new Map();
   for (const r of memoryCache.inverters.rows || []) {
-    const name = normalizeStr(r['Manufacturer']);
+    const name = inferInverterBrand(r);
     if (!name) continue;
     const key = canonicalKey(name);
     if (!set.has(key)) set.set(key, name);

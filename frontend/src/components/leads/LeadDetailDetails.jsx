@@ -5,8 +5,11 @@ import '../../styles/LeadDetailModal.css';
 import {
   getCecBatteryBrands,
   getCecBatteryModels,
+  getCecMeta,
   getCecInverterBrands,
+  getCecPvPanelModels,
   getCecPvPanelBrands,
+  syncCecNow,
 } from '../../services/api.js';
 
 function formatDateTimeLocal(isoString) {
@@ -174,6 +177,14 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
         lead?.pv_panel_brand ??
         lead?._raw?.pv_panel_brand ??
         '',
+      pv_panel_model:
+        lead?.pv_panel_model ??
+        lead?._raw?.pv_panel_model ??
+        '',
+      pv_panel_quantity:
+        lead?.pv_panel_quantity ??
+        lead?._raw?.pv_panel_quantity ??
+        '',
       pv_panel_module_watts:
         lead?.pv_panel_module_watts ??
         lead?._raw?.pv_panel_module_watts ??
@@ -211,12 +222,17 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
   // ----- CEC Approved products options (cached) -----
   const [cecOptions, setCecOptions] = useState({
     pvPanelBrands: [],
+    pvPanelModels: [],
+    pvPanelModelsForBrand: '',
     inverterBrands: [],
     batteryBrands: [],
     batteryModels: [],
     batteryModelsForBrand: '',
     loading: false,
   });
+  const [syncingCec, setSyncingCec] = useState(false);
+  const [cecSyncMessage, setCecSyncMessage] = useState('');
+  const [cecLastUpdatedAt, setCecLastUpdatedAt] = useState('');
 
   const currentType = extras.system_type_sel || '';
   const hasPV = /PV/i.test(currentType);
@@ -253,6 +269,25 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
     };
   }, [hasPV, hasBattery]);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      try {
+        const meta = await getCecMeta();
+        if (cancelled) return;
+        const updatedAt = meta?.data?.updatedAt || '';
+        setCecLastUpdatedAt(updatedAt);
+      } catch {
+        if (cancelled) return;
+        setCecLastUpdatedAt('');
+      }
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Load battery models when brand changes (only for battery system types).
   useEffect(() => {
     let cancelled = false;
@@ -282,6 +317,36 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
       cancelled = true;
     };
   }, [hasBattery, extras.battery_brand, cecOptions.batteryModelsForBrand]);
+
+  // Load PV panel models when panel brand changes.
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!hasPV) return;
+      const brand = (extras.pv_panel_brand || '').trim();
+      if (!brand) {
+        setCecOptions((p) => ({ ...p, pvPanelModels: [], pvPanelModelsForBrand: '' }));
+        return;
+      }
+      if (cecOptions.pvPanelModelsForBrand && cecOptions.pvPanelModelsForBrand === brand) return;
+      try {
+        const models = await getCecPvPanelModels(brand);
+        if (cancelled) return;
+        setCecOptions((p) => ({
+          ...p,
+          pvPanelModels: Array.isArray(models) ? models : [],
+          pvPanelModelsForBrand: brand,
+        }));
+      } catch {
+        if (cancelled) return;
+        setCecOptions((p) => ({ ...p, pvPanelModels: [], pvPanelModelsForBrand: brand }));
+      }
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasPV, extras.pv_panel_brand, cecOptions.pvPanelModelsForBrand]);
 
   /** After save: in-app result (success / error), not browser alert or top toast */
   const [resultDialog, setResultDialog] = useState(null);
@@ -356,6 +421,8 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
       pv_inverter_size_kw: trimOrNull(extras.pv_inverter_size_kw),
       pv_inverter_brand: trimOrNull(extras.pv_inverter_brand),
       pv_panel_brand: trimOrNull(extras.pv_panel_brand),
+      pv_panel_model: trimOrNull(extras.pv_panel_model),
+      pv_panel_quantity: trimOrNull(extras.pv_panel_quantity),
       pv_panel_module_watts: trimOrNull(extras.pv_panel_module_watts),
 
       // EV charger details
@@ -376,6 +443,36 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
         variant: 'error',
         message: err?.message || 'Failed to save changes.',
       });
+    }
+  };
+
+  const runManualCecSync = async () => {
+    if (syncingCec) return;
+    setSyncingCec(true);
+    setCecSyncMessage('');
+    try {
+      const [syncRes, pvPanelBrands, inverterBrands, batteryBrands, meta] = await Promise.all([
+        syncCecNow({ force: true }),
+        getCecPvPanelBrands().catch(() => []),
+        getCecInverterBrands().catch(() => []),
+        getCecBatteryBrands().catch(() => []),
+        getCecMeta().catch(() => null),
+      ]);
+
+      setCecOptions((p) => ({
+        ...p,
+        pvPanelBrands: Array.isArray(pvPanelBrands) ? pvPanelBrands : p.pvPanelBrands,
+        inverterBrands: Array.isArray(inverterBrands) ? inverterBrands : p.inverterBrands,
+        batteryBrands: Array.isArray(batteryBrands) ? batteryBrands : p.batteryBrands,
+      }));
+
+      const updatedAt = meta?.data?.updatedAt || syncRes?.data?.updatedAt || '';
+      setCecLastUpdatedAt(updatedAt);
+      setCecSyncMessage('CEC approved products synced successfully.');
+    } catch (err) {
+      setCecSyncMessage(err?.message || 'CEC sync failed.');
+    } finally {
+      setSyncingCec(false);
     }
   };
 
@@ -439,6 +536,31 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
       />
 
       <Section title="SYSTEM INFORMATION">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 10 }}>
+          <div style={{ fontSize: 12, color: '#6b7280' }}>
+            {cecLastUpdatedAt
+              ? `CEC last sync: ${new Date(cecLastUpdatedAt).toLocaleString()}`
+              : 'CEC last sync: not synced yet'}
+          </div>
+          <button
+            type="button"
+            onClick={runManualCecSync}
+            disabled={syncingCec}
+            style={{
+              ...btnPrimary,
+              padding: '8px 12px',
+              opacity: syncingCec ? 0.7 : 1,
+              cursor: syncingCec ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {syncingCec ? 'Syncing...' : 'Sync CEC'}
+          </button>
+        </div>
+        {cecSyncMessage ? (
+          <div style={{ fontSize: 12, color: /failed/i.test(cecSyncMessage) ? '#b91c1c' : '#065f46', marginBottom: 10 }}>
+            {cecSyncMessage}
+          </div>
+        ) : null}
         <FieldRow>
           <Labeled label="SYSTEM TYPE">
             <select
@@ -513,6 +635,26 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
                       onChange={(e) => updateExtra('pv_panel_brand', e.target.value)}
                       style={inputStyle}
                       placeholder={cecOptions.loading ? 'Loading approved brands…' : 'Start typing'}
+                    />
+                  </Labeled>
+                  <Labeled label="PANEL MODEL">
+                    <input
+                      type="text"
+                      list="cec-pv-panel-models"
+                      value={extras.pv_panel_model || ''}
+                      onChange={(e) => updateExtra('pv_panel_model', e.target.value)}
+                      style={inputStyle}
+                      placeholder={extras.pv_panel_brand ? 'Start typing' : 'Select/enter panel brand first'}
+                    />
+                  </Labeled>
+                  <Labeled label="QUANTITY OF PANEL">
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={extras.pv_panel_quantity || ''}
+                      onChange={(e) => updateExtra('pv_panel_quantity', e.target.value)}
+                      style={inputStyle}
                     />
                   </Labeled>
                   <Labeled label="PANEL MODULE (WATTS)">
@@ -603,6 +745,11 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
       <datalist id="cec-inverter-brands">
         {cecOptions.inverterBrands.map((b) => (
           <option key={b} value={b} />
+        ))}
+      </datalist>
+      <datalist id="cec-pv-panel-models">
+        {cecOptions.pvPanelModels.map((m) => (
+          <option key={m} value={m} />
         ))}
       </datalist>
       <datalist id="cec-battery-brands">

@@ -13,6 +13,14 @@ const STAGES = new Set([
   'closed_lost',
 ]);
 
+let leadColumnsCache = null;
+async function getLeadColumns() {
+  if (leadColumnsCache) return leadColumnsCache;
+  const [rows] = await db.execute('SHOW COLUMNS FROM leads');
+  leadColumnsCache = new Set((rows || []).map((r) => String(r.Field || '')));
+  return leadColumnsCache;
+}
+
 function deriveFlags(stage) {
   const is_closed = stage === 'closed_won' || stage === 'closed_lost';
   const is_won = stage === 'closed_won';
@@ -358,6 +366,7 @@ export async function updateLead(leadId, payload) {
 
   const updates = [];
   const params = [];
+  const leadColumns = await getLeadColumns();
 
   // Stage (if valid)
   if (stage !== undefined && STAGES.has(stage)) {
@@ -490,6 +499,16 @@ export async function updateLead(leadId, payload) {
   if (payload.pv_panel_brand !== undefined) {
     updates.push('pv_panel_brand = ?');
     params.push(payload.pv_panel_brand ?? null);
+  }
+  if (payload.pv_panel_model !== undefined && leadColumns.has('pv_panel_model')) {
+    updates.push('pv_panel_model = ?');
+    params.push(payload.pv_panel_model ?? null);
+  }
+  if (payload.pv_panel_quantity !== undefined && leadColumns.has('pv_panel_quantity')) {
+    updates.push('pv_panel_quantity = ?');
+    params.push(
+      payload.pv_panel_quantity == null ? null : Number(payload.pv_panel_quantity),
+    );
   }
   if (payload.pv_panel_module_watts !== undefined) {
     updates.push('pv_panel_module_watts = ?');

@@ -1091,6 +1091,13 @@ export async function getCecPvPanelBrands() {
   return res.data ?? [];
 }
 
+export async function getCecPvPanelModels(brand) {
+  const q = new URLSearchParams();
+  if (brand) q.set('brand', brand);
+  const res = await authFetchJSON(`/api/cec/options/pv-panel-models${q.toString() ? `?${q.toString()}` : ''}`, { method: 'GET' });
+  return res.data ?? [];
+}
+
 export async function getCecInverterBrands() {
   const res = await authFetchJSON('/api/cec/options/inverter-brands', { method: 'GET' });
   return res.data ?? [];

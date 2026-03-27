@@ -6,6 +6,7 @@ import {
   listBatteryModels,
   listInverterBrands,
   listPvPanelBrands,
+  listPvPanelModels,
   syncNow,
 } from '../controllers/cecApprovedProductsController.js';
 
@@ -17,6 +18,7 @@ router.get('/meta', getMeta);
 router.post('/sync', syncNow);
 
 router.get('/options/pv-panel-brands', listPvPanelBrands);
+router.get('/options/pv-panel-models', listPvPanelModels);
 router.get('/options/inverter-brands', listInverterBrands);
 router.get('/options/battery-brands', listBatteryBrands);
 router.get('/options/battery-models', listBatteryModels);

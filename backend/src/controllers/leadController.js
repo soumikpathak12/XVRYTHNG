@@ -378,6 +378,10 @@ export async function updateLead(req, res) {
       payload.pv_inverter_brand = trimOrNull(body.pv_inverter_brand, 120);
     if (body.pv_panel_brand !== undefined)
       payload.pv_panel_brand = trimOrNull(body.pv_panel_brand, 120);
+    if (body.pv_panel_model !== undefined)
+      payload.pv_panel_model = trimOrNull(body.pv_panel_model, 120);
+    if (body.pv_panel_quantity !== undefined)
+      payload.pv_panel_quantity = body.pv_panel_quantity;
     if (body.pv_panel_module_watts !== undefined)
       payload.pv_panel_module_watts = body.pv_panel_module_watts;
 

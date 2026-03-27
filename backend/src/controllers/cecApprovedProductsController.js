@@ -4,6 +4,7 @@ import {
   getCecCacheMeta,
   getInverterBrands,
   getPvPanelBrands,
+  getPvPanelModelsByBrand,
   syncCecApprovedProducts,
 } from '../services/cecApprovedProductsService.js';
 
@@ -19,6 +20,12 @@ export async function listPvPanelBrands(_req, res) {
 
 export async function listInverterBrands(_req, res) {
   const data = await getInverterBrands();
+  return res.status(200).json({ success: true, data });
+}
+
+export async function listPvPanelModels(req, res) {
+  const brand = req.query.brand ?? '';
+  const data = await getPvPanelModelsByBrand(brand);
   return res.status(200).json({ success: true, data });
 }
 
