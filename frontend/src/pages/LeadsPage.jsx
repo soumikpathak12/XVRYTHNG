@@ -470,9 +470,8 @@ export default function LeadsPage() {
           >
             <button
               type="button"
-              className="leads-add-btn bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+              className="leads-add-btn leads-import-csv-btn"
               onClick={() => setShowImport(true)}
-              style={{ backgroundColor: '#fff', color: '#374151', border: '1px solid #d1d5db' }}
             >
               <svg
                 width="16"
@@ -493,8 +492,7 @@ export default function LeadsPage() {
             </button>
             <button
               type="button"
-              className="leads-add-btn"
-              style={{ backgroundColor: '#f59e0b', borderColor: '#f59e0b' }}
+              className="leads-add-btn leads-sync-solarquotes-btn"
               onClick={handleImportSolarQuotes}
               title="Fetch latest leads from SolarQuotes"
             >

@@ -2,16 +2,48 @@
  * Admin On-Field page: View all site inspections with status filters.
  * Shows inspections across all leads with customer details, status, dates, etc.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format, isToday } from 'date-fns';
-import { authFetchJSON } from '../../services/api.js';
-import { Calendar, User, MapPin, Search, TrendingUp } from 'lucide-react';
+import {
+  authFetchJSON,
+} from '../../services/api.js';
+import {
+  Calendar,
+  CheckCircle2,
+  ClipboardList,
+  Clock3,
+  FileClock,
+  MapPin,
+  RefreshCw,
+  Search,
+  TrendingUp,
+  User,
+} from 'lucide-react';
+import './AdminOnFieldPage.css';
 
-const STATUS_COLORS = {
-  draft: { bg: '#E3F2FD', text: '#1976D2', label: 'Draft' },
-  submitted: { bg: '#E8F5E9', text: '#388E3C', label: 'Completed' },
-  scheduled: { bg: '#E8F5E9', text: '#388E3C', label: 'Scheduled Today' },
+const STATUS_THEME = {
+  draft: {
+    label: 'Draft',
+    accent: '#52b69a',
+    border: '#52b69a',
+    chipBg: '#eeeeee',
+    chipText: '#06303f',
+  },
+  submitted: {
+    label: 'Completed',
+    accent: '#18877e',
+    border: '#18877e',
+    chipBg: '#18877e',
+    chipText: '#ffffff',
+  },
+  scheduled: {
+    label: 'Scheduled Today',
+    accent: '#34a0a4',
+    border: '#34a0a4',
+    chipBg: '#34a0a4',
+    chipText: '#ffffff',
+  },
 };
 
 export default function AdminOnFieldPage() {
@@ -20,11 +52,12 @@ export default function AdminOnFieldPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [lastUpdated, setLastUpdated] = useState(null);
 
-  // Load all site inspections
   const fetchInspections = async () => {
     setLoading(true);
     setError('');
+
     try {
       const qs = new URLSearchParams();
       if (searchTerm) {
@@ -35,6 +68,7 @@ export default function AdminOnFieldPage() {
       const result = await authFetchJSON(`/api/admin/site-inspections${queryString}`, { method: 'GET' });
       const data = result?.data || [];
       setInspections(Array.isArray(data) ? data : []);
+      setLastUpdated(new Date());
     } catch (e) {
       console.error('Failed to load inspections:', e);
       setError(e?.message || 'Failed to load site inspections');
@@ -46,16 +80,15 @@ export default function AdminOnFieldPage() {
 
   useEffect(() => {
     fetchInspections();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm]);
 
-  // Categorize inspections
-  const categorized = React.useMemo(() => {
+  const categorized = useMemo(() => {
     const draft = [];
     const submitted = [];
     const scheduledToday = [];
 
     inspections.forEach((insp) => {
-      // Check if scheduled for today
       const schedDate = insp.site_inspection_date ? new Date(insp.site_inspection_date) : null;
       if (schedDate && isToday(schedDate)) {
         scheduledToday.push(insp);
@@ -69,261 +102,240 @@ export default function AdminOnFieldPage() {
     return { draft, submitted, scheduledToday };
   }, [inspections]);
 
-  const stats = React.useMemo(() => {
-    return {
+  const stats = useMemo(
+    () => ({
       total: inspections.length,
       draft: categorized.draft.length,
       submitted: categorized.submitted.length,
       scheduled: categorized.scheduledToday.length,
-    };
-  }, [inspections, categorized]);
+    }),
+    [inspections, categorized]
+  );
+
+  const refreshedLabel = lastUpdated ? format(lastUpdated, 'MMM d, h:mm a') : 'Live view';
 
   const handleInspectionClick = (leadId) => {
     navigate(`/admin/leads/${leadId}/site-inspection`);
   };
 
-  const StatCard = ({ title, value, change, color = '#1A7B7B' }) => (
-    <div
-      style={{
-        padding: '1.5rem',
-        backgroundColor: '#FFF',
-        border: '1px solid #E5E7EB',
-        borderRadius: '0.5rem',
-        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-        <div>
-          <p style={{ margin: '0 0 0.5rem 0', color: '#666', fontSize: '0.875rem', fontWeight: '500' }}>
-            {title}
-          </p>
-          <p style={{ margin: '0', fontSize: '2rem', fontWeight: '700', color }}>{value}</p>
-        </div>
-      </div>
-      {change && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#10B981', fontSize: '0.875rem' }}>
-          <TrendingUp size={16} />
-          {change}
-        </div>
-      )}
-    </div>
-  );
+  const statCards = [
+    {
+      title: 'Total Inspections',
+      value: stats.total,
+      icon: ClipboardList,
+      tone: 'total',
+      hint: 'All records',
+    },
+    {
+      title: 'Scheduled Today',
+      value: stats.scheduled,
+      icon: Clock3,
+      tone: 'scheduled',
+      hint: 'Today only',
+    },
+    {
+      title: 'Draft',
+      value: stats.draft,
+      icon: FileClock,
+      tone: 'draft',
+      hint: 'Needs review',
+    },
+    {
+      title: 'Completed',
+      value: stats.submitted,
+      icon: CheckCircle2,
+      tone: 'completed',
+      hint: 'Submitted',
+    },
+  ];
 
   const InspectionCard = ({ inspection, status }) => {
-    const colors = STATUS_COLORS[status] || STATUS_COLORS.draft;
-    const dateToDisplay = status === 'scheduled' 
-      ? inspection.site_inspection_date 
-      : inspection.inspected_at;
+    const theme = STATUS_THEME[status] || STATUS_THEME.draft;
+    const dateToDisplay = status === 'scheduled' ? inspection.site_inspection_date : inspection.inspected_at;
 
     return (
-      <div
-        style={{
-          padding: '1.25rem',
-          backgroundColor: colors.bg,
-          border: `1px solid ${colors.text}33`,
-          borderRadius: '0.375rem',
-          cursor: 'pointer',
-          minHeight: '160px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.75rem',
-        }}
+      <article
+        className={`admin-onfield-inspection-card status-${status}`}
+        style={{ '--card-accent': theme.accent, '--card-border': theme.border }}
+        role="button"
+        tabIndex={0}
         onClick={() => handleInspectionClick(inspection.lead_id)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleInspectionClick(inspection.lead_id);
+          }
+        }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <h4 style={{ margin: '0', color: colors.text, fontSize: '0.9rem', fontWeight: '600' }}>
-            {inspection.customer_name}
-          </h4>
+        <div className="admin-onfield-card-top">
+          <div>
+            <h4 className="admin-onfield-card-title">{inspection.customer_name}</h4>
+            <p className="admin-onfield-card-subtitle">Lead #{inspection.lead_id}</p>
+          </div>
           <span
-            style={{
-              paddingRight: '0.5rem',
-              color: colors.text,
-              fontSize: '0.75rem',
-              fontWeight: '500',
-            }}
+            className="admin-onfield-status-chip"
+            style={{ backgroundColor: theme.chipBg, color: theme.chipText }}
           >
-            {colors.label}
+            {theme.label}
           </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: colors.text, fontSize: '0.8rem' }}>
+        <div className="admin-onfield-card-line">
           <MapPin size={14} />
-          {inspection.suburb || 'Address not set'}
+          <span>{inspection.suburb || 'Address not set'}</span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: colors.text, fontSize: '0.8rem' }}>
+        <div className="admin-onfield-card-line">
           <User size={14} />
-          {inspection.inspector_name || 'No inspector'}
+          <span>{inspection.inspector_name || 'No inspector'}</span>
         </div>
 
         {dateToDisplay && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: colors.text, fontSize: '0.8rem' }}>
+          <div className="admin-onfield-card-line">
             <Calendar size={14} />
-            {format(new Date(dateToDisplay), 'MMM dd, yyyy HH:mm')}
+            <span>{format(new Date(dateToDisplay), 'MMM dd, yyyy HH:mm')}</span>
           </div>
         )}
-      </div>
+      </article>
     );
   };
 
-  const SectionContainer = ({ title, inspections: items, status }) => {
-    if (items.length === 0) return null;
+  const SectionContainer = ({ title, items, status, icon: Icon, helper }) => {
+    if (!items.length) return null;
+    const theme = STATUS_THEME[status] || STATUS_THEME.draft;
 
     return (
-      <div style={{ marginBottom: '3rem' }}>
-        <div style={{ marginBottom: '1.5rem', paddingBottom: '0.75rem', borderBottom: '1px solid #D1D5DB' }}>
-          <h2 style={{ margin: '0', fontSize: '1rem', fontWeight: '600', color: '#1F2937' }}>
-            {title}
-          </h2>
-          <p style={{ margin: '0.25rem 0 0 0', color: '#888', fontSize: '0.8rem' }}>
-            {items.length} {items.length === 1 ? 'inspection' : 'inspections'}
-          </p>
+      <section className="admin-onfield-section" style={{ '--section-accent': theme.accent }}>
+        <div className="admin-onfield-section-header">
+          <div className="admin-onfield-section-title-wrap">
+            <span className="admin-onfield-section-icon">
+              <Icon size={16} />
+            </span>
+            <div>
+              <h2>{title}</h2>
+              <p>{helper}</p>
+            </div>
+          </div>
+          <span className="admin-onfield-section-count">{items.length}</span>
         </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-            gap: '1rem',
-          }}
-        >
+
+        <div className="admin-onfield-card-grid">
           {items.map((inspection) => (
             <InspectionCard key={inspection.id} inspection={inspection} status={status} />
           ))}
         </div>
-      </div>
+      </section>
     );
   };
 
   return (
-    <div style={{ padding: '2rem', backgroundColor: '#F9FAFB', minHeight: '100vh' }}>
-      {/* Header */}
-      <div style={{ marginBottom: '2rem' }}>
-        <h1 style={{ color: '#1A7B7B', fontSize: '2rem', margin: '0 0 0.5rem 0' }}>
-          Site Inspections Dashboard
-        </h1>
-        <p style={{ color: '#666', margin: '0' }}>
-          Real-time view of all on-field site inspection activities
-        </p>
-      </div>
+    <div className="admin-onfield-page">
+      <header className="admin-onfield-hero">
+        <div className="admin-onfield-hero-copy">
+          <span className="admin-onfield-kicker">Admin operations</span>
+          <h1>Site Inspections Dashboard</h1>
+          <p>Real-time view of all on-field site inspection activities.</p>
+        </div>
 
-      {/* Stats Cards */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '1.5rem',
-          marginBottom: '2rem',
-        }}
-      >
-        <StatCard
-          title="Total Inspections"
-          value={stats.total}
-          color="#1A7B7B"
-          change={`${categorized.scheduledToday.length} today`}
-        />
-        <StatCard
-          title="Scheduled Today"
-          value={stats.scheduled}
-          color="#F57C00"
-        />
-        <StatCard
-          title="Draft"
-          value={stats.draft}
-          color="#1976D2"
-        />
-        <StatCard
-          title="Completed"
-          value={stats.submitted}
-          color="#388E3C"
-        />
-      </div>
+        <div className="admin-onfield-hero-meta">
+          <div className="admin-onfield-hero-pill">
+            <TrendingUp size={16} />
+            <span>{stats.total} inspections</span>
+          </div>
+          <div className="admin-onfield-hero-pill secondary">
+            <RefreshCw size={16} />
+            <span>{refreshedLabel}</span>
+          </div>
+        </div>
+      </header>
 
-      {/* Search Bar */}
-      <div style={{ marginBottom: '2rem' }}>
-        <div style={{ position: 'relative', maxWidth: '400px' }}>
-          <Search
-            size={18}
-            style={{
-              position: 'absolute',
-              left: '0.75rem',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: '#999',
-            }}
-          />
+      <section className="admin-onfield-stats-grid" aria-label="Inspection summary">
+        {statCards.map(({ title, value, icon: Icon, tone, hint }) => (
+          <div key={title} className={`admin-onfield-stat-card tone-${tone}`}>
+            <div className="admin-onfield-stat-top">
+              <span className="admin-onfield-stat-icon">
+                <Icon size={18} />
+              </span>
+              <span className="admin-onfield-stat-hint">{hint}</span>
+            </div>
+            <div className="admin-onfield-stat-body">
+              <p>{title}</p>
+              <strong>{value}</strong>
+            </div>
+          </div>
+        ))}
+      </section>
+
+      <section className="admin-onfield-toolbar" aria-label="Search inspections">
+        <div className="admin-onfield-search-wrap">
+          <Search size={18} className="admin-onfield-search-icon" />
           <input
-            type="text"
-            placeholder="Search by customer name, email, or suburb..."
+            type="search"
+            placeholder="Search by customer, email, or suburb..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '0.75rem 0.75rem 0.75rem 2.5rem',
-              border: '1px solid #D1D5DB',
-              borderRadius: '0.375rem',
-              fontSize: '0.875rem',
-              boxSizing: 'border-box',
-              backgroundColor: '#FFF',
-            }}
+            className="admin-onfield-search-input"
           />
+          {searchTerm ? (
+            <button type="button" className="admin-onfield-search-clear" onClick={() => setSearchTerm('')}>
+              Clear
+            </button>
+          ) : null}
         </div>
-      </div>
 
-      {/* Error Message */}
+        <div className="admin-onfield-toolbar-meta">
+          <span>{stats.total} total</span>
+          <span>{categorized.scheduledToday.length} scheduled today</span>
+        </div>
+      </section>
+
       {error && (
-        <div
-          style={{
-            padding: '1rem',
-            backgroundColor: '#FEE2E2',
-            color: '#DC2626',
-            borderRadius: '0.375rem',
-            marginBottom: '2rem',
-          }}
-        >
-          {error}
+        <div className="admin-onfield-state state-error" role="alert">
+          <strong>Unable to load inspections</strong>
+          <span>{error}</span>
         </div>
       )}
 
-      {/* Loading */}
       {loading && (
-        <div style={{ textAlign: 'center', padding: '3rem 2rem', color: '#999' }}>
+        <div className="admin-onfield-state">
           Loading inspections...
         </div>
       )}
 
-      {/* Empty State */}
       {!loading && inspections.length === 0 && (
-        <div
-          style={{
-            textAlign: 'center',
-            padding: '3rem 2rem',
-            backgroundColor: '#FFF',
-            borderRadius: '0.5rem',
-            color: '#999',
-            border: '1px solid #E5E7EB',
-          }}
-        >
-          <p style={{ margin: '0', fontSize: '1rem' }}>No site inspections found.</p>
+        <div className="admin-onfield-state admin-onfield-empty">
+          <ClipboardList size={28} />
+          <strong>No site inspections found.</strong>
+          <span>
+            {searchTerm
+              ? 'Try a different search term.'
+              : 'There are no inspections available at the moment.'}
+          </span>
         </div>
       )}
 
-      {/* Inspection Sections */}
       {!loading && inspections.length > 0 && (
-        <div>
+        <div className="admin-onfield-sections">
           <SectionContainer
             title="Scheduled today"
-            inspections={categorized.scheduledToday}
+            helper="Inspections planned for today"
+            items={categorized.scheduledToday}
             status="scheduled"
+            icon={Clock3}
           />
           <SectionContainer
             title="Completed"
-            inspections={categorized.submitted}
+            helper="Recently completed inspections"
+            items={categorized.submitted}
             status="submitted"
+            icon={CheckCircle2}
           />
           <SectionContainer
             title="Draft"
-            inspections={categorized.draft}
+            helper="Inspections still in progress"
+            items={categorized.draft}
             status="draft"
+            icon={FileClock}
           />
         </div>
       )}

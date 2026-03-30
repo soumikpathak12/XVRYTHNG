@@ -76,7 +76,7 @@ export default function CompanySidebar({ apiBase = '/api', logoSrc }) {
     width: collapsed ? 80 : 280,
     transition: 'width .2s ease',
     background: '#ffffff',
-    borderRight: '1px solid #E5E7EB',
+    borderRight: '2px solid #52b69a',
     height: '100vh',
     position: 'sticky',
     top: 0,
@@ -90,13 +90,15 @@ export default function CompanySidebar({ apiBase = '/api', logoSrc }) {
   const navStyle = { display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, flex: 1, minHeight: 0, overflowY: 'auto' };
   const linkBase = {
     display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
-    borderRadius: 14, fontWeight: 600, color: '#556070', textDecoration: 'none',
+    borderRadius: 14, fontWeight: 600, color: '#06303f', textDecoration: 'none',
+    transition: 'all 0.2s ease',
   };
   // Light, brand-consistent active state (matches module header styling).
   const activeStyle = {
-    background: 'rgba(20,107,107,0.10)',
-    color: '#0f1a2b',
-    boxShadow: 'inset 4px 0 0 #146b6b',
+    background: 'rgba(24, 135, 126, 0.15)',
+    color: '#06303f',
+    boxShadow: 'inset 4px 0 0 #18877e',
+    fontWeight: 700,
   };
   const textHide = { display: collapsed ? 'none' : 'inline' };
   const brandLogoSrc = logoSrc || '/logo.jpeg';
@@ -174,20 +176,30 @@ export default function CompanySidebar({ apiBase = '/api', logoSrc }) {
         )}
       </nav>
 
-      <div style={{ borderTop: '1px solid #F3F4F6', paddingTop: 12 }}>
+      <div style={{ borderTop: '2px solid #52b69a', paddingTop: 12 }}>
         <button
           onClick={() => setCollapsed((c) => !c)}
           style={{
             width: '100%',
             background: 'transparent',
-            border: 'none',
+            border: '2px solid #52b69a',
             cursor: 'pointer',
-            color: '#4B5563',
+            color: '#18877e',
             display: 'flex',
             alignItems: 'center',
             gap: 8,
-            padding: '8px 10px',
+            padding: '10px 12px',
             borderRadius: 12,
+            fontWeight: 700,
+            transition: 'all 0.2s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = '#18877e';
+            e.currentTarget.style.color = '#fff';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.color = '#18877e';
           }}
         >
           {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
