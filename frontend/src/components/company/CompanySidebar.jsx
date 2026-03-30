@@ -99,17 +99,25 @@ export default function CompanySidebar({ apiBase = '/api', logoSrc }) {
     boxShadow: 'inset 4px 0 0 #146b6b',
   };
   const textHide = { display: collapsed ? 'none' : 'inline' };
+  const brandLogoSrc = logoSrc || '/logo.jpeg';
 
   return (
     <aside style={rootStyle} aria-label="Company Sidebar">
       <div style={brandRow}>
-        <div style={{
-          width: 44, height: 44, borderRadius: 16, overflow: 'hidden',
-          border: '1px solid #E5E7EB', display: 'flex', alignItems: 'center',
-          justifyContent: 'center', background: '#fff'
-        }}>
-          {logoSrc ? <img src={logoSrc} alt="Logo" style={{ width: 44, height: 44, objectFit: 'cover' }} />
-                   : <span style={{ fontWeight: 800, color: '#146b6b' }}>⚡</span>}
+        <div
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 16,
+            overflow: 'hidden',
+            border: '1px solid #E5E7EB',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: '#fff',
+          }}
+        >
+          <img src={brandLogoSrc} alt="Company logo" style={{ width: 44, height: 44, objectFit: 'cover' }} />
         </div>
         <div style={brandText}>
           <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2, color: '#6B7280' }}>XVRYTHNG</div>
@@ -123,7 +131,7 @@ export default function CompanySidebar({ apiBase = '/api', logoSrc }) {
         ) : navItems.length === 0 ? (
           <div style={{ color: '#6B7280', fontSize: 13, padding: '4px 10px' }}>Không có phần nào cho quyền hiện tại.</div>
         ) : (
-          navItems.map(item => {
+          navItems.map((item) => {
             const Icon = item.icon;
             const showBadge = item.to === '/dashboard/attendance' && pendingCount > 0;
             return (
@@ -135,14 +143,26 @@ export default function CompanySidebar({ apiBase = '/api', logoSrc }) {
                 <div style={{ position: 'relative', flexShrink: 0 }}>
                   <Icon size={20} />
                   {showBadge && (
-                    <span style={{
-                      position: 'absolute', top: -6, right: -7,
-                      background: '#EF4444', color: '#fff',
-                      borderRadius: 999, minWidth: 16, height: 16, fontSize: 10,
-                      fontWeight: 800, display: 'flex', alignItems: 'center',
-                      justifyContent: 'center', padding: '0 3px', lineHeight: 1,
-                      border: '1.5px solid #fff',
-                    }}>
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: -6,
+                        right: -7,
+                        background: '#EF4444',
+                        color: '#fff',
+                        borderRadius: 999,
+                        minWidth: 16,
+                        height: 16,
+                        fontSize: 10,
+                        fontWeight: 800,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '0 3px',
+                        lineHeight: 1,
+                        border: '1.5px solid #fff',
+                      }}
+                    >
                       {pendingCount > 99 ? '99+' : pendingCount}
                     </span>
                   )}
@@ -156,11 +176,18 @@ export default function CompanySidebar({ apiBase = '/api', logoSrc }) {
 
       <div style={{ borderTop: '1px solid #F3F4F6', paddingTop: 12 }}>
         <button
-          onClick={() => setCollapsed(c => !c)}
+          onClick={() => setCollapsed((c) => !c)}
           style={{
-            width: '100%', background: 'transparent', border: 'none',
-            cursor: 'pointer', color: '#4B5563', display: 'flex',
-            alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 12,
+            width: '100%',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            color: '#4B5563',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '8px 10px',
+            borderRadius: 12,
           }}
         >
           {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}

@@ -21,7 +21,7 @@ function useLeadBase() {
   const { pathname } = useLocation();
   if (pathname.startsWith('/admin')) return '/admin';
   if (pathname.startsWith('/employee')) return '/employee';
-  return '/dashboard'; // fallback cho company
+  return '/dashboard'; // company admin / manager fallback
 }
 
 export default function LeadsPage() {
@@ -49,6 +49,13 @@ export default function LeadsPage() {
   const [daysFilter, setDaysFilter] = useState('');
 
   const isEmployeeView = base === '/employee';
+
+  const salesSegment = useMemo(() => {
+    const p = new URLSearchParams(location.search);
+    const s = (p.get('segment') || '').toLowerCase();
+    return s === 'b2c' || s === 'b2b' ? s : null;
+  }, [location.search]);
+
   const getInitialView = () => {
     const params = new URLSearchParams(location.search);
     const v = (params.get('view') || '').toLowerCase();
@@ -78,9 +85,11 @@ export default function LeadsPage() {
 
   const handleLeadCreatedOk = useCallback(() => {
     setLeadCreatedModalOpen(false);
-    navigate({ pathname: location.pathname, search: '?view=kanban' }, { replace: true });
+    const params = new URLSearchParams(location.search);
+    params.set('view', 'kanban');
+    navigate({ pathname: location.pathname, search: params.toString() }, { replace: true });
     setView('kanban');
-  }, [navigate, location.pathname]);
+  }, [navigate, location.pathname, location.search]);
 
   useEffect(() => {
     const id = setTimeout(() => setDebouncedSearch(search.trim()), 250);
@@ -140,7 +149,7 @@ export default function LeadsPage() {
       setLoading(true);
       setError('');
       try {
-        const res = await getLeads();
+        const res = await getLeads(salesSegment ? { sales_segment: salesSegment } : {});
         const arr = Array.isArray(res?.data) ? res.data : [];
         const mapped = arr.map(transformLead).filter(Boolean);
         if (alive) setLeads(mapped);
@@ -153,7 +162,7 @@ export default function LeadsPage() {
     return () => {
       alive = false;
     };
-  }, [transformLead, refreshTrigger]);
+  }, [transformLead, refreshTrigger, salesSegment]);
 
   const handleStageChange = useCallback(
     async (leadId, nextStage) => {
@@ -325,15 +334,33 @@ export default function LeadsPage() {
     setTimeout(() => searchInputRef.current?.focus(), 50);
   }, []);
 
+  const pipelineTitle =
+    salesSegment === 'b2c'
+      ? 'Residential Sales (B2C)'
+      : salesSegment === 'b2b'
+        ? 'Commercial Sales (B2B)'
+        : 'Leads Pipeline';
+  const pipelineSubtitle =
+    salesSegment === 'b2c'
+      ? 'Residential and consumer solar opportunities. Manage leads across stages.'
+      : salesSegment === 'b2b'
+        ? 'Commercial and business solar opportunities. Manage leads across stages.'
+        : 'Manage leads across stages. Search, filter, and drag cards between columns.';
+
+  const addLeadModalTitle =
+    salesSegment === 'b2c'
+      ? 'Add New Lead — Residential (B2C)'
+      : salesSegment === 'b2b'
+        ? 'Add New Lead — Commercial (B2B)'
+        : 'Add New Lead';
+
   return (
     <div className="leads-kanban-page">
       <header className="leads-kanban-header">
         <div className="leads-kanban-header-top">
           <div className="leads-kanban-title">
-            <h1>Leads Pipeline</h1>
-            <p>
-              Manage leads across stages. Search, filter, and drag cards between columns.
-            </p>
+            <h1>{pipelineTitle}</h1>
+            <p>{pipelineSubtitle}</p>
           </div>
           <div className="leads-kanban-actions">
             <div className="leads-view-tabs">
@@ -529,11 +556,12 @@ export default function LeadsPage() {
         )}
       </div>
 
-      <Modal open={openAdd} onClose={() => setOpenAdd(false)} title="Add New Lead" width={720}>
+      <Modal open={openAdd} onClose={() => setOpenAdd(false)} title={addLeadModalTitle} width={720}>
         <AddLeadForm
           embedded
           suppressInlineSuccess
           stageOptions={kanbanStages}
+          defaultSalesSegment={salesSegment}
           onAfterCreate={() => setLeadCreatedModalOpen(true)}
           onCancel={() => setOpenAdd(false)}
           onSubmit={handleCreateLead}

@@ -63,7 +63,7 @@ const PHONE_RE = /^[0-9()+\-\s]*[0-9][0-9()+\-\s]*$/;
 export default function LeadForm({
   initialValues,
   onSubmit,
-  onCancel,                      // chỉ gọi callback, KHÔNG điều hướng history
+  onCancel, // callback only; parent handles navigation
   title = 'Add New Lead',
   submitLabel = 'Create Lead',
   embedded = false,
@@ -76,6 +76,8 @@ export default function LeadForm({
   onAfterCreate = null,
   /** Optional [{ key, label }] from company workflow (enabled stages only). */
   stageOptions = null,
+  /** When creating from B2C/B2B pipeline, pre-select segment (`b2c` | `b2b`). */
+  defaultSalesSegment = null,
 }) {
   const SOURCE_OPTIONS = ['Website', 'Solar Quotes', 'Facebook', 'Other'];
 
@@ -96,6 +98,7 @@ export default function LeadForm({
     stage: 'new',
     site_inspection_date: '',
     inspector_id: '',
+    sales_segment: '',
   });
 
   const [inspectors, setInspectors] = useState([]);
@@ -121,6 +124,9 @@ export default function LeadForm({
       const sourceSel = matchedSource ?? (rawSource ? 'Other' : '');
       const sourceOther = matchedSource || !rawSource ? '' : rawSource;
 
+      const rawSeg = initialValues.sales_segment ?? initialValues.salesSegment;
+      const segNorm =
+        rawSeg === 'b2c' || rawSeg === 'b2b' ? rawSeg : '';
       setForm({
         customer_name:
           initialValues.customerName ||
@@ -137,9 +143,19 @@ export default function LeadForm({
             initialValues.siteInspectionDate
         ),
         inspector_id: initialValues.inspector_id || '',
+        sales_segment: segNorm,
       });
     }
   }, [initialValues]);
+
+  const segmentLocked =
+    !initialValues && (defaultSalesSegment === 'b2c' || defaultSalesSegment === 'b2b');
+
+  useEffect(() => {
+    if (!initialValues && (defaultSalesSegment === 'b2c' || defaultSalesSegment === 'b2b')) {
+      setForm((f) => ({ ...f, sales_segment: defaultSalesSegment }));
+    }
+  }, [defaultSalesSegment, initialValues]);
 
   useEffect(() => {
     const keys = new Set(stageList.map((s) => s.key));
@@ -218,6 +234,13 @@ export default function LeadForm({
       nextFieldErrors.sourceOther = 'Please specify the source.';
     }
 
+    // New leads must choose B2C or B2B unless the pipeline URL locks the segment.
+    if (!initialValues && !segmentLocked) {
+      if (form.sales_segment !== 'b2c' && form.sales_segment !== 'b2b') {
+        nextFieldErrors.sales_segment = 'Select Residential (B2C) or Commercial (B2B).';
+      }
+    }
+
     if (Object.keys(nextFieldErrors).length > 0) {
       setFieldErrors(nextFieldErrors);
       setError('Please correct the errors and try again.');
@@ -239,6 +262,16 @@ export default function LeadForm({
       inspector_id: form.inspector_id || undefined,
     };
 
+    if (initialValues) {
+      payload.sales_segment =
+        form.sales_segment === 'b2c' || form.sales_segment === 'b2b' ? form.sales_segment : null;
+    } else {
+      const seg = segmentLocked ? defaultSalesSegment : form.sales_segment;
+      if (seg === 'b2c' || seg === 'b2b') {
+        payload.sales_segment = seg;
+      }
+    }
+
     setSubmitting(true);
     try {
       await onSubmit(payload);
@@ -259,6 +292,8 @@ export default function LeadForm({
           stage: 'new',
           site_inspection_date: '',
           inspector_id: '',
+          sales_segment:
+            defaultSalesSegment === 'b2c' || defaultSalesSegment === 'b2b' ? defaultSalesSegment : '',
         });
       }
     } catch (err) {
@@ -373,6 +408,60 @@ export default function LeadForm({
                 </div>
               )}
             </div>
+          )}
+        </Field>
+
+        <Field
+          label={initialValues ? 'Sales channel' : 'Sales channel *'}
+          error={fieldErrors.sales_segment}
+        >
+          {segmentLocked ? (
+            <div
+              style={{
+                ...styles.input,
+                display: 'flex',
+                alignItems: 'center',
+                background: COLORS.neutralBg,
+                borderColor: COLORS.neutralBorder,
+                color: COLORS.text,
+                fontWeight: 600,
+              }}
+              role="status"
+            >
+              {defaultSalesSegment === 'b2c'
+                ? 'Residential (B2C) — locked to this pipeline'
+                : 'Commercial (B2B) — locked to this pipeline'}
+            </div>
+          ) : (
+            <select
+              value={form.sales_segment || ''}
+              onChange={(e) => update('sales_segment', e.target.value)}
+              style={{
+                ...styles.input,
+                borderColor: fieldErrors.sales_segment ? COLORS.dangerText : COLORS.border,
+              }}
+              aria-label="Sales channel"
+              required={!initialValues}
+            >
+              {initialValues ? (
+                <>
+                  <option value="">Not specified</option>
+                  <option value="b2c">Residential (B2C)</option>
+                  <option value="b2b">Commercial (B2B)</option>
+                </>
+              ) : (
+                <>
+                  <option value="">— Select B2C or B2B —</option>
+                  <option value="b2c">Residential (B2C)</option>
+                  <option value="b2b">Commercial (B2B)</option>
+                </>
+              )}
+            </select>
+          )}
+          {!initialValues && !segmentLocked && (
+            <small style={{ color: COLORS.subtext, display: 'block', marginTop: 6 }}>
+              New leads need a channel so they appear in the correct B2C or B2B pipeline.
+            </small>
           )}
         </Field>
 

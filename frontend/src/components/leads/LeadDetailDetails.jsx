@@ -1,4 +1,4 @@
-// components/leads/LeadDetailDetails.jsx – editable Details tab (core form + extras + 2 nút ở cuối)
+// components/leads/LeadDetailDetails.jsx — editable Details tab (core form + extras + footer actions)
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import LeadForm from './LeadForm.jsx';
 import '../../styles/LeadDetailModal.css';
@@ -57,6 +57,10 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
             stage,
             site_inspection_date: formatDateTimeLocal(siteInspectionDateIso),
             inspector_id: inspectorId,
+            sales_segment: (() => {
+              const s = lead?.sales_segment ?? lead?._raw?.sales_segment;
+              return s === 'b2c' || s === 'b2b' ? s : '';
+            })(),
           }
         : null,
     [lead, email, phone, suburb, systemSizeKw, valueAmount, stage, siteInspectionDateIso, inspectorId],

@@ -195,7 +195,7 @@ export default function PmDashboardPage() {
               <span>Total Costs</span>
               <strong><Currency value={dash?.profitability?.totalCosts ?? 0} /></strong>
             </div>
-            <div className="pmdb-profit-hint" style={{ fontSize: 12, color: '#64748b', margin: '-6px 0 8px' }}>
+            <div className="pmdb-profit-hint" style={{ fontSize: 12, color: '#18877e', margin: '-6px 0 8px', opacity: 0.7, fontWeight: 500 }}>
               Sum of approved expense claims (same date range as above; tenant-scoped).
             </div>
             <div className="pmdb-row">
@@ -230,8 +230,8 @@ export default function PmDashboardPage() {
             </tbody>
           </table>
           {(dash?.recentRetailerProjects ?? []).length > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderTop: '1px solid #e2e8f0' }}>
-              <span style={{ fontSize: '14px', color: '#64748b' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderTop: '2px solid #52b69a', marginTop: '12px' }}>
+              <span style={{ fontSize: '14px', color: '#06303f', fontWeight: 500 }}>
                 Showing {Math.min(5, (dash?.recentRetailerProjects ?? []).length)} of {(dash?.recentRetailerProjects ?? []).length} projects
               </span>
               <div style={{ display: 'flex', gap: '8px' }}>
@@ -239,31 +239,35 @@ export default function PmDashboardPage() {
                   onClick={() => setPageRetailer(Math.max(1, pageRetailer - 1))}
                   disabled={pageRetailer === 1}
                   style={{ 
-                    padding: '6px 12px', 
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '4px',
-                    backgroundColor: pageRetailer === 1 ? '#f1f5f9' : '#fff',
+                    padding: '8px 16px', 
+                    border: '2px solid #18877e',
+                    borderRadius: '8px',
+                    backgroundColor: pageRetailer === 1 ? '#eeeeee' : '#18877e',
                     cursor: pageRetailer === 1 ? 'not-allowed' : 'pointer',
-                    color: pageRetailer === 1 ? '#94a3b8' : '#000',
-                    fontSize: '14px'
+                    color: pageRetailer === 1 ? '#06303f' : '#fff',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    transition: 'all 0.2s ease'
                   }}
                 >
                   Previous
                 </button>
-                <span style={{ padding: '6px 12px', fontSize: '14px' }}>
+                <span style={{ padding: '8px 16px', fontSize: '14px', color: '#06303f', fontWeight: 600 }}>
                   Page {pageRetailer} of {getTotalPages((dash?.recentRetailerProjects ?? []).length)}
                 </span>
                 <button 
                   onClick={() => setPageRetailer(pageRetailer + 1)}
                   disabled={pageRetailer >= getTotalPages((dash?.recentRetailerProjects ?? []).length)}
                   style={{ 
-                    padding: '6px 12px', 
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '4px',
-                    backgroundColor: pageRetailer >= getTotalPages((dash?.recentRetailerProjects ?? []).length) ? '#f1f5f9' : '#fff',
+                    padding: '8px 16px', 
+                    border: '2px solid #18877e',
+                    borderRadius: '8px',
+                    backgroundColor: pageRetailer >= getTotalPages((dash?.recentRetailerProjects ?? []).length) ? '#eeeeee' : '#18877e',
                     cursor: pageRetailer >= getTotalPages((dash?.recentRetailerProjects ?? []).length) ? 'not-allowed' : 'pointer',
-                    color: pageRetailer >= getTotalPages((dash?.recentRetailerProjects ?? []).length) ? '#94a3b8' : '#000',
-                    fontSize: '14px'
+                    color: pageRetailer >= getTotalPages((dash?.recentRetailerProjects ?? []).length) ? '#06303f' : '#fff',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    transition: 'all 0.2s ease'
                   }}
                 >
                   Next
@@ -291,8 +295,8 @@ export default function PmDashboardPage() {
             </tbody>
           </table>
           {(dash?.recentClassicProjects ?? []).length > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderTop: '1px solid #e2e8f0' }}>
-              <span style={{ fontSize: '14px', color: '#64748b' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderTop: '2px solid #52b69a', marginTop: '12px' }}>
+              <span style={{ fontSize: '14px', color: '#06303f', fontWeight: 500 }}>
                 Showing {Math.min(5, (dash?.recentClassicProjects ?? []).length)} of {(dash?.recentClassicProjects ?? []).length} projects
               </span>
               <div style={{ display: 'flex', gap: '8px' }}>
@@ -300,31 +304,35 @@ export default function PmDashboardPage() {
                   onClick={() => setPageClassic(Math.max(1, pageClassic - 1))}
                   disabled={pageClassic === 1}
                   style={{ 
-                    padding: '6px 12px', 
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '4px',
-                    backgroundColor: pageClassic === 1 ? '#f1f5f9' : '#fff',
+                    padding: '8px 16px', 
+                    border: '2px solid #18877e',
+                    borderRadius: '8px',
+                    backgroundColor: pageClassic === 1 ? '#eeeeee' : '#18877e',
                     cursor: pageClassic === 1 ? 'not-allowed' : 'pointer',
-                    color: pageClassic === 1 ? '#94a3b8' : '#000',
-                    fontSize: '14px'
+                    color: pageClassic === 1 ? '#06303f' : '#fff',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    transition: 'all 0.2s ease'
                   }}
                 >
                   Previous
                 </button>
-                <span style={{ padding: '6px 12px', fontSize: '14px' }}>
+                <span style={{ padding: '8px 16px', fontSize: '14px', color: '#06303f', fontWeight: 600 }}>
                   Page {pageClassic} of {getTotalPages((dash?.recentClassicProjects ?? []).length)}
                 </span>
                 <button 
                   onClick={() => setPageClassic(pageClassic + 1)}
                   disabled={pageClassic >= getTotalPages((dash?.recentClassicProjects ?? []).length)}
                   style={{ 
-                    padding: '6px 12px', 
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '4px',
-                    backgroundColor: pageClassic >= getTotalPages((dash?.recentClassicProjects ?? []).length) ? '#f1f5f9' : '#fff',
+                    padding: '8px 16px', 
+                    border: '2px solid #18877e',
+                    borderRadius: '8px',
+                    backgroundColor: pageClassic >= getTotalPages((dash?.recentClassicProjects ?? []).length) ? '#eeeeee' : '#18877e',
                     cursor: pageClassic >= getTotalPages((dash?.recentClassicProjects ?? []).length) ? 'not-allowed' : 'pointer',
-                    color: pageClassic >= getTotalPages((dash?.recentClassicProjects ?? []).length) ? '#94a3b8' : '#000',
-                    fontSize: '14px'
+                    color: pageClassic >= getTotalPages((dash?.recentClassicProjects ?? []).length) ? '#06303f' : '#fff',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    transition: 'all 0.2s ease'
                   }}
                 >
                   Next

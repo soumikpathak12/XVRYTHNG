@@ -17,17 +17,21 @@ import {
   CheckCircle2,
   Calculator,
   TrendingUp,
+  Home,
+  Building2,
 } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { getCompanySidebar } from '../../services/api.js';
 import { useSidebar } from '../../context/AuthContext.jsx';
+import { navItemMatchesLocation } from '../../utils/navLinkMatch.js';
 
 const EMP_MODULE_NAV = {
   // Always show Dashboard
   dashboard: { to: '/employee', label: 'Dashboard', icon: LayoutDashboard },
 
-  // Module-driven items
-  leads_pipeline: { to: '/employee/leads', label: 'Leads Pipeline', icon: UsersRound },
+  // Module-driven items (segment-specific pipelines)
+  leads_b2c: { to: '/employee/leads?segment=b2c', label: 'Residential Sales (B2C)', icon: Home },
+  leads_b2b: { to: '/employee/leads?segment=b2b', label: 'Commercial Sales (B2B)', icon: Building2 },
   site_inspection: { to: '/employee/site-inspection', label: 'Site Inspection', icon: UsersRound },
   on_field:     { to: '/employee/on-field',       label: 'On-Field',         icon: HardHat },
   installation: { to: '/employee/installation',   label: 'Installation Day', icon: Wrench },
@@ -106,10 +110,10 @@ export default function EmployeeSidebar() {
   const sections = [
     {
       key: 'sales',
-      title: 'Sales Module',
+      title: 'Sales Management',
       items: [
         EMP_MODULE_NAV.dashboard,
-        ...(allowed.has('leads') ? [EMP_MODULE_NAV.leads_pipeline] : []),
+        ...(allowed.has('leads') ? [EMP_MODULE_NAV.leads_b2c, EMP_MODULE_NAV.leads_b2b] : []),
       ],
     },
     {
@@ -390,17 +394,23 @@ export default function EmployeeSidebar() {
 
                       const Icon = it.icon;
                       const isDashboard = it.to === '/employee';
+                      const exactQuery = typeof it.to === 'string' && it.to.includes('?');
                       return (
                         <NavLink
                           key={it.to}
                           to={it.to}
                           // Ensure items like "/employee/projects" do not stay active on nested routes
                           // (e.g. "/employee/projects/retailer").
-                          end={it.end ?? isDashboard}
-                          style={({ isActive }) => ({
-                            ...linkBase,
-                            ...(isActive ? activeStyle : {}),
-                          })}
+                          end={it.end ?? (exactQuery || isDashboard)}
+                          style={({ isActive }) => {
+                            const active = exactQuery
+                              ? navItemMatchesLocation(it, pathname, location.search)
+                              : isActive;
+                            return {
+                              ...linkBase,
+                              ...(active ? activeStyle : {}),
+                            };
+                          }}
                         >
                           <Icon size={20} />
                           <span style={{ display: collapsed ? 'none' : 'inline', fontSize: 13 }}>{it.label}</span>

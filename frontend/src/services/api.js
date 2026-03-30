@@ -839,6 +839,7 @@ const normalizeLead = (row) => {
     value: row.value_amount ?? null,
     source: row.source ?? '',
     siteInspectionDate: row.site_inspection_date ?? null,
+    sales_segment: row.sales_segment ?? null,
     // include any extra columns you return from the DB if the UI needs them
     createdAt: row.created_at ?? undefined,
     updatedAt: row.updated_at ?? undefined,
@@ -917,7 +918,7 @@ export async function importLeads(leads) {
 
 /**
  * GET /api/leads
- * @param {{ grouped?: boolean, stage?: string, search?: string, assigned_user?: string, limit?: number, offset?: number }} params
+ * @param {{ grouped?: boolean, stage?: string, search?: string, assigned_user?: string, sales_segment?: 'b2c'|'b2b', limit?: number, offset?: number }} params
  * @returns {Promise<{ success: boolean, data: any }>}
  */
 export async function getLeads(params = {}) {
@@ -926,6 +927,9 @@ export async function getLeads(params = {}) {
   if (params.stage) q.set('stage', params.stage);
   if (params.search) q.set('search', params.search);
   if (params.assigned_user) q.set('assigned_user', params.assigned_user);
+  if (params.sales_segment === 'b2c' || params.sales_segment === 'b2b') {
+    q.set('sales_segment', params.sales_segment);
+  }
   if (params.site_inspection) q.set('site_inspection', '1');
   if (typeof params.limit === 'number') q.set('limit', String(params.limit));
   if (typeof params.offset === 'number') q.set('offset', String(params.offset));

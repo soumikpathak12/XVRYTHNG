@@ -37,6 +37,7 @@ export async function createLead(payload, options = {}) {
     inspector_id,
     external_id = null,
     marketing_payload_json = null,
+    sales_segment = null,
   } = payload;
 
   const allowed = options.allowedStageKeys ?? STAGES;
@@ -49,13 +50,16 @@ export async function createLead(payload, options = {}) {
   const { is_closed, is_won } = deriveFlags(stage);
   const won_lost_at = is_closed ? new Date() : null;
 
+  const seg =
+    sales_segment === 'b2c' || sales_segment === 'b2b' ? sales_segment : null;
+
   const sql = `
     INSERT INTO leads
     (stage, customer_name, email, phone, suburb, system_size_kw, value_amount,
      source, referred_by_lead_id, is_closed, is_won, won_lost_at, last_activity_at, site_inspection_date, 
-     external_id, marketing_payload_json)
+     external_id, marketing_payload_json, sales_segment)
     VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?)
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?)
   `;
   const params = [
     stage,
@@ -75,6 +79,7 @@ export async function createLead(payload, options = {}) {
     marketing_payload_json
       ? (typeof marketing_payload_json === 'string' ? marketing_payload_json : JSON.stringify(marketing_payload_json))
       : null,
+    seg,
   ];
 
   const [result] = await db.execute(sql, params);
@@ -174,6 +179,11 @@ export async function getLeads(filters = {}) {
     where.push('(customer_name LIKE ? OR suburb LIKE ? OR source LIKE ?)');
     const q = `%${filters.search}%`;
     params.push(q, q, q);
+  }
+
+  if (filters.sales_segment === 'b2c' || filters.sales_segment === 'b2b') {
+    where.push('sales_segment = ?');
+    params.push(filters.sales_segment);
   }
 
   // When inspector_id is set, only return leads assigned to that inspector (join lead_site_inspections).
@@ -396,6 +406,11 @@ export async function updateLead(leadId, payload) {
   if (site_inspection_date !== undefined) {
     updates.push('site_inspection_date = ?');
     params.push(site_inspection_date);
+  }
+  if (payload.sales_segment !== undefined) {
+    const seg = payload.sales_segment;
+    updates.push('sales_segment = ?');
+    params.push(seg === 'b2c' || seg === 'b2b' ? seg : null);
   }
   if (payload.email !== undefined) {
     updates.push('email = ?');

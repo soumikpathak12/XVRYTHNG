@@ -11,6 +11,7 @@ import {
   MessageCircle,
   Settings,
   Building2,
+  Home,
   UserCircle,
   ChevronLeft,
   ChevronRight,
@@ -28,6 +29,7 @@ import {
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { getApprovalsPendingCount } from '../../services/api.js';
+import { navItemMatchesLocation } from '../../utils/navLinkMatch.js';
 
 /**
  * Top-level nav items.
@@ -35,9 +37,10 @@ import { getApprovalsPendingCount } from '../../services/api.js';
  */
 const RAW_NAV = [
   { to: '/admin/overview', label: 'Dashboard', icon: LayoutDashboard, permission: { resource: 'overview', action: 'view' } },
-  { to: '/admin/profile', label: 'My Profile', icon: UserCircle, permission: { resource: 'profile', action: 'view' } },
+  // { to: '/admin/profile', label: 'My Profile', icon: UserCircle, permission: { resource: 'profile', action: 'view' } },
   { to: '/admin/companies', label: 'Companies', icon: Building2, permission: { resource: 'companies', action: 'view' } },
-  { to: '/admin/leads', label: 'Lead Pipeline', icon: UsersRound, permission: { resource: 'leads', action: 'view' } },
+  { to: '/admin/leads?segment=b2c', label: 'Residential Sales (B2C)', icon: Home, permission: { resource: 'leads', action: 'view' } },
+  { to: '/admin/leads?segment=b2b', label: 'Commercial Sales (B2B)', icon: Building2, permission: { resource: 'leads', action: 'view' } },
   { to: '/admin/employees', label: 'Employees', icon: UserCog, permission: { resource: 'employees', action: 'view' } },
 
   { to: '/admin/projects/dashboard', label: 'Dashboard', icon: Boxes, permission: { resource: 'projects', action: 'view' } },
@@ -79,6 +82,7 @@ export default function SuperAdminSidebar({
   const { can } = useAuth();
 
   const [pendingCount, setPendingCount] = useState(0);
+  const brandLogoSrc = logoSrc || '/logo.jpeg';
   useEffect(() => {
     let alive = true;
     const fetchCount = async () => {
@@ -118,7 +122,8 @@ export default function SuperAdminSidebar({
 
     const salesItems = pick([
       findByTo('/admin/overview'),
-      findByTo('/admin/leads'),
+      findByTo('/admin/leads?segment=b2c'),
+      findByTo('/admin/leads?segment=b2b'),
     ]);
 
     const projectManagerItems = pick([
@@ -147,7 +152,7 @@ export default function SuperAdminSidebar({
       findByTo('/admin/trial-users'),
       findByTo('/admin/employees'),
       findByTo('/admin/companies'),
-      findByTo('/admin/profile'),
+      // findByTo('/admin/profile'),
     ]);
 
     const settingsItems = pick([
@@ -157,7 +162,7 @@ export default function SuperAdminSidebar({
     ]);
 
     return [
-      { key: 'sales', title: 'Sales Module', icon: TrendingUp, items: salesItems },
+      { key: 'sales', title: 'Sales Management', icon: TrendingUp, items: salesItems },
       { key: 'project_manager', title: 'Project Manager Module', icon: Boxes, items: projectManagerItems },
       { key: 'attendance', title: 'Attendance', icon: Clock3, items: attendanceItems },
       { key: 'on_field', title: 'On-Field Module', icon: HardHat, items: onFieldItems },
@@ -185,7 +190,8 @@ export default function SuperAdminSidebar({
         pathname.startsWith('/admin/trial-users') ||
         pathname.startsWith('/admin/employees') ||
         pathname.startsWith('/admin/companies') ||
-        pathname.startsWith('/admin/profile'),
+        false,
+      // pathname.startsWith('/admin/profile'),
       settings: pathname.startsWith('/admin/settings'),
     };
   });
@@ -394,21 +400,29 @@ export default function SuperAdminSidebar({
     // --- Normal single link ---
     const showBadge = item.to === '/admin/attendance' && pendingCount > 0;
     const exactEnd =
+      (typeof item.to === 'string' && item.to.includes('?')) ||
       item.to === '/admin/settings' ||
       item.to === '/admin/settings/inspection-templates' ||
       item.to === '/admin/settings/checklist-templates' ||
       // Avoid prefix-match highlighting for project subroutes:
       // "/admin/projects" should not appear active on "/admin/projects/retailer".
       item.to === '/admin/projects';
+    const queryAware =
+      typeof item.to === 'string' && item.to.includes('?');
     return (
       <NavLink
         key={item.to}
         to={item.to}
         end={exactEnd}
-        style={({ isActive }) => ({
-          ...linkBase,
-          ...(isActive ? activeStyle : {}),
-        })}
+        style={({ isActive }) => {
+          const active = queryAware
+            ? navItemMatchesLocation(item, location.pathname, location.search)
+            : isActive;
+          return {
+            ...linkBase,
+            ...(active ? activeStyle : {}),
+          };
+        }}
       >
         <div style={{ position: 'relative', flexShrink: 0 }}>
           <Icon size={20} />
@@ -459,11 +473,7 @@ export default function SuperAdminSidebar({
             background: '#fff',
           }}
         >
-          {logoSrc ? (
-            <img src={logoSrc} alt="Logo" style={{ width: 44, height: 44, objectFit: 'cover' }} />
-          ) : (
-            <span style={{ fontWeight: 800, color: '#146b6b' }}>⚡</span>
-          )}
+          <img src={brandLogoSrc} alt="Company logo" style={{ width: 44, height: 44, objectFit: 'cover' }} />
         </div>
         <div style={brandText}>
           <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2, color: '#6B7280' }}>
@@ -487,7 +497,9 @@ export default function SuperAdminSidebar({
             {sections.map((sec, idx) => {
               const isPathActive = sec.items.some((item) => {
                 if (item.children?.length) return item.children.some((child) => location.pathname.startsWith(child.to));
-                return item.to ? location.pathname.startsWith(item.to) : false;
+                return item.to
+                  ? navItemMatchesLocation(item, location.pathname, location.search)
+                  : false;
               });
               // Use openKeys as the source of truth so a user can collapse even when the current route is inside the module.
               const isOpen = openKeys[sec.key] ?? false;

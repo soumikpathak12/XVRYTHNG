@@ -404,6 +404,22 @@ const MIGRATIONS = [
     },
   },
 
+  /* ── V011: Sales segment (B2C residential vs B2B commercial) on leads ── */
+  {
+    version: 'V011__leads_sales_segment',
+    description: 'Optional sales_segment b2c/b2b on leads for pipeline filtering',
+    up: async () => {
+      const schema = process.env.DB_NAME;
+      if (!(await columnExists(schema, 'leads', 'sales_segment'))) {
+        await db.query(`
+          ALTER TABLE leads
+          ADD COLUMN sales_segment VARCHAR(8) NULL DEFAULT NULL
+            COMMENT 'b2c | b2b'
+        `);
+      }
+    },
+  },
+
 ];
 
 /* ═══════ Runner ═══════ */
