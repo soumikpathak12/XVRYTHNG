@@ -1,6 +1,5 @@
 // components/leads/LeadsTable.jsx
 import React, { useState, useMemo, useEffect } from 'react';
-import { STAGES } from './KanbanBoard.jsx';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const DEFAULT_PAGE_SIZE = 25;
@@ -33,12 +32,9 @@ function formatDate(dateString) {
 /**
  * @param {{
  *   leads: Array<{ id: string|number, customerName: string, suburb: string, systemSize: string, value: number, source: string, lastActivity: string, stage: string }>,
- *   onStageChange?: (leadId: string|number, nextStage: string) => void,
  * }} props
  */
-export default function LeadsTable({ leads = [], onStageChange, onSelectLead, stages: stagesProp }) {
-  const stageList = stagesProp && stagesProp.length ? stagesProp : STAGES;
-  const stageKeys = useMemo(() => new Set(stageList.map((s) => s.key)), [stageList]);
+export default function LeadsTable({ leads = [], onSelectLead }) {
   const [sortKey, setSortKey] = useState('customerName');
   const [sortDir, setSortDir] = useState(SORT_ASC);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -123,7 +119,6 @@ export default function LeadsTable({ leads = [], onStageChange, onSelectLead, st
                 <span>Suburb</span>
                 <SortIcon columnKey="suburb" />
               </th>
-              <th className="leads-table-th leads-table-th-stage">Stage</th>
               <th className="leads-table-th leads-table-th-sortable leads-table-th-num" onClick={() => handleSort('value')}>
                 <span>Value</span>
                 <SortIcon columnKey="value" />
@@ -142,7 +137,7 @@ export default function LeadsTable({ leads = [], onStageChange, onSelectLead, st
           <tbody>
             {paginatedLeads.length === 0 ? (
               <tr>
-                <td colSpan={7} className="leads-table-empty">
+                <td colSpan={6} className="leads-table-empty">
                   No leads match your filters.
                 </td>
               </tr>
@@ -160,23 +155,6 @@ export default function LeadsTable({ leads = [], onStageChange, onSelectLead, st
                     <span className="leads-table-name">{lead.customerName || '—'}</span>
                   </td>
                   <td className="leads-table-td">{lead.suburb || '—'}</td>
-                  <td className="leads-table-td leads-table-td-stage">
-                    <select
-                      className={`leads-table-stage-select leads-table-stage-${lead.stage === 'closed_won' ? 'won' : lead.stage === 'closed_lost' ? 'lost' : 'default'}`}
-                      value={lead.stage ?? stageList[0]?.key}
-                      onChange={(e) => onStageChange?.(lead.id, e.target.value)}
-                      aria-label={`Change stage for ${lead.customerName}`}
-                    >
-                      {!stageKeys.has(lead.stage) && lead.stage && (
-                        <option value={lead.stage}>{lead.stage} (inactive)</option>
-                      )}
-                      {stageList.map((s) => (
-                        <option key={s.key} value={s.key}>
-                          {s.label}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
                   <td className="leads-table-td leads-table-td-num">{formatCurrency(lead.value)}</td>
                   <td className="leads-table-td">{lead.systemSize || '—'}</td>
                   <td className="leads-table-td">
