@@ -1,15 +1,19 @@
 // src/pages/admin/SettingsPage.jsx
 import { useEffect, useRef, useState, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Building2,
   Boxes,
   Workflow,
-  UsersRound,
   Share2,
   PlugZap,
-  Bell,
+  HelpCircle,
+  FileText,
+  ShieldCheck,
   ImagePlus,
   Shield,
+  CreditCard,
+  LogOut,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import RequirePermission from '../../components/RequirePermission.jsx';
@@ -62,38 +66,96 @@ const helpStyle = {
   marginTop: 6,
 };
 
-const ALL_SECTIONS = [
-  { key: 'company', label: 'Company Profile', icon: Building2 },
-  { key: 'modules', label: 'Module Management', icon: Boxes },
-  { key: 'workflow', label: 'Workflow Configuration', icon: Workflow },
-  { key: 'roles', label: 'Roles & Permissions', icon: Shield, permission: { resource: 'roles', action: 'view' } },
-  { key: 'referrals', label: 'Referral Program', icon: Share2 },
-
+const SETTINGS_NAV = [
+  {
+    key: 'general',
+    label: 'General',
+    icon: Shield,
+    children: [
+      { key: 'company', label: 'Company Profile', icon: Building2 },
+      { key: 'modules', label: 'Module Management', icon: Boxes },
+      { key: 'workflow', label: 'Workflow Configurations', icon: Workflow },
+      { key: 'roles', label: 'Roles & Permissions', icon: Shield, permission: { resource: 'roles', action: 'view' } },
+      { key: 'referrals', label: 'Referral Program', icon: Share2 },
+      { key: 'integrations', label: 'Integrations', icon: PlugZap },
+      { key: 'logout_delete', label: 'Log Out / Delete Account', icon: LogOut },
+    ],
+  },
+  { key: 'subscription', label: 'Subscription Management', icon: CreditCard },
+  { key: 'faq_helpdesk', label: 'FAQ & Helpdesk', icon: HelpCircle },
+  { key: 'terms', label: 'Terms & Conditions', icon: FileText },
+  { key: 'privacy', label: 'Privacy Policy', icon: ShieldCheck },
 ];
 
+const FALLBACK_ACTIVE_KEY = 'company';
+
 export default function SettingsPage() {
-  const [active, setActive] = useState('company');
+  const [active, setActive] = useState(FALLBACK_ACTIVE_KEY);
   const { can, user } = useAuth();
-  const sections = useMemo(() => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const tabFromUrl = useMemo(() => {
+    const qp = new URLSearchParams(location.search);
+    return qp.get('tab') || '';
+  }, [location.search]);
+
+  const navItems = useMemo(() => {
     const r = String(user?.role || '').toLowerCase();
     // US-085: Super Admin can manage modules/workflow too (no companyId required for visibility).
     const canModules = ['company_admin', 'manager', 'super_admin'].includes(r);
-    return ALL_SECTIONS.filter((s) => {
-      if ((s.key === 'modules' || s.key === 'workflow') && !canModules) return false;
-      if (s.permission && !can(s.permission.resource, s.permission.action)) return false;
-      return true;
-    });
+
+    return SETTINGS_NAV
+      .map((item) => {
+        if (!item.children) {
+          return item;
+        }
+        const allowedChildren = item.children.filter((child) => {
+          if ((child.key === 'modules' || child.key === 'workflow') && !canModules) return false;
+          if (child.permission && !can(child.permission.resource, child.permission.action)) return false;
+          return true;
+        });
+        if (allowedChildren.length === 0) return null;
+        return { ...item, children: allowedChildren };
+      })
+      .filter(Boolean);
   }, [can, user]);
 
+  const validKeys = useMemo(() => {
+    const keys = [];
+    navItems.forEach((item) => {
+      if (item.children?.length) {
+        item.children.forEach((child) => keys.push(child.key));
+      } else {
+        keys.push(item.key);
+      }
+    });
+    return keys;
+  }, [navItems]);
+
+  const handleChange = (nextKey) => {
+    setActive(nextKey);
+    navigate(`${location.pathname}?tab=${encodeURIComponent(nextKey)}`, { replace: true });
+  };
+
   useEffect(() => {
-    if (!sections.some((s) => s.key === active)) setActive('company');
-  }, [sections, active]);
+    const fallback = validKeys.includes(FALLBACK_ACTIVE_KEY)
+      ? FALLBACK_ACTIVE_KEY
+      : (validKeys[0] || FALLBACK_ACTIVE_KEY);
+
+    if (tabFromUrl && validKeys.includes(tabFromUrl)) {
+      if (active !== tabFromUrl) setActive(tabFromUrl);
+      return;
+    }
+
+    if (!validKeys.includes(active)) setActive(fallback);
+  }, [validKeys, active, tabFromUrl]);
 
   return (
     <div style={{ padding: 16 }}>
       <div style={{ ...card, padding: 12 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 16 }}>
-          <SettingsNav active={active} onChange={setActive} sections={sections} />
+          <SettingsNav active={active} onChange={handleChange} items={navItems} />
 
           <div style={{ padding: 12 }}>
             {active === 'company' && <CompanyProfileForm />}
@@ -105,13 +167,55 @@ export default function SettingsPage() {
             {active === 'referrals' && <ReferralsPage />}
             {active === 'modules' && <ModuleManagementSection />}
             {active === 'workflow' && <WorkflowConfigurationSection />}
+            {active === 'integrations' && (
+              <PlaceholderSection
+                title="Integrations"
+                message="Connect third-party tools and services in a future release."
+              />
+            )}
+            {active === 'logout_delete' && (
+              <PlaceholderSection
+                title="Log Out / Delete Account"
+                message="Account session and deletion controls will be configured here in a future release."
+              />
+            )}
+            {active === 'subscription' && (
+              <PlaceholderSection
+                title="Subscription Management"
+                message="Manage billing plans, payment methods, and invoices in a future release."
+              />
+            )}
+            {active === 'faq_helpdesk' && (
+              <PlaceholderSection
+                title="FAQ & Helpdesk"
+                message="Knowledge base and support helpdesk settings will be available in a future release."
+              />
+            )}
+            {active === 'terms' && (
+              <PlaceholderSection
+                title="Terms & Conditions"
+                message="Terms and legal copy configuration will be available in a future release."
+              />
+            )}
+            {active === 'privacy' && (
+              <PlaceholderSection
+                title="Privacy Policy"
+                message="Privacy policy management will be available in a future release."
+              />
+            )}
             {active !== 'company' &&
               active !== 'roles' &&
               active !== 'referrals' &&
               active !== 'modules' &&
-              active !== 'workflow' && (
+              active !== 'workflow' &&
+              active !== 'integrations' &&
+              active !== 'logout_delete' &&
+              active !== 'subscription' &&
+              active !== 'faq_helpdesk' &&
+              active !== 'terms' &&
+              active !== 'privacy' && (
               <PlaceholderSection
-                title={ALL_SECTIONS.find((s) => s.key === active)?.label || 'Settings'}
+                title="Settings"
                 message="This section will be available in the next phase."
               />
             )}
@@ -122,8 +226,8 @@ export default function SettingsPage() {
   );
 }
 
-function SettingsNav({ active, onChange, sections }) {
-  const navSections = sections || ALL_SECTIONS;
+function SettingsNav({ active, onChange, items }) {
+  const navItems = items || [];
   return (
     <aside
       style={{
@@ -144,13 +248,66 @@ function SettingsNav({ active, onChange, sections }) {
       </div>
 
       <nav style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {navSections.map((s) => {
-          const Icon = s.icon;
-          const isActive = s.key === active;
+        {navItems.map((item) => {
+          const ParentIcon = item.icon;
+          if (item.children?.length) {
+            return (
+              <div key={item.key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '8px 10px',
+                    borderRadius: 10,
+                    background: '#F8FAFC',
+                    color: palette.text,
+                    fontWeight: 800,
+                    fontSize: 13,
+                  }}
+                >
+                  <ParentIcon size={16} />
+                  <span>{item.label}</span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 8 }}>
+                  {item.children.map((child) => {
+                    const ChildIcon = child.icon;
+                    const isActive = child.key === active;
+                    return (
+                      <button
+                        key={child.key}
+                        onClick={() => onChange(child.key)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          padding: '9px 12px',
+                          borderRadius: 10,
+                          border: `1px solid ${isActive ? palette.brand : palette.white}`,
+                          background: isActive ? '#DDF1F0' : '#ffffff',
+                          color: isActive ? palette.brand : palette.text,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <ChildIcon size={16} />
+                        <span>{child.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          }
+
+          const Icon = item.icon;
+          const isActive = item.key === active;
           return (
             <button
-              key={s.key}
-              onClick={() => onChange(s.key)}
+              key={item.key}
+              onClick={() => onChange(item.key)}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -166,7 +323,7 @@ function SettingsNav({ active, onChange, sections }) {
               }}
             >
               <Icon size={18} />
-              <span>{s.label}</span>
+              <span>{item.label}</span>
             </button>
           );
         })}

@@ -1269,17 +1269,6 @@ const meta = base?.meta && typeof base.meta === 'string'
               />
               {status === 'submitted' ? 'Submitted' : 'Draft'}
             </span>
-            <button
-              type="button"
-              className="si-btn si-btn--ghost"
-              onClick={exportPdf}
-              disabled={exporting}
-            >
-              {exporting ? 'Exporting…' : 'Export PDF'}
-            </button>
-            <button type="button" className="si-btn si-btn--primary" onClick={onSaveDraft} disabled={saving}>
-              {saving ? 'Saving…' : 'Save draft'}
-            </button>
           </div>
         </header>
 
@@ -1568,8 +1557,24 @@ const meta = base?.meta && typeof base.meta === 'string'
                 {status} · {progress}% complete
               </div>
               <div className="si-footer-btns">
+                <button
+                  type="button"
+                  className="si-btn si-btn--ghost si-btn--lg"
+                  onClick={exportPdf}
+                  disabled={exporting}
+                >
+                  {exporting ? 'Exporting…' : 'Export PDF'}
+                </button>
+                <button
+                  type="button"
+                  className="si-btn si-btn--primary si-btn--lg"
+                  onClick={onSaveDraft}
+                  disabled={saving}
+                >
+                  {saving ? 'Saving…' : 'Save draft'}
+                </button>
                 {stepIdx > 0 && (
-                  <button type="button" onClick={() => setStepIdx((i) => i - 1)} className="si-btn">
+                  <button type="button" onClick={() => setStepIdx((i) => i - 1)} className="si-btn si-btn--lg">
                     Back
                   </button>
                 )}
@@ -1588,7 +1593,7 @@ const meta = base?.meta && typeof base.meta === 'string'
                       setMsg('');
                       setStepIdx((i) => i + 1);
                     }}
-                    className="si-btn si-btn--primary"
+                    className="si-btn si-btn--primary si-btn--lg"
                   >
                     Next
                   </button>
@@ -1597,7 +1602,7 @@ const meta = base?.meta && typeof base.meta === 'string'
                     type="button"
                     onClick={onSubmit}
                     disabled={saving || isSubmitted || !customerConfirmed || !customerName.trim()}
-                    className="si-btn si-btn--primary"
+                    className="si-btn si-btn--primary si-btn--lg"
                   >
                     {isSubmitted ? 'Submitted' : saving ? 'Submitting…' : 'Submit'}
                   </button>

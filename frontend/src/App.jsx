@@ -58,6 +58,10 @@ import RetailerProjectsPage from './pages/RetailerProjectsPage.jsx';
 import RetailerProjectDetailPage from './pages/RetailerProjectDetailPage.jsx';
 import ProjectDetailPage from './pages/ProjectDetailPage.jsx';
 import ProjectManagementDashboard from './pages/ProjectManagementDashboard.jsx';
+import OperationalManagementDashboard from './pages/admin/OperationalManagementDashboard.jsx';
+import FinancialManagementDashboard from './pages/admin/FinancialManagementDashboard.jsx';
+import ProfitLossAnalysisPage from './pages/admin/ProfitLossAnalysisPage.jsx';
+import CustomersPage from './pages/admin/CustomersPage.jsx';
 import InstallationJobCard from './pages/InstallationJobCard.jsx';
 import InstallationJobList from './pages/InstallationJobList.jsx';
 import OnFieldPage from './pages/employee/OnFieldPage.jsx';
@@ -75,7 +79,7 @@ function PlaceholderPage({ title, message, children }) {
 
 const AdminOverview = () => <PlaceholderPage title="Dashboard" message="Overview metrics & quick actions." />;
 const AdminProjects = () => <PlaceholderPage title="Projects" message="In-house & retailer projects." />;
-const AdminOperations = () => <ApprovalsPage />;
+const AdminOperations = () => <OperationalManagementDashboard />;
 
 // ---------- Login Page ----------
 function LoginPage() {
@@ -327,10 +331,55 @@ function App() {
           />
 
           <Route
+            path="customers"
+            element={
+              <RequirePermission resource="operations" action="view">
+                <CustomersPage />
+              </RequirePermission>
+            }
+          />
+
+          <Route
+            path="financial-dashboard"
+            element={
+              <RequirePermission resource="payroll" action="view">
+                <FinancialManagementDashboard />
+              </RequirePermission>
+            }
+          />
+
+          <Route
             path="payroll"
             element={
               <RequirePermission resource="payroll" action="view">
                 <PayrollPage />
+              </RequirePermission>
+            }
+          />
+
+          <Route
+            path="quotations"
+            element={
+              <RequirePermission resource="payroll" action="view">
+                <PlaceholderPage title="comming soon" message="comming soon" />
+              </RequirePermission>
+            }
+          />
+
+          <Route
+            path="invoicing"
+            element={
+              <RequirePermission resource="payroll" action="view">
+                <PlaceholderPage title="comming soon" message="comming soon" />
+              </RequirePermission>
+            }
+          />
+
+          <Route
+            path="profit-loss-analysis"
+            element={
+              <RequirePermission resource="payroll" action="view">
+                <ProfitLossAnalysisPage />
               </RequirePermission>
             }
           />

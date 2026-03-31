@@ -2269,6 +2269,12 @@ export async function listApprovals(params = {}) {
   return authFetchJSON(`/api/approvals${q ? `?${q}` : ''}`, { method: 'GET' });
 }
 
+/** GET /api/financial/profit-loss-adjustments?fromDate=YYYY-MM-DD&toDate=YYYY-MM-DD */
+export async function getProfitLossAdjustments(params = {}) {
+  const q = new URLSearchParams(params).toString();
+  return authFetchJSON(`/api/financial/profit-loss-adjustments${q ? `?${q}` : ''}`, { method: 'GET' });
+}
+
 /** GET /api/approvals/count – returns { pending, by_type: { leave, expense, attendance } } */
 export async function getApprovalsPendingCount() {
   return authFetchJSON('/api/approvals/count', { method: 'GET' });

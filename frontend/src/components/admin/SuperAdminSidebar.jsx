@@ -10,6 +10,10 @@ import {
   MessageSquare,
   MessageCircle,
   Settings,
+  CreditCard,
+  HelpCircle,
+  FileText,
+  ShieldCheck,
   Building2,
   ChevronLeft,
   ChevronRight,
@@ -30,26 +34,35 @@ import { navItemMatchesLocation } from '../../utils/navLinkMatch.js';
  */
 const RAW_NAV = [
   { to: '/admin/overview', label: 'Dashboard', icon: LayoutDashboard, permission: { resource: 'overview', action: 'view' } },
-  { to: '/admin/companies', label: 'Companies', icon: Building2, permission: { resource: 'companies', action: 'view' } },
+  { to: '/admin/companies', label: 'Partner Companies', icon: Building2, permission: { resource: 'companies', action: 'view' } },
   { to: '/admin/leads', label: 'Leads Kanban', icon: TrendingUp, permission: { resource: 'leads', action: 'view' } },
   { to: '/admin/employees', label: 'Employees', icon: UserCog, permission: { resource: 'employees', action: 'view' } },
 
   { to: '/admin/projects/dashboard', label: 'Dashboard', icon: Boxes, permission: { resource: 'projects', action: 'view' } },
-  { to: '/admin/projects', label: 'In-house Project', icon: Boxes, permission: { resource: 'projects', action: 'view' } },
-  { to: '/admin/projects/retailer', label: 'Retailer Project', icon: Boxes, permission: { resource: 'projects', action: 'view' } },
+  { to: '/admin/projects', label: 'In-House Projects', icon: Boxes, permission: { resource: 'projects', action: 'view' } },
+  { to: '/admin/projects/retailer', label: 'Retailer Projects', icon: Boxes, permission: { resource: 'projects', action: 'view' } },
 
-  { to: '/admin/installation', label: 'Installation Day', icon: Wrench, permission: { resource: 'installation', action: 'view' } },
-  { to: '/admin/on-field', label: 'On-Field', icon: HardHat, permission: { resource: 'on_field', action: 'view' } },
-  { to: '/admin/operations', label: 'Operations', icon: Factory, permission: { resource: 'operations', action: 'view' } },
+  { to: '/admin/installation', label: 'Job Management', icon: Wrench, permission: { resource: 'installation', action: 'view' } },
+  { to: '/admin/on-field', label: 'Job Scheduling', icon: HardHat, permission: { resource: 'on_field', action: 'view' } },
+  { to: '/admin/operations', label: 'Dashboard', icon: Factory, permission: { resource: 'operations', action: 'view' } },
+  { to: '/admin/customers', label: 'Customers', icon: UsersRound, permission: { resource: 'operations', action: 'view' } },
+  { to: '/admin/financial-dashboard', label: 'Dashboard', icon: Calculator, permission: { resource: 'payroll', action: 'view' } },
   { to: '/admin/payroll', label: 'Payroll', icon: Calculator, permission: { resource: 'payroll', action: 'view' } },
+  { to: '/admin/quotations', label: 'Quotations', icon: Calculator, permission: { resource: 'payroll', action: 'view' } },
+  { to: '/admin/invoicing', label: 'Invoicing', icon: Calculator, permission: { resource: 'payroll', action: 'view' } },
+  { to: '/admin/profit-loss-analysis', label: 'Profit/Loss Analysis', icon: Calculator, permission: { resource: 'payroll', action: 'view' } },
   { to: '/admin/attendance', label: 'Attendance', icon: Clock3, permission: { resource: 'attendance', action: 'view' } },
   // Referrals is now accessible inside Settings → Referral Program tab
   { to: '/admin/messages', label: 'Messages', icon: MessageSquare, permission: { resource: 'messages', action: 'view' } },
-  { to: '/admin/support-tickets', label: 'Support Tickets', icon: MessageCircle, permission: { resource: 'support', action: 'view' } },
-  { to: '/admin/trial-users', label: 'Trial Users', icon: UsersRound, permission: { resource: 'users', action: 'view' } },
+  { to: '/admin/support-tickets', label: 'Customer Support Tickets', icon: MessageCircle, permission: { resource: 'support', action: 'view' } },
+  { to: '/admin/trial-users', label: 'Guest Users', icon: UsersRound, permission: { resource: 'users', action: 'view' } },
   
-  // --- SETTINGS (flatten - no nested children) ---
-  { to: '/admin/settings', label: 'General', icon: Settings, permission: { resource: 'settings', action: 'view' } },
+  // --- SETTINGS ---
+  { to: '/admin/settings?tab=company', label: 'General', icon: Settings, permission: { resource: 'settings', action: 'view' } },
+  { to: '/admin/settings?tab=subscription', label: 'Subscription Management', icon: CreditCard, permission: { resource: 'settings', action: 'view' } },
+  { to: '/admin/settings?tab=faq_helpdesk', label: 'FAQ & Helpdesk', icon: HelpCircle, permission: { resource: 'settings', action: 'view' } },
+  { to: '/admin/settings?tab=terms', label: 'Terms & Conditions', icon: FileText, permission: { resource: 'settings', action: 'view' } },
+  { to: '/admin/settings?tab=privacy', label: 'Privacy Policy', icon: ShieldCheck, permission: { resource: 'settings', action: 'view' } },
 ];
 
 export default function SuperAdminSidebar({
@@ -106,22 +119,20 @@ export default function SuperAdminSidebar({
     const findByTo = (to) => navItems.find((i) => i.to === to);
     const pick = (arr) => arr.filter(Boolean);
 
-    const salesItems = pick([
+    const leadManagementItems = pick([
       findByTo('/admin/overview'),
       findByTo('/admin/leads'),
     ]);
 
-    const projectManagerItems = pick([
+    const projectManagementItems = pick([
       findByTo('/admin/projects/dashboard'),
       findByTo('/admin/projects'),
       findByTo('/admin/projects/retailer'),
     ]);
 
-    const attendanceItems = pick([
-      findByTo('/admin/attendance'),
-    ]);
-
-    const onFieldItems = pick([
+    const onsiteFieldItems = pick([
+      // Keep a dedicated dashboard entry inside this module.
+      findByTo('/admin/projects/dashboard'),
       findByTo('/admin/on-field'),
       findByTo('/admin/installation'),
     ]);
@@ -131,28 +142,41 @@ export default function SuperAdminSidebar({
       findByTo('/admin/support-tickets'),
     ]);
 
-    const operationsItems = pick([
+    const operationalManagementItems = pick([
       findByTo('/admin/operations'),
-      findByTo('/admin/payroll'),
-      findByTo('/admin/trial-users'),
       findByTo('/admin/employees'),
+      findByTo('/admin/attendance'),
       findByTo('/admin/companies'),
+      findByTo('/admin/trial-users'),
+      findByTo('/admin/customers'),
       // findByTo('/admin/profile'),
     ]);
 
+    const financialManagementItems = pick([
+      findByTo('/admin/financial-dashboard'),
+      findByTo('/admin/payroll'),
+      findByTo('/admin/quotations'),
+      findByTo('/admin/invoicing'),
+      findByTo('/admin/profit-loss-analysis'),
+    ]);
+
     const settingsItems = pick([
-      findByTo('/admin/settings'),
+      findByTo('/admin/settings?tab=company'),
+      findByTo('/admin/settings?tab=subscription'),
+      findByTo('/admin/settings?tab=faq_helpdesk'),
+      findByTo('/admin/settings?tab=terms'),
+      findByTo('/admin/settings?tab=privacy'),
       findByTo('/admin/settings/inspection-templates'),
       findByTo('/admin/settings/checklist-templates'),
     ]);
 
     return [
-      { key: 'sales', title: 'Sales Management', icon: TrendingUp, items: salesItems },
-      { key: 'project_manager', title: 'Project Manager Module', icon: Boxes, items: projectManagerItems },
-      { key: 'attendance', title: 'Attendance', icon: Clock3, items: attendanceItems },
-      { key: 'on_field', title: 'On-Field Module', icon: HardHat, items: onFieldItems },
+      { key: 'lead_management', title: 'Sale Management', icon: TrendingUp, items: leadManagementItems },
+      { key: 'project_management', title: 'Project Management', icon: Boxes, items: projectManagementItems },
+      { key: 'onsite_field_management', title: 'Onsite Field Management', icon: HardHat, items: onsiteFieldItems },
+      { key: 'operational_management', title: 'Operational Management', icon: Factory, items: operationalManagementItems },
+      { key: 'financial_management', title: 'Financial Management', icon: Calculator, items: financialManagementItems },
       { key: 'communications', title: 'Communications', icon: MessageSquare, items: communicationsItems },
-      { key: 'operations', title: 'Operation', icon: Cog, items: operationsItems },
       { key: 'settings', title: 'Settings', icon: Settings, items: settingsItems },
     ].filter((s) => s.items.length > 0);
   }, [navItems]);
@@ -164,17 +188,27 @@ export default function SuperAdminSidebar({
   const [openKeys, setOpenKeys] = useState(() => {
     const pathname = location.pathname || '';
     return {
-      sales: pathname.startsWith('/admin/overview') || pathname.startsWith('/admin/leads'),
-      project_manager: pathname.startsWith('/admin/projects'),
-      attendance: pathname.startsWith('/admin/attendance'),
-      on_field: pathname.startsWith('/admin/on-field') || pathname.startsWith('/admin/installation'),
+      lead_management: pathname.startsWith('/admin/overview') || pathname.startsWith('/admin/leads'),
+      project_management: pathname.startsWith('/admin/projects'),
+      onsite_field_management:
+        pathname.startsWith('/admin/projects/dashboard') ||
+        pathname.startsWith('/admin/on-field') ||
+        pathname.startsWith('/admin/installation'),
       communications: pathname.startsWith('/admin/messages') || pathname.startsWith('/admin/support-tickets'),
-      operations:
+      operational_management:
         pathname.startsWith('/admin/operations') ||
-        pathname.startsWith('/admin/payroll') ||
-        pathname.startsWith('/admin/trial-users') ||
         pathname.startsWith('/admin/employees') ||
+        pathname.startsWith('/admin/attendance') ||
         pathname.startsWith('/admin/companies') ||
+        pathname.startsWith('/admin/trial-users') ||
+        pathname.startsWith('/admin/customers') ||
+        false,
+      financial_management:
+        pathname.startsWith('/admin/financial-dashboard') ||
+        pathname.startsWith('/admin/payroll') ||
+        pathname.startsWith('/admin/quotations') ||
+        pathname.startsWith('/admin/invoicing') ||
+        pathname.startsWith('/admin/profit-loss-analysis') ||
         false,
       // pathname.startsWith('/admin/profile'),
       settings: pathname.startsWith('/admin/settings'),
@@ -469,7 +503,7 @@ export default function SuperAdminSidebar({
         </div>
         <div style={brandText}>
           <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2, color: '#6B7280' }}>
-            XVRYTHNG
+            XVRYTHING
           </div>
           <div style={{ fontSize: 18, fontWeight: 800, color: '#0f1a2b' }}>
             XTECHS RENEWABLES

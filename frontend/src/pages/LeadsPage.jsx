@@ -356,7 +356,7 @@ export default function LeadsPage() {
       ? 'Residential and consumer solar opportunities. Manage leads across stages.'
       : salesSegment === 'b2b'
         ? 'Commercial and business solar opportunities. Manage leads across stages.'
-        : 'Choose Residential Sale or Commercial Sale to focus the pipeline.';
+        : 'View all sales leads or focus on Residential / Commercial pipelines.';
 
   const addLeadModalTitle =
     salesSegment === 'b2c'
@@ -375,11 +375,19 @@ export default function LeadsPage() {
             <div className="leads-segment-switch" role="tablist" aria-label="Lead sales segment">
               <button
                 type="button"
+                className={`leads-segment-pill ${salesSegment == null ? 'active' : ''}`}
+                onClick={() => switchSalesSegment(null)}
+                aria-pressed={salesSegment == null}
+              >
+                All
+              </button>
+              <button
+                type="button"
                 className={`leads-segment-pill ${salesSegment === 'b2c' ? 'active' : ''}`}
                 onClick={() => switchSalesSegment('b2c')}
                 aria-pressed={salesSegment === 'b2c'}
               >
-                Residential Sale
+                Residential Sales
               </button>
               <button
                 type="button"
@@ -387,7 +395,7 @@ export default function LeadsPage() {
                 onClick={() => switchSalesSegment('b2b')}
                 aria-pressed={salesSegment === 'b2b'}
               >
-                Commercial Sale
+                Commercial Sales
               </button>
             </div>
           </div>
