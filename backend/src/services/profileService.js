@@ -90,6 +90,80 @@ export async function updateProfile(userId, data) {
   return getProfile(userId);
 }
 
+function makeServiceError(message, code) {
+  const err = new Error(message);
+  err.code = code;
+  return err;
+}
+
+/**
+ * Soft-delete current account and revoke refresh tokens.
+ * Notes:
+ * - We do not hard-delete to avoid breaking foreign-key references.
+ * - Last active super_admin cannot self-delete.
+ */
+export async function deleteOwnAccount(userId) {
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const [rows] = await conn.execute(
+      `SELECT u.id, u.status, LOWER(r.name) AS role_name
+       FROM users u
+       INNER JOIN roles r ON r.id = u.role_id
+       WHERE u.id = ?
+       LIMIT 1`,
+      [userId]
+    );
+
+    const user = rows[0];
+    if (!user) {
+      throw makeServiceError('User not found', 'NOT_FOUND');
+    }
+
+    if (user.status !== 'active') {
+      throw makeServiceError('Account is already inactive', 'ALREADY_INACTIVE');
+    }
+
+    if (user.role_name === 'super_admin') {
+      const [countRows] = await conn.execute(
+        `SELECT COUNT(*) AS cnt
+         FROM users u
+         INNER JOIN roles r ON r.id = u.role_id
+         WHERE LOWER(r.name) = 'super_admin' AND u.status = 'active'`
+      );
+      const activeSuperAdmins = Number(countRows[0]?.cnt || 0);
+      if (activeSuperAdmins <= 1) {
+        throw makeServiceError('Cannot delete the last active super admin account', 'LAST_SUPER_ADMIN');
+      }
+    }
+
+    const suffix = `${userId}_${Date.now()}`;
+    const anonymizedEmail = `deleted+${suffix}@xvrythng.local`;
+    const anonymizedName = `Deleted User ${userId}`;
+
+    await conn.execute(
+      `UPDATE users
+       SET status = 'inactive',
+           email = ?,
+           name = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [anonymizedEmail, anonymizedName, userId]
+    );
+
+    await conn.execute('DELETE FROM refresh_tokens WHERE user_id = ?', [userId]);
+
+    await conn.commit();
+    return { success: true };
+  } catch (err) {
+    try { await conn.rollback(); } catch (_) {}
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
 /**
  * Change password. Verifies current password, then sets new hash.
  */

@@ -695,6 +695,26 @@ export async function changePasswordMe({ currentPassword, newPassword }) {
 
   return data;
 }
+
+/**
+ * DELETE /api/users/me
+ * Permanently delete the currently authenticated account.
+ */
+export async function deleteMyAccount() {
+  const res = await authFetch('/api/users/me', { method: 'DELETE' });
+  const data = await res.json().catch(() => ({}));
+
+  if (res.status === 404 || res.status === 405) {
+    throw new Error('Delete account is not enabled on this server yet. Please contact support.');
+  }
+
+  if (!res.ok) {
+    throw new Error(data.message || 'Failed to delete account');
+  }
+
+  return data;
+}
+
 /**
  * ADMIN: POST /api/admin/change-password
  * @param {{ currentPassword: string, newPassword: string }} param0

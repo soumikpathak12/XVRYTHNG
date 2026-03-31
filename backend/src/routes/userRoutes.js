@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import fileUpload from 'express-fileupload';
 import { requireAuth } from '../middleware/auth.js';
-import { getProfile, updateProfile, changePassword, getMyPermissions } from '../controllers/profileController.js';
+import { getProfile, updateProfile, changePassword, getMyPermissions, deleteMyAccount } from '../controllers/profileController.js';
 import { getSidebarForUser } from '../services/sidebarService.js';
 
 import { postUser } from '../controllers/userController.js';
@@ -27,6 +27,7 @@ router.use(requireAuth);
 
 router.get('/me', getProfile);
 router.get('/me/permissions', getMyPermissions);
+router.delete('/me', deleteMyAccount);
 router.get('/me/sidebar', async (req, res, next) => {
   try {
     console.log('[ROUTE:/api/users/me/sidebar] userId:', req.user.id);

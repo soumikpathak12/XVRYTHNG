@@ -62,6 +62,7 @@ import OperationalManagementDashboard from './pages/admin/OperationalManagementD
 import FinancialManagementDashboard from './pages/admin/FinancialManagementDashboard.jsx';
 import ProfitLossAnalysisPage from './pages/admin/ProfitLossAnalysisPage.jsx';
 import CustomersPage from './pages/admin/CustomersPage.jsx';
+import OnsiteFieldManagementDashboard from './pages/admin/OnsiteFieldManagementDashboard.jsx';
 import InstallationJobCard from './pages/InstallationJobCard.jsx';
 import InstallationJobList from './pages/InstallationJobList.jsx';
 import OnFieldPage from './pages/employee/OnFieldPage.jsx';
@@ -308,6 +309,15 @@ function App() {
             element={
               <RequirePermission resource="installation" action="view">
                 <InstallationJobCard />
+              </RequirePermission>
+            }
+          />
+
+          <Route
+            path="on-field-dashboard"
+            element={
+              <RequirePermission resource="on_field" action="view">
+                <OnsiteFieldManagementDashboard />
               </RequirePermission>
             }
           />

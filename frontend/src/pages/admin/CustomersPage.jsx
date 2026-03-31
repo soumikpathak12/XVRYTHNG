@@ -159,7 +159,7 @@ export default function CustomersPage() {
 
   const priorityColumns = useMemo(
     () => [
-      'id',
+      
       'customer_name',
       'email',
       'phone',
@@ -180,6 +180,12 @@ export default function CustomersPage() {
   const hiddenColumns = useMemo(
     () =>
       new Set([
+        'created_at',
+        'updated_at',
+        'last_activity_at',
+        'createdAt',
+        'updatedAt',
+        'lastActivityAt',
         'value_amount',
         'system_size_kw',
         'system_type',

@@ -5,6 +5,7 @@ import { getCompanyProfile, updateCompanyProfile } from '../../services/api.js';
 import ChangePasswordCard from '../../components/settings/ChangePasswordCard.jsx';
 import ModuleManagementSection from '../../components/settings/ModuleManagementSection.jsx';
 import WorkflowConfigurationSection from '../../components/settings/WorkflowConfigurationSection.jsx';
+import AccountSessionDangerSection from '../../components/settings/AccountSessionDangerSection.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 
 import {
@@ -175,10 +176,7 @@ export default function SettingsPage() {
               />
             )}
             {active === 'logout_delete' && (
-              <PlaceholderSection
-                title="Log Out / Delete Account"
-                message="Account session and deletion controls will be configured here in a future release."
-              />
+              <AccountSessionDangerSection />
             )}
             {active === 'subscription' && (
               <PlaceholderSection

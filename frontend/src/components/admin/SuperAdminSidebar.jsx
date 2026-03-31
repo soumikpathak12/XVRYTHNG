@@ -42,6 +42,7 @@ const RAW_NAV = [
   { to: '/admin/projects', label: 'In-House Projects', icon: Boxes, permission: { resource: 'projects', action: 'view' } },
   { to: '/admin/projects/retailer', label: 'Retailer Projects', icon: Boxes, permission: { resource: 'projects', action: 'view' } },
 
+  { to: '/admin/on-field-dashboard', label: 'Dashboard', icon: HardHat, permission: { resource: 'on_field', action: 'view' } },
   { to: '/admin/installation', label: 'Job Management', icon: Wrench, permission: { resource: 'installation', action: 'view' } },
   { to: '/admin/on-field', label: 'Job Scheduling', icon: HardHat, permission: { resource: 'on_field', action: 'view' } },
   { to: '/admin/operations', label: 'Dashboard', icon: Factory, permission: { resource: 'operations', action: 'view' } },
@@ -132,7 +133,7 @@ export default function SuperAdminSidebar({
 
     const onsiteFieldItems = pick([
       // Keep a dedicated dashboard entry inside this module.
-      findByTo('/admin/projects/dashboard'),
+      findByTo('/admin/on-field-dashboard'),
       findByTo('/admin/on-field'),
       findByTo('/admin/installation'),
     ]);
@@ -191,7 +192,7 @@ export default function SuperAdminSidebar({
       lead_management: pathname.startsWith('/admin/overview') || pathname.startsWith('/admin/leads'),
       project_management: pathname.startsWith('/admin/projects'),
       onsite_field_management:
-        pathname.startsWith('/admin/projects/dashboard') ||
+        pathname.startsWith('/admin/on-field-dashboard') ||
         pathname.startsWith('/admin/on-field') ||
         pathname.startsWith('/admin/installation'),
       communications: pathname.startsWith('/admin/messages') || pathname.startsWith('/admin/support-tickets'),

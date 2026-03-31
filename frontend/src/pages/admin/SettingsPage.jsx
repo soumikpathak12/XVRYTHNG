@@ -22,6 +22,7 @@ import ReferralsPage from '../ReferralsPage.jsx';
 import { getAdminMe, updateAdminMe } from '../../services/api.js';
 import ModuleManagementSection from '../../components/settings/ModuleManagementSection.jsx';
 import WorkflowConfigurationSection from '../../components/settings/WorkflowConfigurationSection.jsx';
+import AccountSessionDangerSection from '../../components/settings/AccountSessionDangerSection.jsx';
 
 const palette = {
   brand: '#146b6b',
@@ -174,10 +175,7 @@ export default function SettingsPage() {
               />
             )}
             {active === 'logout_delete' && (
-              <PlaceholderSection
-                title="Log Out / Delete Account"
-                message="Account session and deletion controls will be configured here in a future release."
-              />
+              <AccountSessionDangerSection />
             )}
             {active === 'subscription' && (
               <PlaceholderSection
