@@ -83,6 +83,17 @@ export default function LeadsPage() {
     [view, navigate, location.pathname, location.search]
   );
 
+  const switchSalesSegment = useCallback(
+    (nextSegment) => {
+      if (nextSegment === salesSegment) return;
+      const params = new URLSearchParams(location.search);
+      if (nextSegment) params.set('segment', nextSegment);
+      else params.delete('segment');
+      navigate({ pathname: location.pathname, search: params.toString() }, { replace: false });
+    },
+    [navigate, location.pathname, location.search, salesSegment]
+  );
+
   const handleLeadCreatedOk = useCallback(() => {
     setLeadCreatedModalOpen(false);
     const params = new URLSearchParams(location.search);
@@ -339,13 +350,13 @@ export default function LeadsPage() {
       ? 'Residential Sales (B2C)'
       : salesSegment === 'b2b'
         ? 'Commercial Sales (B2B)'
-        : 'Leads Pipeline';
+        : 'Leads Kanban';
   const pipelineSubtitle =
     salesSegment === 'b2c'
       ? 'Residential and consumer solar opportunities. Manage leads across stages.'
       : salesSegment === 'b2b'
         ? 'Commercial and business solar opportunities. Manage leads across stages.'
-        : 'Manage leads across stages. Search, filter, and drag cards between columns.';
+        : 'Choose Residential Sale or Commercial Sale to focus the pipeline.';
 
   const addLeadModalTitle =
     salesSegment === 'b2c'
@@ -361,6 +372,24 @@ export default function LeadsPage() {
           <div className="leads-kanban-title">
             <h1>{pipelineTitle}</h1>
             <p>{pipelineSubtitle}</p>
+            <div className="leads-segment-switch" role="tablist" aria-label="Lead sales segment">
+              <button
+                type="button"
+                className={`leads-segment-pill ${salesSegment === 'b2c' ? 'active' : ''}`}
+                onClick={() => switchSalesSegment('b2c')}
+                aria-pressed={salesSegment === 'b2c'}
+              >
+                Residential Sale
+              </button>
+              <button
+                type="button"
+                className={`leads-segment-pill ${salesSegment === 'b2b' ? 'active' : ''}`}
+                onClick={() => switchSalesSegment('b2b')}
+                aria-pressed={salesSegment === 'b2b'}
+              >
+                Commercial Sale
+              </button>
+            </div>
           </div>
           <div className="leads-kanban-actions">
             <div className="leads-view-tabs">

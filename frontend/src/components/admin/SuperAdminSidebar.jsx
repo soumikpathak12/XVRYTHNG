@@ -11,20 +11,13 @@ import {
   MessageCircle,
   Settings,
   Building2,
-  Home,
-  UserCircle,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
-  LogOut,
-  UserPlus,
   UserCog,
   Wrench,
   Calculator,
   TrendingUp,
   Cog,
-  CheckSquare,
-  ClipboardList,
 } from 'lucide-react';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -37,10 +30,8 @@ import { navItemMatchesLocation } from '../../utils/navLinkMatch.js';
  */
 const RAW_NAV = [
   { to: '/admin/overview', label: 'Dashboard', icon: LayoutDashboard, permission: { resource: 'overview', action: 'view' } },
-  // { to: '/admin/profile', label: 'My Profile', icon: UserCircle, permission: { resource: 'profile', action: 'view' } },
   { to: '/admin/companies', label: 'Companies', icon: Building2, permission: { resource: 'companies', action: 'view' } },
-  { to: '/admin/leads?segment=b2c', label: 'Residential Sales (B2C)', icon: Home, permission: { resource: 'leads', action: 'view' } },
-  { to: '/admin/leads?segment=b2b', label: 'Commercial Sales (B2B)', icon: Building2, permission: { resource: 'leads', action: 'view' } },
+  { to: '/admin/leads', label: 'Leads Kanban', icon: TrendingUp, permission: { resource: 'leads', action: 'view' } },
   { to: '/admin/employees', label: 'Employees', icon: UserCog, permission: { resource: 'employees', action: 'view' } },
 
   { to: '/admin/projects/dashboard', label: 'Dashboard', icon: Boxes, permission: { resource: 'projects', action: 'view' } },
@@ -59,10 +50,6 @@ const RAW_NAV = [
   
   // --- SETTINGS (flatten - no nested children) ---
   { to: '/admin/settings', label: 'General', icon: Settings, permission: { resource: 'settings', action: 'view' } },
-  /*
-  { to: '/admin/settings/inspection-templates', label: 'Inspection Templates', icon: ClipboardList, permission: { resource: 'settings', action: 'view' } },
-  { to: '/admin/settings/checklist-templates', label: 'Checklist Templates', icon: CheckSquare, permission: { resource: 'settings', action: 'view' } },
-  */
 ];
 
 export default function SuperAdminSidebar({
@@ -117,13 +104,11 @@ export default function SuperAdminSidebar({
 
   const sections = useMemo(() => {
     const findByTo = (to) => navItems.find((i) => i.to === to);
-    const findByKey = (key) => navItems.find((i) => i.key === key);
     const pick = (arr) => arr.filter(Boolean);
 
     const salesItems = pick([
       findByTo('/admin/overview'),
-      findByTo('/admin/leads?segment=b2c'),
-      findByTo('/admin/leads?segment=b2b'),
+      findByTo('/admin/leads'),
     ]);
 
     const projectManagerItems = pick([
@@ -307,10 +292,17 @@ export default function SuperAdminSidebar({
 
   const renderNavItem = (item) => {
     const Icon = item.icon;
+    const matchesLocation = (candidate) => {
+      if (!candidate?.to) return false;
+      if (String(candidate.to).includes('?')) {
+        return navItemMatchesLocation(candidate, location.pathname, location.search);
+      }
+      return location.pathname.startsWith(candidate.to);
+    };
 
     // --- Parent with children: render as a collapsible section ---
     if (item.children?.length) {
-      const anyChildActive = item.children.some((c) => location.pathname.startsWith(c.to));
+      const anyChildActive = item.children.some(matchesLocation);
       const isOpen = openKeys[item.key ?? 'projects'] ?? anyChildActive;
 
       // When sidebar is collapsed, we render only a single icon button (no children list)
@@ -496,7 +488,12 @@ export default function SuperAdminSidebar({
           <>
             {sections.map((sec, idx) => {
               const isPathActive = sec.items.some((item) => {
-                if (item.children?.length) return item.children.some((child) => location.pathname.startsWith(child.to));
+                if (item.children?.length) return item.children.some((child) => {
+                  if (String(child.to).includes('?')) {
+                    return navItemMatchesLocation(child, location.pathname, location.search);
+                  }
+                  return location.pathname.startsWith(child.to);
+                });
                 return item.to
                   ? navItemMatchesLocation(item, location.pathname, location.search)
                   : false;

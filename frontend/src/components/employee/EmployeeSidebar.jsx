@@ -17,8 +17,6 @@ import {
   CheckCircle2,
   Calculator,
   TrendingUp,
-  Home,
-  Building2,
 } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { getCompanySidebar } from '../../services/api.js';
@@ -30,8 +28,7 @@ const EMP_MODULE_NAV = {
   dashboard: { to: '/employee', label: 'Dashboard', icon: LayoutDashboard },
 
   // Module-driven items (segment-specific pipelines)
-  leads_b2c: { to: '/employee/leads?segment=b2c', label: 'Residential Sales (B2C)', icon: Home },
-  leads_b2b: { to: '/employee/leads?segment=b2b', label: 'Commercial Sales (B2B)', icon: Building2 },
+  leads: { to: '/employee/leads', label: 'Leads Kanban', icon: TrendingUp },
   site_inspection: { to: '/employee/site-inspection', label: 'Site Inspection', icon: UsersRound },
   on_field:     { to: '/employee/on-field',       label: 'On-Field',         icon: HardHat },
   installation: { to: '/employee/installation',   label: 'Installation Day', icon: Wrench },
@@ -113,7 +110,7 @@ export default function EmployeeSidebar() {
       title: 'Sales Management',
       items: [
         EMP_MODULE_NAV.dashboard,
-        ...(allowed.has('leads') ? [EMP_MODULE_NAV.leads_b2c, EMP_MODULE_NAV.leads_b2b] : []),
+        ...(allowed.has('leads') ? [EMP_MODULE_NAV.leads] : []),
       ],
     },
     {
@@ -300,98 +297,6 @@ export default function EmployeeSidebar() {
                 {(collapsed || isOpen) && (
                   <div style={collapsed ? { display: 'flex', flexDirection: 'column', gap: 4 } : moduleItemsWrapper}>
                     {sec.items.map((it) => {
-                      if (it.children && it.children.length > 0) {
-                        const Icon = it.icon;
-                        const anyChildActive = it.children.some((c) => location.pathname.startsWith(c.to));
-                        const isParentOpen = openKeys[it.key] ?? anyChildActive;
-
-                        if (collapsed) {
-                          return (
-                            <div
-                              key={it.key}
-                              onClick={() => toggleOpen(it.key)}
-                              style={{
-                                ...linkBase,
-                                justifyContent: 'center',
-                                padding: 10,
-                                cursor: 'pointer',
-                                ...(anyChildActive ? { background: 'rgba(20,107,107,0.10)', color: '#0f1a2b', boxShadow: 'inset 4px 0 0 #146b6b', borderRadius: 12 } : {}),
-                              }}
-                              aria-expanded={!!isParentOpen}
-                            >
-                              <Icon size={20} />
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <div key={it.key}>
-                            <div
-                              onClick={() => toggleOpen(it.key)}
-                              style={{
-                                ...linkBase,
-                                cursor: 'pointer',
-                                justifyContent: 'space-between',
-                                ...(anyChildActive ? activeStyle : {}),
-                              }}
-                              aria-expanded={!!isParentOpen}
-                            >
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
-                                <Icon size={20} />
-                                <span>{it.label}</span>
-                              </span>
-                              <ChevronRight
-                                size={18}
-                                style={{ transform: isParentOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s ease' }}
-                              />
-                            </div>
-
-                            {isParentOpen && (
-                              <div
-                                role="group"
-                                aria-label={`${it.label} submenu`}
-                                style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}
-                              >
-                                {it.children.map((child) => {
-                                  const isChildActive = child.end
-                                    ? location.pathname === child.to
-                                    : location.pathname.startsWith(child.to);
-
-                                  return (
-                                    <NavLink
-                                      key={child.to}
-                                      to={child.to}
-                                      end={child.end}
-                                      style={{
-                                        ...linkBase,
-                                        padding: '8px 12px',
-                                        borderRadius: 12,
-                                        marginLeft: 14,
-                                        fontWeight: 600,
-                                        fontSize: 11,
-                                        ...(isChildActive ? { background: 'rgba(20,107,107,0.10)', color: '#0f1a2b', boxShadow: 'inset 3px 0 0 #146b6b' } : {}),
-                                      }}
-                                    >
-                                      <span
-                                        aria-hidden
-                                        style={{
-                                          width: 6,
-                                          height: 6,
-                                          borderRadius: 999,
-                                          background: isChildActive ? '#146b6b' : '#94a3b8',
-                                          display: 'inline-block',
-                                        }}
-                                      />
-                                      <span>{child.label}</span>
-                                    </NavLink>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      }
-
                       const Icon = it.icon;
                       const isDashboard = it.to === '/employee';
                       const exactQuery = typeof it.to === 'string' && it.to.includes('?');
