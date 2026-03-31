@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:table_calendar/table_calendar.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/project.dart';
 import '../../providers/projects_provider.dart';
@@ -19,8 +20,13 @@ class ProjectsScreen extends StatefulWidget {
 class _ProjectsScreenState extends State<ProjectsScreen> {
   final _searchController = TextEditingController();
   Timer? _debounce;
-  bool _isKanban = false;
+  String _view = 'table';
   String? _stageFilter;
+  DateTime _calendarDay = DateTime.now();
+  static const List<Map<String, String>> _flows = [
+    {'id': 'inhouse', 'label': 'In-House Projects'},
+    {'id': 'retailer', 'label': 'Retailer Projects'},
+  ];
 
   @override
   void initState() {
@@ -59,23 +65,16 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       appBar: AppBar(
         leading: shellLeading,
         automaticallyImplyLeading: shellLeading == null,
-        title: const Text('Projects'),
+        title: const Text('In-House Projects'),
         actions: [
-          IconButton(
-            tooltip: _isKanban ? 'List view' : 'Kanban view',
-            icon: Icon(_isKanban ? Icons.view_list_rounded : Icons.view_column_rounded),
-            onPressed: () => setState(() => _isKanban = !_isKanban),
-          ),
           ...ShellScaffoldScope.notificationActions(),
         ],
       ),
       body: Column(
         children: [
-          _SearchBar(
-            controller: _searchController,
-            onChanged: _onSearchChanged,
-          ),
-          if (!_isKanban) _buildStageChips(),
+          _buildModuleTabs(),
+          _buildViewTabs(),
+          _buildFiltersPanel(),
           Expanded(
             child: Consumer<ProjectsProvider>(
               builder: (context, provider, _) {
@@ -93,12 +92,13 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                     onAction: _refresh,
                   );
                 }
-                if (_isKanban) {
-                  return _KanbanView(
-                    projectsByStage: provider.projectsByStage,
-                    onRefresh: _refresh,
+                if (_view == 'calendar') {
+                  return _CalendarView(
+                    projects: provider.projects,
+                    selectedDay: _calendarDay,
+                    onDayChanged: (d) => setState(() => _calendarDay = d),
                     onTap: _openDetail,
-                    onStageChange: _changeStage,
+                    onRefresh: _refresh,
                   );
                 }
                 return _ListView(
@@ -114,11 +114,168 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.white,
-        icon: const Icon(Icons.add),
-        label: const Text('New Project'),
+        icon: const Icon(Icons.add_circle_outline),
+        label: const Text('Create'),
         onPressed: () {
-          // Navigate to project creation when ready
+          _showCreateActions();
         },
+      ),
+    );
+  }
+
+  Widget _buildModuleTabs() {
+    final active = _activeFlow();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: _flows.map((flow) {
+            final selected = active == flow['id'];
+            return Expanded(
+              child: InkWell(
+                onTap: () => _goToFlow(flow['id']!),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  margin: const EdgeInsets.all(4),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: selected ? AppColors.primary : Colors.transparent,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    flow['label']!,
+                    style: TextStyle(
+                      color: selected ? Colors.white : AppColors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildViewTabs() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+      child: Row(
+        children: [
+          _viewChip('Table', 'table'),
+          const SizedBox(width: 8),
+          _viewChip('Calendar', 'calendar'),
+        ],
+      ),
+    );
+  }
+
+  Widget _viewChip(String label, String key) {
+    final selected = _view == key;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => setState(() => _view = key),
+      selectedColor: AppColors.primary.withOpacity(0.12),
+      labelStyle: TextStyle(
+        color: selected ? AppColors.primary : AppColors.textSecondary,
+        fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+      ),
+      side: BorderSide(color: selected ? AppColors.primary : AppColors.border),
+    );
+  }
+
+  Widget _buildFiltersPanel() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          children: [
+            _SearchBar(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+            ),
+            if (_view == 'table') _buildStageChips(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _basePath() {
+    final loc = GoRouterState.of(context).matchedLocation;
+    if (loc.startsWith('/admin/')) return '/admin';
+    if (loc.startsWith('/dashboard/')) return '/dashboard';
+    return '/employee';
+  }
+
+  String _activeFlow() {
+    final loc = GoRouterState.of(context).matchedLocation;
+    if (loc.contains('/projects/retailer')) return 'retailer';
+    return 'inhouse';
+  }
+
+  void _goToFlow(String id) {
+    final base = _basePath();
+    switch (id) {
+      case 'retailer':
+        context.go('$base/projects/retailer');
+        break;
+      default:
+        context.go('$base/projects');
+    }
+  }
+
+  void _showCreateActions() {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.person_add_alt_1_outlined),
+                title: const Text('Create Lead'),
+                subtitle: const Text('Start in-house flow from a lead'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  final base = _basePath();
+                  if (base == '/admin' || base == '/dashboard') {
+                    context.push('$base/leads/new');
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.store_mall_directory_outlined),
+                title: const Text('Create Project'),
+                subtitle: const Text('Create retailer project'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  final base = _basePath();
+                  context.push('$base/projects/retailer/new');
+                },
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -161,25 +318,126 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     context.push('$base/${project.id}');
   }
 
-  Future<void> _changeStage(Project project, String newStage) async {
-    try {
-      await context.read<ProjectsProvider>().updateProjectStage(project.id, newStage);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                '${project.customerName} moved to ${Project.stageLabels[newStage]}'),
-            backgroundColor: AppColors.success,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update stage: $e'), backgroundColor: AppColors.danger),
-        );
-      }
+}
+
+class _CalendarView extends StatelessWidget {
+  final List<Project> projects;
+  final DateTime selectedDay;
+  final ValueChanged<DateTime> onDayChanged;
+  final ValueChanged<Project> onTap;
+  final Future<void> Function() onRefresh;
+
+  const _CalendarView({
+    required this.projects,
+    required this.selectedDay,
+    required this.onDayChanged,
+    required this.onTap,
+    required this.onRefresh,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    DateTime norm(DateTime d) => DateTime(d.year, d.month, d.day);
+    final eventsByDay = <DateTime, List<Project>>{};
+    for (final p in projects) {
+      final dt = p.scheduledAt ?? p.createdAt;
+      if (dt == null) continue;
+      final key = norm(dt);
+      eventsByDay.putIfAbsent(key, () => []).add(p);
     }
+
+    final dayItems = projects.where((p) {
+      final dt = p.scheduledAt ?? p.createdAt;
+      if (dt == null) return false;
+      return dt.year == selectedDay.year &&
+          dt.month == selectedDay.month &&
+          dt.day == selectedDay.day;
+    }).toList();
+
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      color: AppColors.primary,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.border),
+            ),
+            padding: const EdgeInsets.all(8),
+            child: TableCalendar<Project>(
+              firstDay: DateTime.utc(2020, 1, 1),
+              lastDay: DateTime.utc(2100, 12, 31),
+              focusedDay: selectedDay,
+              currentDay: DateTime.now(),
+              selectedDayPredicate: (d) => isSameDay(d, selectedDay),
+              onDaySelected: (selected, focused) => onDayChanged(selected),
+              startingDayOfWeek: StartingDayOfWeek.monday,
+              availableCalendarFormats: const {CalendarFormat.month: 'Month'},
+              calendarFormat: CalendarFormat.month,
+              eventLoader: (day) => eventsByDay[norm(day)] ?? const [],
+              calendarStyle: CalendarStyle(
+                outsideDaysVisible: false,
+                todayDecoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                selectedDecoration: const BoxDecoration(
+                  color: AppColors.primary,
+                  shape: BoxShape.circle,
+                ),
+                markerDecoration: const BoxDecoration(
+                  color: AppColors.success,
+                  shape: BoxShape.circle,
+                ),
+                markersMaxCount: 3,
+                markerSize: 5.5,
+              ),
+              headerStyle: const HeaderStyle(
+                titleCentered: true,
+                formatButtonVisible: false,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.circle, size: 10, color: AppColors.success),
+                const SizedBox(width: 8),
+                Text(
+                  '${dayItems.length} project${dayItems.length == 1 ? '' : 's'} on selected date',
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (dayItems.isEmpty)
+            const EmptyState(
+              icon: Icons.event_busy_outlined,
+              title: 'No projects for this date',
+              subtitle: 'Switch dates to check schedule.',
+            )
+          else
+            ...dayItems.map((p) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _ProjectCard(project: p, onTap: () => onTap(p)),
+                )),
+        ],
+      ),
+    );
   }
 }
 
@@ -194,30 +452,27 @@ class _SearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: TextField(
-        controller: controller,
-        onChanged: onChanged,
-        decoration: InputDecoration(
-          hintText: 'Search projects...',
-          prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
-          suffixIcon: controller.text.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.clear, size: 20),
-                  onPressed: () {
-                    controller.clear();
-                    onChanged('');
-                  },
-                )
-              : null,
-          filled: true,
-          fillColor: AppColors.surface,
-          contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
+    return TextField(
+      controller: controller,
+      onChanged: onChanged,
+      decoration: InputDecoration(
+        hintText: 'Search projects...',
+        prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
+        suffixIcon: controller.text.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.clear, size: 20),
+                onPressed: () {
+                  controller.clear();
+                  onChanged('');
+                },
+              )
+            : null,
+        filled: true,
+        fillColor: AppColors.surface,
+        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
         ),
       ),
     );
@@ -291,7 +546,7 @@ class _ListView extends StatelessWidget {
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
         itemCount: projects.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        separatorBuilder: (_, index) => const SizedBox(height: 10),
         itemBuilder: (context, index) =>
             _ProjectCard(project: projects[index], onTap: () => onTap(projects[index])),
       ),
@@ -396,243 +651,3 @@ class _ProjectCard extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Kanban view
-// ---------------------------------------------------------------------------
-class _KanbanView extends StatelessWidget {
-  final Map<String, List<Project>> projectsByStage;
-  final Future<void> Function() onRefresh;
-  final ValueChanged<Project> onTap;
-  final Future<void> Function(Project, String) onStageChange;
-
-  const _KanbanView({
-    required this.projectsByStage,
-    required this.onRefresh,
-    required this.onTap,
-    required this.onStageChange,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return RefreshIndicator(
-      color: AppColors.primary,
-      onRefresh: onRefresh,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: SizedBox(
-          height: MediaQuery.of(context).size.height * 0.72,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            itemCount: Project.stages.length,
-            itemBuilder: (context, index) {
-              final stage = Project.stages[index];
-              final projects = projectsByStage[stage] ?? [];
-              return _KanbanColumn(
-                stage: stage,
-                projects: projects,
-                onTap: onTap,
-                onStageChange: onStageChange,
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _KanbanColumn extends StatelessWidget {
-  final String stage;
-  final List<Project> projects;
-  final ValueChanged<Project> onTap;
-  final Future<void> Function(Project, String) onStageChange;
-
-  const _KanbanColumn({
-    required this.stage,
-    required this.projects,
-    required this.onTap,
-    required this.onStageChange,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 280,
-      margin: const EdgeInsets.only(right: 12),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
-            child: Row(
-              children: [
-                StatusBadge.fromStatus(stage),
-                const SizedBox(width: 8),
-                Text(
-                  '(${projects.length})',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1, color: AppColors.divider),
-          Expanded(
-            child: projects.isEmpty
-                ? const Center(
-                    child: Text(
-                      'No projects',
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(8),
-                    itemCount: projects.length,
-                    itemBuilder: (context, i) => _KanbanCard(
-                      project: projects[i],
-                      onTap: () => onTap(projects[i]),
-                      onStageChange: onStageChange,
-                    ),
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _KanbanCard extends StatelessWidget {
-  final Project project;
-  final VoidCallback onTap;
-  final Future<void> Function(Project, String) onStageChange;
-
-  const _KanbanCard({
-    required this.project,
-    required this.onTap,
-    required this.onStageChange,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 1,
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: InkWell(
-        onTap: onTap,
-        onLongPress: () => _showStageMenu(context),
-        borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                project.customerName,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                  color: AppColors.textPrimary,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              if (project.suburb != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  project.suburb!,
-                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                ),
-              ],
-              if (project.value != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  '\$${project.value!.toStringAsFixed(0)}',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ],
-              if (project.assignees.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    ...project.assignees.take(2).map(
-                          (a) => Container(
-                            margin: const EdgeInsets.only(right: 4),
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withOpacity(0.08),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(a, style: const TextStyle(fontSize: 10, color: AppColors.primary)),
-                          ),
-                        ),
-                    if (project.assignees.length > 2)
-                      Text(
-                        '+${project.assignees.length - 2}',
-                        style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
-                      ),
-                  ],
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showStageMenu(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40, height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Move "${project.customerName}" to…',
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-              ),
-              const SizedBox(height: 8),
-              ...Project.stages
-                  .where((s) => s != project.stage)
-                  .map((s) => ListTile(
-                        leading: StatusBadge.fromStatus(s),
-                        title: Text(Project.stageLabels[s] ?? s),
-                        dense: true,
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          onStageChange(project, s);
-                        },
-                      )),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}

@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/installation_job.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/installation_provider.dart';
 import '../../services/installation_service.dart';
 import '../../widgets/common/file_picker_bottom_sheet.dart';
@@ -23,12 +27,16 @@ class InstallationDetailScreen extends StatefulWidget {
 class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
   final InstallationService _service = InstallationService();
   bool _actionLoading = false;
+  int? _companyId;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<InstallationProvider>().loadJobDetail(widget.jobId);
+      _companyId = context.read<AuthProvider>().user?.companyId;
+      context
+          .read<InstallationProvider>()
+          .loadJobDetail(widget.jobId, companyId: _companyId);
     });
   }
 
@@ -37,10 +45,10 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
     try {
       await context
           .read<InstallationProvider>()
-          .updateJobStatus(widget.jobId, newStatus);
+          .updateJobStatus(widget.jobId, newStatus, companyId: _companyId);
       await context
           .read<InstallationProvider>()
-          .loadJobDetail(widget.jobId);
+          .loadJobDetail(widget.jobId, companyId: _companyId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -66,9 +74,12 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
 
   Future<void> _toggleChecklist(int itemId, bool checked) async {
     try {
-      await _service.updateChecklist(widget.jobId, itemId, checked);
+      await _service.updateChecklist(widget.jobId, itemId, checked,
+          companyId: _companyId);
       if (mounted) {
-        context.read<InstallationProvider>().loadJobDetail(widget.jobId);
+        context
+            .read<InstallationProvider>()
+            .loadJobDetail(widget.jobId, companyId: _companyId);
       }
     } catch (e) {
       if (mounted) {
@@ -95,9 +106,11 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
           filename: result.name,
         ),
       });
-      await _service.uploadPhoto(widget.jobId, formData);
+      await _service.uploadPhoto(widget.jobId, formData, companyId: _companyId);
       if (mounted) {
-        context.read<InstallationProvider>().loadJobDetail(widget.jobId);
+        context
+            .read<InstallationProvider>()
+            .loadJobDetail(widget.jobId, companyId: _companyId);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Photo uploaded'),
@@ -150,11 +163,11 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
     try {
       await _service.submitSignoff(widget.jobId, {
         'signed_at': DateTime.now().toIso8601String(),
-      });
+      }, companyId: _companyId);
       if (mounted) {
         await context
             .read<InstallationProvider>()
-            .loadJobDetail(widget.jobId);
+            .loadJobDetail(widget.jobId, companyId: _companyId);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Installation signed off successfully'),
@@ -182,23 +195,23 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
       builder: (context, provider, _) {
         final detail = provider.jobDetail;
         final loading = provider.loading && detail == null;
+        final shellLeading = ShellScaffoldScope.navigationLeading(context);
+        final canPop = GoRouter.of(context).canPop() || Navigator.of(context).canPop();
 
         return Scaffold(
           appBar: AppBar(
-            title: Text(
-              detail?['customer_name'] ?? 'Job Detail',
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 18,
-              ),
-            ),
+            leading: shellLeading ??
+                (canPop
+                    ? IconButton(
+                        icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                        tooltip: 'Back',
+                        onPressed: () => context.pop(),
+                      )
+                    : null),
+            automaticallyImplyLeading: false,
+            title: Text(detail?['customer_name'] ?? 'Job Detail'),
             centerTitle: false,
-            backgroundColor: AppColors.white,
-            foregroundColor: AppColors.textPrimary,
-            surfaceTintColor: AppColors.white,
-            elevation: 0.5,
-            shadowColor: AppColors.divider,
-            actions: ShellScaffoldScope.notificationActions(),
+            actions: ShellScaffoldScope.notificationActions(context: context),
           ),
           body: LoadingOverlay(
             isLoading: _actionLoading,
@@ -219,7 +232,8 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                             const SizedBox(height: 16),
                             FilledButton(
                               onPressed: () => provider
-                                  .loadJobDetail(widget.jobId),
+                                  .loadJobDetail(widget.jobId,
+                                      companyId: _companyId),
                               child: const Text('Retry'),
                             ),
                           ],
@@ -228,11 +242,14 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                     : RefreshIndicator(
                         color: AppColors.primary,
                         onRefresh: () =>
-                            provider.loadJobDetail(widget.jobId),
+                            provider.loadJobDetail(widget.jobId,
+                                companyId: _companyId),
                         child: ListView(
                           padding: const EdgeInsets.all(16),
                           children: [
                             _buildHeader(detail),
+                            const SizedBox(height: 16),
+                            _ElapsedTimerCard(detail: detail),
                             const SizedBox(height: 16),
                             _buildStatusActions(detail),
                             const SizedBox(height: 20),
@@ -797,6 +814,173 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                 ),
               ],
             ),
+    );
+  }
+}
+
+class _ElapsedTimerCard extends StatefulWidget {
+  final Map<String, dynamic> detail;
+  const _ElapsedTimerCard({required this.detail});
+
+  @override
+  State<_ElapsedTimerCard> createState() => _ElapsedTimerCardState();
+}
+
+class _ElapsedTimerCardState extends State<_ElapsedTimerCard> {
+  Timer? _ticker;
+  int _elapsedSeconds = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _resetFromDetail();
+    _syncTicker();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ElapsedTimerCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.detail != widget.detail) {
+      _resetFromDetail();
+      _syncTicker();
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  void _syncTicker() {
+    _ticker?.cancel();
+    if (_status == 'in_progress') {
+      _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        setState(() => _elapsedSeconds += 1);
+      });
+    }
+  }
+
+  String get _status => (widget.detail['status'] as String?) ?? 'scheduled';
+
+  void _resetFromDetail() {
+    _elapsedSeconds = _computeElapsedSeconds(widget.detail);
+  }
+
+  int _computeElapsedSeconds(Map<String, dynamic> detail) {
+    final status = (detail['status'] as String?) ?? 'scheduled';
+    final totalElapsed =
+        int.tryParse('${detail['total_elapsed_seconds'] ?? 0}') ?? 0;
+    final recordsRaw = detail['timeRecords'] ?? detail['time_records'];
+
+    if (recordsRaw is List && recordsRaw.isNotEmpty) {
+      var total = 0;
+      DateTime? openAt;
+      for (final row in recordsRaw) {
+        if (row is! Map) continue;
+        final event = '${row['event'] ?? ''}';
+        final ts = DateTime.tryParse('${row['recorded_at'] ?? ''}');
+        if (ts == null) continue;
+        if (event == 'start' || event == 'resume') {
+          openAt = ts;
+        } else if (event == 'pause' || event == 'end') {
+          if (openAt != null) {
+            total += ts.difference(openAt).inSeconds;
+            openAt = null;
+          }
+        }
+      }
+      if (status == 'in_progress' && openAt != null) {
+        total += DateTime.now().difference(openAt).inSeconds;
+      }
+      return total < 0 ? 0 : total;
+    }
+
+    if (status == 'in_progress') {
+      final startedAt = DateTime.tryParse('${detail['started_at'] ?? ''}');
+      if (startedAt != null) {
+        final running = DateTime.now().difference(startedAt).inSeconds;
+        return (totalElapsed + running).clamp(0, 1 << 31);
+      }
+    }
+    return totalElapsed;
+  }
+
+  String _format(int seconds) {
+    final h = seconds ~/ 3600;
+    final m = (seconds % 3600) ~/ 60;
+    final s = seconds % 60;
+    if (h > 0) {
+      return '${h}h ${m.toString().padLeft(2, '0')}m ${s.toString().padLeft(2, '0')}s';
+    }
+    return '${m.toString().padLeft(2, '0')}m ${s.toString().padLeft(2, '0')}s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_status == 'scheduled') return const SizedBox.shrink();
+
+    final color = _status == 'completed'
+        ? AppColors.success
+        : _status == 'in_progress'
+            ? AppColors.warning
+            : AppColors.info;
+    final label = _status == 'completed'
+        ? 'Total Time'
+        : _status == 'in_progress'
+            ? 'Time Running'
+            : 'Paused At';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withOpacity(0.22)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.timer_outlined, color: color, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _format(_elapsedSeconds),
+                  style: TextStyle(
+                    fontSize: 22,
+                    height: 1.1,
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_status == 'in_progress')
+            Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: AppColors.danger,
+                borderRadius: BorderRadius.circular(5),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

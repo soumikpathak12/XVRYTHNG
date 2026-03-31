@@ -22,12 +22,23 @@ class _EmployeeShellState extends State<EmployeeShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   List<DrawerItem> get _drawerItems => const [
-        DrawerItem.divider(label: 'On-Field'),
+        DrawerItem.divider(label: 'Onsite Field Management'),
         DrawerItem(
-          label: 'On-Field',
+          label: 'Dashboard',
+          icon: Icons.space_dashboard_outlined,
+          route: '/employee/on-field',
+        ),
+        DrawerItem(
+          label: 'Job Scheduling',
           icon: Icons.engineering_outlined,
           route: '/employee/on-field',
         ),
+        DrawerItem(
+          label: 'Job Management',
+          icon: Icons.build_outlined,
+          route: '/employee/installation',
+        ),
+        DrawerItem.divider(label: 'Operation'),
         DrawerItem(
           label: 'Leave',
           icon: Icons.event_busy_outlined,
@@ -37,12 +48,6 @@ class _EmployeeShellState extends State<EmployeeShell> {
           label: 'Expenses',
           icon: Icons.receipt_long_outlined,
           route: '/employee/expenses',
-        ),
-        DrawerItem.divider(label: 'Operations'),
-        DrawerItem(
-          label: 'Installation',
-          icon: Icons.build_outlined,
-          route: '/employee/installation',
         ),
         DrawerItem(
           label: 'Messages',

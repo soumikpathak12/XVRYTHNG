@@ -127,4 +127,63 @@ class MessagesService {
       throw ApiException.fromDioError(e);
     }
   }
+
+  /// POST /api/chats/:id/participants — add members to group
+  Future<void> addGroupParticipants(
+      int conversationId, List<int> userIds, {int? companyId}) async {
+    try {
+      final data = <String, dynamic>{'userIds': userIds};
+      if (companyId != null) data['companyId'] = companyId;
+      await _api.post('/api/chats/$conversationId/participants', data: data);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  /// DELETE /api/chats/:id/participants/:userId — remove member from group
+  Future<void> removeGroupParticipant(
+      int conversationId, int userId, {int? companyId}) async {
+    try {
+      await _api.delete('/api/chats/$conversationId/participants/$userId');
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  /// GET /api/chats/:id/attachments — list all shared media/files
+  Future<List<Attachment>> getConversationAttachments(
+      int conversationId, {int? companyId}) async {
+    try {
+      final params = <String, dynamic>{};
+      if (companyId != null) params['companyId'] = companyId;
+      final response = await _api.get(
+        '/api/chats/$conversationId/attachments',
+        queryParameters: params,
+      );
+      final data = response.data['data'] ?? response.data;
+      if (data is List) {
+        return data.map((e) => Attachment.fromJson(e)).toList();
+      }
+      return [];
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  /// GET /api/chats/:id — get single conversation details
+  Future<Conversation> getConversation(int conversationId,
+      {int? companyId}) async {
+    try {
+      final params = <String, dynamic>{};
+      if (companyId != null) params['companyId'] = companyId;
+      final response = await _api.get(
+        '/api/chats/$conversationId',
+        queryParameters: params,
+      );
+      return Conversation.fromJson(response.data['data'] ?? response.data);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
 }
+

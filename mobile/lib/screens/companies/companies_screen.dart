@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/company.dart';
+import 'company_create_screen.dart';
 import '../../services/companies_service.dart';
 import '../../widgets/common/empty_state.dart';
 import '../../widgets/common/shell_scaffold_scope.dart';
@@ -63,168 +64,12 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
     });
   }
 
-  void _openAddCompanySheet() {
-    final formKey = GlobalKey<FormState>();
-    final nameCtrl = TextEditingController();
-    final abnCtrl = TextEditingController();
-    final emailCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
-    String companyType = 'solar';
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) => Padding(
-          padding: EdgeInsets.fromLTRB(
-              20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
-          child: Form(
-            key: formKey,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Add Company',
-                    style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                  const SizedBox(height: 20),
-                  TextFormField(
-                    controller: nameCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Company Name',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.business),
-                    ),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Required' : null,
-                  ),
-                  const SizedBox(height: 14),
-                  TextFormField(
-                    controller: abnCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'ABN',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.numbers),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  TextFormField(
-                    controller: emailCtrl,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.email_outlined),
-                    ),
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) return 'Required';
-                      if (!v.contains('@')) return 'Invalid email';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  TextFormField(
-                    controller: phoneCtrl,
-                    keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(
-                      labelText: 'Phone',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.phone_outlined),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  DropdownButtonFormField<String>(
-                    initialValue: companyType,
-                    decoration: const InputDecoration(
-                      labelText: 'Company Type',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.category_outlined),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'solar', child: Text('Solar')),
-                      DropdownMenuItem(
-                          value: 'electrical', child: Text('Electrical')),
-                      DropdownMenuItem(
-                          value: 'roofing', child: Text('Roofing')),
-                      DropdownMenuItem(value: 'general', child: Text('General')),
-                    ],
-                    onChanged: (v) =>
-                        setSheetState(() => companyType = v ?? 'solar'),
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: FilledButton(
-                      onPressed: () => _submitCompany(
-                        formKey,
-                        nameCtrl.text.trim(),
-                        abnCtrl.text.trim(),
-                        emailCtrl.text.trim(),
-                        phoneCtrl.text.trim(),
-                        companyType,
-                      ),
-                      child: const Text('Create Company'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
+  Future<void> _openCreatePage() async {
+    final created = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const CompanyCreateScreen()),
     );
-  }
-
-  Future<void> _submitCompany(
-    GlobalKey<FormState> formKey,
-    String name,
-    String abn,
-    String email,
-    String phone,
-    String companyType,
-  ) async {
-    if (!formKey.currentState!.validate()) return;
-    Navigator.pop(context);
-
-    try {
-      await _service.createCompany({
-        'name': name,
-        if (abn.isNotEmpty) 'abn': abn,
-        'email': email,
-        if (phone.isNotEmpty) 'phone': phone,
-        'company_type': companyType,
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Company created successfully')),
-        );
-      }
-      _load();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
-      }
+    if (created == true) {
+      await _load();
     }
   }
 
@@ -237,12 +82,7 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
         automaticallyImplyLeading: shellLeading == null,
         title: const Text('Companies'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add_business),
-            tooltip: 'Add Company',
-            onPressed: _openAddCompanySheet,
-          ),
-          ...ShellScaffoldScope.notificationActions(),
+          ...ShellScaffoldScope.notificationActions(context: context),
         ],
       ),
       body: RefreshIndicator(
@@ -252,6 +92,12 @@ class _CompaniesScreenState extends State<CompaniesScreen> {
             : _error != null
                 ? _buildError()
                 : _buildBody(),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _openCreatePage,
+        tooltip: 'Add Partner Company',
+        backgroundColor: AppColors.primary,
+        child: const Icon(Icons.add_business, color: AppColors.white),
       ),
     );
   }

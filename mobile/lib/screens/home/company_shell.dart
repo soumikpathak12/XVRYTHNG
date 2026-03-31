@@ -22,11 +22,23 @@ class _CompanyShellState extends State<CompanyShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   List<DrawerItem> get _drawerItems => const [
+        DrawerItem.divider(label: 'Onsite Field Management'),
         DrawerItem(
-          label: 'Installation',
+          label: 'Dashboard',
+          icon: Icons.space_dashboard_outlined,
+          route: '/dashboard/on-field',
+        ),
+        DrawerItem(
+          label: 'Job Scheduling',
+          icon: Icons.event_note_outlined,
+          route: '/dashboard/on-field',
+        ),
+        DrawerItem(
+          label: 'Job Management',
           icon: Icons.build_outlined,
           route: '/dashboard/installation',
         ),
+        DrawerItem.divider(label: 'Operation'),
         DrawerItem(
           label: 'Operations',
           icon: Icons.factory_outlined,

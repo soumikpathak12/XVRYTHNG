@@ -36,13 +36,28 @@ class ShellScaffoldScope extends InheritedWidget {
   bool updateShouldNotify(covariant ShellScaffoldScope oldWidget) =>
       scaffoldKey != oldWidget.scaffoldKey;
 
-  /// Bell icon previously on the shell AppBar (optional per-screen).
-  static List<Widget> notificationActions({VoidCallback? onPressed}) {
+  /// Bell icon action (optional per-screen).
+  /// If [onPressed] is not provided and [context] is available,
+  /// it shows a lightweight placeholder until notifications module is added.
+  static List<Widget> notificationActions({
+    BuildContext? context,
+    VoidCallback? onPressed,
+  }) {
+    void defaultTap() {
+      if (context == null) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No new notifications'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+
     return [
       IconButton(
         icon: const Icon(Icons.notifications_outlined),
         tooltip: 'Notifications',
-        onPressed: onPressed ?? () {},
+        onPressed: onPressed ?? defaultTap,
       ),
     ];
   }

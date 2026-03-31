@@ -106,4 +106,58 @@ class LeadsService {
       throw ApiException.fromDioError(e);
     }
   }
+
+  /// POST /api/leads/import — upload CSV file
+  Future<Map<String, dynamic>> importLeadsCsv(FormData formData) async {
+    try {
+      final response = await _api.upload('/api/leads/import', formData);
+      return Map<String, dynamic>.from(response.data);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  /// PATCH /api/leads/:id/schedule — schedule site inspection
+  Future<void> scheduleInspection(
+      int leadId, Map<String, dynamic> data) async {
+    try {
+      await _api.patch('/api/leads/$leadId/schedule', data: data);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  /// GET /api/leads/:id/notes
+  Future<List<Map<String, dynamic>>> getLeadNotes(int leadId) async {
+    try {
+      final response = await _api.get('/api/leads/$leadId/notes');
+      final data = response.data['data'] ?? response.data;
+      if (data is List) {
+        return data.map((e) => Map<String, dynamic>.from(e)).toList();
+      }
+      return [];
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  /// GET /api/leads/count
+  Future<Map<String, dynamic>> getLeadCount() async {
+    try {
+      final response = await _api.get('/api/leads/count');
+      return Map<String, dynamic>.from(response.data['data'] ?? response.data);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  /// GET /api/leads/dashboard
+  Future<Map<String, dynamic>> getSalesDashboard() async {
+    try {
+      final response = await _api.get('/api/leads/dashboard');
+      return Map<String, dynamic>.from(response.data['data'] ?? response.data);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
 }

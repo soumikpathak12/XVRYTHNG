@@ -34,6 +34,12 @@ import '../../screens/settings/settings_screen.dart';
 import '../../screens/profile/profile_screen.dart';
 import '../../screens/on_field/on_field_screen.dart';
 import '../../screens/customer/customer_portal_screen.dart';
+import '../../screens/projects/pm_dashboard_screen.dart';
+import '../../screens/projects/retailer_project_detail_screen.dart';
+import '../../screens/projects/project_form_screen.dart';
+import '../../screens/operations/operations_dashboard_screen.dart';
+import '../../screens/operations/operational_users_placeholder_screen.dart';
+import '../../screens/leads/import_leads_screen.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -125,14 +131,29 @@ GoRouter createRouter(AuthProvider authProvider) {
             builder: (context, state) => const ProjectsScreen(),
           ),
           GoRoute(
-            path: '/admin/projects/:id',
-            builder: (context, state) => ProjectDetailScreen(
+            path: '/admin/projects/retailer',
+            builder: (context, state) => const RetailerProjectsScreen(),
+          ),
+          GoRoute(
+            path: '/admin/projects/new',
+            builder: (context, state) => const ProjectFormScreen(),
+          ),
+          GoRoute(
+            path: '/admin/projects/retailer/new',
+            builder: (context, state) =>
+                const ProjectFormScreen(isRetailer: true),
+          ),
+          GoRoute(
+            path: '/admin/projects/retailer/:id',
+            builder: (context, state) => RetailerProjectDetailScreen(
               projectId: int.parse(state.pathParameters['id']!),
             ),
           ),
           GoRoute(
-            path: '/admin/projects/retailer',
-            builder: (context, state) => const RetailerProjectsScreen(),
+            path: '/admin/projects/:id',
+            builder: (context, state) => ProjectDetailScreen(
+              projectId: int.parse(state.pathParameters['id']!),
+            ),
           ),
           GoRoute(
             path: '/admin/installation',
@@ -146,7 +167,25 @@ GoRouter createRouter(AuthProvider authProvider) {
           ),
           GoRoute(
             path: '/admin/operations',
-            builder: (context, state) => const ApprovalsScreen(),
+            builder: (context, state) => const OperationsDashboardScreen(),
+          ),
+          GoRoute(
+            path: '/admin/guest-users',
+            builder: (context, state) =>
+                const OperationalUsersPlaceholderScreen(
+              title: 'Guest Users',
+              subtitle:
+                  'Guest users management will be available here in the next update.',
+            ),
+          ),
+          GoRoute(
+            path: '/admin/trial-users',
+            builder: (context, state) =>
+                const OperationalUsersPlaceholderScreen(
+              title: 'Trial Users',
+              subtitle:
+                  'Trial users management will be available here in the next update.',
+            ),
           ),
           GoRoute(
             path: '/admin/attendance',
@@ -186,6 +225,14 @@ GoRouter createRouter(AuthProvider authProvider) {
             path: '/admin/profile',
             builder: (context, state) => const ProfileScreen(),
           ),
+          GoRoute(
+            path: '/admin/pm-dashboard',
+            builder: (context, state) => const PmDashboardScreen(),
+          ),
+          GoRoute(
+            path: '/admin/leads/import',
+            builder: (context, state) => const ImportLeadsScreen(),
+          ),
         ],
       ),
 
@@ -213,6 +260,26 @@ GoRouter createRouter(AuthProvider authProvider) {
             builder: (context, state) => const ProjectsScreen(),
           ),
           GoRoute(
+            path: '/dashboard/projects/new',
+            builder: (context, state) =>
+                const ProjectFormScreen(isRetailer: true),
+          ),
+          GoRoute(
+            path: '/dashboard/projects/retailer',
+            builder: (context, state) => const RetailerProjectsScreen(),
+          ),
+          GoRoute(
+            path: '/dashboard/projects/retailer/new',
+            builder: (context, state) =>
+                const ProjectFormScreen(isRetailer: true),
+          ),
+          GoRoute(
+            path: '/dashboard/projects/retailer/:id',
+            builder: (context, state) => RetailerProjectDetailScreen(
+              projectId: int.parse(state.pathParameters['id']!),
+            ),
+          ),
+          GoRoute(
             path: '/dashboard/projects/:id',
             builder: (context, state) => ProjectDetailScreen(
               projectId: int.parse(state.pathParameters['id']!),
@@ -230,7 +297,7 @@ GoRouter createRouter(AuthProvider authProvider) {
           ),
           GoRoute(
             path: '/dashboard/operations',
-            builder: (context, state) => const ApprovalsScreen(),
+            builder: (context, state) => const OperationsDashboardScreen(),
           ),
           GoRoute(
             path: '/dashboard/attendance',
@@ -259,6 +326,18 @@ GoRouter createRouter(AuthProvider authProvider) {
           GoRoute(
             path: '/dashboard/profile',
             builder: (context, state) => const ProfileScreen(),
+          ),
+          GoRoute(
+            path: '/dashboard/pm-dashboard',
+            builder: (context, state) => const PmDashboardScreen(),
+          ),
+          GoRoute(
+            path: '/dashboard/on-field',
+            builder: (context, state) => const OnFieldScreen(),
+          ),
+          GoRoute(
+            path: '/dashboard/leads/new',
+            builder: (context, state) => const LeadFormScreen(),
           ),
         ],
       ),

@@ -6,6 +6,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/common/shell_scaffold_scope.dart';
+import 'module_management_screen.dart';
+import 'workflow_config_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -77,6 +79,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const Divider(height: 1, indent: 16, endIndent: 16),
 
+          _SectionHeader(title: 'Company Settings'),
+          ListTile(
+            leading: const Icon(Icons.extension_outlined,
+                color: AppColors.primary),
+            title: const Text('Module Management'),
+            subtitle: const Text('Toggle features on/off'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const ModuleManagementScreen(),
+              ),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.account_tree_outlined,
+                color: AppColors.primary),
+            title: const Text('Workflow Configuration'),
+            subtitle: const Text('Edit pipeline stages'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const WorkflowConfigScreen(),
+              ),
+            ),
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+
           _SectionHeader(title: 'About'),
           ListTile(
             leading: const Icon(Icons.info_outline, color: AppColors.primary),
@@ -96,6 +127,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: const Text('Privacy Policy'),
             trailing: const Icon(Icons.open_in_new, size: 18),
             onTap: () => _launchUrl('https://xvrythng.com/privacy'),
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+
+          _SectionHeader(title: 'Danger Zone'),
+          ListTile(
+            leading: const Icon(Icons.delete_forever,
+                color: AppColors.danger),
+            title: const Text('Delete Account',
+                style: TextStyle(color: AppColors.danger)),
+            subtitle: const Text('Permanently delete your account'),
+            trailing: const Icon(Icons.chevron_right,
+                color: AppColors.danger),
+            onTap: () => _confirmDeleteAccount(context, auth),
           ),
           const Divider(height: 1, indent: 16, endIndent: 16),
 
@@ -234,6 +278,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
               if (context.mounted) context.go('/login');
             },
             child: const Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeleteAccount(BuildContext context, AuthProvider auth) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning_rounded, color: AppColors.danger),
+            SizedBox(width: 8),
+            Text('Delete Account'),
+          ],
+        ),
+        content: const Text(
+          'This action is PERMANENT. Your credentials will be invalidated and you will need to contact an admin to re-register.\n\nAre you absolutely sure?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: AppColors.danger),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await auth.logout();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Account deletion requested')),
+                  );
+                  context.go('/login');
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('Delete My Account'),
           ),
         ],
       ),

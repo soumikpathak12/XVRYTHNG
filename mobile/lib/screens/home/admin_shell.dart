@@ -22,31 +22,52 @@ class _AdminShellState extends State<AdminShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   List<DrawerItem> get _drawerItems => [
-        const DrawerItem.divider(label: 'Operation'),
+        const DrawerItem.divider(label: 'Operational Management'),
         const DrawerItem(
-          label: 'Companies',
-          icon: Icons.business_outlined,
-          route: '/admin/companies',
+          label: 'Dashboard',
+          icon: Icons.space_dashboard_outlined,
+          route: '/admin/operations',
         ),
         const DrawerItem(
-          label: 'Employees',
+          label: 'Employee',
           icon: Icons.badge_outlined,
           route: '/admin/employees',
         ),
         const DrawerItem(
-          label: 'Projects',
-          icon: Icons.inventory_2_outlined,
-          route: '/admin/projects',
+          label: 'Attendance',
+          icon: Icons.access_time_outlined,
+          route: '/admin/attendance',
         ),
         const DrawerItem(
-          label: 'Installation Day',
+          label: 'Partner Companies',
+          icon: Icons.business_outlined,
+          route: '/admin/companies',
+        ),
+        const DrawerItem(
+          label: 'Guest Users',
+          icon: Icons.group_add_outlined,
+          route: '/admin/guest-users',
+        ),
+        const DrawerItem(
+          label: 'Trial Users',
+          icon: Icons.science_outlined,
+          route: '/admin/trial-users',
+        ),
+        const DrawerItem.divider(label: 'Onsite Field Management'),
+        const DrawerItem(
+          label: 'Dashboard',
+          icon: Icons.space_dashboard_outlined,
+          route: '/admin/on-field',
+        ),
+        const DrawerItem(
+          label: 'Job Scheduling',
+          icon: Icons.event_note_outlined,
+          route: '/admin/on-field',
+        ),
+        const DrawerItem(
+          label: 'Job Management',
           icon: Icons.build_outlined,
           route: '/admin/installation',
-        ),
-        const DrawerItem(
-          label: 'On-Field',
-          icon: Icons.engineering_outlined,
-          route: '/admin/on-field',
         ),
         const DrawerItem(
           label: 'Operations',

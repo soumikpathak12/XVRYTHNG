@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
+import '../../providers/auth_provider.dart';
 import '../../models/installation_job.dart';
 import '../../providers/installation_provider.dart';
 import '../../widgets/common/empty_state.dart';
@@ -24,7 +26,8 @@ class _InstallationListScreenState extends State<InstallationListScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<InstallationProvider>().loadJobs();
+      final companyId = context.read<AuthProvider>().user?.companyId;
+      context.read<InstallationProvider>().loadJobs(companyId: companyId);
     });
   }
 
@@ -89,8 +92,8 @@ class _InstallationListScreenState extends State<InstallationListScreen> {
       appBar: AppBar(
         leading: shellLeading,
         automaticallyImplyLeading: shellLeading == null,
-        title: const Text('Installation'),
-        actions: ShellScaffoldScope.notificationActions(),
+        title: const Text('Job Management'),
+        actions: ShellScaffoldScope.notificationActions(context: context),
       ),
       body: Consumer<InstallationProvider>(
         builder: (context, provider, _) {
@@ -99,9 +102,37 @@ class _InstallationListScreenState extends State<InstallationListScreen> {
 
           return RefreshIndicator(
           color: AppColors.primary,
-          onRefresh: provider.loadJobs,
+          onRefresh: () {
+            final companyId = context.read<AuthProvider>().user?.companyId;
+            return provider.loadJobs(companyId: companyId);
+          },
           child: CustomScrollView(
             slivers: [
+              if (provider.error != null && provider.error!.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.danger.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.danger.withOpacity(0.2),
+                        ),
+                      ),
+                      child: Text(
+                        provider.error!,
+                        style: const TextStyle(
+                          color: AppColors.danger,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               SliverToBoxAdapter(
                 child: _buildFilterSection(provider),
               ),
@@ -411,7 +442,13 @@ class _JobCard extends StatelessWidget {
   }
 
   void _openDetail(BuildContext context) {
-    Navigator.of(context).pushNamed('/installation/${job.id}');
+    final loc = GoRouterState.of(context).matchedLocation;
+    final base = loc.contains('/admin')
+        ? '/admin/installation'
+        : loc.contains('/dashboard')
+            ? '/dashboard/installation'
+            : '/employee/installation';
+    context.push('$base/${job.id}');
   }
 }
 

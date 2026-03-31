@@ -21,13 +21,19 @@ class ProjectDetailScreen extends StatefulWidget {
 class _ProjectDetailScreenState extends State<ProjectDetailScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final _service = ProjectsService();
+  Map<String, dynamic>? _schedule;
+  List<int> _assigneeIds = const [];
+  List<Map<String, dynamic>> _notes = const [];
+  List<Map<String, dynamic>> _documents = const [];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ProjectsProvider>().loadProjectDetail(widget.projectId);
+      _loadAux();
     });
   }
 
@@ -52,9 +58,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
           tabAlignment: TabAlignment.start,
           tabs: const [
             Tab(text: 'Overview'),
+            Tab(text: 'Financial'),
+            Tab(text: 'Schedule & Assign'),
             Tab(text: 'Documents'),
-            Tab(text: 'Timeline'),
             Tab(text: 'Communication'),
+            Tab(text: 'Activity'),
           ],
         ),
       ),
@@ -80,9 +88,20 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
             controller: _tabController,
             children: [
               _OverviewTab(data: data),
-              _DocumentsTab(projectId: widget.projectId, data: data),
+              _FinancialTab(data: data),
+              _ScheduleAssignTab(
+                data: data,
+                schedule: _schedule,
+                assigneeIds: _assigneeIds,
+              ),
+              _DocumentsTab(
+                projectId: widget.projectId,
+                data: {...data, 'documents': _documents},
+              ),
+              _CommunicationTab(
+                data: {...data, 'communications': _notes},
+              ),
               _TimelineTab(data: data),
-              _CommunicationTab(data: data),
             ],
           );
         },
@@ -96,6 +115,34 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
     return (detail['data'] is Map)
         ? Map<String, dynamic>.from(detail['data'])
         : detail;
+  }
+
+  Future<void> _loadAux() async {
+    try {
+      final out = await Future.wait([
+        _service.getScheduleAssign(widget.projectId),
+        _service.getProjectNotes(widget.projectId),
+        _service.getProjectDocuments(widget.projectId),
+      ]);
+      if (!mounted) return;
+      final sched = out[0] as Map<String, dynamic>;
+      final notes = out[1] as List<Map<String, dynamic>>;
+      final docs = out[2] as List<Map<String, dynamic>>;
+      final idsRaw = sched['assignees'];
+      setState(() {
+        _schedule = sched['schedule'] is Map
+            ? Map<String, dynamic>.from(sched['schedule'])
+            : null;
+        _assigneeIds = idsRaw is List
+            ? idsRaw
+                .map((e) => int.tryParse(e.toString()) ?? 0)
+                .where((e) => e > 0)
+                .toList()
+            : const [];
+        _notes = notes;
+        _documents = docs;
+      });
+    } catch (_) {}
   }
 }
 
@@ -125,36 +172,65 @@ class _OverviewTab extends StatelessWidget {
           _buildHeader(context, stage),
           const SizedBox(height: 20),
           _SectionCard(
-            title: 'Customer Information',
+            title: 'Project Information',
+            icon: Icons.inventory_2_outlined,
+            children: [
+              _DetailRow('Project ID', (data['id'] ?? '-').toString()),
+              _DetailRow('Stage', data['stage']?.toString() ?? '-'),
+              _DetailRow('Expected Completion', _read(data, const ['expected_completion_date'])),
+              _DetailRow('Created', _formatDate(data['created_at'])),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'Customer Details',
             icon: Icons.person_outline,
             children: [
-              _DetailRow('Customer', data['customer_name'] ?? data['customerName'] ?? '-'),
-              _DetailRow('Address', data['address'] ?? '-'),
-              _DetailRow('Suburb', data['suburb'] ?? '-'),
-              _DetailRow('Source', data['source'] ?? '-'),
+              _DetailRow('Customer', _read(data, const ['customer_name', 'customerName'])),
+              _DetailRow('Email', _read(data, const ['lead_email', 'email'])),
+              _DetailRow('Phone', _read(data, const ['lead_phone', 'phone'])),
+              _DetailRow('Suburb', _read(data, const ['lead_suburb', 'suburb'])),
+              _DetailRow('Source', _read(data, const ['lead_source', 'source'])),
             ],
           ),
           const SizedBox(height: 12),
           _SectionCard(
-            title: 'System Details',
+            title: 'System Specifications',
             icon: Icons.solar_power_outlined,
             children: [
-              _DetailRow('System', data['system_summary'] ?? data['systemSummary'] ?? '-'),
-              _DetailRow('Value', _formatCurrency(data['value'])),
-              _DetailRow('Margin', data['margin_pct'] != null ? '${data['margin_pct']}%' : '-'),
+              _DetailRow('System Size', _read(data, const ['lead_system_size_kw', 'system_size_kw'])),
+              _DetailRow('System Type', _read(data, const ['lead_system_type', 'system_type'])),
+              _DetailRow('Value', _formatCurrency(data['lead_value_amount'] ?? data['value_amount'] ?? data['value'])),
+              _DetailRow('PV Inverter', _read(data, const ['lead_pv_inverter_brand', 'pv_inverter_brand'])),
+              _DetailRow('PV Panel', _read(data, const ['lead_pv_panel_brand', 'pv_panel_brand'])),
             ],
           ),
           const SizedBox(height: 12),
           _SectionCard(
-            title: 'Schedule',
-            icon: Icons.calendar_today_outlined,
+            title: 'Property Characteristics',
+            icon: Icons.home_work_outlined,
             children: [
-              _DetailRow('Scheduled At', _formatDate(data['scheduled_at'])),
-              _DetailRow('Schedule Status', data['schedule_status'] ?? '-'),
+              _DetailRow('House Storey', _read(data, const ['lead_house_storey', 'house_storey'])),
+              _DetailRow('Roof Type', _read(data, const ['lead_roof_type', 'roof_type'])),
+              _DetailRow('Meter Phase', _read(data, const ['lead_meter_phase', 'meter_phase'])),
+              _DetailRow('2nd Storey Access', _boolLabel(data['lead_access_to_second_storey'])),
+              _DetailRow('Inverter Access', _boolLabel(data['lead_access_to_inverter'])),
             ],
           ),
           const SizedBox(height: 12),
-          _buildAssignees(context),
+          _SectionCard(
+            title: 'Utility Information',
+            icon: Icons.electric_bolt_outlined,
+            children: [
+              _DetailRow('Pre-Approval Ref', _read(data, const ['lead_pre_approval_reference_no', 'pre_approval_reference_no'])),
+              _DetailRow('Post-Install Ref', _read(data, const ['post_install_reference_no'])),
+              _DetailRow('Energy Retailer', _read(data, const ['lead_energy_retailer', 'energy_retailer'])),
+              _DetailRow('Energy Distributor', _read(data, const ['lead_energy_distributor', 'energy_distributor'])),
+              _DetailRow('Solar Vic Eligibility', _boolLabel(data['lead_solar_vic_eligibility'])),
+              _DetailRow('NMI Number', _read(data, const ['lead_nmi_number', 'nmi_number'])),
+              _DetailRow('Meter Number', _read(data, const ['lead_meter_number', 'meter_number'])),
+            ],
+          ),
         ],
       ),
     );
@@ -177,36 +253,19 @@ class _OverviewTab extends StatelessWidget {
     );
   }
 
-  Widget _buildAssignees(BuildContext context) {
-    final assignees = data['assignees'];
-    if (assignees == null || (assignees is List && assignees.isEmpty)) {
-      return const SizedBox.shrink();
+  String _read(Map<String, dynamic> m, List<String> keys) {
+    for (final k in keys) {
+      final v = m[k];
+      if (v != null && v.toString().trim().isNotEmpty) return v.toString();
     }
-    final list = (assignees is List) ? assignees : [];
-    return _SectionCard(
-      title: 'Assignees',
-      icon: Icons.group_outlined,
-      children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 6,
-          children: list
-              .map((a) => Chip(
-                    avatar: CircleAvatar(
-                      backgroundColor: AppColors.primary.withOpacity(0.12),
-                      child: Text(
-                        a.toString().isNotEmpty ? a.toString()[0].toUpperCase() : '?',
-                        style: const TextStyle(fontSize: 12, color: AppColors.primary),
-                      ),
-                    ),
-                    label: Text(a.toString(), style: const TextStyle(fontSize: 13)),
-                    backgroundColor: AppColors.surface,
-                    side: const BorderSide(color: AppColors.border),
-                  ))
-              .toList(),
-        ),
-      ],
-    );
+    return '-';
+  }
+
+  String _boolLabel(dynamic v) {
+    if (v == null || v.toString().isEmpty) return '-';
+    if (v is bool) return v ? 'Yes' : 'No';
+    final s = v.toString().toLowerCase();
+    return (s == '1' || s == 'true') ? 'Yes' : (s == '0' || s == 'false' ? 'No' : v.toString());
   }
 
   String _formatCurrency(dynamic val) {
@@ -220,6 +279,83 @@ class _OverviewTab extends StatelessWidget {
     final dt = DateTime.tryParse(val.toString());
     if (dt == null) return val.toString();
     return '${dt.day}/${dt.month}/${dt.year}';
+  }
+}
+
+class _FinancialTab extends StatelessWidget {
+  final Map<String, dynamic> data;
+  const _FinancialTab({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final revenue = data['lead_value_amount'] ?? data['value_amount'] ?? data['value'];
+    final cost = data['approved_expense_total'];
+    final r = (revenue is num) ? revenue.toDouble() : double.tryParse('${revenue ?? 0}') ?? 0;
+    final c = (cost is num) ? cost.toDouble() : double.tryParse('${cost ?? 0}') ?? 0;
+    final margin = r - c;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: _SectionCard(
+        title: 'Financial',
+        icon: Icons.attach_money,
+        children: [
+          _DetailRow('Estimated Revenue', _fmt(r)),
+          _DetailRow('Approved Cost', _fmt(c)),
+          _DetailRow('Gross Margin', _fmt(margin)),
+        ],
+      ),
+    );
+  }
+
+  String _fmt(double v) => '\$${v.toStringAsFixed(0)}';
+}
+
+class _ScheduleAssignTab extends StatelessWidget {
+  final Map<String, dynamic> data;
+  final Map<String, dynamic>? schedule;
+  final List<int> assigneeIds;
+  const _ScheduleAssignTab({
+    required this.data,
+    required this.schedule,
+    required this.assigneeIds,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          _SectionCard(
+            title: 'Schedule',
+            icon: Icons.calendar_today_outlined,
+            children: [
+              _DetailRow('Status', schedule?['status']?.toString() ?? data['schedule_status']?.toString() ?? '-'),
+              _DetailRow('Scheduled At', _fmt(schedule?['scheduled_at'] ?? data['scheduled_at'])),
+              _DetailRow('Notes', schedule?['notes']?.toString() ?? '-'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'Assign',
+            icon: Icons.group_outlined,
+            children: [
+              _DetailRow(
+                'Assignees',
+                assigneeIds.isEmpty ? '-' : assigneeIds.map((e) => '#$e').join(', '),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _fmt(dynamic v) {
+    if (v == null) return '-';
+    final dt = DateTime.tryParse(v.toString().replaceFirst(' ', 'T'));
+    if (dt == null) return v.toString();
+    return '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 }
 
@@ -276,7 +412,7 @@ class _DocumentsTab extends StatelessWidget {
               : ListView.separated(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   itemCount: docList.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  separatorBuilder: (_, index) => const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final doc = docList[index];
                     return ListTile(
@@ -517,7 +653,7 @@ class _CommunicationTab extends StatelessWidget {
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: messages.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      separatorBuilder: (_, index) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final msg = messages[index] is Map ? messages[index] : {};
         return Card(

@@ -11,6 +11,8 @@ import '../../providers/leads_provider.dart';
 import '../../widgets/common/empty_state.dart';
 import '../../widgets/common/shell_scaffold_scope.dart';
 import '../../widgets/common/status_badge.dart';
+import '../../services/leads_service.dart';
+import 'import_leads_screen.dart';
 
 class LeadsScreen extends StatefulWidget {
   const LeadsScreen({super.key});
@@ -59,6 +61,57 @@ class _LeadsScreenState extends State<LeadsScreen> {
         search: _searchCtrl.text,
       );
 
+  void _onMenuAction(String action) async {
+    switch (action) {
+      case 'import':
+        final result = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const _ImportLeadsScreenWrapper(),
+          ),
+        );
+        if (result == true) _onRefresh();
+        break;
+      case 'sync':
+        _syncSolarQuotes();
+        break;
+    }
+  }
+
+  Future<void> _syncSolarQuotes() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(color: AppColors.primary),
+            SizedBox(width: 20),
+            Text('Syncing SolarQuotes...'),
+          ],
+        ),
+      ),
+    );
+    try {
+      await LeadsService().importSolarQuotes();
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('SolarQuotes synced successfully'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      _onRefresh();
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Sync failed: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final shellLeading = ShellScaffoldScope.navigationLeading(context);
@@ -77,7 +130,22 @@ class _LeadsScreenState extends State<LeadsScreen> {
             ),
             onPressed: () => setState(() => _kanbanView = !_kanbanView),
           ),
-          const SizedBox(width: 4),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: _onMenuAction,
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'import', child: ListTile(
+                leading: Icon(Icons.upload_file, size: 20),
+                title: Text('Import CSV', style: TextStyle(fontSize: 14)),
+                dense: true, visualDensity: VisualDensity.compact,
+              )),
+              PopupMenuItem(value: 'sync', child: ListTile(
+                leading: Icon(Icons.sync, size: 20),
+                title: Text('Sync SolarQuotes', style: TextStyle(fontSize: 14)),
+                dense: true, visualDensity: VisualDensity.compact,
+              )),
+            ],
+          ),
           ...ShellScaffoldScope.notificationActions(),
         ],
       ),
@@ -523,5 +591,15 @@ class _KanbanColumn extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+// Re-export wrapper for inline navigation
+class _ImportLeadsScreenWrapper extends StatelessWidget {
+  const _ImportLeadsScreenWrapper();
+
+  @override
+  Widget build(BuildContext context) {
+    return const ImportLeadsScreen();
   }
 }

@@ -28,6 +28,18 @@ class InstallationJob {
   });
 
   factory InstallationJob.fromJson(Map<String, dynamic> json) {
+    double? parseDouble(dynamic value) {
+      if (value == null) return null;
+      if (value is num) return value.toDouble();
+      return double.tryParse(value.toString());
+    }
+
+    int parseInt(dynamic value) {
+      if (value is int) return value;
+      if (value is num) return value.toInt();
+      return int.tryParse(value?.toString() ?? '') ?? 0;
+    }
+
     List<String> teams = [];
     if (json['team_names'] is List) {
       teams = (json['team_names'] as List).map((e) => e.toString()).toList();
@@ -36,7 +48,7 @@ class InstallationJob {
     }
 
     return InstallationJob(
-      id: json['id'] ?? 0,
+      id: parseInt(json['id']),
       status: json['status'] ?? 'scheduled',
       customerName: json['customer_name'] ?? '',
       address: json['address'],
@@ -45,9 +57,9 @@ class InstallationJob {
           ? DateTime.tryParse(json['scheduled_date'].toString())
           : null,
       scheduledTime: json['scheduled_time'],
-      systemSizeKw: json['system_size_kw']?.toDouble(),
+      systemSizeKw: parseDouble(json['system_size_kw']),
       systemType: json['system_type'],
-      teamCount: json['team_count'] ?? 0,
+      teamCount: parseInt(json['team_count']),
       teamNames: teams,
       raw: json,
     );

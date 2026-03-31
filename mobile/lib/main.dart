@@ -10,6 +10,9 @@ import 'providers/projects_provider.dart';
 import 'providers/employees_provider.dart';
 import 'providers/messages_provider.dart';
 import 'providers/installation_provider.dart';
+import 'providers/on_field_provider.dart';
+import 'providers/settings_provider.dart';
+import 'providers/financial_provider.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -51,6 +54,9 @@ class _XvrythngAppState extends State<XvrythngApp> {
         ChangeNotifierProvider(create: (_) => EmployeesProvider()),
         ChangeNotifierProvider(create: (_) => MessagesProvider()),
         ChangeNotifierProvider(create: (_) => InstallationProvider()),
+        ChangeNotifierProvider(create: (_) => OnFieldProvider()),
+        ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ChangeNotifierProvider(create: (_) => FinancialProvider()),
       ],
       child: _AppWithRouter(authProvider: _authProvider),
     );

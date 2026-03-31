@@ -22,12 +22,12 @@ class InstallationProvider extends ChangeNotifier {
   int get completedCount =>
       _jobs.where((j) => j.status == 'completed').length;
 
-  Future<void> loadJobs() async {
+  Future<void> loadJobs({int? companyId}) async {
     _loading = true;
     _error = null;
     notifyListeners();
     try {
-      _jobs = await _service.listJobs();
+      _jobs = await _service.listJobs(companyId: companyId);
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -36,11 +36,12 @@ class InstallationProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> loadJobDetail(int id) async {
+  Future<void> loadJobDetail(int id, {int? companyId}) async {
     _loading = true;
+    _error = null;
     notifyListeners();
     try {
-      _jobDetail = await _service.getJob(id);
+      _jobDetail = await _service.getJob(id, companyId: companyId);
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -49,10 +50,10 @@ class InstallationProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> updateJobStatus(int id, String status) async {
+  Future<void> updateJobStatus(int id, String status, {int? companyId}) async {
     try {
-      await _service.updateJobStatus(id, status);
-      await loadJobs();
+      await _service.updateJobStatus(id, status, companyId: companyId);
+      await loadJobs(companyId: companyId);
     } catch (e) {
       rethrow;
     }
