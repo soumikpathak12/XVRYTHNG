@@ -21,7 +21,7 @@ export default function LeadCard({ lead, onDragStart, onDragEnd, onSelect }) {
   const isLost = lead.stage === 'closed_lost';
   const cardVariant = isWon ? 'won' : isLost ? 'lost' : 'default';
 
-  const formattedValue = lead.value != null
+  const formattedValue = lead.value != null && Number(lead.value) > 0
     ? new Intl.NumberFormat(undefined, { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(lead.value)
     : null;
 
@@ -37,30 +37,36 @@ export default function LeadCard({ lead, onDragStart, onDragEnd, onSelect }) {
     ? (lead.source.toLowerCase() === 'referral' ? 'Referral' : lead.source)
     : null;
 
+  const email = lead?._raw?.email || 'No email';
+  const phone = lead?._raw?.phone || 'No phone';
+
   return (
     <article
-      className={`leads-card ${cardVariant}`}
+      className={`leads-card ${cardVariant} stage-${lead.stage}`}
       draggable
       onDragStart={(e) => onDragStart?.(e, lead)}
       onDragEnd={(e) => onDragEnd?.(e)}
       onClick={() => onSelect?.()}
       aria-label={`${lead.customerName} – ${lead.suburb}`}
     >
-      <div className="leads-card-name">{lead.customerName}</div>
-      <div className="leads-card-suburb">{lead.suburb || '—'}</div>
+      <div className="leads-card-top">
+        <div className="leads-card-top-main">
+          <div className="leads-card-name">{lead.customerName}</div>
+          <div className="leads-card-suburb">
+            <span className="leads-card-meta-dot">⌖</span> {lead.suburb || 'No location'}
+          </div>
+        </div>
+      </div>
 
-      <div className="leads-card-tags">
-        {lead.systemSize && <span className="leads-card-tag">{lead.systemSize}</span>}
-        {formattedValue && <span className="leads-card-tag value">{formattedValue}</span>}
+      <div className="leads-card-contact-list">
+        <div className="leads-card-contact-item">✉ {email}</div>
+        <div className="leads-card-contact-item">☎ {phone}</div>
       </div>
 
       <div className="leads-card-meta">
-        {sourceLabel ? (
-          <span className="leads-card-meta-source">{sourceLabel}</span>
-        ) : (
-          <span className="leads-card-meta-muted">—</span>
-        )}
-        {dateLabel && <span className="leads-card-date">{dateLabel}</span>}
+        {dateLabel ? <span className="leads-card-date">◷ {dateLabel}</span> : <span className="leads-card-meta-muted">No recent activity</span>}
+        {sourceLabel ? <span className="leads-card-meta-source">{sourceLabel}</span> : <span className="leads-card-meta-muted">—</span>}
+        {formattedValue && <span className="leads-card-tag value">{formattedValue}</span>}
       </div>
     </article>
   );
