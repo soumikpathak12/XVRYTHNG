@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   UsersRound, MailOpen, TrendingUp, DollarSign,
   FileText, CheckCircle2, TrendingDown, ArrowUpRight,
@@ -385,6 +385,12 @@ function Panel({ title, icon: Icon, right, children }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const leadBase = pathname.startsWith('/employee')
+    ? '/employee'
+    : pathname.startsWith('/admin')
+      ? '/admin'
+      : '/dashboard';
   const [range, setRange]           = useState('month');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo]     = useState('');
@@ -567,7 +573,7 @@ export default function AdminDashboard() {
             <PipelineChart
               data={pipelineData}
               loading={loading}
-              onStageClick={(d) => navigate(`/admin/leads?stage=${encodeURIComponent(d.stage)}`)}
+              onStageClick={(d) => navigate(`${leadBase}/leads?stage=${encodeURIComponent(d.stage)}`)}
             />
           </Panel>
 

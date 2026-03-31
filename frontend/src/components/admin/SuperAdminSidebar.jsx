@@ -10,72 +10,60 @@ import {
   MessageSquare,
   MessageCircle,
   Settings,
+  CreditCard,
+  HelpCircle,
+  FileText,
+  ShieldCheck,
   Building2,
-  UserCircle,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
-  LogOut,
-  UserPlus,
   UserCog,
   Wrench,
   Calculator,
   TrendingUp,
   Cog,
-  CheckSquare,
 } from 'lucide-react';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { getApprovalsPendingCount } from '../../services/api.js';
+import { navItemMatchesLocation } from '../../utils/navLinkMatch.js';
 
 /**
  * Top-level nav items.
- * NOTE: Projects is now a parent with 3 children (Dashboard, In-house, Retailer).
+ * NOTE: Project Manager module uses 3 direct items (no nested Projects dropdown).
  */
 const RAW_NAV = [
   { to: '/admin/overview', label: 'Dashboard', icon: LayoutDashboard, permission: { resource: 'overview', action: 'view' } },
-  { to: '/admin/profile', label: 'My Profile', icon: UserCircle, permission: { resource: 'profile', action: 'view' } },
-  { to: '/admin/companies', label: 'Companies', icon: Building2, permission: { resource: 'companies', action: 'view' } },
-  { to: '/admin/leads', label: 'Lead Pipeline', icon: UsersRound, permission: { resource: 'leads', action: 'view' } },
+  { to: '/admin/companies', label: 'Partner Companies', icon: Building2, permission: { resource: 'companies', action: 'view' } },
+  { to: '/admin/leads', label: 'Leads Kanban', icon: TrendingUp, permission: { resource: 'leads', action: 'view' } },
   { to: '/admin/employees', label: 'Employees', icon: UserCog, permission: { resource: 'employees', action: 'view' } },
 
-  // --- PROJECTS (parent) ---
-  {
-    key: 'projects',
-    label: 'Projects',
-    icon: Boxes,
-    permission: { resource: 'projects', action: 'view' },
-    // Children use the same 'projects:view' permission by default (can be customized per item if needed)
-    children: [
-      { to: '/admin/projects/dashboard', label: 'Dashboard', permission: { resource: 'projects', action: 'view' } },
-      // "In-house" goes to the existing ProjectsPage (your current route)
-      { to: '/admin/projects', label: 'In-house', permission: { resource: 'projects', action: 'view' } },
-      { to: '/admin/projects/retailer', label: 'Retailer', permission: { resource: 'projects', action: 'view' } },
-    ],
-  },
+  { to: '/admin/projects/dashboard', label: 'Dashboard', icon: Boxes, permission: { resource: 'projects', action: 'view' } },
+  { to: '/admin/projects', label: 'In-House Projects', icon: Boxes, permission: { resource: 'projects', action: 'view' } },
+  { to: '/admin/projects/retailer', label: 'Retailer Projects', icon: Boxes, permission: { resource: 'projects', action: 'view' } },
 
-  { to: '/admin/installation', label: 'Installation Day', icon: Wrench, permission: { resource: 'installation', action: 'view' } },
-  { to: '/admin/on-field', label: 'On-Field', icon: HardHat, permission: { resource: 'on_field', action: 'view' } },
-  { to: '/admin/operations', label: 'Operations', icon: Factory, permission: { resource: 'operations', action: 'view' } },
+  { to: '/admin/on-field-dashboard', label: 'Dashboard', icon: HardHat, permission: { resource: 'on_field', action: 'view' } },
+  { to: '/admin/installation', label: 'Job Management', icon: Wrench, permission: { resource: 'installation', action: 'view' } },
+  { to: '/admin/on-field', label: 'Job Scheduling', icon: HardHat, permission: { resource: 'on_field', action: 'view' } },
+  { to: '/admin/operations', label: 'Dashboard', icon: Factory, permission: { resource: 'operations', action: 'view' } },
+  { to: '/admin/customers', label: 'Customers', icon: UsersRound, permission: { resource: 'operations', action: 'view' } },
+  { to: '/admin/financial-dashboard', label: 'Dashboard', icon: Calculator, permission: { resource: 'payroll', action: 'view' } },
   { to: '/admin/payroll', label: 'Payroll', icon: Calculator, permission: { resource: 'payroll', action: 'view' } },
+  { to: '/admin/quotations', label: 'Quotations', icon: Calculator, permission: { resource: 'payroll', action: 'view' } },
+  { to: '/admin/invoicing', label: 'Invoicing', icon: Calculator, permission: { resource: 'payroll', action: 'view' } },
+  { to: '/admin/profit-loss-analysis', label: 'Profit/Loss Analysis', icon: Calculator, permission: { resource: 'payroll', action: 'view' } },
   { to: '/admin/attendance', label: 'Attendance', icon: Clock3, permission: { resource: 'attendance', action: 'view' } },
   // Referrals is now accessible inside Settings → Referral Program tab
   { to: '/admin/messages', label: 'Messages', icon: MessageSquare, permission: { resource: 'messages', action: 'view' } },
-  { to: '/admin/support-tickets', label: 'Support Tickets', icon: MessageCircle, permission: { resource: 'support', action: 'view' } },
-  { to: '/admin/trial-users', label: 'Trial Users', icon: UsersRound, permission: { resource: 'users', action: 'view' } },
-
-  // --- SETTINGS (parent) ---
-  {
-    key: 'settings',
-    label: 'Settings',
-    icon: Settings,
-    permission: { resource: 'settings', action: 'view' },
-    children: [
-      { to: '/admin/settings', label: 'General', permission: { resource: 'settings', action: 'view' } },
-      { to: '/admin/settings/inspection-templates', label: 'Inspection Templates', permission: { resource: 'settings', action: 'view' } },
-      { to: '/admin/settings/checklist-templates', label: 'Checklist Templates', icon: CheckSquare, permission: { resource: 'settings', action: 'view' } },
-    ],
-  },
+  { to: '/admin/support-tickets', label: 'Customer Support Tickets', icon: MessageCircle, permission: { resource: 'support', action: 'view' } },
+  { to: '/admin/trial-users', label: 'Guest Users', icon: UsersRound, permission: { resource: 'users', action: 'view' } },
+  
+  // --- SETTINGS ---
+  { to: '/admin/settings?tab=company', label: 'General', icon: Settings, permission: { resource: 'settings', action: 'view' } },
+  { to: '/admin/settings?tab=subscription', label: 'Subscription Management', icon: CreditCard, permission: { resource: 'settings', action: 'view' } },
+  { to: '/admin/settings?tab=faq_helpdesk', label: 'FAQ & Helpdesk', icon: HelpCircle, permission: { resource: 'settings', action: 'view' } },
+  { to: '/admin/settings?tab=terms', label: 'Terms & Conditions', icon: FileText, permission: { resource: 'settings', action: 'view' } },
+  { to: '/admin/settings?tab=privacy', label: 'Privacy Policy', icon: ShieldCheck, permission: { resource: 'settings', action: 'view' } },
 ];
 
 export default function SuperAdminSidebar({
@@ -95,6 +83,7 @@ export default function SuperAdminSidebar({
   const { can } = useAuth();
 
   const [pendingCount, setPendingCount] = useState(0);
+  const brandLogoSrc = logoSrc || '/logo.jpeg';
   useEffect(() => {
     let alive = true;
     const fetchCount = async () => {
@@ -127,27 +116,104 @@ export default function SuperAdminSidebar({
       .filter(Boolean);
   }, [can]);
 
-  // Partition into 2 modules (Sales first, then Operation)
-  const salesRoutes = useMemo(() => new Set(['/admin/overview', '/admin/leads']), []);
-  const salesItems = useMemo(() => navItems.filter((i) => i.to && salesRoutes.has(i.to)), [navItems, salesRoutes]);
-  const operationItems = useMemo(
-    () => navItems.filter((i) => !(i.to && salesRoutes.has(i.to))),
-    [navItems, salesRoutes]
-  );
+  const sections = useMemo(() => {
+    const findByTo = (to) => navItems.find((i) => i.to === to);
+    const pick = (arr) => arr.filter(Boolean);
 
-  // Use route prefix directly (not permission-filtered items) so modules auto-open correctly.
-  const isSalesPath = location.pathname.startsWith('/admin/overview') || location.pathname.startsWith('/admin/leads');
-  const isOperationsPath = !isSalesPath;
+    const leadManagementItems = pick([
+      findByTo('/admin/overview'),
+      findByTo('/admin/leads'),
+    ]);
+
+    const projectManagementItems = pick([
+      findByTo('/admin/projects/dashboard'),
+      findByTo('/admin/projects'),
+      findByTo('/admin/projects/retailer'),
+    ]);
+
+    const onsiteFieldItems = pick([
+      // Keep a dedicated dashboard entry inside this module.
+      findByTo('/admin/on-field-dashboard'),
+      findByTo('/admin/on-field'),
+      findByTo('/admin/installation'),
+    ]);
+
+    const communicationsItems = pick([
+      findByTo('/admin/messages'),
+      findByTo('/admin/support-tickets'),
+    ]);
+
+    const operationalManagementItems = pick([
+      findByTo('/admin/operations'),
+      findByTo('/admin/employees'),
+      findByTo('/admin/attendance'),
+      findByTo('/admin/companies'),
+      findByTo('/admin/trial-users'),
+      findByTo('/admin/customers'),
+      // findByTo('/admin/profile'),
+    ]);
+
+    const financialManagementItems = pick([
+      findByTo('/admin/financial-dashboard'),
+      findByTo('/admin/payroll'),
+      findByTo('/admin/quotations'),
+      findByTo('/admin/invoicing'),
+      findByTo('/admin/profit-loss-analysis'),
+    ]);
+
+    const settingsItems = pick([
+      findByTo('/admin/settings?tab=company'),
+      findByTo('/admin/settings?tab=subscription'),
+      findByTo('/admin/settings?tab=faq_helpdesk'),
+      findByTo('/admin/settings?tab=terms'),
+      findByTo('/admin/settings?tab=privacy'),
+      findByTo('/admin/settings/inspection-templates'),
+      findByTo('/admin/settings/checklist-templates'),
+    ]);
+
+    return [
+      { key: 'lead_management', title: 'Sale Management', icon: TrendingUp, items: leadManagementItems },
+      { key: 'project_management', title: 'Project Management', icon: Boxes, items: projectManagementItems },
+      { key: 'onsite_field_management', title: 'Onsite Field Management', icon: HardHat, items: onsiteFieldItems },
+      { key: 'operational_management', title: 'Operational Management', icon: Factory, items: operationalManagementItems },
+      { key: 'financial_management', title: 'Financial Management', icon: Calculator, items: financialManagementItems },
+      { key: 'communications', title: 'Communications', icon: MessageSquare, items: communicationsItems },
+      { key: 'settings', title: 'Settings', icon: Settings, items: settingsItems },
+    ].filter((s) => s.items.length > 0);
+  }, [navItems]);
 
   /**
    * Track which parent menus are expanded (e.g. sales, operations, projects submenu).
    * By default, open the submenu if the current path is inside it.
    */
   const [openKeys, setOpenKeys] = useState(() => {
-    const isSales = location.pathname.startsWith('/admin/overview') || location.pathname.startsWith('/admin/leads');
-    const isOperations = !isSales; // Default to operations if not sales
-    const isProjects = location.pathname.startsWith('/admin/projects');
-    return { sales: isSales, operations: isOperations, projects: isProjects };
+    const pathname = location.pathname || '';
+    return {
+      lead_management: pathname.startsWith('/admin/overview') || pathname.startsWith('/admin/leads'),
+      project_management: pathname.startsWith('/admin/projects'),
+      onsite_field_management:
+        pathname.startsWith('/admin/on-field-dashboard') ||
+        pathname.startsWith('/admin/on-field') ||
+        pathname.startsWith('/admin/installation'),
+      communications: pathname.startsWith('/admin/messages') || pathname.startsWith('/admin/support-tickets'),
+      operational_management:
+        pathname.startsWith('/admin/operations') ||
+        pathname.startsWith('/admin/employees') ||
+        pathname.startsWith('/admin/attendance') ||
+        pathname.startsWith('/admin/companies') ||
+        pathname.startsWith('/admin/trial-users') ||
+        pathname.startsWith('/admin/customers') ||
+        false,
+      financial_management:
+        pathname.startsWith('/admin/financial-dashboard') ||
+        pathname.startsWith('/admin/payroll') ||
+        pathname.startsWith('/admin/quotations') ||
+        pathname.startsWith('/admin/invoicing') ||
+        pathname.startsWith('/admin/profit-loss-analysis') ||
+        false,
+      // pathname.startsWith('/admin/profile'),
+      settings: pathname.startsWith('/admin/settings'),
+    };
   });
 
   const toggleOpen = useCallback((key) => {
@@ -261,10 +327,17 @@ export default function SuperAdminSidebar({
 
   const renderNavItem = (item) => {
     const Icon = item.icon;
+    const matchesLocation = (candidate) => {
+      if (!candidate?.to) return false;
+      if (String(candidate.to).includes('?')) {
+        return navItemMatchesLocation(candidate, location.pathname, location.search);
+      }
+      return location.pathname.startsWith(candidate.to);
+    };
 
     // --- Parent with children: render as a collapsible section ---
     if (item.children?.length) {
-      const anyChildActive = item.children.some((c) => location.pathname.startsWith(c.to));
+      const anyChildActive = item.children.some(matchesLocation);
       const isOpen = openKeys[item.key ?? 'projects'] ?? anyChildActive;
 
       // When sidebar is collapsed, we render only a single icon button (no children list)
@@ -353,14 +426,30 @@ export default function SuperAdminSidebar({
 
     // --- Normal single link ---
     const showBadge = item.to === '/admin/attendance' && pendingCount > 0;
+    const exactEnd =
+      (typeof item.to === 'string' && item.to.includes('?')) ||
+      item.to === '/admin/settings' ||
+      item.to === '/admin/settings/inspection-templates' ||
+      item.to === '/admin/settings/checklist-templates' ||
+      // Avoid prefix-match highlighting for project subroutes:
+      // "/admin/projects" should not appear active on "/admin/projects/retailer".
+      item.to === '/admin/projects';
+    const queryAware =
+      typeof item.to === 'string' && item.to.includes('?');
     return (
       <NavLink
         key={item.to}
         to={item.to}
-        style={({ isActive }) => ({
-          ...linkBase,
-          ...(isActive ? activeStyle : {}),
-        })}
+        end={exactEnd}
+        style={({ isActive }) => {
+          const active = queryAware
+            ? navItemMatchesLocation(item, location.pathname, location.search)
+            : isActive;
+          return {
+            ...linkBase,
+            ...(active ? activeStyle : {}),
+          };
+        }}
       >
         <div style={{ position: 'relative', flexShrink: 0 }}>
           <Icon size={20} />
@@ -411,15 +500,11 @@ export default function SuperAdminSidebar({
             background: '#fff',
           }}
         >
-          {logoSrc ? (
-            <img src={logoSrc} alt="Logo" style={{ width: 44, height: 44, objectFit: 'cover' }} />
-          ) : (
-            <span style={{ fontWeight: 800, color: '#146b6b' }}>⚡</span>
-          )}
+          <img src={brandLogoSrc} alt="Company logo" style={{ width: 44, height: 44, objectFit: 'cover' }} />
         </div>
         <div style={brandText}>
           <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2, color: '#6B7280' }}>
-            XVRYTHNG
+            XVRYTHING
           </div>
           <div style={{ fontSize: 18, fontWeight: 800, color: '#0f1a2b' }}>
             XTECHS RENEWABLES
@@ -432,99 +517,62 @@ export default function SuperAdminSidebar({
         {/* When sidebar is collapsed, show all items without module toggling */}
         {collapsed ? (
           <>
-            {salesItems.map(renderNavItem)}
-            {operationItems.map(renderNavItem)}
+            {sections.flatMap((sec) => sec.items).map(renderNavItem)}
           </>
         ) : (
           <>
-            {salesItems.length > 0 && (
-              <>
-                {(() => {
-                  const isSalesOpen = (openKeys.sales ?? false) || isSalesPath;
-                  return (
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => toggleOpen('sales')}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') toggleOpen('sales');
-                      }}
-                      aria-expanded={!!isSalesOpen}
-                      style={{
-                        ...linkBase,
-                        ...moduleHeader,
-                        cursor: 'pointer',
-                        justifyContent: 'space-between',
-                        ...(isSalesPath ? moduleHeaderActiveStyle : {}),
-                        userSelect: 'none',
-                      }}
-                    >
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
-                        <TrendingUp size={18} />
-                        <span style={{ color: isSalesPath ? '#0f1a2b' : moduleHeader.color }}>Sales Module</span>
-                      </span>
-                      <ChevronRight
-                        size={18}
-                        style={{ transform: isSalesOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s ease' }}
-                      />
-                    </div>
-                  );
-                })()}
-                {(() => {
-                  const isSalesOpen = (openKeys.sales ?? false) || isSalesPath;
-                  return isSalesOpen ? (
+            {sections.map((sec, idx) => {
+              const isPathActive = sec.items.some((item) => {
+                if (item.children?.length) return item.children.some((child) => {
+                  if (String(child.to).includes('?')) {
+                    return navItemMatchesLocation(child, location.pathname, location.search);
+                  }
+                  return location.pathname.startsWith(child.to);
+                });
+                return item.to
+                  ? navItemMatchesLocation(item, location.pathname, location.search)
+                  : false;
+              });
+              // Use openKeys as the source of truth so a user can collapse even when the current route is inside the module.
+              const isOpen = openKeys[sec.key] ?? false;
+              const SectionIcon = sec.icon;
+              return (
+                <div key={sec.key}>
+                  {idx > 0 && <div style={{ height: 1, background: '#F3F4F6', margin: '8px 0' }} />}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => toggleOpen(sec.key)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') toggleOpen(sec.key);
+                    }}
+                    aria-expanded={!!isOpen}
+                    style={{
+                      ...linkBase,
+                      ...moduleHeader,
+                      cursor: 'pointer',
+                      justifyContent: 'space-between',
+                      ...(isPathActive ? moduleHeaderActiveStyle : {}),
+                      userSelect: 'none',
+                    }}
+                  >
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+                      <SectionIcon size={18} />
+                      <span style={{ color: isPathActive ? '#0f1a2b' : moduleHeader.color }}>{sec.title}</span>
+                    </span>
+                    <ChevronRight
+                      size={18}
+                      style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s ease' }}
+                    />
+                  </div>
+                  {isOpen && (
                     <div style={moduleItemsWrapper}>
-                      {salesItems.map(renderNavItem)}
+                      {sec.items.map(renderNavItem)}
                     </div>
-                  ) : null;
-                })()}
-              </>
-            )}
-
-            {operationItems.length > 0 && (
-              <>
-                {salesItems.length > 0 && <div style={{ height: 1, background: '#F3F4F6', margin: '8px 0' }} />}
-                {(() => {
-                  const isOpsOpen = (openKeys.operations ?? false) || isOperationsPath;
-                  return (
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => toggleOpen('operations')}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') toggleOpen('operations');
-                      }}
-                      aria-expanded={!!isOpsOpen}
-                      style={{
-                        ...linkBase,
-                        ...moduleHeader,
-                        cursor: 'pointer',
-                        justifyContent: 'space-between',
-                        ...(isOperationsPath ? moduleHeaderActiveStyle : {}),
-                        userSelect: 'none',
-                      }}
-                    >
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
-                        <Cog size={18} />
-                        <span style={{ color: isOperationsPath ? '#0f1a2b' : moduleHeader.color }}>Operation</span>
-                      </span>
-                      <ChevronRight
-                        size={18}
-                        style={{ transform: isOpsOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s ease' }}
-                      />
-                    </div>
-                  );
-                })()}
-                {(() => {
-                  const isOpsOpen = (openKeys.operations ?? false) || isOperationsPath;
-                  return isOpsOpen ? (
-                    <div style={moduleItemsWrapper}>
-                      {operationItems.map(renderNavItem)}
-                    </div>
-                  ) : null;
-                })()}
-              </>
-            )}
+                  )}
+                </div>
+              );
+            })}
           </>
         )}
       </nav>

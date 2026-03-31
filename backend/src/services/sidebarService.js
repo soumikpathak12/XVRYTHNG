@@ -1,5 +1,6 @@
 // src/services/sidebarService.js
 import db from '../config/db.js';
+import { filterModulesByCompanyPolicy } from './companyModuleService.js';
 
 const ALL_KNOWN_MODULES = [
   'leads',
@@ -8,6 +9,7 @@ const ALL_KNOWN_MODULES = [
   'on_field',
   'installation', // Installation Day (field jobs)
   'operations',
+  'payroll',
   'attendance',
   'referrals',
   'messages',
@@ -55,7 +57,9 @@ export async function getSidebarForUserRoleOnly(userId, companyId = null) {
 
   if (role === 'company_admin' || role === 'manager') {
     COMPANY_PSEUDO.forEach(k => allowSet.add(k));
-    allowSet.add('support'); // Company admin/manager can access support by default
+    allowSet.add('support');
+    // Full product surface; company `enabled_modules` trims navigation per US-085.
+    ALL_KNOWN_MODULES.forEach((k) => allowSet.add(k));
   }
 
   if (role === 'field_agent') {
@@ -74,5 +78,12 @@ export async function getSidebarForUserRoleOnly(userId, companyId = null) {
 }
 
 export async function getSidebarForUser(userId, companyId = null) {
-  return getSidebarForUserRoleOnly(userId, companyId);
+  let cid = companyId;
+  if (cid == null) {
+    const [uRows] = await db.execute('SELECT company_id FROM users WHERE id = ? LIMIT 1', [userId]);
+    cid = uRows[0]?.company_id ?? null;
+  }
+  const base = await getSidebarForUserRoleOnly(userId, cid);
+  const modules = await filterModulesByCompanyPolicy(base.modules, cid);
+  return { ...base, modules };
 }

@@ -3,12 +3,13 @@
  * UI matches the referral dashboard design with metrics, settings, and table.
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Users, TrendingUp, Clock, CheckCircle, MoreVertical, ExternalLink } from 'lucide-react';
 import { getReferrals, getReferralCounts, getReferrers, markReferralBonusPaid, getReferralSettings, saveReferralSettings, updateLeadStage } from '../services/api.js';
 import EditReferralSettingsModal from '../components/referrals/EditReferralSettingsModal.jsx';
 import Modal from '../components/common/Modal.jsx';
 import '../styles/ReferralsDashboard.css';
+import { getAppBaseFromPathname } from '../utils/routeBase.js';
 
 const REFERRAL_STATUSES = {
   PENDING: 'pending',
@@ -44,6 +45,11 @@ const DEFAULT_BONUS_CONFIG = {
 
 export default function ReferralsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const basePath = useMemo(
+    () => getAppBaseFromPathname(location.pathname),
+    [location.pathname]
+  );
   const [referrals, setReferrals] = useState([]);
   const [counts, setCounts] = useState({});
   const [referrers, setReferrers] = useState([]);
@@ -408,7 +414,7 @@ export default function ReferralsPage() {
                             <div className="referrals-menu-dropdown">
                               <button
                                 className="referrals-menu-item"
-                                onClick={() => navigate(`/admin/leads/${referral.id}`)}
+                                onClick={() => navigate(`${basePath}/leads/${referral.id}`)}
                                 type="button"
                               >
                                 <ExternalLink size={14} />

@@ -1,6 +1,7 @@
 // src/pages/admin/SiteInspectionPage.jsx
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
+import '../../styles/SiteInspectionPage.css';
 import {
   getLead,
   getSiteInspection,
@@ -25,6 +26,12 @@ import autoTable from 'jspdf-autotable';
 import FormRenderer from '../../components/FormRenderer.jsx';
 import { getRequiredKeys, formatValueForPdf } from '../../utils/template.js';
 import { buildStepsFromEnabled } from '../../templates/sectionCatalog.js';
+import {
+  mergeLeadDefaultsIntoInspectionForm,
+  getSystemTypeForInspection,
+  getInspectionScheduleDatetimeLocal,
+  isEmptyInspectionValue,
+} from '../../utils/inspectionPrefillFromLead.js';
 
 // ================= UI tokens =================
 // ================= UI tokens =================
@@ -266,6 +273,37 @@ function ChecklistWidget({ companyId = null }) {
   );
 }
 
+/** Vertical step rail (focused, one step at a time — similar to audit / checklist apps). */
+function StepRail({ steps, stepIdx, onStepChange }) {
+  const list = steps.length ? steps : [{ id: 'core', label: 'Inspection' }];
+  return (
+    <nav className="si-rail" aria-label="Inspection steps">
+      <p className="si-rail-title">Steps</p>
+      <ol className="si-step-list" role="list">
+        {list.map((s, i) => {
+          const active = i === stepIdx;
+          const done = i < stepIdx;
+          return (
+            <li key={s.id}>
+              <button
+                type="button"
+                className={`si-step-btn${active ? ' si-step-btn--active' : ''}${done ? ' si-step-btn--done' : ''}`}
+                onClick={() => onStepChange(i)}
+                aria-current={active ? 'step' : undefined}
+              >
+                <span className="si-step-num" aria-hidden>
+                  {done ? '✓' : i + 1}
+                </span>
+                <span>{s.label}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}
+
 // ================= Toolbar =================
 function TemplateToolbar({ templates, selectedId, onSelect, onRefresh }) {
   return (
@@ -336,6 +374,15 @@ function getByPath(obj, path) {
   const norm = String(path).replace(/\[(\d+)\]/g, '.$1');
   return norm.split('.').reduce((acc, k) => (acc && Object.prototype.hasOwnProperty.call(acc, k) ? acc[k] : undefined), obj);
 }
+function flattenObject(input, prefix = '', out = {}) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return out;
+  for (const [k, v] of Object.entries(input)) {
+    const next = prefix ? `${prefix}.${k}` : k;
+    if (v && typeof v === 'object' && !Array.isArray(v)) flattenObject(v, next, out);
+    else out[next] = v;
+  }
+  return out;
+}
 /** NEW: đọc cả key phẳng và key lồng */
 function getValueFlex(form, key) {
   if (Object.prototype.hasOwnProperty.call(form, key)) return form[key]; // flat key, e.g. "jobDetails.licenseSelfie"
@@ -359,7 +406,14 @@ function applyTemplateOverrides(tpl) {
     ...st,
     sections: (st.sections || []).map((sec) => ({
       ...sec,
-      fields: (sec.fields || []).map((f) => {
+      fields: (sec.fields || []).filter((f) => f?.key !== 'switchboard.flag').map((f) => {
+        if (f?.key === 'switchboard.voltageReadingPhotos' && f?.type === 'array') {
+          return {
+            ...f,
+            type: 'photo',
+            accept: f.accept || 'image/*,application/pdf',
+          };
+        }
         // Roof Type: allow custom "Other" input (store custom text, not "Other")
         const isRoofType =
           f?.key === 'roofProfile.roofMaterial' ||
@@ -405,10 +459,57 @@ function buildMediaSummary(template, form) {
   return lines.join('\n');
 }
 
+/**
+ * Keep only persistable values for API payload / DB storage.
+ * - Remove client-only preview blobs (preview_data_url, data:image/... strings)
+ * - Keep uploaded file references (filename, storage_url)
+ */
+function sanitizeForPersist(value) {
+  if (value == null) return value;
+
+  if (typeof value === 'string') {
+    const s = value.trim();
+    // Base64 preview strings can easily exceed MySQL max_allowed_packet.
+    if (s.startsWith('data:')) return null;
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    const arr = value
+      .map((item) => sanitizeForPersist(item))
+      .filter((item) => item !== undefined && item !== null);
+    const allFileRefs =
+      arr.length > 0 &&
+      arr.every(
+        (x) =>
+          x &&
+          typeof x === 'object' &&
+          !Array.isArray(x) &&
+          (x.storage_url != null || x.filename != null)
+      );
+    if (allFileRefs) return arr[0];
+    return arr;
+  }
+
+  if (typeof value === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) {
+      if (k === 'preview_data_url' || k === 'previewDataUrl' || k === 'dataUrl') continue;
+      const sv = sanitizeForPersist(v);
+      if (sv !== undefined && sv !== null) out[k] = sv;
+    }
+    return out;
+  }
+
+  return value;
+}
+
 // ================= Page =================
 export default function SiteInspectionPage() {
   const params = useParams();
+  const location = useLocation();
   const leadId = params.id ?? params.leadId;
+  const basePath = location.pathname.startsWith('/employee') ? '/employee' : '/admin';
 
   // Lead + templates
   const [lead, setLead] = useState(null);
@@ -420,13 +521,26 @@ export default function SiteInspectionPage() {
   // Form
   const [form, setForm] = useState({});
   const [status, setStatus] = useState('draft');
+  const isSubmitted = status === 'submitted';
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
 
+  // Signature (Customer sign-off)
+  const canvasRef = useRef(null);
+  const drawingRef = useRef(false);
+  const [customerName, setCustomerName] = useState('');
+  const [customerConfirmed, setCustomerConfirmed] = useState(false);
+  const [customerNotes, setCustomerNotes] = useState('');
+  const [signatureUrl, setSignatureUrl] = useState('');
+
   // Step
   const [stepIdx, setStepIdx] = useState(0);
+  const [leadDetailsOpen, setLeadDetailsOpen] = useState(false);
+  const [otherInspectionsOpen, setOtherInspectionsOpen] = useState(false);
+  const formCardRef = useRef(null);
+  const didInitScrollRef = useRef(false);
 
   // Lists
   const [draftList, setDraftList] = useState([]);
@@ -446,24 +560,59 @@ export default function SiteInspectionPage() {
         const si = await getSiteInspection(leadId);
         if (!aborted && si?.data) {
           const d = si.data;
+          const { form: apiForm, ...dMeta } = d;
           setStatus(d.status ?? 'draft');
           let extra = {};
-          try {
-            extra = d.additional_notes ? JSON.parse(d.additional_notes) || {} : {};
-          } catch {
-            extra = {};
+          const usedColumnForm = apiForm && typeof apiForm === 'object' && !Array.isArray(apiForm);
+          if (usedColumnForm) {
+            extra = { ...apiForm };
+          } else {
+            try {
+              const rawForm =
+                d.form_data_json && String(d.form_data_json).trim()
+                  ? d.form_data_json
+                  : d.additional_notes;
+              extra = rawForm ? JSON.parse(rawForm) || {} : {};
+            } catch {
+              extra = {};
+            }
           }
-          setForm({ ...extra, ...d });
+          // Only flatten legacy nested JSON; column-backed `apiForm` is already flat dotted keys.
+          const flatExtra = usedColumnForm ? {} : flattenObject(extra);
+          let merged = { ...extra, ...flatExtra, ...dMeta };
+          merged = mergeLeadDefaultsIntoInspectionForm(merged, leadData);
+          const schedLocal = getInspectionScheduleDatetimeLocal(leadData, d);
+          const isDraft = (d.status ?? 'draft') === 'draft';
+          if (isDraft && schedLocal) {
+            merged.inspected_at = schedLocal;
+          }
           const savedKey = extra?._t || d.template_key || null;
           const savedVer = extra?._v || d.template_version || null;
-          if (savedKey) setForm((p) => ({ ...p, __savedTemplateKey: savedKey, __savedTemplateVer: savedVer }));
+          if (savedKey) {
+            merged.__savedTemplateKey = savedKey;
+            merged.__savedTemplateVer = savedVer;
+          }
+          setForm(merged);
+          setCustomerName(d.customer_name || '');
+          setCustomerNotes(d.customer_notes || '');
+          setSignatureUrl(d.signature_url || '');
+          setCustomerConfirmed(Boolean(d.signature_url || d.customer_name));
         } else if (!aborted) {
-          const now = new Date();
-          const pad = (n) => String(n).padStart(2, '0');
-          const inspected_at = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(
-            now.getMinutes()
-          )}`;
-          setForm({ inspected_at });
+          let seeded = mergeLeadDefaultsIntoInspectionForm({}, leadData);
+          const schedLocal = getInspectionScheduleDatetimeLocal(leadData, null);
+          if (schedLocal) {
+            seeded = { ...seeded, inspected_at: schedLocal };
+          } else if (isEmptyInspectionValue(seeded.inspected_at)) {
+            const now = new Date();
+            const pad = (n) => String(n).padStart(2, '0');
+            seeded = {
+              ...seeded,
+              inspected_at: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(
+                now.getMinutes()
+              )}`,
+            };
+          }
+          setForm(seeded);
         }
       } catch (e) {
         if (!aborted) setMsg(e.message ?? 'Failed to load site inspection');
@@ -485,6 +634,10 @@ export default function SiteInspectionPage() {
       const list = Array.isArray(resp?.data) ? resp.data : [];
       setTemplates(list);
 
+      // Always use the default inspection template (no manual selection)
+      setSelectedTemplateId(null);
+
+      /*
       const savedKey = form.__savedTemplateKey;
       const savedVer = Number(form.__savedTemplateVer || NaN);
       let chosenId = null;
@@ -494,6 +647,7 @@ export default function SiteInspectionPage() {
         chosenId = String((exact || any || {}).id || '');
       }
       setSelectedTemplateId(chosenId || null);
+      */
     } catch (e) {
       setMsg(e.message || 'Failed to load templates');
     } finally {
@@ -503,6 +657,21 @@ export default function SiteInspectionPage() {
   useEffect(() => {
     refreshTemplates();
   }, [lead]); // after lead loaded
+
+  /*
+  // When opening an existing inspection, force template selection from saved metadata.
+  useEffect(() => {
+    const savedKey = form.__savedTemplateKey;
+    if (!savedKey || !Array.isArray(templates) || templates.length === 0) return;
+    const savedVer = Number(form.__savedTemplateVer || NaN);
+    const exact = templates.find((t) => t.key === savedKey && (isNaN(savedVer) || Number(t.version) === savedVer));
+    const any = templates.find((t) => t.key === savedKey);
+    const nextId = String((exact || any || {}).id || '');
+    if (nextId && String(selectedTemplateId || '') !== nextId) {
+      setSelectedTemplateId(nextId);
+    }
+  }, [templates, form.__savedTemplateKey, form.__savedTemplateVer, selectedTemplateId]);
+  */
 
   // -------- Compute effective template --------
   useEffect(() => {
@@ -611,11 +780,28 @@ const meta = base?.meta && typeof base.meta === 'string'
     if (!template || !steps?.length) return;
     const currentStep = steps[stepIdx];
     const currentStepId = currentStep?.id;
-    // chỉ clear banner liên quan guard
+    // Clear guard-related banner when step becomes valid
     if (msg && msg.startsWith('Please upload the required items') && currentStepId && stepPassesGuards(template, currentStepId, form)) {
       setMsg('');
     }
   }, [form, stepIdx, template, steps, msg]);
+
+  useEffect(() => {
+    if (!formCardRef.current) return;
+    if (!didInitScrollRef.current) {
+      didInitScrollRef.current = true;
+      return;
+    }
+
+    const rafId = window.requestAnimationFrame(() => {
+      formCardRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+
+    return () => window.cancelAnimationFrame(rafId);
+  }, [stepIdx]);
 
   // -------- File upload --------
   async function onPickFile(field) {
@@ -650,26 +836,125 @@ const meta = base?.meta && typeof base.meta === 'string'
     });
   }
 
+  // -------- Signature Canvas Functions --------
+  // Map pointer coords to canvas buffer pixels (internal width/height differ from CSS size when width: 100%).
+  const pt = (e) => {
+    const canvas = canvasRef.current;
+    const t = e.touches?.[0] ?? e.changedTouches?.[0] ?? e;
+    if (!canvas || !t) return [0, 0];
+    const r = canvas.getBoundingClientRect();
+    const sx = canvas.width / (r.width || 1);
+    const sy = canvas.height / (r.height || 1);
+    return [(t.clientX - r.left) * sx, (t.clientY - r.top) * sy];
+  };
+
+  const startDraw = (e) => {
+    drawingRef.current = true;
+    const ctx = canvasRef.current?.getContext('2d');
+    if (!ctx) return;
+    const [x, y] = pt(e);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  };
+
+  const draw = (e) => {
+    if (!drawingRef.current) return;
+    // Do not call preventDefault here: React attaches touch handlers as passive; use touchAction: 'none' on canvas instead.
+    const ctx = canvasRef.current?.getContext('2d');
+    if (!ctx) return;
+    const [x, y] = pt(e);
+    ctx.lineTo(x, y);
+    ctx.strokeStyle = '#111827';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+  };
+
+  const endDraw = () => {
+    drawingRef.current = false;
+  };
+
+  const clearSignature = () => {
+    const ctx = canvasRef.current?.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    setSignatureUrl('');
+  };
+
+  // -------- Signature upload --------
+  const uploadSignature = async () => {
+    try {
+      const canvas = canvasRef.current;
+      if (!canvas) return null;
+
+      // Convert canvas to blob and upload through authenticated helper.
+      return new Promise((resolve) => {
+        canvas.toBlob(async (blob) => {
+          if (!blob) {
+            resolve(null);
+            return;
+          }
+
+          try {
+            const signatureFile = new File([blob], 'signature.png', { type: 'image/png' });
+            const uploaded = await uploadSiteInspectionFile(leadId, signatureFile, 'signature');
+            resolve(uploaded?.storage_url || null);
+          } catch (err) {
+            console.error('Signature upload failed:', err);
+            resolve(null);
+          }
+        }, 'image/png');
+      });
+    } catch (err) {
+      console.error('Signature upload error:', err);
+      return null;
+    }
+  };
+
   // -------- Save / Submit --------
-  function buildPayload() {
+  function buildPayload(sigUrl = null) {
     const t = template || {};
-    const additional_notes = JSON.stringify({ 
-      _t: t.key || 'default', 
+    const safeForm = sanitizeForPersist(form) || {};
+    const form_data_json = JSON.stringify({
+      _t: t.key || 'default',
       _v: t.version ?? 1,
-      ...form 
+      ...safeForm,
     });
+    // Persist structured fields in form_data_json; core columns duplicated for reporting / filters.
     return {
-      ...form,
-      additional_notes,
+      id: safeForm.id ?? form.id ?? null,
+      inspected_at: safeForm.inspected_at ?? null,
+      inspector_name: safeForm.inspector_name ?? null,
+      roof_type: safeForm.roof_type ?? null,
+      roof_pitch_deg: safeForm.roof_pitch_deg ?? null,
+      house_storey: safeForm.house_storey ?? null,
+      meter_phase: safeForm.meter_phase ?? null,
+      inverter_location: safeForm.inverter_location ?? null,
+      msb_condition: safeForm.msb_condition ?? null,
+      shading: safeForm.shading ?? null,
+      form_data_json,
       template_key: t.key || 'default',
       template_version: t.version ?? 1,
+      customer_name: customerName,
+      signature_url: sigUrl || signatureUrl,
+      customer_notes: customerNotes,
     };
   }
   async function onSaveDraft() {
     try {
       setSaving(true);
       setMsg('');
-      await saveSiteInspectionDraft(leadId, buildPayload());
+      let sigUrl = signatureUrl;
+      // Upload signature if canvas has data and no file stored yet
+      if (canvasRef.current && !signatureUrl) {
+        const uploaded = await uploadSignature();
+        if (uploaded) {
+          sigUrl = uploaded;
+          setSignatureUrl(uploaded);
+        }
+      }
+      await saveSiteInspectionDraft(leadId, buildPayload(sigUrl));
       setStatus('draft');
       setMsg('Draft saved');
       loadInspectionLists(20);
@@ -681,14 +966,42 @@ const meta = base?.meta && typeof base.meta === 'string'
   }
   async function onSubmit() {
     try {
+      if (isSubmitted) {
+        setMsg('This site inspection is already submitted.');
+        return;
+      }
       const missing = requiredKeys.filter((k) => !form[k] || String(form[k]).trim() === '');
       if (missing.length) {
         setMsg('Please complete all required fields.');
         return;
       }
+      // Check signature confirmation
+      if (!customerConfirmed) {
+        setMsg('Please confirm that the customer has signed.');
+        return;
+      }
+      if (!customerName.trim()) {
+        setMsg('Please enter the customer name.');
+        return;
+      }
       setSaving(true);
       setMsg('');
-      await submitSiteInspection(leadId, buildPayload());
+      
+      let sigUrl = signatureUrl;
+      // Upload signature if canvas has data and no file stored yet
+      if (canvasRef.current && !signatureUrl) {
+        const uploaded = await uploadSignature();
+        if (uploaded) {
+          sigUrl = uploaded;
+          setSignatureUrl(uploaded);
+        }
+      }
+      if (!sigUrl) {
+        setMsg('Please provide a customer signature before submitting.');
+        return;
+      }
+      
+      await submitSiteInspection(leadId, buildPayload(sigUrl));
       setStatus('submitted');
       setMsg('Submitted!');
       loadInspectionLists(20);
@@ -705,6 +1018,7 @@ const meta = base?.meta && typeof base.meta === 'string'
       setExporting(true);
       const doc = new jsPDF({ unit: 'pt', format: 'a4' });
       const page = { w: doc.internal.pageSize.getWidth(), h: doc.internal.pageSize.getHeight() };
+      const API_BASE = String(import.meta.env.VITE_API_URL || '').trim();
       const BRAND = {
         primary: [20, 107, 107],
         dark: [30, 41, 59],
@@ -715,6 +1029,34 @@ const meta = base?.meta && typeof base.meta === 'string'
       const margin = { l: 50, r: 50, t: 70, b: 60 };
       let y = margin.t;
       const clean = (v) => String(v ?? '').trim() || '—';
+      const resolveAssetUrl = (url) => {
+        const raw = String(url || '').trim();
+        if (!raw) return '';
+        // Handle Windows-style paths in DB payloads.
+        const s = raw.replace(/\\/g, '/').replace(/^\.?\//, '/');
+        if (/^https?:\/\//i.test(s)) return s;
+        if (API_BASE) return `${API_BASE}${s.startsWith('/') ? s : `/${s}`}`;
+        // Dev fallback: frontend at :5173, backend static uploads usually at :3000
+        if (window.location.port === '5173') {
+          return `${window.location.protocol}//${window.location.hostname}:3000${s.startsWith('/') ? s : `/${s}`}`;
+        }
+        return s;
+      };
+      const fetchImageAsDataUrl = async (url) => {
+        const src = resolveAssetUrl(url);
+        if (!src) return null;
+        const resp = await fetch(src);
+        if (!resp.ok) return null;
+        const type = String(resp.headers.get('content-type') || '');
+        if (!type.startsWith('image/')) return null;
+        const blob = await resp.blob();
+        return await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(blob);
+        });
+      };
       const section = (title) => {
         doc.setFillColor(...BRAND.light);
         doc.rect(margin.l, y, page.w - margin.l - margin.r, 32, 'F');
@@ -755,7 +1097,10 @@ const meta = base?.meta && typeof base.meta === 'string'
         y += 10;
         doc.setDrawColor(...BRAND.border);
         doc.rect(margin.l, y, 220, 150);
-        const dataURL = fileObj?.preview_data_url;
+        let dataURL = fileObj?.preview_data_url || null;
+        if (!dataURL && fileObj?.storage_url) {
+          dataURL = await fetchImageAsDataUrl(fileObj.storage_url);
+        }
         if (dataURL) doc.addImage(dataURL, 'JPEG', margin.l + 5, y + 5, 210, 140);
         else {
           doc.setFontSize(10);
@@ -807,6 +1152,62 @@ const meta = base?.meta && typeof base.meta === 'string'
         }
       }
 
+      // Customer Sign-Off Section
+      const effectiveCustomerName = customerName || form.customer_name || '';
+      const effectiveCustomerNotes = customerNotes || form.customer_notes || '';
+      const effectiveSignatureUrl = signatureUrl || form.signature_url || '';
+      const effectiveCustomerConfirmed = customerConfirmed || Boolean(effectiveSignatureUrl || effectiveCustomerName);
+      const sigDataUrl = await (async () => {
+        if (!effectiveSignatureUrl) return null;
+        try {
+          return await fetchImageAsDataUrl(effectiveSignatureUrl);
+        } catch (err) {
+          console.warn('Failed to load signature image:', err);
+          return null;
+        }
+      })();
+      const canvasSigDataUrl = (() => {
+        try {
+          const cv = canvasRef.current;
+          if (!cv) return null;
+          const ctx = cv.getContext('2d');
+          if (!ctx) return null;
+          const pixels = ctx.getImageData(0, 0, cv.width, cv.height).data;
+          // Check if user has drawn at least one non-transparent pixel.
+          for (let i = 3; i < pixels.length; i += 4) {
+            if (pixels[i] !== 0) return cv.toDataURL('image/png');
+          }
+          return null;
+        } catch {
+          return null;
+        }
+      })();
+      const signatureForPdf = sigDataUrl || canvasSigDataUrl;
+      
+      if (effectiveCustomerName || signatureForPdf) {
+        section('Customer Sign-Off');
+        maybeNewPage(200);
+        const signOffRows = [
+          ['Customer Name', clean(effectiveCustomerName)],
+          ['Confirmed', effectiveCustomerConfirmed ? 'Yes' : 'No'],
+          ['Notes', clean(effectiveCustomerNotes)],
+        ];
+        keyValueTable(signOffRows);
+        
+        // Add signature image if available
+        if (signatureForPdf) {
+          maybeNewPage(200);
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(12);
+          doc.text('Customer Signature', margin.l, y);
+          y += 14;
+          doc.setDrawColor(...BRAND.border);
+          doc.rect(margin.l, y, 220, 100);
+          doc.addImage(signatureForPdf, 'PNG', margin.l + 5, y + 5, 210, 90);
+          y += 120;
+        }
+      }
+
       // Footer
       const pageCount = doc.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
@@ -838,53 +1239,67 @@ const meta = base?.meta && typeof base.meta === 'string'
   // ================= Render =================
   const okMsg = msg === 'Submitted!' || msg === 'Draft saved';
 
-  const Stepper = () => (
-    <div style={{ position: 'sticky', top: 8, zIndex: 5, background: 'transparent', paddingBottom: 8 }}>
-      <ol style={{ display: 'flex', gap: 8, flexWrap: 'wrap', listStyle: 'none', paddingLeft: 0, margin: 0 }}>
-        {(steps.length ? steps : [{ id: 'core', label: 'Core' }]).map((s, i) => {
-          const active = i === stepIdx;
-          const done = i < stepIdx;
-          return (
-            <li key={s.id}>
-              <button
-                type="button"
-                onClick={() => setStepIdx(i)}
-                style={{
-                  ...btn('secondary'),
-                  borderColor: active ? UI.color.teal : UI.color.border,
-                  background: active ? '#E6FFFB' : '#fff',
-                  color: active ? UI.color.teal : UI.color.navy,
-                }}
-              >
-                <span
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: 999,
-                    background: done ? UI.color.teal : active ? UI.color.teal : '#CBD5E1',
-                    display: 'inline-block',
-                  }}
-                />
-                <span style={{ marginLeft: 6 }}>{i + 1}. {s.label}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ol>
-    </div>
-  );
-
-  if (loading) return <div style={card}>Loading site inspection…</div>;
+  if (loading) {
+    return (
+      <div className="si-page">
+        <div className="si-shell">
+          <div className="si-panel">Loading site inspection…</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 12 }}>
-      {/* Main content */}
-      <div style={{ display: 'grid', gap: 12 }}>
-      {/* Header */}
-      {lead && (
-        <div style={{ ...card, position: 'relative' }}>
-          <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 6, color: UI.color.navy }}>BASIC DETAILS</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+    <div className="si-page">
+      <div className="si-shell">
+        <header className="si-topbar">
+          <div className="si-topbar-title">
+            <p className="si-topbar-kicker">Site inspection</p>
+            <h1 className="si-topbar-heading">
+              {lead?.customer_name ? lead.customer_name : 'Site inspection'}
+            </h1>
+            <p className="si-topbar-meta">
+              {[lead?.suburb, getSystemTypeForInspection(lead)].filter(Boolean).join(' · ') || '—'}
+            </p>
+          </div>
+          <div className="si-topbar-actions">
+            <span className="si-status-pill">
+              <span
+                className={`si-status-dot ${status === 'submitted' ? 'si-status-dot--submitted' : 'si-status-dot--draft'}`}
+              />
+              {status === 'submitted' ? 'Submitted' : 'Draft'}
+            </span>
+          </div>
+        </header>
+
+        <div className="si-layout">
+          <StepRail steps={steps} stepIdx={stepIdx} onStepChange={setStepIdx} />
+
+          <main className="si-main">
+            {lead && (
+              <section className="si-panel si-panel--subtle">
+                <div className="si-panel-head">
+                  <h2 className="si-panel-title">Job context</h2>
+                  <button
+                    type="button"
+                    className="si-panel-toggle"
+                    onClick={() => setLeadDetailsOpen((o) => !o)}
+                    aria-expanded={leadDetailsOpen}
+                  >
+                    {leadDetailsOpen ? 'Hide details' : 'Show all details'}
+                  </button>
+                </div>
+                {!leadDetailsOpen ? (
+                  <p className="si-summary-line">
+                    <strong>{lead.customer_name ?? '—'}</strong>
+                    {' · '}
+                    {lead.suburb ?? '—'}
+                    {' · '}
+                    {getSystemTypeForInspection(lead) || '—'}
+                  </p>
+                ) : null}
+                {leadDetailsOpen ? (
+          <div className="si-summary-grid">
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>Customer</div>
               <div>{lead.customer_name ?? '—'}</div>
@@ -903,19 +1318,32 @@ const meta = base?.meta && typeof base.meta === 'string'
             </div>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>System Type</div>
-              <div>{lead.system_type ?? '—'}</div>
+              <div>{getSystemTypeForInspection(lead) || '—'}</div>
             </div>
             {lead.pv_system_size_kw != null ||
-              lead.pv_inverter_brand ||
-              lead.pv_panel_brand ? (
+              lead.pv_panel_brand ||
+              lead.pv_panel_module_watts != null ? (
               <div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>PV System</div>
                 <div>
                   {[
                     lead.pv_system_size_kw != null ? `${lead.pv_system_size_kw} kW` : null,
-                    lead.pv_inverter_brand ? `Inverter: ${lead.pv_inverter_brand}` : null,
                     lead.pv_panel_brand ? `Panel: ${lead.pv_panel_brand}` : null,
                     lead.pv_panel_module_watts != null ? `${lead.pv_panel_module_watts} W` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' • ') || '—'}
+                </div>
+              </div>
+            ) : null}
+
+            {lead.pv_inverter_size_kw != null || lead.pv_inverter_brand ? (
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>Inverter System</div>
+                <div>
+                  {[
+                    lead.pv_inverter_size_kw != null ? `Inverter Size: ${lead.pv_inverter_size_kw} kW` : null,
+                    lead.pv_inverter_brand ? `Inverter Brand: ${lead.pv_inverter_brand}` : null,
                   ]
                     .filter(Boolean)
                     .join(' • ') || '—'}
@@ -952,73 +1380,37 @@ const meta = base?.meta && typeof base.meta === 'string'
               </div>
             ) : null}
           </div>
-          <div
-            style={{
-              position: 'absolute',
-              top: 12,
-              right: 12,
-              border: `1px solid ${UI.color.border}`,
-              background: '#FFFFFF',
-              borderRadius: 999,
-              padding: '6px 12px',
-              fontSize: 12,
-              fontWeight: 700,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <span
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: 999,
-                background: status === 'submitted' ? '#16A34A' : '#F59E0B',
-                display: 'inline-block',
-              }}
-            />
-            {status.toUpperCase()}
-          </div>
-        </div>
-      )}
+                ) : null}
+              </section>
+            )}
 
-      {/* Progress */}
-      <div style={card}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <div style={{ fontWeight: 800, fontSize: 14, color: UI.color.navy }}>SITE INSPECTION</div>
-          <div style={{ fontWeight: 700, color: '#111827' }}>{progress}%</div>
-        </div>
-        <div style={barWrap}>
-          <div style={{ ...barFill, width: `${progress}%` }} />
-        </div>
-        <div style={{ color: UI.color.muted, fontSize: 12, marginTop: 6, display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span style={{ width: 8, height: 8, borderRadius: 999, background: '#22C55E', display: 'inline-block' }} />
-          Complete all required fields (marked <span style={{ color: UI.color.teal }}>*</span>) to reach 100%.
-        </div>
-      </div>
+            <section className="si-panel">
+              <div className="si-progress-row">
+                <span className="si-progress-label">
+                  Step {Math.min(stepIdx + 1, Math.max(steps.length, 1))} of {Math.max(steps.length, 1)} · Required
+                  fields
+                </span>
+                <span className="si-progress-pct">{progress}%</span>
+              </div>
+              <div className="si-progress-bar">
+                <div className="si-progress-fill" style={{ width: `${progress}%` }} />
+              </div>
+              <p className="si-hint">
+                Complete fields marked <span style={{ color: UI.color.teal }}>*</span> to finish this inspection.
+              </p>
+            </section>
 
-      {/* Form + Toolbar */}
-      <div style={card}>
-        <TemplateToolbar
+            <div className="si-panel si-form-card" ref={formCardRef}>
+        {/* Temporarily hidden: template selector (always use template default) */}
+        {/* <TemplateToolbar
           templates={templates}
           selectedId={selectedTemplateId}
           onSelect={(idOrNull) => setSelectedTemplateId(idOrNull)}
           onRefresh={refreshTemplates}
-        />
-
-        <Stepper />
+        /> */}
 
         {msg && (
-          <div
-            style={{
-              color: okMsg ? '#065F46' : '#B91C1C',
-              background: okMsg ? '#ECFDF5' : '#FEF2F2',
-              border: `1px solid ${UI.color.border}`,
-              padding: 8,
-              borderRadius: 8,
-              marginBottom: 10,
-            }}
-          >
+          <div className={`si-alert ${okMsg ? 'si-alert--ok' : 'si-alert--err'}`} style={{ marginBottom: 12 }}>
             {msg}
           </div>
         )}
@@ -1052,54 +1444,190 @@ const meta = base?.meta && typeof base.meta === 'string'
             </div>
           </div>
         )}
+            </div>
 
-        <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-          <div style={{ color: UI.color.muted, fontSize: 12 }}>
-            Status: <b>{status}</b> • Core completion: <b>{progress}%</b>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" onClick={onSaveDraft} disabled={saving} style={btn('secondary')}>
-              Save Draft
-            </button>
-            <button type="button" onClick={exportPdf} disabled={exporting} style={btn('secondary')}>
-              Export PDF
-            </button>
-            {stepIdx > 0 && (
-              <button type="button" onClick={() => setStepIdx((i) => i - 1)} style={btn('secondary')}>
-                Back
-              </button>
-            )}
-            {template && stepIdx < (steps.length - 1) ? (
-              <button
-                type="button"
-                onClick={() => {
-                  const currentStep = steps[stepIdx];
-                  const currentStepId = currentStep?.id;
-                  const failMsg =
-                    'Please upload the required items before proceeding. (License selfie is required on Job Details)';
-                  if (template && currentStepId && !stepPassesGuards(template, currentStepId, form)) {
-                    setMsg(failMsg);
-                    // window.scrollTo({ top: 0, behavior: 'smooth' });
-                    return;
-                  }
-                  setMsg('');
-                  setStepIdx((i) => i + 1);
-                }}
-                style={btn('primary')}
-              >
-                Next
-              </button>
-            ) : (
-              <button type="button" onClick={onSubmit} disabled={saving} style={btn('primary')}>
-                {saving ? 'Submitting…' : 'Submit'}
-              </button>
-            )}
-          </div>
+        {(!template || stepIdx === steps.length - 1) && (
+          <section className="si-panel si-signoff">
+            <div style={{ fontWeight: 700, fontSize: 16, color: UI.color.navy, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              Customer sign-off
+              <span className="si-signoff-badge">Required</span>
+            </div>
+
+            {/* Confirmation statement */}
+            <div style={{
+              padding: '14px 16px', borderRadius: 12,
+              background: '#f8fafc', border: '1.5px solid #e2e8f0',
+              marginBottom: 16,
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#334155', lineHeight: 1.5, fontStyle: 'italic' }}>
+                "I confirm the site inspection has been completed and I approve all findings."
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gap: 12 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: UI.color.navy }}>Customer Name *</label>
+                <input
+                  type="text"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Full name"
+                  style={{ ...input, width: '100%', marginTop: 4 }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: UI.color.navy }}>Signature *</label>
+                <canvas
+                  ref={canvasRef}
+                  width={480}
+                  height={140}
+                  onMouseDown={startDraw}
+                  onMouseMove={draw}
+                  onMouseUp={endDraw}
+                  onMouseLeave={endDraw}
+                  onTouchStart={startDraw}
+                  onTouchMove={draw}
+                  onTouchEnd={endDraw}
+                  style={{
+                    border: '1.5px dashed #D1D5DB',
+                    borderRadius: 10,
+                    background: '#FAFAFA',
+                    display: 'block',
+                    width: '100%',
+                    cursor: 'crosshair',
+                    touchAction: 'none',
+                    marginTop: 4,
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={clearSignature}
+                  style={{
+                    marginTop: 10,
+                    padding: '10px 16px',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: '#fff',
+                    background: UI.color.teal,
+                    border: `1px solid ${UI.color.border}`,
+                    borderRadius: 10,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  Clear Signature
+                </button>
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={customerConfirmed}
+                  onChange={(e) => setCustomerConfirmed(e.target.checked)}
+                  style={{ marginTop: 2, accentColor: UI.color.teal, width: 16, height: 16, flexShrink: 0 }}
+                />
+                <span style={{ fontSize: 13, color: '#374151', lineHeight: 1.5 }}>
+                  I confirm the site inspection has been completed and I approve all findings.
+                </span>
+              </label>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: UI.color.navy }}>Notes (optional)</label>
+                <textarea
+                  value={customerNotes}
+                  onChange={(e) => setCustomerNotes(e.target.value)}
+                  rows={2}
+                  placeholder="Any additional notes…"
+                  style={{
+                    ...input,
+                    width: '100%',
+                    marginTop: 4,
+                    resize: 'vertical',
+                    fontFamily: 'inherit',
+                  }}
+                />
+              </div>
+            </div>
+          </section>
+        )}
+
+            <div className="si-footer-actions">
+              <div className="si-footer-meta">
+                {status} · {progress}% complete
+              </div>
+              <div className="si-footer-btns">
+                <button
+                  type="button"
+                  className="si-btn si-btn--ghost si-btn--lg"
+                  onClick={exportPdf}
+                  disabled={exporting}
+                >
+                  {exporting ? 'Exporting…' : 'Export PDF'}
+                </button>
+                <button
+                  type="button"
+                  className="si-btn si-btn--primary si-btn--lg"
+                  onClick={onSaveDraft}
+                  disabled={saving}
+                >
+                  {saving ? 'Saving…' : 'Save draft'}
+                </button>
+                {stepIdx > 0 && (
+                  <button type="button" onClick={() => setStepIdx((i) => i - 1)} className="si-btn si-btn--lg">
+                    Back
+                  </button>
+                )}
+                {template && stepIdx < (steps.length - 1) ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const currentStep = steps[stepIdx];
+                      const currentStepId = currentStep?.id;
+                      const failMsg =
+                        'Please upload the required items before proceeding. (License selfie is required on Job Details)';
+                      if (template && currentStepId && !stepPassesGuards(template, currentStepId, form)) {
+                        setMsg(failMsg);
+                        return;
+                      }
+                      setMsg('');
+                      setStepIdx((i) => i + 1);
+                    }}
+                    className="si-btn si-btn--primary si-btn--lg"
+                  >
+                    Next
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onSubmit}
+                    disabled={saving || isSubmitted || !customerConfirmed || !customerName.trim()}
+                    className="si-btn si-btn--primary si-btn--lg"
+                  >
+                    {isSubmitted ? 'Submitted' : saving ? 'Submitting…' : 'Submit'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </main>
         </div>
-      </div>
 
-      {/* Draft list */}
-      <div style={{ ...card }}>
+        <div className="si-lists">
+          <button
+            type="button"
+            className="si-lists-summary"
+            onClick={() => setOtherInspectionsOpen((o) => !o)}
+            aria-expanded={otherInspectionsOpen}
+          >
+            <span>Other inspections</span>
+            <span style={{ color: '#94a3b8', fontSize: 13 }}>
+              {draftList.length} draft · {submittedList.length} submitted · {otherInspectionsOpen ? '▼' : '▶'}
+            </span>
+          </button>
+
+          {otherInspectionsOpen ? (
+            <div className="si-lists-body">
+      <div className="si-list-block">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <div style={{ fontWeight: 800, fontSize: 14, color: UI.color.navy }}>Draft documents</div>
           <button type="button" onClick={() => loadInspectionLists()} style={btn('secondary')}>
@@ -1145,7 +1673,7 @@ const meta = base?.meta && typeof base.meta === 'string'
                 </div>
                 <button
                   type="button"
-                  onClick={() => window.open(`/admin/leads/${lead.id}/site-inspection`, '_blank')}
+                  onClick={() => window.open(`${basePath}/leads/${lead.id}/site-inspection`, '_blank')}
                   style={btn('secondary')}
                 >
                   Open
@@ -1198,7 +1726,7 @@ const meta = base?.meta && typeof base.meta === 'string'
                 </div>
                 <button
                   type="button"
-                  onClick={() => window.open(`/admin/leads/${lead.id}/site-inspection`, '_blank')}
+                  onClick={() => window.open(`${basePath}/leads/${lead.id}/site-inspection`, '_blank')}
                   style={btn('secondary')}
                 >
                   Open
@@ -1208,10 +1736,14 @@ const meta = base?.meta && typeof base.meta === 'string'
           </div>
         )}
       </div>
-    </div>
+            </div>
+          ) : null}
+        </div>
 
-    {/* Right sidebar - Checklist */}
-    <ChecklistWidget companyId={form.company_id} />
-  </div>
+        {/* Right sidebar - Checklist */}
+        {/* Temporarily hidden: checklist widget */}
+        {/* <ChecklistWidget companyId={form.company_id} /> */}
+      </div>
+    </div>
   );
 }

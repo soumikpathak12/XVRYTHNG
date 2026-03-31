@@ -2,6 +2,8 @@ import * as leadService from '../services/leadService.js';
 import * as customerCredentialsService from '../services/customerCredentialsService.js';
 import * as db from '../config/db.js';
 import * as activityService from '../services/activityService.js';
+import * as companyWorkflowService from '../services/companyWorkflowService.js';
+
 const STAGES = [
   'new',
   'contacted',
@@ -14,6 +16,7 @@ const STAGES = [
   'closed_lost',
 ];
 
+/** @deprecated use company workflow — kept for dashboard bucket keys */
 const STAGES_SET = new Set(STAGES);
 
 function toMySQLDateTime(value) {
@@ -60,7 +63,9 @@ export async function createLead(req, res) {
       system_size_kw,
       value_amount,
       source = null,
+      inspector_id,
       site_inspection_date = null,
+      sales_segment,
     } = req.body || {};
 
     const errors = {};
@@ -74,10 +79,6 @@ export async function createLead(req, res) {
 
     if (!suburb || !String(suburb).trim()) {
       errors.suburb = 'Suburb is required.';
-    }
-
-    if (!stage || !STAGES_SET.has(stage)) {
-      errors.stage = 'Invalid stage selected.';
     }
 
     // Required email
@@ -117,6 +118,30 @@ export async function createLead(req, res) {
       errors.site_inspection_date = 'Invalid date format.';
     }
 
+    // Optional inspector assignment for site inspection
+    if (inspector_id !== undefined) {
+      if (inspector_id === null || inspector_id === '') {
+        // treat empty as "not assigned"
+      } else if (Number.isNaN(Number(inspector_id))) {
+        errors.inspector_id = 'Invalid inspector_id.';
+      }
+    }
+
+    const companyId = req.tenantId ?? req.user?.companyId ?? null;
+    const { allKeys, enabledKeys } = await companyWorkflowService.getLeadStageSets(companyId);
+    if (!stage || !companyWorkflowService.isSafeStageKey(stage) || !allKeys.has(stage)) {
+      errors.stage = 'Invalid stage selected.';
+    } else if (!enabledKeys.has(stage)) {
+      errors.stage = 'This stage is disabled in your workflow settings.';
+    }
+
+    if (sales_segment !== undefined && sales_segment !== null && sales_segment !== '') {
+      const s = String(sales_segment).toLowerCase();
+      if (s !== 'b2c' && s !== 'b2b') {
+        errors.sales_segment = 'Must be b2c or b2b.';
+      }
+    }
+
     if (Object.keys(errors).length > 0) {
       return res.status(422).json({ success: false, errors });
     }
@@ -137,9 +162,17 @@ export async function createLead(req, res) {
           : Number(value_amount),
       source: source ? String(source).trim() : null,
       site_inspection_date: normalizedInspection,
+      inspector_id:
+        inspector_id === undefined || inspector_id === null || inspector_id === ''
+          ? undefined
+          : Number(inspector_id),
+      sales_segment:
+        sales_segment === undefined || sales_segment === null || sales_segment === ''
+          ? null
+          : String(sales_segment).toLowerCase(),
     };
 
-    const lead = await leadService.createLead(payload);
+    const lead = await leadService.createLead(payload, { allowedStageKeys: enabledKeys });
 
     // Log activity: lead created
     try {
@@ -182,7 +215,11 @@ export async function importLeads(req, res) {
       return res.status(400).json({ success: false, message: 'No leads provided.' });
     }
 
-    const { imported, failed, errors } = await leadService.importLeads(leads);
+    const companyId = req.tenantId ?? req.user?.companyId ?? null;
+    const { enabledKeys } = await companyWorkflowService.getLeadStageSets(companyId);
+    const { imported, failed, errors } = await leadService.importLeads(leads, {
+      allowedStageKeys: enabledKeys,
+    });
 
     return res.status(200).json({
       success: true,
@@ -200,12 +237,14 @@ export async function listLeads(req, res) {
   try {
     const grouped = String(req.query.grouped || '').trim() === '1';
 
+    const segQ = String(req.query.sales_segment || '').trim().toLowerCase();
     const filters = {
       stage: req.query.stage || undefined,
       search: req.query.search || undefined,
       assigned_user: req.query.assigned_user || undefined,
       limit: req.query.limit ? Number(req.query.limit) : undefined,
       offset: req.query.offset ? Number(req.query.offset) : undefined,
+      sales_segment: segQ === 'b2c' || segQ === 'b2b' ? segQ : undefined,
     };
 
     // IMPORTANT:
@@ -262,6 +301,25 @@ export async function listLeads(req, res) {
   }
 }
 
+/** POST /api/leads/:id/customer-portal-announce { type: 'pre_approval' | 'solar_vic' } — staff only */
+export async function announceCustomerPortalUtility(req, res) {
+  try {
+    if (String(req.user?.role || '').toLowerCase() === 'customer') {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+    const leadId = req.params.id;
+    const { type } = req.body || {};
+    const updated = await leadService.announceCustomerPortalUtilityToCustomer(leadId, type);
+    return res.status(200).json({ success: true, data: updated });
+  } catch (err) {
+    const status = err.statusCode || err.status || 500;
+    return res.status(status).json({
+      success: false,
+      message: err.message || 'Failed to update customer portal.',
+    });
+  }
+}
+
 // -------------------- GET BY ID (with relations) --------------------
 export async function getLeadById(req, res) {
   try {
@@ -291,6 +349,18 @@ export async function updateLead(req, res) {
     if (body.value_amount !== undefined) payload.value_amount = body.value_amount;
     if (body.source !== undefined) payload.source = body.source;
     if (body.site_inspection_date !== undefined) payload.site_inspection_date = toMySQLDateTime(body.site_inspection_date);
+    if (body.sales_segment !== undefined) {
+      const s = body.sales_segment;
+      if (s === null || s === '') {
+        payload.sales_segment = null;
+      } else {
+        const low = String(s).toLowerCase();
+        if (low !== 'b2c' && low !== 'b2b') {
+          return res.status(422).json({ success: false, errors: { sales_segment: 'Must be b2c or b2b.' } });
+        }
+        payload.sales_segment = low;
+      }
+    }
 
     if (body.system_type !== undefined) payload.system_type = trimOrNull(body.system_type, 100);
     if (body.house_storey !== undefined) payload.house_storey = trimOrNull(body.house_storey, 50);
@@ -311,6 +381,16 @@ export async function updateLead(req, res) {
 
     if (body.solar_vic_eligibility !== undefined)
       payload.solar_vic_eligibility = toBoolOrNull(body.solar_vic_eligibility);
+
+    const isCustomer = String(req.user?.role || '').toLowerCase() === 'customer';
+    if (!isCustomer) {
+      if (body.customer_portal_pre_approval_announced !== undefined) {
+        payload.customer_portal_pre_approval_announced = !!body.customer_portal_pre_approval_announced;
+      }
+      if (body.customer_portal_solar_vic_announced !== undefined) {
+        payload.customer_portal_solar_vic_announced = !!body.customer_portal_solar_vic_announced;
+      }
+    }
 
     if (body.nmi_number !== undefined) payload.nmi_number = trimOrNull(body.nmi_number, 50);
     if (body.meter_number !== undefined) payload.meter_number = trimOrNull(body.meter_number, 50);
@@ -346,8 +426,16 @@ export async function updateLead(req, res) {
       return res.status(200).json({ success: true, data: result.lead });
     }
 
-    if (payload.stage && !STAGES_SET.has(payload.stage)) {
-      return res.status(422).json({ success: false, errors: { stage: 'Invalid stage.' } });
+    if (payload.stage) {
+      const companyId = req.tenantId ?? req.user?.companyId ?? null;
+      const { allKeys, enabledKeys } = await companyWorkflowService.getLeadStageSets(companyId);
+      if (
+        !companyWorkflowService.isSafeStageKey(payload.stage) ||
+        !allKeys.has(payload.stage) ||
+        !enabledKeys.has(payload.stage)
+      ) {
+        return res.status(422).json({ success: false, errors: { stage: 'Invalid or disabled stage.' } });
+      }
     }
     const updated = await leadService.updateLead(leadId, payload);
     return res.status(200).json({ success: true, data: updated });
@@ -367,10 +455,12 @@ export async function updateLeadStage(req, res) {
     const leadId = req.params.id;
     const { stage } = req.body || {};
 
-    if (!stage || !STAGES_SET.has(stage)) {
+    const companyId = req.tenantId ?? req.user?.companyId ?? null;
+    const { enabledKeys } = await companyWorkflowService.getLeadStageSets(companyId);
+    if (!stage || !companyWorkflowService.isSafeStageKey(stage) || !enabledKeys.has(stage)) {
       return res.status(422).json({
         success: false,
-        errors: { stage: 'Invalid stage selected.' },
+        errors: { stage: 'Invalid stage selected or stage is disabled in your workflow.' },
       });
     }
 

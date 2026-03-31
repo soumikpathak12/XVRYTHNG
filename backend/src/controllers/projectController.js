@@ -39,6 +39,31 @@ export async function getProject(req, res) {
   }
 }
 
+/**
+ * GET /api/projects/by-lead/:leadId
+ * Used by customer portal to show project stage pipeline by leadId.
+ */
+export async function getProjectByLeadId(req, res) {
+  try {
+    const rawLeadId = req.params.leadId;
+    const leadId = rawLeadId != null ? String(rawLeadId).trim() : '';
+    if (!leadId) {
+      return res.status(422).json({ success: false, message: 'leadId is required.' });
+    }
+
+    const project = await projectService.getProjectByLeadId(leadId);
+    if (!project) {
+      return res.status(404).json({ success: false, message: 'Project not found for this lead.' });
+    }
+
+    // Keep response shape compatible with getProject(): { success:true, data: { ...project } }
+    return res.status(200).json({ success: true, data: project });
+  } catch (err) {
+    const status = err.statusCode ?? err.status ?? 500;
+    return res.status(status).json({ success: false, message: err.message ?? 'Failed to load project.' });
+  }
+}
+
 export async function updateProjectStage(req, res) {
   try {
     const projectId = req.params.id;
@@ -46,7 +71,8 @@ export async function updateProjectStage(req, res) {
     if (!stage) {
       return res.status(422).json({ success: false, errors: { stage: 'Stage is required.' } });
     }
-    const updated = await projectService.updateProjectStage(projectId, stage);
+    const companyId = req.tenantId ?? req.user?.companyId ?? null;
+    const updated = await projectService.updateProjectStage(projectId, stage, companyId);
     return res.status(200).json({ success: true, data: updated });
   } catch (err) {
     const status = err.statusCode ?? err.status ?? 500;
@@ -70,8 +96,27 @@ export async function updateProject(req, res) {
      if ('post_install_reference_no' in body) {
        allowedUpdates.post_install_reference_no = body.post_install_reference_no;
      }
+    if ('customer_name' in body) {
+      allowedUpdates.customer_name = body.customer_name;
+    }
+    if ('email' in body) {
+      allowedUpdates.email = body.email;
+    }
+    if ('phone' in body) {
+      allowedUpdates.phone = body.phone;
+    }
+    if ('suburb' in body) {
+      allowedUpdates.suburb = body.suburb;
+    }
+    if ('system_size_kw' in body) {
+      allowedUpdates.system_size_kw = body.system_size_kw;
+    }
+    if ('value_amount' in body) {
+      allowedUpdates.value_amount = body.value_amount;
+    }
 
-    const updated = await projectService.updateProject(projectId, allowedUpdates);
+    const companyId = req.tenantId ?? req.user?.companyId ?? null;
+    const updated = await projectService.updateProject(projectId, allowedUpdates, { companyId });
     return res.status(200).json({ success: true, data: updated });
   } catch (err) {
     const status = err.statusCode ?? err.status ?? 500;

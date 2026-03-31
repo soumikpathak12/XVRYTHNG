@@ -144,9 +144,9 @@ export async function requestOTPForEmail(email, linkToken = null) {
   }
   
   const otp = storeOTP(e, { leadId, customerName });
-  // TESTING: Commented out email sending to avoid quota limits
-  // await sendCustomerOTPEmail({ to: e, customerName, otp });
-  console.log(`[TESTING] OTP for ${e}: ${otp} (email sending disabled)`);
+  // Send OTP via Resend email service
+  await sendCustomerOTPEmail({ to: e, customerName, otp });
+  console.log(`[OTP] Sent OTP to ${e}`);
   return { sent: true };
 }
 
@@ -182,7 +182,7 @@ export async function sendCustomerOTPEmail({ to, customerName, otp }) {
   const from = getResendFrom();
   const loginUrl = `${PORTAL_BASE_URL}/portal/login`;
   const subject = 'Your XVRYTHNG customer portal login code';
-  const text = `Hello${customerName ? ` ${customerName}` : ''},\n\nYour one-time login code is: ${otp}\n\nUse this code to sign in at: ${loginUrl}\n\nThis code expires in 15 minutes. If you didn't request this, you can ignore this email.\n\n— XVRYTHNG`;
+  const text = `Hello${customerName ? ` ${customerName}` : ''},\n\nYour one-time login code is: ${otp}\nThis code expires in 15 minutes. If you didn't request this, you can ignore this email.\n\n— XVRYTHNG`;
   const html = `
     <p>Hello${customerName ? ` ${customerName}` : ''},</p>
     <p>Your one-time login code is: <strong>${otp}</strong></p>
@@ -191,22 +191,19 @@ export async function sendCustomerOTPEmail({ to, customerName, otp }) {
     <p>— XVRYTHNG</p>
   `;
 
-  // TESTING: Commented out email sending to avoid quota limits
-  // const resend = new Resend(apiKey);
-  // const toList = Array.isArray(to) ? to : [String(to)];
-  // console.log('[Resend] Sending OTP email to:', toList[0], 'from:', from);
-  // const { data, error } = await resend.emails.send({
-  //   from,
-  //   to: toList,
-  //   subject,
-  //   html,
-  //   text,
-  // });
-  // if (error) {
-  //   console.error('[Resend] OTP email failed:', error);
-  //   throw new Error(error.message || 'Failed to send email');
-  // }
-  // console.log('[Resend] OTP email sent, id:', data?.id);
-  console.log(`[TESTING] OTP email would be sent to ${to} with OTP: ${otp} (email sending disabled)`);
+  const resend = new Resend(apiKey);
+  const toList = Array.isArray(to) ? to : [String(to)];
+  const { error } = await resend.emails.send({
+    from,
+    to: toList,
+    subject,
+    html,
+    text,
+  });
+
+  if (error) {
+    console.error('[Resend] OTP email failed:', error);
+    throw new Error(error.message || 'Failed to send OTP email');
+  }
   return { sent: true };
 }

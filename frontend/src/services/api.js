@@ -26,6 +26,33 @@ export function setCustomerToken(token) {
   else localStorage.removeItem('xvrythng_customer_token');
 }
 
+/**
+ * Customer portal (customer JWT):
+ * - staff JWT uses `xvrythng_token` and `authFetch`
+ * - customer JWT uses `xvrythng_customer_token`
+ */
+async function customerAuthFetch(url, options = {}) {
+  const token = getCustomerToken();
+  const headers = {
+    ...(options.headers ?? {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+  const res = await fetch(`${BASE}${url}`, { ...options, headers });
+  return res;
+}
+
+async function customerAuthFetchJSON(url, options = {}) {
+  const res = await customerAuthFetch(url, options);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.message || 'Request failed');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data;
+}
+
 /** Store sent credentials for a lead (simulated). Called when staff sends credentials. */
 export function saveCustomerCredentials(email, { leadId, otp, customerName }) {
   const raw = localStorage.getItem(CUSTOMER_CREDENTIALS_KEY);
@@ -322,7 +349,14 @@ export async function authFetchJSON(url, options = {}) {
   const res = await authFetch(url, options);
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = new Error(body.message || 'Request failed');
+    const pieces = [
+      body.message,
+      body.sqlMessage,
+      body.error,
+      typeof body.detail === 'string' ? body.detail : null,
+    ].filter((x) => x != null && String(x).trim() !== '');
+    const primary = pieces.length > 0 ? pieces.join(' — ') : '';
+    const err = new Error(primary || `Request failed (${res.status})`);
     err.status = res.status;
     err.body = body;
     err.code = body.code;
@@ -661,6 +695,26 @@ export async function changePasswordMe({ currentPassword, newPassword }) {
 
   return data;
 }
+
+/**
+ * DELETE /api/users/me
+ * Permanently delete the currently authenticated account.
+ */
+export async function deleteMyAccount() {
+  const res = await authFetch('/api/users/me', { method: 'DELETE' });
+  const data = await res.json().catch(() => ({}));
+
+  if (res.status === 404 || res.status === 405) {
+    throw new Error('Delete account is not enabled on this server yet. Please contact support.');
+  }
+
+  if (!res.ok) {
+    throw new Error(data.message || 'Failed to delete account');
+  }
+
+  return data;
+}
+
 /**
  * ADMIN: POST /api/admin/change-password
  * @param {{ currentPassword: string, newPassword: string }} param0
@@ -717,6 +771,39 @@ export async function updateCompanyProfile(payload) {
   if (!res.ok) throw new Error(data.message ?? 'Failed to update company profile');
   return data; // { success:true, data:{...} }
 }
+
+/** GET /api/company/module-settings — company_admin | manager */
+export async function getCompanyModuleSettings() {
+  return authFetchJSON('/api/company/module-settings', { method: 'GET' });
+}
+
+/** PATCH /api/company/module-settings — partial toggles, immediate save */
+export async function patchCompanyModuleSettings(partialToggles) {
+  return authFetchJSON('/api/company/module-settings', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(partialToggles ?? {}),
+  });
+}
+
+/** GET /api/company/workflow — enabled stages only (Kanban). */
+export async function getCompanyWorkflow() {
+  return authFetchJSON('/api/company/workflow', { method: 'GET' });
+}
+
+/** GET /api/company/workflow-settings — full config (admin). */
+export async function getCompanyWorkflowSettings() {
+  return authFetchJSON('/api/company/workflow-settings', { method: 'GET' });
+}
+
+/** PATCH /api/company/workflow-settings — body { pipeline, stages } */
+export async function patchCompanyWorkflowSettings(body) {
+  return authFetchJSON('/api/company/workflow-settings', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body ?? {}),
+  });
+}
 // --- add to: src/services/api.js ---
 
 /**
@@ -772,6 +859,7 @@ const normalizeLead = (row) => {
     value: row.value_amount ?? null,
     source: row.source ?? '',
     siteInspectionDate: row.site_inspection_date ?? null,
+    sales_segment: row.sales_segment ?? null,
     // include any extra columns you return from the DB if the UI needs them
     createdAt: row.created_at ?? undefined,
     updatedAt: row.updated_at ?? undefined,
@@ -850,7 +938,7 @@ export async function importLeads(leads) {
 
 /**
  * GET /api/leads
- * @param {{ grouped?: boolean, stage?: string, search?: string, assigned_user?: string, limit?: number, offset?: number }} params
+ * @param {{ grouped?: boolean, stage?: string, search?: string, assigned_user?: string, sales_segment?: 'b2c'|'b2b', limit?: number, offset?: number }} params
  * @returns {Promise<{ success: boolean, data: any }>}
  */
 export async function getLeads(params = {}) {
@@ -859,6 +947,9 @@ export async function getLeads(params = {}) {
   if (params.stage) q.set('stage', params.stage);
   if (params.search) q.set('search', params.search);
   if (params.assigned_user) q.set('assigned_user', params.assigned_user);
+  if (params.sales_segment === 'b2c' || params.sales_segment === 'b2b') {
+    q.set('sales_segment', params.sales_segment);
+  }
   if (params.site_inspection) q.set('site_inspection', '1');
   if (typeof params.limit === 'number') q.set('limit', String(params.limit));
   if (typeof params.offset === 'number') q.set('offset', String(params.offset));
@@ -886,6 +977,13 @@ export async function getLead(id) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message || 'Lead not found');
   return data; // { success: true, lead, activities, documents, communications }
+}
+
+/**
+ * Customer portal: GET /api/leads/:id using customer JWT.
+ */
+export async function getLeadCustomer(id) {
+  return customerAuthFetchJSON(`/api/leads/${encodeURIComponent(id)}`, { method: 'GET' });
 }
 
 /**
@@ -982,6 +1080,20 @@ export async function updateLead(id, payload) {
     throw err;
   }
   if (!res.ok) throw new Error(data.message || 'Failed to update lead');
+  return data;
+}
+
+/**
+ * POST /api/leads/:id/customer-portal-announce — staff only; type: 'pre_approval' | 'solar_vic'
+ */
+export async function announceCustomerPortalUtility(leadId, type) {
+  const res = await authFetch(`/api/leads/${encodeURIComponent(leadId)}/customer-portal-announce`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Failed to update customer portal');
   return data;
 }
 
@@ -1754,6 +1866,46 @@ export async function getProject(projectId) {
   return data; // { success:true, data:{...} }
 }
 
+/**
+ * GET /api/projects/:id/documents — files uploaded on the project Documents tab.
+ */
+export async function getProjectDocuments(projectId) {
+  const res = await authFetch(`/api/projects/${encodeURIComponent(projectId)}/documents`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to load project documents');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data; // { success:true, data: [...] }
+}
+
+/**
+ * GET /api/projects/by-lead/:leadId
+ * Fetch a single project by its associated lead_id.
+ */
+export async function getProjectByLeadId(leadId) {
+  const res = await authFetch(`/api/projects/by-lead/${encodeURIComponent(leadId)}`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to load project for lead');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+
+  return data; // { success:true, data:{...} }
+}
+
+/**
+ * Customer portal: GET /api/projects/by-lead/:leadId using customer JWT.
+ */
+export async function getProjectByLeadIdCustomer(leadId) {
+  return customerAuthFetchJSON(`/api/projects/by-lead/${encodeURIComponent(leadId)}`, { method: 'GET' });
+}
+
 export async function updateProjectStage(projectId, stage) {
   const res = await authFetch(`/api/projects/${encodeURIComponent(projectId)}/stage`, {
     method: 'PATCH',
@@ -2135,6 +2287,12 @@ export async function getOnFieldCalendar(params = {}) {
 export async function listApprovals(params = {}) {
   const q = new URLSearchParams(params).toString();
   return authFetchJSON(`/api/approvals${q ? `?${q}` : ''}`, { method: 'GET' });
+}
+
+/** GET /api/financial/profit-loss-adjustments?fromDate=YYYY-MM-DD&toDate=YYYY-MM-DD */
+export async function getProfitLossAdjustments(params = {}) {
+  const q = new URLSearchParams(params).toString();
+  return authFetchJSON(`/api/financial/profit-loss-adjustments${q ? `?${q}` : ''}`, { method: 'GET' });
 }
 
 /** GET /api/approvals/count – returns { pending, by_type: { leave, expense, attendance } } */

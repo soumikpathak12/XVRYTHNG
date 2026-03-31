@@ -111,21 +111,6 @@ export default function LeadDetailSolarQuotes({ lead }) {
                 </div>
 
             </div>
-
-            {/* Fallback to show full raw data if debugging/needed */}
-            <details style={{ marginTop: '20px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
-                <summary style={{ cursor: 'pointer', color: '#6b7280', fontSize: '0.875rem' }}>View Full Raw Payload</summary>
-                <pre style={{
-                    background: '#f9fafb',
-                    padding: '10px',
-                    borderRadius: '4px',
-                    fontSize: '0.75rem',
-                    overflow: 'auto',
-                    marginTop: '10px'
-                }}>
-                    {JSON.stringify(sqData, null, 2)}
-                </pre>
-            </details>
         </div>
     );
 }

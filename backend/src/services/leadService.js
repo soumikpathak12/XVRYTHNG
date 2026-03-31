@@ -1,4 +1,5 @@
 import db from '../config/db.js';
+import { isSafeStageKey } from './companyWorkflowService.js';
 
 const STAGES = new Set([
   'new',
@@ -21,7 +22,7 @@ function deriveFlags(stage) {
 /**
  * Insert a new lead and return the created row.
  */
-export async function createLead(payload) {
+export async function createLead(payload, options = {}) {
   const {
     stage,
     customer_name,
@@ -33,11 +34,14 @@ export async function createLead(payload) {
     source,
     referred_by_lead_id = null,
     site_inspection_date,
+    inspector_id,
     external_id = null,
     marketing_payload_json = null,
+    sales_segment = null,
   } = payload;
 
-  if (!STAGES.has(stage)) {
+  const allowed = options.allowedStageKeys ?? STAGES;
+  if (!isSafeStageKey(stage) || !allowed.has(stage)) {
     const err = new Error('Invalid stage');
     err.statusCode = 400;
     throw err;
@@ -46,13 +50,16 @@ export async function createLead(payload) {
   const { is_closed, is_won } = deriveFlags(stage);
   const won_lost_at = is_closed ? new Date() : null;
 
+  const seg =
+    sales_segment === 'b2c' || sales_segment === 'b2b' ? sales_segment : null;
+
   const sql = `
     INSERT INTO leads
     (stage, customer_name, email, phone, suburb, system_size_kw, value_amount,
      source, referred_by_lead_id, is_closed, is_won, won_lost_at, last_activity_at, site_inspection_date, 
-     external_id, marketing_payload_json)
+     external_id, marketing_payload_json, sales_segment)
     VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?)
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?)
   `;
   const params = [
     stage,
@@ -72,6 +79,7 @@ export async function createLead(payload) {
     marketing_payload_json
       ? (typeof marketing_payload_json === 'string' ? marketing_payload_json : JSON.stringify(marketing_payload_json))
       : null,
+    seg,
   ];
 
   const [result] = await db.execute(sql, params);
@@ -98,6 +106,26 @@ export async function createLead(payload) {
     }
   }
 
+  // If caller provided inspector + site_inspection_date, we must create the
+  // lead_site_inspections row so employee sidebar/calendar can find assignments.
+  if (inspector_id && site_inspection_date) {
+    const siteDt = String(site_inspection_date);
+    const scheduledDate = siteDt.slice(0, 10); // YYYY-MM-DD
+    const scheduledTime = siteDt.slice(11, 16); // HH:mm
+    try {
+      const updated = await scheduleLeadInspection(created.id, {
+        scheduledDate,
+        scheduledTime,
+        inspectorId: inspector_id,
+      });
+      // Keep response consistent with what scheduleLeadInspection changes (e.g. stage).
+      return updated;
+    } catch (e) {
+      // If scheduleLeadInspection fails, fail the request so UI can surface it.
+      throw e;
+    }
+  }
+
   return created;
 }
 
@@ -106,7 +134,7 @@ export async function createLead(payload) {
  * @param {Array} leads
  * @returns {Promise<{ imported: number, failed: number, errors: Array<{ row: number, error: string }> }>}
  */
-export async function importLeads(leads) {
+export async function importLeads(leads, options = {}) {
   let imported = 0;
   let failed = 0;
   const errors = [];
@@ -114,7 +142,7 @@ export async function importLeads(leads) {
   for (let i = 0; i < leads.length; i++) {
     const lead = leads[i];
     try {
-      await createLead(lead);
+      await createLead(lead, { allowedStageKeys: options.allowedStageKeys });
       imported++;
     } catch (err) {
       failed++;
@@ -139,7 +167,7 @@ export async function getLeads(filters = {}) {
   const where = [];
   const params = [];
 
-  if (filters.stage && STAGES.has(filters.stage)) {
+  if (filters.stage && String(filters.stage).length <= 80) {
     where.push('stage = ?');
     params.push(filters.stage);
   }
@@ -151,6 +179,11 @@ export async function getLeads(filters = {}) {
     where.push('(customer_name LIKE ? OR suburb LIKE ? OR source LIKE ?)');
     const q = `%${filters.search}%`;
     params.push(q, q, q);
+  }
+
+  if (filters.sales_segment === 'b2c' || filters.sales_segment === 'b2b') {
+    where.push('sales_segment = ?');
+    params.push(filters.sales_segment);
   }
 
   // When inspector_id is set, only return leads assigned to that inspector (join lead_site_inspections).
@@ -374,6 +407,19 @@ export async function updateLead(leadId, payload) {
     updates.push('site_inspection_date = ?');
     params.push(site_inspection_date);
   }
+  if (payload.sales_segment !== undefined) {
+    const seg = payload.sales_segment;
+    updates.push('sales_segment = ?');
+    params.push(seg === 'b2c' || seg === 'b2b' ? seg : null);
+  }
+  if (payload.email !== undefined) {
+    updates.push('email = ?');
+    params.push(payload.email ? String(payload.email).trim() : null);
+  }
+  if (payload.phone !== undefined) {
+    updates.push('phone = ?');
+    params.push(payload.phone ? String(payload.phone).trim() : null);
+  }
 
   // NEW: System / Property / Utility
   if (payload.system_type !== undefined) {
@@ -429,6 +475,14 @@ export async function updateLead(leadId, payload) {
   if (payload.meter_number !== undefined) {
     updates.push('meter_number = ?');
     params.push(payload.meter_number ?? null);
+  }
+  if (payload.customer_portal_pre_approval_announced !== undefined) {
+    updates.push('customer_portal_pre_approval_announced = ?');
+    params.push(payload.customer_portal_pre_approval_announced ? 1 : 0);
+  }
+  if (payload.customer_portal_solar_vic_announced !== undefined) {
+    updates.push('customer_portal_solar_vic_announced = ?');
+    params.push(payload.customer_portal_solar_vic_announced ? 1 : 0);
   }
 
   // PV details
@@ -518,6 +572,47 @@ export async function updateLead(leadId, payload) {
   return lead;
 }
 
+/** Staff-only: show “Pre-approval taken” / Solar Vic line on customer My Project after field is filled. */
+export async function announceCustomerPortalUtilityToCustomer(leadId, type) {
+  if (!leadId || Number.isNaN(Number(leadId))) {
+    const err = new Error('Invalid lead id');
+    err.statusCode = 400;
+    throw err;
+  }
+  const t = String(type || '').trim();
+  if (t !== 'pre_approval' && t !== 'solar_vic') {
+    const err = new Error('Invalid announcement type');
+    err.statusCode = 422;
+    throw err;
+  }
+  const [rows] = await db.execute(
+    'SELECT id, pre_approval_reference_no, solar_vic_eligibility FROM leads WHERE id = ? LIMIT 1',
+    [leadId],
+  );
+  const row = rows?.[0];
+  if (!row) {
+    const err = new Error('Lead not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  if (t === 'pre_approval') {
+    if (!String(row.pre_approval_reference_no ?? '').trim()) {
+      const err = new Error(
+        'Pre-approval reference number must be filled before notifying the customer.',
+      );
+      err.statusCode = 422;
+      throw err;
+    }
+    return updateLead(leadId, { customer_portal_pre_approval_announced: true });
+  }
+  if (row.solar_vic_eligibility == null) {
+    const err = new Error('Solar Victoria eligibility must be set before notifying the customer.');
+    err.statusCode = 422;
+    throw err;
+  }
+  return updateLead(leadId, { customer_portal_solar_vic_announced: true });
+}
+
 /** -------------------- UPDATE STAGE (set contacted_at when entering 'contacted') -------------------- */
 export async function updateLeadStage(leadId, nextStage) {
   if (!leadId || Number.isNaN(Number(leadId))) {
@@ -525,7 +620,7 @@ export async function updateLeadStage(leadId, nextStage) {
     err.statusCode = 400;
     throw err;
   }
-  if (!STAGES.has(nextStage)) {
+  if (!isSafeStageKey(nextStage)) {
     const err = new Error('Invalid stage');
     err.statusCode = 400;
     throw err;

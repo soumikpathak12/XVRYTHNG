@@ -36,7 +36,9 @@ function formatDate(dateString) {
  *   onStageChange?: (leadId: string|number, nextStage: string) => void,
  * }} props
  */
-export default function LeadsTable({ leads = [], onStageChange, onSelectLead }) {
+export default function LeadsTable({ leads = [], onStageChange, onSelectLead, stages: stagesProp }) {
+  const stageList = stagesProp && stagesProp.length ? stagesProp : STAGES;
+  const stageKeys = useMemo(() => new Set(stageList.map((s) => s.key)), [stageList]);
   const [sortKey, setSortKey] = useState('customerName');
   const [sortDir, setSortDir] = useState(SORT_ASC);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -161,11 +163,14 @@ export default function LeadsTable({ leads = [], onStageChange, onSelectLead }) 
                   <td className="leads-table-td leads-table-td-stage">
                     <select
                       className={`leads-table-stage-select leads-table-stage-${lead.stage === 'closed_won' ? 'won' : lead.stage === 'closed_lost' ? 'lost' : 'default'}`}
-                      value={lead.stage || 'new'}
+                      value={lead.stage ?? stageList[0]?.key}
                       onChange={(e) => onStageChange?.(lead.id, e.target.value)}
                       aria-label={`Change stage for ${lead.customerName}`}
                     >
-                      {STAGES.map((s) => (
+                      {!stageKeys.has(lead.stage) && lead.stage && (
+                        <option value={lead.stage}>{lead.stage} (inactive)</option>
+                      )}
+                      {stageList.map((s) => (
                         <option key={s.key} value={s.key}>
                           {s.label}
                         </option>

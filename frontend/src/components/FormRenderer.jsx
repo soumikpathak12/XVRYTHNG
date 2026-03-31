@@ -2,10 +2,19 @@
 import React from 'react';
 import FieldControl from './FieldControl.jsx';
 import { isVisible } from '../utils/template.js';
+import { resolveUploadUrl } from '../utils/resolveUploadUrl.js';
 
 export default function FormRenderer({ template, stepIndex, formData, setFormData, onPickFile }) {
   const steps = Array.isArray(template.steps) ? template.steps : JSON.parse(template.steps || '[]');
   const step = steps[stepIndex] || { sections: [] };
+
+  const getByPath = React.useCallback((obj, path) => {
+    if (!obj || !path) return undefined;
+    const norm = String(path).replace(/\[(\d+)\]/g, '.$1');
+    return norm
+      .split('.')
+      .reduce((acc, k) => (acc && Object.prototype.hasOwnProperty.call(acc, k) ? acc[k] : undefined), obj);
+  }, []);
 
   // Collect all media items (photos/files) across the entire template for Media Summary.
   const allMediaItems = React.useMemo(() => {
@@ -18,8 +27,9 @@ export default function FormRenderer({ template, stepIndex, formData, setFormDat
           if (!v) continue;
           const pushItem = (obj) => {
             if (!obj) return;
-            const src = obj.preview_data_url || obj.storage_url;
-            if (!src) return;
+            const raw = obj.preview_data_url || obj.storage_url;
+            if (!raw) return;
+            const src = resolveUploadUrl(raw);
             items.push({
               sectionLabel: sec.label,
               fieldLabel: f.label,
@@ -97,15 +107,15 @@ export default function FormRenderer({ template, stepIndex, formData, setFormDat
         return (
           <div key={section.id} style={{display:'grid', gap:10}}>
             <div style={{fontWeight:800, fontSize:16}}>{section.label}</div>
-            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
               {section.fields.filter(f => isVisible(f, formData)).map(field => (
-                <div key={field.key} style={{display:'grid', gap:6}}>
+                <div key={field.key} style={{ display: 'grid', gap: 6, minWidth: 0 }}>
                   <div style={{fontSize:12, fontWeight:700}}>
                     {field.label}{field.required ? ' *' : ''}
                   </div>
                   <FieldControl
                     field={field}
-                    value={formData[field.key]}
+                    value={Object.prototype.hasOwnProperty.call(formData || {}, field.key) ? formData[field.key] : getByPath(formData, field.key)}
                     onChange={(v) => setFormData(prev => ({ ...prev, [field.key]: v }))}
                     onPickFile={onPickFile}
                   />

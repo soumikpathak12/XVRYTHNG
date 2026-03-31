@@ -179,19 +179,6 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
       setSaving(true);
       setErrText('');
 
-      // Validate account if enable_login
-      if (form.account.enable_login) {
-        if (!form.account.password || form.account.password.length < 8) {
-          throw new Error('Password must be at least 8 characters');
-        }
-        if (form.account.password !== form.account.password_confirm) {
-          throw new Error('Password does not match');
-        }
-        if (!form.contact.email) {
-          throw new Error('Email is required when enabling login');
-        }
-      }
-
       await onSubmit(form);
     } catch (err) {
       setErrText(err?.message ?? 'Failed to save.');
@@ -208,11 +195,7 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
   };
   const labelStyle = { fontSize: 13, fontWeight: 700, color: '#374151' };
 
-  const canSubmit =
-    !form.account.enable_login ||
-    (form.account.password &&
-      form.account.password.length >= 8 &&
-      form.account.password === form.account.password_confirm);
+  const canSubmit = true;
 
   return (
     <form onSubmit={submit} style={{ display: 'grid', gap: 14 }}>
@@ -388,45 +371,7 @@ function EmployeeForm({ onCancel, onSubmit, initial, companyId }) {
         </ul>
       </div>
 
-      {/* Enable Login */}
-      <div style={{ display: 'grid', gap: 6 }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <input
-            type="checkbox"
-            checked={form.account.enable_login}
-            onChange={(e) => handleChange(['account', 'enable_login'], e.target.checked)}
-          />
-          Enable login for this employee
-        </label>
-        <div style={{ fontSize: 12, color: '#6B7280', marginTop: -6, marginBottom: 6 }}>
-          An onboarding email with the login credentials will be sent to the employee's email.
-        </div>
-        {form.account.enable_login && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div style={{ display: 'grid', gap: 6 }}>
-              <label style={labelStyle}>Password</label>
-              <input
-                type="password"
-                style={inputStyle}
-                value={form.account.password}
-                onChange={(e) => handleChange(['account', 'password'], e.target.value)}
-                placeholder="At least 8 characters"
-                required
-              />
-            </div>
-            <div style={{ display: 'grid', gap: 6 }}>
-              <label style={labelStyle}>Confirm password</label>
-              <input
-                type="password"
-                style={inputStyle}
-                value={form.account.password_confirm}
-                onChange={(e) => handleChange(['account', 'password_confirm'], e.target.value)}
-                required
-              />
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Login credentials are managed separately via the "+ Login" modal. */}
 
       {/* Errors */}
       {errText && (

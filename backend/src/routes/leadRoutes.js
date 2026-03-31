@@ -14,6 +14,7 @@ import {
   getLeadsCount,
   getSalesDashboard,
   scheduleInspection,
+  announceCustomerPortalUtility,
 } from '../controllers/leadController.js';
 import { tenantContext } from '../middleware/tenantContext.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -31,6 +32,7 @@ router.get('/count',     getLeadsCount);
 router.get('/dashboard', getSalesDashboard);
 
 router.get('/:id/customer-portal-test-link', getCustomerPortalTestLink);
+router.post('/:id/customer-portal-announce', announceCustomerPortalUtility);
 router.get('/:id/notes', listLeadNotes);
 router.post('/:id/notes', addLeadNote);
 router.post('/:id/send-customer-credentials', sendCustomerCredentials);

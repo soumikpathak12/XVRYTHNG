@@ -9,8 +9,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
-  Briefcase,
-  Building2,
   Gift,
   LayoutDashboard,
   PalmtreeIcon,
@@ -18,17 +16,19 @@ import {
   Wrench,
   CheckCircle2,
   Calculator,
-  CreditCard,
+  TrendingUp,
 } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { getCompanySidebar } from '../../services/api.js';
+import { useSidebar } from '../../context/AuthContext.jsx';
+import { navItemMatchesLocation } from '../../utils/navLinkMatch.js';
 
 const EMP_MODULE_NAV = {
   // Always show Dashboard
   dashboard: { to: '/employee', label: 'Dashboard', icon: LayoutDashboard },
 
-  // Module-driven items
-  leads_pipeline: { to: '/employee/leads', label: 'Leads Pipeline', icon: UsersRound },
+  // Module-driven items (segment-specific pipelines)
+  leads: { to: '/employee/leads', label: 'Leads Kanban', icon: TrendingUp },
   site_inspection: { to: '/employee/site-inspection', label: 'Site Inspection', icon: UsersRound },
   on_field: { to: '/employee/on-field', label: 'On-Field', icon: HardHat },
   installation: { to: '/employee/installation', label: 'Installation Day', icon: Wrench },
@@ -49,6 +49,7 @@ const EMP_MODULE_NAV = {
 
 export default function EmployeeSidebar() {
   const location = useLocation();
+  const { sidebarVersion } = useSidebar();
   const [collapsed, setCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [modules, setModules] = useState([]);
@@ -59,11 +60,8 @@ export default function EmployeeSidebar() {
       try {
         setLoading(true);
         const data = await getCompanySidebar(); // GET /api/me/sidebar
-        console.log('[EmployeeSidebar] sidebar data:', data);
-        console.log('[EmployeeSidebar] modules:', data?.modules);
         if (!alive) return;
         const mods = Array.isArray(data?.modules) ? data.modules : [];
-        console.log('[EmployeeSidebar] setting modules:', mods);
         setModules(mods);
       } catch (err) {
         console.error('[EmployeeSidebar] Error loading sidebar:', err);
@@ -72,47 +70,73 @@ export default function EmployeeSidebar() {
       }
     })();
     return () => { alive = false; };
-  }, []);
+  }, [sidebarVersion]);
 
   const allowed = new Set(modules ?? []);
 
   // Track expanded/collapsed state for parent items like Projects
   const [openKeys, setOpenKeys] = useState(() => {
-    const isProjectsPath = location.pathname.startsWith('/employee/projects');
-    return { projects: isProjectsPath };
+    const pathname = location.pathname || '';
+    return {
+      sales: pathname === '/employee' || pathname.startsWith('/employee/leads'),
+      project_manager: pathname.startsWith('/employee/projects'),
+      attendance: pathname.startsWith('/employee/attendance'),
+      on_field:
+        pathname.startsWith('/employee/on-field') ||
+        pathname.startsWith('/employee/site-inspection') ||
+        pathname.startsWith('/employee/installation'),
+      communications:
+        pathname.startsWith('/employee/messages') ||
+        pathname.startsWith('/employee/referrals') ||
+        pathname.startsWith('/employee/support-tickets'),
+      operations:
+        pathname.startsWith('/employee/approvals') ||
+        pathname.startsWith('/employee/payroll'),
+      settings: pathname.startsWith('/employee/settings'),
+    };
   });
 
   const toggleOpen = useCallback((key) => {
     setOpenKeys((prev) => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
-  // Grouped nav structure
+  const hasOps = allowed.has('operations');
+  const hasPayroll = allowed.has('payroll');
+  const operationsTitle =
+    hasOps && hasPayroll ? 'Approvals & Payroll' : hasOps ? 'Approvals' : 'Payroll';
+
+  // Grouped nav structure (DB: approvals → module `operations`, payroll → module `payroll`)
   const sections = [
     {
       key: 'sales',
-      title: 'Sales Module',
+      title: 'Sales Management',
       items: [
         EMP_MODULE_NAV.dashboard,
-        ...(allowed.has('leads') ? [EMP_MODULE_NAV.leads_pipeline] : []),
-        ...(allowed.has('projects') ? [
-          {
-            key: 'projects',
-            label: 'Projects',
-            icon: Building2,
-            children: [
-              { to: '/employee/projects/dashboard', label: 'Dashboard' },
-              { to: '/employee/projects', label: 'In-house', end: true },
-              { to: '/employee/projects/retailer', label: 'Retailer' },
-            ],
-          },
-        ] : []),
+        ...(allowed.has('leads') ? [EMP_MODULE_NAV.leads] : []),
       ],
+    },
+    {
+      key: 'project_manager',
+      title: 'Project Manager Module',
+      items: [
+        ...(allowed.has('projects')
+          ? [
+              { to: '/employee/projects/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+              { to: '/employee/projects', label: 'In-house Project', icon: Wrench, end: true },
+              { to: '/employee/projects/retailer', label: 'Retailer Project', icon: Wrench },
+            ]
+          : []),
+      ],
+    },
+    {
+      key: 'attendance',
+      title: 'Attendance',
+      items: [...(allowed.has('attendance') ? [EMP_MODULE_NAV.attendance] : [])],
     },
     {
       key: 'on_field',
       title: 'On-Field Module',
       items: [
-        ...(allowed.has('attendance') ? [EMP_MODULE_NAV.attendance] : []),
         ...(allowed.has('on_field') ? [EMP_MODULE_NAV.on_field] : []),
         ...(allowed.has('site_inspection') ? [EMP_MODULE_NAV.site_inspection] : []),
         ...(allowed.has('installation') ? [EMP_MODULE_NAV.installation] : []),
@@ -129,10 +153,10 @@ export default function EmployeeSidebar() {
     },
     {
       key: 'operations',
-      title: 'Approvals & Payroll',
+      title: operationsTitle,
       items: [
-        EMP_MODULE_NAV.approvals,
-        EMP_MODULE_NAV.payroll,
+        ...(hasOps ? [EMP_MODULE_NAV.approvals] : []),
+        ...(hasPayroll ? [EMP_MODULE_NAV.payroll] : []),
       ],
     },
     {
@@ -180,14 +204,21 @@ export default function EmployeeSidebar() {
     boxShadow: 'inset 4px 0 0 #146b6b',
     borderRadius: 12,
   };
+  const moduleItemsWrapper = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+    paddingLeft: 8,
+    marginTop: 4,
+  };
 
   const pathname = location.pathname || '';
   const isSalesPath =
     pathname === '/employee' ||
-    pathname.startsWith('/employee/leads') ||
-    pathname.startsWith('/employee/projects');
+    pathname.startsWith('/employee/leads');
+  const isProjectManagerPath = pathname.startsWith('/employee/projects');
+  const isAttendancePath = pathname.startsWith('/employee/attendance');
   const isOnFieldPath =
-    pathname.startsWith('/employee/attendance') ||
     pathname.startsWith('/employee/on-field') ||
     pathname.startsWith('/employee/site-inspection') ||
     pathname.startsWith('/employee/installation');
@@ -195,7 +226,9 @@ export default function EmployeeSidebar() {
     pathname.startsWith('/employee/messages') ||
     pathname.startsWith('/employee/referrals') ||
     pathname.startsWith('/employee/support-tickets');
-  const isOperationsPath = pathname.startsWith('/employee/operations');
+  const isOperationsPath =
+    pathname.startsWith('/employee/approvals') ||
+    pathname.startsWith('/employee/payroll');
   const isSettingsPath = pathname.startsWith('/employee/settings');
 
   return (
@@ -219,144 +252,82 @@ export default function EmployeeSidebar() {
         ) : sections.length === 0 ? (
           <div style={{ color: '#6B7280', fontSize: 13, padding: '4px 10px' }}>No items.</div>
         ) : (
-          sections.flatMap((sec, idx) => {
-            const nodes = [];
-            if (!collapsed) {
-              if (idx > 0) nodes.push(<div key={`sep-${sec.key}`} style={{ height: 1, background: '#F3F4F6', margin: '8px 0' }} />);
-              const isActiveHeader =
-                (sec.key === 'sales' && isSalesPath) ||
-                (sec.key === 'on_field' && isOnFieldPath) ||
-                (sec.key === 'communications' && isCommunicationsPath) ||
-                (sec.key === 'operations' && isOperationsPath) ||
-                (sec.key === 'settings' && isSettingsPath);
+          sections.map((sec, idx) => {
+            const isActiveHeader =
+              (sec.key === 'sales' && isSalesPath) ||
+              (sec.key === 'project_manager' && isProjectManagerPath) ||
+              (sec.key === 'attendance' && isAttendancePath) ||
+              (sec.key === 'on_field' && isOnFieldPath) ||
+              (sec.key === 'communications' && isCommunicationsPath) ||
+              (sec.key === 'operations' && isOperationsPath) ||
+              (sec.key === 'settings' && isSettingsPath);
+            // Use openKeys as the source of truth so user can collapse even while inside the module route.
+            const isOpen = openKeys[sec.key] ?? false;
 
-              nodes.push(
-                <div
-                  key={`hdr-${sec.key}`}
-                  style={{
-                    ...moduleHeader,
-                    ...(isActiveHeader ? moduleHeaderActiveStyle : {}),
-                  }}
-                >
-                  {sec.title}
-                </div>
-              );
-            }
-            sec.items.forEach((it) => {
-              // Check if this is a parent item with children (like Projects)
-              if (it.children && it.children.length > 0) {
-                const Icon = it.icon;
-                const anyChildActive = it.children.some((c) => location.pathname.startsWith(c.to));
-                const isOpen = openKeys[it.key] ?? anyChildActive;
-
-                // When collapsed, show only the icon
-                if (collapsed) {
-                  nodes.push(
-                    <div
-                      key={it.key}
-                      onClick={() => toggleOpen(it.key)}
-                      style={{
-                        ...linkBase,
-                        justifyContent: 'center',
-                        padding: 10,
-                        cursor: 'pointer',
-                        ...(anyChildActive ? { background: 'rgba(20,107,107,0.10)', color: '#0f1a2b', boxShadow: 'inset 4px 0 0 #146b6b', borderRadius: 12 } : {}),
-                      }}
-                      aria-expanded={!!isOpen}
-                    >
-                      <Icon size={20} />
-                    </div>
-                  );
-                } else {
-                  // When expanded, show the parent with expand/collapse arrow
-                  nodes.push(
-                    <div key={it.key}>
-                      <div
-                        onClick={() => toggleOpen(it.key)}
-                        style={{
-                          ...linkBase,
-                          cursor: 'pointer',
-                          justifyContent: 'space-between',
-                          ...(anyChildActive ? activeStyle : {}),
-                        }}
-                        aria-expanded={!!isOpen}
-                      >
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
-                          <Icon size={20} />
-                          <span>{it.label}</span>
-                        </span>
-                        <ChevronRight
-                          size={18}
-                          style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s ease' }}
-                        />
-                      </div>
-
-                      {isOpen && (
-                        <div
-                          role="group"
-                          aria-label={`${it.label} submenu`}
-                          style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}
-                        >
-                          {it.children.map((child) => {
-                            const isChildActive = child.end
-                              ? location.pathname === child.to
-                              : location.pathname.startsWith(child.to);
-
-                            return (
-                              <NavLink
-                                key={child.to}
-                                to={child.to}
-                                end={child.end}
-                                style={{
-                                  ...linkBase,
-                                  padding: '8px 12px',
-                                  borderRadius: 12,
-                                  marginLeft: 14,
-                                  fontWeight: 600,
-                                  fontSize: 11,
-                                  ...(isChildActive ? { background: 'rgba(20,107,107,0.10)', color: '#0f1a2b', boxShadow: 'inset 3px 0 0 #146b6b' } : {}),
-                                }}
-                              >
-                                <span
-                                  aria-hidden
-                                  style={{
-                                    width: 6,
-                                    height: 6,
-                                    borderRadius: 999,
-                                    background: isChildActive ? '#146b6b' : '#94a3b8',
-                                    display: 'inline-block',
-                                  }}
-                                />
-                                <span>{child.label}</span>
-                              </NavLink>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                }
-              } else {
-                // Regular single link item
-                const Icon = it.icon;
-                const isDashboard = it.to === '/employee';
-                nodes.push(
-                  <NavLink
-                    key={it.to}
-                    to={it.to}
-                    end={isDashboard}
-                    style={({ isActive }) => ({
+            return (
+              <div key={sec.key}>
+                {!collapsed && idx > 0 && <div style={{ height: 1, background: '#F3F4F6', margin: '8px 0' }} />}
+                {!collapsed && (
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => toggleOpen(sec.key)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') toggleOpen(sec.key);
+                    }}
+                    aria-expanded={!!isOpen}
+                    style={{
                       ...linkBase,
-                      ...(isActive ? activeStyle : {}),
-                    })}
+                      ...moduleHeader,
+                      cursor: 'pointer',
+                      justifyContent: 'space-between',
+                      ...(isActiveHeader ? moduleHeaderActiveStyle : {}),
+                      userSelect: 'none',
+                    }}
                   >
-                    <Icon size={20} />
-                    <span style={{ display: collapsed ? 'none' : 'inline', fontSize: 13 }}>{it.label}</span>
-                  </NavLink>
-                );
-              }
-            });
-            return nodes;
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+                      {sec.key === 'sales' ? <TrendingUp size={18} /> : null}
+                      <span style={{ color: isActiveHeader ? '#0f1a2b' : moduleHeader.color }}>{sec.title}</span>
+                    </span>
+                    <ChevronRight
+                      size={18}
+                      style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s ease' }}
+                    />
+                  </div>
+                )}
+
+                {(collapsed || isOpen) && (
+                  <div style={collapsed ? { display: 'flex', flexDirection: 'column', gap: 4 } : moduleItemsWrapper}>
+                    {sec.items.map((it) => {
+                      const Icon = it.icon;
+                      const isDashboard = it.to === '/employee';
+                      const exactQuery = typeof it.to === 'string' && it.to.includes('?');
+                      return (
+                        <NavLink
+                          key={it.to}
+                          to={it.to}
+                          // Ensure items like "/employee/projects" do not stay active on nested routes
+                          // (e.g. "/employee/projects/retailer").
+                          end={it.end ?? (exactQuery || isDashboard)}
+                          style={({ isActive }) => {
+                            const active = exactQuery
+                              ? navItemMatchesLocation(it, pathname, location.search)
+                              : isActive;
+                            return {
+                              ...linkBase,
+                              ...(active ? activeStyle : {}),
+                            };
+                          }}
+                        >
+                          <Icon size={20} />
+                          <span style={{ display: collapsed ? 'none' : 'inline', fontSize: 13 }}>{it.label}</span>
+                        </NavLink>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
           })
         )}
       </nav>

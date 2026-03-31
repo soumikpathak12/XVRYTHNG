@@ -1,6 +1,6 @@
 // src/pages/ProjectsPage.jsx
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import ProjectsKanbanBoard, { DEFAULT_PROJECT_STAGES } from '../components/projects/ProjectsKanbanBoard.jsx';
 import ProjectsTable from '../components/projects/ProjectsTable.jsx';
 import ProjectsCalendar from '../components/projects/ProjectCalendar.jsx';
@@ -12,8 +12,29 @@ import {
   getCompanyEmployees,
   saveProjectScheduleAssign,
   getProjectScheduleAssign,
+  getCompanyWorkflow,
+  getProjectDocuments,
 } from '../services/api.js';
 import '../styles/LeadsKanban.css';
+
+function isForwardProjectStageMove(currentStage, nextStage, orderKeys) {
+  const keys = orderKeys && orderKeys.length ? orderKeys : DEFAULT_PROJECT_STAGES.map((s) => s.key);
+  const a = keys.indexOf(currentStage);
+  const b = keys.indexOf(nextStage);
+  return a !== -1 && b !== -1 && b > a;
+}
+
+/** Map DB / legacy stage keys onto the current default pipeline for kanban grouping */
+const LEGACY_PROJECT_STAGE_MAP = {
+  pre_approval: 'new',
+  state_rebate: 'new',
+  design_engineering: 'new',
+  procurement: 'new',
+  compliance_check: 'ces_certificate_applied',
+  inspection_grid_connection: 'grid_connection_initiated',
+  rebate_stc_claims: 'grid_connection_completed',
+  project_completed: 'system_handover',
+};
 
 function normalizeProject(row) {
   const sizeKw = row.lead_system_size_kw ?? row.system_size_kw;
@@ -62,6 +83,7 @@ function formatLocalTimeLabel(dateLike) {
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState('');
@@ -74,15 +96,39 @@ export default function ProjectsPage() {
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [scheduleMap, setScheduleMap] = useState(new Map()); // Map<projectId, { scheduled_at, status?, notes? }>
   const searchInputRef = useRef(null);
+  const [wfProjectStages, setWfProjectStages] = useState(null);
 
   // View state (kanban/table/calendar)
   const [view, setView] = useState('kanban');
+
+  const projectKanbanStages = useMemo(
+    () => (wfProjectStages && wfProjectStages.length ? wfProjectStages : DEFAULT_PROJECT_STAGES),
+    [wfProjectStages]
+  );
+  const projectOrderKeys = useMemo(() => projectKanbanStages.map((s) => s.key), [projectKanbanStages]);
 
   /** Debounce search */
   useEffect(() => {
     const id = setTimeout(() => setDebouncedSearch(search.trim()), 250);
     return () => clearTimeout(id);
   }, [search]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const body = await getCompanyWorkflow();
+        const d = body?.data ?? body;
+        const st = d?.project_management?.stages;
+        if (alive && Array.isArray(st) && st.length) setWfProjectStages(st);
+      } catch (_) {
+        if (alive) setWfProjectStages(null);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   /** Load projects */
   useEffect(() => {
@@ -121,27 +167,54 @@ export default function ProjectsPage() {
   }, [projects, daysFilter]);
 
   const handleStageChange = useCallback(async (projectId, nextStage) => {
-    // Guardrails: block moving forward from "New" when required Utility fields are missing.
     const current = projects.find((p) => String(p.id) === String(projectId));
-    if (current && current.stage === 'new' && nextStage !== 'new') {
-      const raw = current._raw || {};
-      const preRef =
-        raw.lead_pre_approval_reference_no ??
-        raw.pre_approval_reference_no ??
-        null;
-      const solarVic =
-        raw.lead_solar_vic_eligibility ??
-        raw.solar_vic_eligibility ??
-        null;
+    const keys = projectOrderKeys;
 
-      if (!preRef || solarVic == null) {
+    if (current && isForwardProjectStageMove(current.stage, nextStage, keys)) {
+      const raw = current._raw || {};
+      const preRef = String(
+        raw.lead_pre_approval_reference_no ?? raw.pre_approval_reference_no ?? '',
+      ).trim();
+      const solarVic = raw.lead_solar_vic_eligibility ?? raw.solar_vic_eligibility;
+
+      if (!preRef || solarVic == null || solarVic === '') {
         setToast(
-          'Please fill Pre‑approval reference number and Solar Vic eligibility in Utility Information before moving this project.'
+          'Pre-approval reference number and Solar Victoria eligibility are required before moving to a later stage. Open the project and complete Utility information.',
         );
-        setTimeout(() => setToast(''), 4000);
+        setTimeout(() => setToast(''), 5000);
         return;
       }
     }
+
+    const idxGrid = keys.indexOf('grid_connection_initiated');
+    const idxNext = keys.indexOf(nextStage);
+    if (current && idxGrid !== -1 && idxNext !== -1 && idxNext > idxGrid) {
+      const raw = current._raw || {};
+      const postRef = String(raw.post_install_reference_no ?? '').trim();
+      if (!postRef) {
+        setToast(
+          'Post-install reference number is required before moving past GRID Connection Initiated. Open the project and add it, then try again.',
+        );
+        setTimeout(() => setToast(''), 5000);
+        return;
+      }
+      try {
+        const docBody = await getProjectDocuments(projectId);
+        const list = Array.isArray(docBody?.data) ? docBody.data : [];
+        if (list.length === 0) {
+          setToast(
+            'Upload at least one file in the project Documents tab before moving past GRID Connection Initiated.',
+          );
+          setTimeout(() => setToast(''), 5000);
+          return;
+        }
+      } catch (err) {
+        setToast(err.message || 'Could not verify documents');
+        setTimeout(() => setToast(''), 5000);
+        return;
+      }
+    }
+
     setProjects((prev) =>
       prev.map((p) =>
         String(p.id) === String(projectId) ? { ...p, stage: nextStage, _reverting: p.stage } : p
@@ -162,7 +235,7 @@ export default function ProjectsPage() {
     } finally {
       setProjects((prev) => prev.map((p) => ({ ...p, _reverting: undefined })));
     }
-  }, [projects]);
+  }, [projects, projectOrderKeys]);
 
   const focusSearch = useCallback((stageKey = null) => {
     setSearchStage(stageKey);
@@ -170,8 +243,9 @@ export default function ProjectsPage() {
   }, []);
 
   const openDetails = useCallback((id) => {
-    navigate(`/admin/projects/${id}`);
-  }, [navigate]);
+    const inEmployeeArea = location.pathname.startsWith('/employee');
+    navigate(inEmployeeArea ? `/employee/projects/${id}` : `/admin/projects/${id}`);
+  }, [navigate, location.pathname]);
 
   const switchView = useCallback((next) => {
     setView(next);
@@ -351,6 +425,7 @@ export default function ProjectsPage() {
         ) : view === 'table' ? (
           <ProjectsTable
             projects={filteredProjects}
+            stages={projectKanbanStages}
             onRowClick={(id) => openDetails(id)}
             onStageChange={handleStageChange}
           />
@@ -378,7 +453,8 @@ export default function ProjectsPage() {
         ) : (
           <ProjectsKanbanBoard
             projects={filteredProjects}
-            // Using DEFAULT_PROJECT_STAGES (12 columns) implicitly
+            stages={projectKanbanStages}
+            legacyStageMap={LEGACY_PROJECT_STAGE_MAP}
             onStageChange={handleStageChange}
             onFocusSearch={focusSearch}
             onSelectProject={(id) => openDetails(id)}

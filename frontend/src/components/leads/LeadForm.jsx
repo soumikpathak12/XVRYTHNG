@@ -1,5 +1,5 @@
 // components/leads/LeadForm.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 
 const STAGES = [
   'new',
@@ -14,6 +14,7 @@ const STAGES = [
 ];
 
 import { listEmployees } from '../../services/api';
+import { dbDatetimeToDatetimeLocalInput } from '../../utils/inspectionPrefillFromLead.js';
 
 const STAGE_LABELS = {
   new: 'New',
@@ -62,7 +63,7 @@ const PHONE_RE = /^[0-9()+\-\s]*[0-9][0-9()+\-\s]*$/;
 export default function LeadForm({
   initialValues,
   onSubmit,
-  onCancel,                      // chỉ gọi callback, KHÔNG điều hướng history
+  onCancel, // callback only; parent handles navigation
   title = 'Add New Lead',
   submitLabel = 'Create Lead',
   embedded = false,
@@ -73,8 +74,21 @@ export default function LeadForm({
   /** When true (new lead only), skip the green banner; parent can show a modal via onAfterCreate */
   suppressInlineSuccess = false,
   onAfterCreate = null,
+  /** Optional [{ key, label }] from company workflow (enabled stages only). */
+  stageOptions = null,
+  /** When creating from B2C/B2B pipeline, pre-select segment (`b2c` | `b2b`). */
+  defaultSalesSegment = null,
 }) {
   const SOURCE_OPTIONS = ['Website', 'Solar Quotes', 'Facebook', 'Other'];
+
+  const stageList = useMemo(() => {
+    if (Array.isArray(stageOptions) && stageOptions.length) {
+      return stageOptions.map((s) =>
+        typeof s === 'string' ? { key: s, label: STAGE_LABELS[s] || s } : s
+      );
+    }
+    return STAGES.map((k) => ({ key: k, label: STAGE_LABELS[k] || k }));
+  }, [stageOptions]);
   const [form, setForm] = useState({
     customer_name: '',
     email: '',
@@ -84,6 +98,7 @@ export default function LeadForm({
     stage: 'new',
     site_inspection_date: '',
     inspector_id: '',
+    sales_segment: '',
   });
 
   const [inspectors, setInspectors] = useState([]);
@@ -109,6 +124,9 @@ export default function LeadForm({
       const sourceSel = matchedSource ?? (rawSource ? 'Other' : '');
       const sourceOther = matchedSource || !rawSource ? '' : rawSource;
 
+      const rawSeg = initialValues.sales_segment ?? initialValues.salesSegment;
+      const segNorm =
+        rawSeg === 'b2c' || rawSeg === 'b2b' ? rawSeg : '';
       setForm({
         customer_name:
           initialValues.customerName ||
@@ -125,9 +143,24 @@ export default function LeadForm({
             initialValues.siteInspectionDate
         ),
         inspector_id: initialValues.inspector_id || '',
+        sales_segment: segNorm,
       });
     }
   }, [initialValues]);
+
+  const segmentLocked =
+    !initialValues && (defaultSalesSegment === 'b2c' || defaultSalesSegment === 'b2b');
+
+  useEffect(() => {
+    if (!initialValues && (defaultSalesSegment === 'b2c' || defaultSalesSegment === 'b2b')) {
+      setForm((f) => ({ ...f, sales_segment: defaultSalesSegment }));
+    }
+  }, [defaultSalesSegment, initialValues]);
+
+  useEffect(() => {
+    const keys = new Set(stageList.map((s) => s.key));
+    setForm((f) => (keys.has(f.stage) ? f : { ...f, stage: stageList[0]?.key || 'new' }));
+  }, [stageList]);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -145,21 +178,23 @@ export default function LeadForm({
     }
   };
 
-  const formatDateTimeLocal = (isoString) => {
-    if (!isoString) return '';
-    const d = new Date(isoString);
-    if (Number.isNaN(d.getTime())) return '';
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mi = String(d.getMinutes()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+  const formatDateTimeLocal = (raw) => {
+    // site_inspection_date should be treated as naive wall-clock time.
+    // Avoid `new Date(...)` to prevent timezone shifts on server vs local.
+    return dbDatetimeToDatetimeLocalInput(raw) ?? '';
   };
 
   const toMySQLDateTime = (value) => {
     if (!value) return null;
-    const d = new Date(value);
+    const s = String(value).trim();
+    if (!s) return null;
+
+    // Expected from datetime-local: "YYYY-MM-DDTHH:mm"
+    const m = s.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})$/);
+    if (m) return `${m[1]} ${m[2]}:00`;
+
+    // Fallback: best-effort conversion
+    const d = new Date(s);
     if (Number.isNaN(d.getTime())) return null;
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -189,7 +224,7 @@ export default function LeadForm({
       nextFieldErrors.phone = 'Invalid phone format.';
     }
     if (!form.suburb.trim()) nextFieldErrors.suburb = 'Location is required.';
-    if (!form.stage || !STAGES.includes(form.stage)) {
+    if (!form.stage || !stageList.some((s) => s.key === form.stage)) {
       nextFieldErrors.stage = 'Invalid stage selected.';
     }
 
@@ -197,6 +232,13 @@ export default function LeadForm({
       nextFieldErrors.source = 'Please select a source.';
     } else if (form.source === 'Other' && !form.sourceOther?.trim()) {
       nextFieldErrors.sourceOther = 'Please specify the source.';
+    }
+
+    // New leads must choose B2C or B2B unless the pipeline URL locks the segment.
+    if (!initialValues && !segmentLocked) {
+      if (form.sales_segment !== 'b2c' && form.sales_segment !== 'b2b') {
+        nextFieldErrors.sales_segment = 'Select Residential (B2C) or Commercial (B2B).';
+      }
     }
 
     if (Object.keys(nextFieldErrors).length > 0) {
@@ -220,6 +262,16 @@ export default function LeadForm({
       inspector_id: form.inspector_id || undefined,
     };
 
+    if (initialValues) {
+      payload.sales_segment =
+        form.sales_segment === 'b2c' || form.sales_segment === 'b2b' ? form.sales_segment : null;
+    } else {
+      const seg = segmentLocked ? defaultSalesSegment : form.sales_segment;
+      if (seg === 'b2c' || seg === 'b2b') {
+        payload.sales_segment = seg;
+      }
+    }
+
     setSubmitting(true);
     try {
       await onSubmit(payload);
@@ -240,6 +292,8 @@ export default function LeadForm({
           stage: 'new',
           site_inspection_date: '',
           inspector_id: '',
+          sales_segment:
+            defaultSalesSegment === 'b2c' || defaultSalesSegment === 'b2b' ? defaultSalesSegment : '',
         });
       }
     } catch (err) {
@@ -357,6 +411,60 @@ export default function LeadForm({
           )}
         </Field>
 
+        <Field
+          label={initialValues ? 'Sales channel' : 'Sales channel *'}
+          error={fieldErrors.sales_segment}
+        >
+          {segmentLocked ? (
+            <div
+              style={{
+                ...styles.input,
+                display: 'flex',
+                alignItems: 'center',
+                background: COLORS.neutralBg,
+                borderColor: COLORS.neutralBorder,
+                color: COLORS.text,
+                fontWeight: 600,
+              }}
+              role="status"
+            >
+              {defaultSalesSegment === 'b2c'
+                ? 'Residential (B2C) — locked to this pipeline'
+                : 'Commercial (B2B) — locked to this pipeline'}
+            </div>
+          ) : (
+            <select
+              value={form.sales_segment || ''}
+              onChange={(e) => update('sales_segment', e.target.value)}
+              style={{
+                ...styles.input,
+                borderColor: fieldErrors.sales_segment ? COLORS.dangerText : COLORS.border,
+              }}
+              aria-label="Sales channel"
+              required={!initialValues}
+            >
+              {initialValues ? (
+                <>
+                  <option value="">Not specified</option>
+                  <option value="b2c">Residential (B2C)</option>
+                  <option value="b2b">Commercial (B2B)</option>
+                </>
+              ) : (
+                <>
+                  <option value="">— Select B2C or B2B —</option>
+                  <option value="b2c">Residential (B2C)</option>
+                  <option value="b2b">Commercial (B2B)</option>
+                </>
+              )}
+            </select>
+          )}
+          {!initialValues && !segmentLocked && (
+            <small style={{ color: COLORS.subtext, display: 'block', marginTop: 6 }}>
+              New leads need a channel so they appear in the correct B2C or B2B pipeline.
+            </small>
+          )}
+        </Field>
+
         {/* Location + stage on one row (pipeline UX) */}
         <div
           style={{
@@ -394,9 +502,9 @@ export default function LeadForm({
               }}
               required
             >
-              {STAGES.map((s) => (
-                <option key={s} value={s}>
-                  {STAGE_LABELS[s] || s}
+              {stageList.map((s) => (
+                <option key={s.key} value={s.key}>
+                  {s.label}
                 </option>
               ))}
             </select>

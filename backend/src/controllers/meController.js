@@ -8,7 +8,7 @@ const router = express.Router();
 
 router.get('/me/sidebar', requireAuth, async (req, res, next) => {
   try {
-    const companyId = req.tenantId ?? null;
+    const companyId = req.tenantId ?? req.user?.companyId ?? null;
     const data = await getSidebarForUser(req.user.id, companyId);
     return res.json({ success: true, data });
   } catch (err) {

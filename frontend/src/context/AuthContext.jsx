@@ -276,5 +276,6 @@ export function SidebarProvider({ children }) {
   );
 }
 export function useSidebar() {
-  return useContext(SidebarContext);
+  const ctx = useContext(SidebarContext);
+  return ctx ?? { sidebarVersion: 0, bumpSidebar: () => {} };
 }

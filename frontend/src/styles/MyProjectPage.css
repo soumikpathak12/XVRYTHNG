@@ -45,6 +45,37 @@
   flex-shrink: 0;
 }
 
+/* Staff-published utility milestones (pre-approval / Solar Vic) */
+.my-project-portal-updates {
+  margin: 0 0 20px;
+  padding: 16px 18px;
+  background: #f0fdf4;
+  border-radius: 12px;
+  border: 1px solid #bbf7d0;
+}
+
+.my-project-portal-updates-title {
+  font-size: 0.6875rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #166534;
+  margin: 0 0 10px;
+}
+
+.my-project-portal-updates-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: #14532d;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.my-project-portal-updates-list li + li {
+  margin-top: 6px;
+}
+
 /* Timeline – 5 stages with connectors */
 .my-project-timeline {
   display: flex;

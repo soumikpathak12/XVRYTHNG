@@ -12,6 +12,7 @@ import {
   updateLeadStage as apiUpdateLeadStage,
   createLead as apiCreateLead,
   importSolarQuotesLeads,
+  getCompanyWorkflow,
 } from '../services/api.js';
 import ImportLeadsModal from '../components/leads/ImportLeadsModal.jsx';
 import '../styles/LeadsKanban.css';
@@ -20,7 +21,7 @@ function useLeadBase() {
   const { pathname } = useLocation();
   if (pathname.startsWith('/admin')) return '/admin';
   if (pathname.startsWith('/employee')) return '/employee';
-  return '/dashboard'; // fallback cho company
+  return '/dashboard'; // company admin / manager fallback
 }
 
 export default function LeadsPage() {
@@ -39,6 +40,7 @@ export default function LeadsPage() {
   const [toastVariant, setToastVariant] = useState('error'); // 'success' | 'error'
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
+  const [workflowSalesStages, setWorkflowSalesStages] = useState(null);
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -47,6 +49,13 @@ export default function LeadsPage() {
   const [daysFilter, setDaysFilter] = useState('');
 
   const isEmployeeView = base === '/employee';
+
+  const salesSegment = useMemo(() => {
+    const p = new URLSearchParams(location.search);
+    const s = (p.get('segment') || '').toLowerCase();
+    return s === 'b2c' || s === 'b2b' ? s : null;
+  }, [location.search]);
+
   const getInitialView = () => {
     const params = new URLSearchParams(location.search);
     const v = (params.get('view') || '').toLowerCase();
@@ -74,16 +83,46 @@ export default function LeadsPage() {
     [view, navigate, location.pathname, location.search]
   );
 
+  const switchSalesSegment = useCallback(
+    (nextSegment) => {
+      if (nextSegment === salesSegment) return;
+      const params = new URLSearchParams(location.search);
+      if (nextSegment) params.set('segment', nextSegment);
+      else params.delete('segment');
+      navigate({ pathname: location.pathname, search: params.toString() }, { replace: false });
+    },
+    [navigate, location.pathname, location.search, salesSegment]
+  );
+
   const handleLeadCreatedOk = useCallback(() => {
     setLeadCreatedModalOpen(false);
-    navigate({ pathname: location.pathname, search: '?view=kanban' }, { replace: true });
+    const params = new URLSearchParams(location.search);
+    params.set('view', 'kanban');
+    navigate({ pathname: location.pathname, search: params.toString() }, { replace: true });
     setView('kanban');
-  }, [navigate, location.pathname]);
+  }, [navigate, location.pathname, location.search]);
 
   useEffect(() => {
     const id = setTimeout(() => setDebouncedSearch(search.trim()), 250);
     return () => clearTimeout(id);
   }, [search]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const body = await getCompanyWorkflow();
+        const d = body?.data ?? body;
+        const stages = d?.sales?.stages;
+        if (alive && Array.isArray(stages) && stages.length) setWorkflowSalesStages(stages);
+      } catch (_) {
+        if (alive) setWorkflowSalesStages(null);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [refreshTrigger]);
 
   // Accept both snake_case (GET) and camelCase (create API)
   const transformLead = useCallback((row) => {
@@ -121,7 +160,7 @@ export default function LeadsPage() {
       setLoading(true);
       setError('');
       try {
-        const res = await getLeads();
+        const res = await getLeads(salesSegment ? { sales_segment: salesSegment } : {});
         const arr = Array.isArray(res?.data) ? res.data : [];
         const mapped = arr.map(transformLead).filter(Boolean);
         if (alive) setLeads(mapped);
@@ -134,7 +173,7 @@ export default function LeadsPage() {
     return () => {
       alive = false;
     };
-  }, [transformLead, refreshTrigger]);
+  }, [transformLead, refreshTrigger, salesSegment]);
 
   const handleStageChange = useCallback(
     async (leadId, nextStage) => {
@@ -213,7 +252,7 @@ export default function LeadsPage() {
   }, [leads]);
 
   function exportLeadsCsv() {
-    const stageLabelByKey = Object.fromEntries(STAGES.map((s) => [s.key, s.label]));
+    const stageLabelByKey = Object.fromEntries(kanbanStages.map((s) => [s.key, s.label]));
     const escape = (v) => {
       const s = (v ?? '').toString();
       if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
@@ -291,6 +330,11 @@ export default function LeadsPage() {
 
   const boardLeads = filteredLeads;
 
+  const kanbanStages = useMemo(
+    () => (workflowSalesStages && workflowSalesStages.length ? workflowSalesStages : STAGES),
+    [workflowSalesStages]
+  );
+
   const calendarLeads = useMemo(
     () => boardLeads.filter((l) => l._raw?.site_inspection_date),
     [boardLeads]
@@ -301,15 +345,59 @@ export default function LeadsPage() {
     setTimeout(() => searchInputRef.current?.focus(), 50);
   }, []);
 
+  const pipelineTitle =
+    salesSegment === 'b2c'
+      ? 'Residential Sales (B2C)'
+      : salesSegment === 'b2b'
+        ? 'Commercial Sales (B2B)'
+        : 'Leads Kanban';
+  const pipelineSubtitle =
+    salesSegment === 'b2c'
+      ? 'Residential and consumer solar opportunities. Manage leads across stages.'
+      : salesSegment === 'b2b'
+        ? 'Commercial and business solar opportunities. Manage leads across stages.'
+        : 'View all sales leads or focus on Residential / Commercial pipelines.';
+
+  const addLeadModalTitle =
+    salesSegment === 'b2c'
+      ? 'Add New Lead — Residential (B2C)'
+      : salesSegment === 'b2b'
+        ? 'Add New Lead — Commercial (B2B)'
+        : 'Add New Lead';
+
   return (
     <div className="leads-kanban-page">
       <header className="leads-kanban-header">
         <div className="leads-kanban-header-top">
           <div className="leads-kanban-title">
-            <h1>Leads Pipeline</h1>
-            <p>
-              Manage leads across stages. Search, filter, and drag cards between columns.
-            </p>
+            <h1>{pipelineTitle}</h1>
+            <p>{pipelineSubtitle}</p>
+            <div className="leads-segment-switch" role="tablist" aria-label="Lead sales segment">
+              <button
+                type="button"
+                className={`leads-segment-pill ${salesSegment == null ? 'active' : ''}`}
+                onClick={() => switchSalesSegment(null)}
+                aria-pressed={salesSegment == null}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                className={`leads-segment-pill ${salesSegment === 'b2c' ? 'active' : ''}`}
+                onClick={() => switchSalesSegment('b2c')}
+                aria-pressed={salesSegment === 'b2c'}
+              >
+                Residential Sales
+              </button>
+              <button
+                type="button"
+                className={`leads-segment-pill ${salesSegment === 'b2b' ? 'active' : ''}`}
+                onClick={() => switchSalesSegment('b2b')}
+                aria-pressed={salesSegment === 'b2b'}
+              >
+                Commercial Sales
+              </button>
+            </div>
           </div>
           <div className="leads-kanban-actions">
             <div className="leads-view-tabs">
@@ -419,9 +507,8 @@ export default function LeadsPage() {
           >
             <button
               type="button"
-              className="leads-add-btn bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+              className="leads-add-btn leads-import-csv-btn"
               onClick={() => setShowImport(true)}
-              style={{ backgroundColor: '#fff', color: '#374151', border: '1px solid #d1d5db' }}
             >
               <svg
                 width="16"
@@ -442,8 +529,7 @@ export default function LeadsPage() {
             </button>
             <button
               type="button"
-              className="leads-add-btn"
-              style={{ backgroundColor: '#f59e0b', borderColor: '#f59e0b' }}
+              className="leads-add-btn leads-sync-solarquotes-btn"
               onClick={handleImportSolarQuotes}
               title="Fetch latest leads from SolarQuotes"
             >
@@ -463,6 +549,7 @@ export default function LeadsPage() {
         ) : view === 'table' ? (
           <LeadsTable
             leads={boardLeads}
+            stages={kanbanStages}
             onStageChange={handleStageChange}
             onSelectLead={(id) => goLeadDetail(id)}
           />
@@ -496,6 +583,7 @@ export default function LeadsPage() {
         ) : (
           <KanbanBoard
             leads={boardLeads}
+            stages={kanbanStages}
             onStageChange={handleStageChange}
             onFocusSearch={focusSearch}
             onSelectLead={(id) => goLeadDetail(id)}
@@ -503,10 +591,12 @@ export default function LeadsPage() {
         )}
       </div>
 
-      <Modal open={openAdd} onClose={() => setOpenAdd(false)} title="Add New Lead" width={720}>
+      <Modal open={openAdd} onClose={() => setOpenAdd(false)} title={addLeadModalTitle} width={720}>
         <AddLeadForm
           embedded
           suppressInlineSuccess
+          stageOptions={kanbanStages}
+          defaultSalesSegment={salesSegment}
           onAfterCreate={() => setLeadCreatedModalOpen(true)}
           onCancel={() => setOpenAdd(false)}
           onSubmit={handleCreateLead}

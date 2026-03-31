@@ -3,20 +3,18 @@ import React, { useMemo, useState, useRef, useEffect } from 'react';
 import KanbanColumn from '../leads/KanbanColumn.jsx';
 import ProjectCard from './ProjectCard.jsx';
 
-// ---- DEFAULT project pipeline stages (12 columns – existing board) ----
+// ---- DEFAULT project pipeline stages (company workflow may override) ----
 export const DEFAULT_PROJECT_STAGES = [
   { key: 'new', label: 'New' },
-  { key: 'pre_approval', label: 'Pre-Approval' },
-  { key: 'state_rebate', label: 'State Rebate' },
-  { key: 'design_engineering', label: 'Design & Engineering' },
-  { key: 'procurement', label: 'Procurement' },
   { key: 'scheduled', label: 'Scheduled' },
-  { key: 'installation_in_progress', label: 'Installation In Progress' },
+  { key: 'to_be_rescheduled', label: 'To Be Rescheduled' },
+  { key: 'installation_in_progress', label: 'Installation In-Progress' },
   { key: 'installation_completed', label: 'Installation Completed' },
-  { key: 'compliance_check', label: 'Compliance Check' },
-  { key: 'inspection_grid_connection', label: 'Inspection & Grid Connection' },
-  { key: 'rebate_stc_claims', label: 'Rebate & STC Claims' },
-  { key: 'project_completed', label: 'Project Completed' },
+  { key: 'ces_certificate_applied', label: 'CES Certificate Applied' },
+  { key: 'ces_certificate_received', label: 'CES Certificate Received' },
+  { key: 'grid_connection_initiated', label: 'GRID Connection Initiated' },
+  { key: 'grid_connection_completed', label: 'GRID Connection Completed' },
+  { key: 'system_handover', label: 'System Handover' },
 ];
 
 const COL_WIDTH = 300;
@@ -54,9 +52,12 @@ export default function ProjectsKanbanBoard({
   // Group items by stage
   const byStage = useMemo(() => {
     const map = Object.fromEntries(PROJECT_STAGES.map((s) => [s.key, []]));
+    const firstKey = PROJECT_STAGES[0]?.key || 'new';
     for (const p of projects) {
       const normalized = normalizeStageKey(p.stage, STAGE_KEYS_SET, LEGACY_TO_NEW_STAGE_KEY);
-      const key = normalized && map[normalized] ? normalized : 'new';
+      let key = normalized && map[normalized] != null ? normalized : p.stage;
+      if (!STAGE_KEYS_SET.has(key)) key = firstKey;
+      if (!map[key]) map[key] = [];
       map[key].push(p);
     }
     return map;

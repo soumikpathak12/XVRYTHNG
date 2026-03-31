@@ -97,6 +97,26 @@ export async function updateProfile(req, res) {
   }
 }
 
+/** DELETE /api/users/me */
+export async function deleteMyAccount(req, res) {
+  try {
+    await profileService.deleteOwnAccount(req.user.id);
+    return res.json({ success: true, message: 'Account deleted successfully' });
+  } catch (err) {
+    if (err?.code === 'NOT_FOUND') {
+      return res.status(404).json({ success: false, message: err.message });
+    }
+    if (err?.code === 'ALREADY_INACTIVE') {
+      return res.status(409).json({ success: false, message: err.message });
+    }
+    if (err?.code === 'LAST_SUPER_ADMIN') {
+      return res.status(409).json({ success: false, message: err.message });
+    }
+    console.error('deleteMyAccount error', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}
+
 
 export async function changePassword(req, res) {
   try {

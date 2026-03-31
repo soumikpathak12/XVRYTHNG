@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import CalendarLeadEntry from './CalendarLeadEntry.jsx';
+import { getAppBaseFromPathname } from '../../utils/routeBase.js';
 
 /**
  * LeadsCalendar (read-only month view) — “table” style
@@ -28,6 +29,11 @@ export default function LeadsCalendar({
   className,
   viewMode = 'month', // 'day' | 'week' | 'month'
 }) {
+  const defaultLeadBase = useMemo(
+    () => getAppBaseFromPathname(window.location.pathname),
+    []
+  );
+
   if (typeof getDate !== 'function') {
     throw new Error('LeadsCalendar: getDate prop is required and must be a function.');
   }
@@ -443,7 +449,7 @@ export default function LeadsCalendar({
                         if (typeof onLeadClick === 'function') {
                           onLeadClick(lead);
                         } else if (lead?.id != null) {
-                          window.location.assign(`/admin/leads/${lead.id}/site-inspection`);
+                          window.location.assign(`${defaultLeadBase}/leads/${lead.id}/site-inspection`);
                         }
                       }}
                       role="button"
@@ -452,7 +458,7 @@ export default function LeadsCalendar({
                         if ((e.key === 'Enter' || e.key === ' ') && lead?.id != null) {
                           e.preventDefault();
                           if (typeof onLeadClick === 'function') onLeadClick(lead);
-                          else window.location.assign(`/admin/leads/${lead.id}/site-inspection`);
+                          else window.location.assign(`${defaultLeadBase}/leads/${lead.id}/site-inspection`);
                         }
                       }}
                     />

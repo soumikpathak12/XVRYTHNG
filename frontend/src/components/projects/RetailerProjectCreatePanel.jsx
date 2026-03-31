@@ -23,11 +23,13 @@ const JOB_TYPE_TO_STAGE = {
 
 // Option lists for selects (adjust freely)
 const CLIENT_TYPES = ['Residential', 'Commercial', 'Government', 'Other'];
-const SYSTEM_TYPES = ['Solar PV', 'Battery', 'Hybrid', 'EV Charger', 'Other'];
+const SYSTEM_TYPES = ['PV only', 'PV + Battery', 'Only Battery', 'Only EV Charger', 'PV + Battery + EV Charger', 'Battery + EV Charger', 'PV + EV Chargers'];
 const HOUSE_STOREYS = ['Single', 'Double', 'Triple+'];
 const ROOF_TYPES = ['Tile', 'Metal (Colorbond)', 'Concrete', 'Other'];
 const METER_PHASES = ['Single Phase', 'Two Phase', 'Three Phase'];
 const ACCESS_OPTIONS = ['Yes', 'No', 'Unknown'];
+
+const ENERGY_DISTRIBUTOR_OPTS = ['AusNet', 'Powercor', 'CitiPower', 'United Energy', 'Jemena'];
 
 export default function RetailerProjectCreatePanel({ visible, onClose, onCreate }) {
   // ---- Core state ----
@@ -52,6 +54,27 @@ export default function RetailerProjectCreatePanel({ visible, onClose, onCreate 
   const [accessTo2Storey, setAccessTo2Storey] = useState('');
   const [accessToInverter, setAccessToInverter] = useState('');
 
+  // PV / EV / Battery details (driven by systemType)
+  const [pvInverterSizeKw, setPvInverterSizeKw] = useState('');
+  const [pvInverterBrand, setPvInverterBrand] = useState('');
+  const [pvPanelBrand, setPvPanelBrand] = useState('');
+  const [pvPanelModuleWatts, setPvPanelModuleWatts] = useState('');
+
+  const [evChargerBrand, setEvChargerBrand] = useState('');
+  const [evChargerModel, setEvChargerModel] = useState('');
+
+  const [batterySizeKwh, setBatterySizeKwh] = useState('');
+  const [batteryBrand, setBatteryBrand] = useState('');
+  const [batteryModel, setBatteryModel] = useState('');
+
+  // Utility information
+  const [preApprovalReferenceNo, setPreApprovalReferenceNo] = useState('');
+  const [energyRetailer, setEnergyRetailer] = useState('');
+  const [energyDistributor, setEnergyDistributor] = useState('');
+  const [solarVicEligibility, setSolarVicEligibility] = useState(''); // '1' | '0' | ''
+  const [nmiNumber, setNmiNumber] = useState('');
+  const [meterNumber, setMeterNumber] = useState('');
+
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -67,6 +90,11 @@ export default function RetailerProjectCreatePanel({ visible, onClose, onCreate 
     if (requiresTime && !time) return false;
     return !saving;
   }, [customerName, jobType, date, time, requiresTime, saving]);
+
+  const sysTypeForCondition = systemType || '';
+  const hasPV = /PV/i.test(sysTypeForCondition);
+  const hasEV = /EV/i.test(sysTypeForCondition);
+  const hasBattery = /Battery/i.test(sysTypeForCondition);
 
   // Reset when opening
   useEffect(() => {
@@ -89,6 +117,25 @@ export default function RetailerProjectCreatePanel({ visible, onClose, onCreate 
     setMeterPhase('');
     setAccessTo2Storey('');
     setAccessToInverter('');
+
+    setPvInverterSizeKw('');
+    setPvInverterBrand('');
+    setPvPanelBrand('');
+    setPvPanelModuleWatts('');
+
+    setEvChargerBrand('');
+    setEvChargerModel('');
+
+    setBatterySizeKwh('');
+    setBatteryBrand('');
+    setBatteryModel('');
+
+    setPreApprovalReferenceNo('');
+    setEnergyRetailer('');
+    setEnergyDistributor('');
+    setSolarVicEligibility('');
+    setNmiNumber('');
+    setMeterNumber('');
     setNotes('');
     setSaving(false);
     setError('');
@@ -205,7 +252,28 @@ export default function RetailerProjectCreatePanel({ visible, onClose, onCreate 
         client_name: clientName || null,
         value_amount: priceAud ? Number(priceAud) : null,
         system_type: systemType || null,
-        system_size_kw: systemSizeKw ? Number(systemSizeKw) : null,
+        system_size_kw: hasPV && systemSizeKw ? Number(systemSizeKw) : null,
+        pv_system_size_kw: hasPV && systemSizeKw ? Number(systemSizeKw) : null,
+
+        pv_inverter_size_kw: hasPV && pvInverterSizeKw ? Number(pvInverterSizeKw) : null,
+        pv_inverter_brand: hasPV ? (pvInverterBrand || null) : null,
+        pv_panel_brand: hasPV ? (pvPanelBrand || null) : null,
+        pv_panel_module_watts: hasPV && pvPanelModuleWatts ? Number(pvPanelModuleWatts) : null,
+
+        ev_charger_brand: hasEV ? (evChargerBrand || null) : null,
+        ev_charger_model: hasEV ? (evChargerModel || null) : null,
+
+        battery_size_kwh: hasBattery && batterySizeKwh ? Number(batterySizeKwh) : null,
+        battery_brand: hasBattery ? (batteryBrand || null) : null,
+        battery_model: hasBattery ? (batteryModel || null) : null,
+
+        pre_approval_reference_no: preApprovalReferenceNo || null,
+        energy_retailer: energyRetailer || null,
+        energy_distributor: energyDistributor || null,
+        solar_vic_eligibility:
+          solarVicEligibility === '' ? null : solarVicEligibility === '1' ? 1 : 0,
+        nmi_number: nmiNumber || null,
+        meter_number: meterNumber || null,
         house_storey: houseStorey || null,
         roof_type: roofType || null,
         meter_phase: meterPhase || null,
@@ -333,14 +401,130 @@ export default function RetailerProjectCreatePanel({ visible, onClose, onCreate 
             </select>
           </label>
 
-          {/* Row 8: System Size + (empty slot reserved to keep rhythm) */}
-          <div style={s.grid2}>
-            <label style={s.field}>
-              <span style={s.label}>System Size (kW)</span>
-              <input style={s.input} type="number" min="0" step="0.01" value={systemSizeKw} onChange={(e) => setSystemSizeKw(e.target.value)} />
-            </label>
-            <div />
-          </div>
+          {/* PV / EV / Battery driven fields */}
+          {hasPV && (
+            <div style={s.group}>
+              <div style={s.groupTitle}>PV System Details</div>
+              <div style={s.grid2}>
+                <label style={s.field}>
+                  <span style={s.label}>System Size (kW)</span>
+                  <input
+                    style={s.input}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={systemSizeKw}
+                    onChange={(e) => setSystemSizeKw(e.target.value)}
+                  />
+                </label>
+                <label style={s.field}>
+                  <span style={s.label}>Inverter Size (kW)</span>
+                  <input
+                    style={s.input}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={pvInverterSizeKw}
+                    onChange={(e) => setPvInverterSizeKw(e.target.value)}
+                  />
+                </label>
+              </div>
+              <div style={s.grid2}>
+                <label style={s.field}>
+                  <span style={s.label}>Inverter Brand</span>
+                  <input
+                    style={s.input}
+                    type="text"
+                    value={pvInverterBrand}
+                    onChange={(e) => setPvInverterBrand(e.target.value)}
+                  />
+                </label>
+                <label style={s.field}>
+                  <span style={s.label}>Panel Brand</span>
+                  <input
+                    style={s.input}
+                    type="text"
+                    value={pvPanelBrand}
+                    onChange={(e) => setPvPanelBrand(e.target.value)}
+                  />
+                </label>
+              </div>
+              <label style={s.field}>
+                <span style={s.label}>Panel Module (Watts)</span>
+                <input
+                  style={s.input}
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={pvPanelModuleWatts}
+                  onChange={(e) => setPvPanelModuleWatts(e.target.value)}
+                />
+              </label>
+            </div>
+          )}
+
+          {hasEV && (
+            <div style={s.group}>
+              <div style={s.groupTitle}>EV Charger Details</div>
+              <div style={s.grid2}>
+                <label style={s.field}>
+                  <span style={s.label}>EV Charger Brand</span>
+                  <input
+                    style={s.input}
+                    type="text"
+                    value={evChargerBrand}
+                    onChange={(e) => setEvChargerBrand(e.target.value)}
+                  />
+                </label>
+                <label style={s.field}>
+                  <span style={s.label}>EV Charger Model</span>
+                  <input
+                    style={s.input}
+                    type="text"
+                    value={evChargerModel}
+                    onChange={(e) => setEvChargerModel(e.target.value)}
+                  />
+                </label>
+              </div>
+            </div>
+          )}
+
+          {hasBattery && (
+            <div style={s.group}>
+              <div style={s.groupTitle}>Battery Details</div>
+              <div style={s.grid2}>
+                <label style={s.field}>
+                  <span style={s.label}>Battery Size (kWh)</span>
+                  <input
+                    style={s.input}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={batterySizeKwh}
+                    onChange={(e) => setBatterySizeKwh(e.target.value)}
+                  />
+                </label>
+                <label style={s.field}>
+                  <span style={s.label}>Battery Brand</span>
+                  <input
+                    style={s.input}
+                    type="text"
+                    value={batteryBrand}
+                    onChange={(e) => setBatteryBrand(e.target.value)}
+                  />
+                </label>
+              </div>
+              <label style={s.field}>
+                <span style={s.label}>Battery Model</span>
+                <input
+                  style={s.input}
+                  type="text"
+                  value={batteryModel}
+                  onChange={(e) => setBatteryModel(e.target.value)}
+                />
+              </label>
+            </div>
+          )}
 
           {/* Property Information */}
           <div style={s.group}>
@@ -389,6 +573,62 @@ export default function RetailerProjectCreatePanel({ visible, onClose, onCreate 
                 {ACCESS_OPTIONS.map(sv => <option key={sv} value={sv}>{sv}</option>)}
               </select>
             </label>
+          </div>
+
+          {/* Utility Information */}
+          <div style={s.group}>
+            <div style={s.groupTitle}>Utility Information</div>
+            <div style={s.grid2}>
+              <label style={s.field}>
+                <span style={s.label}>Pre-Approval Reference Number</span>
+                <input
+                  style={s.input}
+                  type="text"
+                  value={preApprovalReferenceNo}
+                  onChange={(e) => setPreApprovalReferenceNo(e.target.value)}
+                />
+              </label>
+              <label style={s.field}>
+                <span style={s.label}>Energy Retailer</span>
+                <input
+                  style={s.input}
+                  type="text"
+                  value={energyRetailer}
+                  onChange={(e) => setEnergyRetailer(e.target.value)}
+                />
+              </label>
+            </div>
+
+            <div style={s.grid2}>
+              <label style={s.field}>
+                <span style={s.label}>Energy Distributor</span>
+                <select style={s.select} value={energyDistributor} onChange={(e) => setEnergyDistributor(e.target.value)}>
+                  <option value="">Select</option>
+                  {ENERGY_DISTRIBUTOR_OPTS.map((sv) => (
+                    <option key={sv} value={sv}>{sv}</option>
+                  ))}
+                </select>
+              </label>
+              <label style={s.field}>
+                <span style={s.label}>Solar Victoria Eligibility</span>
+                <select style={s.select} value={solarVicEligibility} onChange={(e) => setSolarVicEligibility(e.target.value)}>
+                  <option value="">Select</option>
+                  <option value="1">Eligible</option>
+                  <option value="0">Not eligible</option>
+                </select>
+              </label>
+            </div>
+
+            <div style={s.grid2}>
+              <label style={s.field}>
+                <span style={s.label}>NMI Number</span>
+                <input style={s.input} type="text" value={nmiNumber} onChange={(e) => setNmiNumber(e.target.value)} />
+              </label>
+              <label style={s.field}>
+                <span style={s.label}>Meter Number</span>
+                <input style={s.input} type="text" value={meterNumber} onChange={(e) => setMeterNumber(e.target.value)} />
+              </label>
+            </div>
           </div>
 
           {/* Notes */}

@@ -1,35 +1,39 @@
 // src/components/projects/ProjectsTable.jsx
 import React, { useMemo, useState } from 'react';
 
-/** 12 project pipeline stages (same as DB enum) */
+/** Fallback when parent does not pass `stages` from workflow */
 const PROJECT_STAGES = [
   'new',
-  'pre_approval',
-  'state_rebate',
-  'design_engineering',
-  'procurement',
   'scheduled',
+  'to_be_rescheduled',
   'installation_in_progress',
   'installation_completed',
-  'compliance_check',
-  'inspection_grid_connection',
-  'rebate_stc_claims',
-  'project_completed',
+  'ces_certificate_applied',
+  'ces_certificate_received',
+  'grid_connection_initiated',
+  'grid_connection_completed',
+  'system_handover',
 ];
 
 const STAGE_LABELS = {
   new: 'New',
-  pre_approval: 'Pre-approval',
-  state_rebate: 'State rebate',
-  design_engineering: 'Design & engineering',
-  procurement: 'Procurement',
   scheduled: 'Scheduled',
+  to_be_rescheduled: 'To be rescheduled',
   installation_in_progress: 'Installation in progress',
   installation_completed: 'Installation completed',
-  compliance_check: 'Compliance check',
-  inspection_grid_connection: 'Inspection & grid connection',
-  rebate_stc_claims: 'Rebate & STC claims',
-  project_completed: 'Project completed',
+  ces_certificate_applied: 'CES certificate applied',
+  ces_certificate_received: 'CES certificate received',
+  grid_connection_initiated: 'GRID connection initiated',
+  grid_connection_completed: 'GRID connection completed',
+  system_handover: 'System handover',
+  pre_approval: 'Pre-approval (legacy)',
+  state_rebate: 'State rebate (legacy)',
+  design_engineering: 'Design & engineering (legacy)',
+  procurement: 'Procurement (legacy)',
+  compliance_check: 'Compliance check (legacy)',
+  inspection_grid_connection: 'Inspection & grid connection (legacy)',
+  rebate_stc_claims: 'Rebate & STC claims (legacy)',
+  project_completed: 'Project completed (legacy)',
 };
 
 function money(v) {
@@ -98,10 +102,16 @@ function Th({ children, sortKey, sort, onSort, align = 'left' }) {
 }
 
 /** Stage select styled like a mint pill */
-function StageSelect({ value, onChange }) {
+function StageSelect({ value, onChange, stages }) {
+  const list =
+    stages && stages.length
+      ? stages
+      : PROJECT_STAGES.map((k) => ({ key: k, label: STAGE_LABELS[k] ?? k }));
+  const keys = new Set(list.map((s) => s.key));
+  const v = keys.has(value) ? value : list[0]?.key;
   return (
     <select
-      value={value || ''}
+      value={v || ''}
       onChange={(e) => onChange?.(e.target.value)}
       style={{
         borderRadius: 999,
@@ -114,9 +124,12 @@ function StageSelect({ value, onChange }) {
         outline: 'none',
       }}
     >
-      {PROJECT_STAGES.map((s) => (
-        <option key={s} value={s}>
-          {STAGE_LABELS[s] ?? s}
+      {!keys.has(value) && value && (
+        <option value={value}>{STAGE_LABELS[value] ?? value} (inactive)</option>
+      )}
+      {list.map((s) => (
+        <option key={s.key} value={s.key}>
+          {s.label}
         </option>
       ))}
     </select>
@@ -145,7 +158,7 @@ function SourceBadge({ children }) {
 }
 
 /** Main table */
-export default function ProjectsTable({ projects = [], onRowClick, onStageChange }) {
+export default function ProjectsTable({ projects = [], onRowClick, onStageChange, stages }) {
   const [sort, setSort] = useState({ key: 'customerName', dir: 'asc' });
 
   const data = useMemo(() => {
@@ -216,6 +229,7 @@ export default function ProjectsTable({ projects = [], onRowClick, onStageChange
                 >
                   <StageSelect
                     value={p.stage}
+                    stages={stages}
                     onChange={(next) => onStageChange?.(p.id, next)}
                   />
                 </td>
