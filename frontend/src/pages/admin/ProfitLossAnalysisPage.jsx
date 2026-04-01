@@ -217,8 +217,8 @@ export default function ProfitLossAnalysisPage() {
   }, [data]);
 
   return (
-    <div style={{ padding: 18, background: C.bg, minHeight: 'calc(100vh - 56px)' }}>
-      <div style={{ maxWidth: 1220, margin: '0 auto', display: 'grid', gap: 16 }}>
+    <div style={{ padding: '18px 0', background: C.bg, minHeight: 'calc(100vh - 56px)' }}>
+      <div style={{ width: '100%', display: 'grid', gap: 16 }}>
         <section
           style={{
             background: C.white,

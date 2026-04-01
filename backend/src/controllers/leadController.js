@@ -349,6 +349,20 @@ export async function updateLead(req, res) {
     if (body.value_amount !== undefined) payload.value_amount = body.value_amount;
     if (body.source !== undefined) payload.source = body.source;
     if (body.site_inspection_date !== undefined) payload.site_inspection_date = toMySQLDateTime(body.site_inspection_date);
+    if (body.email !== undefined) {
+      const email = trimOrNull(body.email, 255);
+      if (email && !EMAIL_RE.test(email)) {
+        return res.status(422).json({ success: false, errors: { email: 'Invalid email format.' } });
+      }
+      payload.email = email;
+    }
+    if (body.phone !== undefined) {
+      const phone = trimOrNull(body.phone, 50);
+      if (phone && !PHONE_RE.test(phone)) {
+        return res.status(422).json({ success: false, errors: { phone: 'Invalid phone format.' } });
+      }
+      payload.phone = phone;
+    }
     if (body.sales_segment !== undefined) {
       const s = body.sales_segment;
       if (s === null || s === '') {
