@@ -91,27 +91,25 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
     return { sel: 'Other', other: String(value) };
   };
 
-  // ----- New sections state -----
-  const [extras, setExtras] = useState(() => {
-    // SYSTEM TYPE: split select/other
+  const computeExtrasFromLead = (leadData) => {
     const { sel: sysSel, other: sysOther } = splitForSelectOther(
-      lead?.system_type ?? lead?.systemType ?? lead?._raw?.system_type ?? '',
+      leadData?.system_type ?? leadData?.systemType ?? leadData?._raw?.system_type ?? '',
       SYSTEM_TYPE_OPTS
     );
 
     const { sel: storeySel, other: storeyOther } = splitForSelectOther(
-      lead?.house_storey ?? lead?.houseStorey ?? lead?._raw?.house_storey ?? '',
+      leadData?.house_storey ?? leadData?.houseStorey ?? leadData?._raw?.house_storey ?? '',
       HOUSE_STOREY_OPTS
     );
     const { sel: roofSel, other: roofOther } = splitForSelectOther(
-      lead?.roof_type ?? lead?.roofType ?? lead?._raw?.roof_type ?? '',
+      leadData?.roof_type ?? leadData?.roofType ?? leadData?._raw?.roof_type ?? '',
       ROOF_TYPE_OPTS
     );
 
-    const meterRaw = lead?.meter_phase ?? lead?.meterPhase ?? lead?._raw?.meter_phase ?? '';
-    const meterSel = METER_PHASE_OPTS.includes(String(meterRaw).toLowerCase())
-      ? String(meterRaw).toLowerCase()
-      : '';
+    const meterRaw = leadData?.meter_phase ?? leadData?.meterPhase ?? leadData?._raw?.meter_phase ?? '';
+    const meterSel = METER_PHASE_OPTS.find(
+      (opt) => opt.toLowerCase() === String(meterRaw).trim().toLowerCase()
+    ) || '';
 
     return {
       system_type_sel: sysSel,
@@ -126,54 +124,54 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
       meter_phase_sel: meterSel,
 
       access_to_second_storey: toBoolOrNull(
-        lead?.access_to_second_storey ??
-          lead?.accessToSecondStorey ??
-          lead?._raw?.access_to_second_storey ??
+        leadData?.access_to_second_storey ??
+          leadData?.accessToSecondStorey ??
+          leadData?._raw?.access_to_second_storey ??
           null,
       ),
       access_to_inverter: toBoolOrNull(
-        lead?.access_to_inverter ??
-          lead?.accessToInverter ??
-          lead?._raw?.access_to_inverter ??
+        leadData?.access_to_inverter ??
+          leadData?.accessToInverter ??
+          leadData?._raw?.access_to_inverter ??
           null,
       ),
       pre_approval_reference_no:
-        lead?.pre_approval_reference_no ??
-        lead?.preApprovalReferenceNo ??
-        lead?._raw?.pre_approval_reference_no ??
+        leadData?.pre_approval_reference_no ??
+        leadData?.preApprovalReferenceNo ??
+        leadData?._raw?.pre_approval_reference_no ??
         '',
       energy_retailer:
-        lead?.energy_retailer ??
-        lead?.energyRetailer ??
-        lead?._raw?.energy_retailer ??
+        leadData?.energy_retailer ??
+        leadData?.energyRetailer ??
+        leadData?._raw?.energy_retailer ??
         '',
       energy_distributor:
-        lead?.energy_distributor ??
-        lead?.energyDistributor ??
-        lead?._raw?.energy_distributor ??
+        leadData?.energy_distributor ??
+        leadData?.energyDistributor ??
+        leadData?._raw?.energy_distributor ??
         '',
       solar_vic_eligibility: toBoolOrNull(
-        lead?.solar_vic_eligibility ??
-          lead?.solarVicEligibility ??
-          lead?._raw?.solar_vic_eligibility ??
+        leadData?.solar_vic_eligibility ??
+          leadData?.solarVicEligibility ??
+          leadData?._raw?.solar_vic_eligibility ??
           null,
       ),
-      nmi_number: lead?.nmi_number ?? lead?.nmiNumber ?? lead?._raw?.nmi_number ?? '',
+      nmi_number: leadData?.nmi_number ?? leadData?.nmiNumber ?? leadData?._raw?.nmi_number ?? '',
       meter_number:
-        lead?.meter_number ?? lead?.meterNumber ?? lead?._raw?.meter_number ?? '',
+        leadData?.meter_number ?? leadData?.meterNumber ?? leadData?._raw?.meter_number ?? '',
 
       // PV system details
       pv_system_size_kw:
-        lead?.pv_system_size_kw ??
-        lead?._raw?.pv_system_size_kw ??
+        leadData?.pv_system_size_kw ??
+        leadData?._raw?.pv_system_size_kw ??
         '',
       pv_inverter_size_kw:
-        lead?.pv_inverter_size_kw ??
-        lead?._raw?.pv_inverter_size_kw ??
+        leadData?.pv_inverter_size_kw ??
+        leadData?._raw?.pv_inverter_size_kw ??
         '',
       pv_inverter_brand:
-        lead?.pv_inverter_brand ??
-        lead?._raw?.pv_inverter_brand ??
+        leadData?.pv_inverter_brand ??
+        leadData?._raw?.pv_inverter_brand ??
         '',
       pv_inverter_model:
         lead?.pv_inverter_model ??
@@ -192,8 +190,8 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
         lead?._raw?.pv_inverter_quantity ??
         '',
       pv_panel_brand:
-        lead?.pv_panel_brand ??
-        lead?._raw?.pv_panel_brand ??
+        leadData?.pv_panel_brand ??
+        leadData?._raw?.pv_panel_brand ??
         '',
       pv_panel_model:
         lead?.pv_panel_model ??
@@ -204,35 +202,42 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
         lead?._raw?.pv_panel_quantity ??
         '',
       pv_panel_module_watts:
-        lead?.pv_panel_module_watts ??
-        lead?._raw?.pv_panel_module_watts ??
+        leadData?.pv_panel_module_watts ??
+        leadData?._raw?.pv_panel_module_watts ??
         '',
 
       // EV charger details
       ev_charger_brand:
-        lead?.ev_charger_brand ??
-        lead?._raw?.ev_charger_brand ??
+        leadData?.ev_charger_brand ??
+        leadData?._raw?.ev_charger_brand ??
         '',
       ev_charger_model:
-        lead?.ev_charger_model ??
-        lead?._raw?.ev_charger_model ??
+        leadData?.ev_charger_model ??
+        leadData?._raw?.ev_charger_model ??
         '',
 
       // Battery details
       battery_size_kwh:
-        lead?.battery_size_kwh ??
-        lead?._raw?.battery_size_kwh ??
+        leadData?.battery_size_kwh ??
+        leadData?._raw?.battery_size_kwh ??
         '',
       battery_brand:
-        lead?.battery_brand ??
-        lead?._raw?.battery_brand ??
+        leadData?.battery_brand ??
+        leadData?._raw?.battery_brand ??
         '',
       battery_model:
-        lead?.battery_model ??
-        lead?._raw?.battery_model ??
+        leadData?.battery_model ??
+        leadData?._raw?.battery_model ??
         '',
     };
-  });
+  };
+
+  // ----- New sections state -----
+  const [extras, setExtras] = useState(() => computeExtrasFromLead(lead));
+
+  useEffect(() => {
+    setExtras(computeExtrasFromLead(lead));
+  }, [lead]);
 
   const updateExtra = (key, value) =>
     setExtras((prev) => ({ ...prev, [key]: value }));
@@ -607,6 +612,16 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
 
   const closeResultDialog = useCallback(() => {
     setResultDialog(null);
+  }, []);
+
+  const handleSaveClick = useCallback(() => {
+    const form = document.getElementById('lead-core-form');
+    if (!form) return;
+    if (typeof form.requestSubmit === 'function') {
+      form.requestSubmit();
+      return;
+    }
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
   }, []);
 
   useEffect(() => {
@@ -1254,7 +1269,7 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
       </Section>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-        <button type="submit" form="lead-core-form" style={btnPrimary}>
+        <button type="button" onClick={handleSaveClick} style={btnPrimary}>
           Save changes
         </button>
       </div>

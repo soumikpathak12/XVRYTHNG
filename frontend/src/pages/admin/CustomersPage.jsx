@@ -339,13 +339,13 @@ export default function CustomersPage() {
   return (
     <div
       style={{
-        padding: 16,
+        padding: '16px 0',
         background:
           'radial-gradient(1200px 360px at 12% -10%, rgba(26,123,123,0.10), transparent 58%), radial-gradient(900px 280px at 90% -20%, rgba(2,132,199,0.08), transparent 58%), #F6F8FB',
         minHeight: 'calc(100vh - 56px)',
       }}
     >
-      <div style={{ maxWidth: 1280, margin: '0 auto', display: 'grid', gap: 14 }}>
+      <div style={{ width: '100%', display: 'grid', gap: 14 }}>
         <section
           style={{
             background: CARD.bg,

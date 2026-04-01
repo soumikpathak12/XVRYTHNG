@@ -3,6 +3,27 @@ import db from '../config/db.js';
 import bcrypt from 'bcryptjs';
 import { sendEmployeeCredentialEmail } from './emailService.js';
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_DIGITS_REGEX = /^\d{8,15}$/;
+const AU_STATE_LOOKUP = new Map([
+  ['NSW', 'NSW'],
+  ['NEW SOUTH WALES', 'NSW'],
+  ['VIC', 'VIC'],
+  ['VICTORIA', 'VIC'],
+  ['QLD', 'QLD'],
+  ['QUEENSLAND', 'QLD'],
+  ['WA', 'WA'],
+  ['WESTERN AUSTRALIA', 'WA'],
+  ['SA', 'SA'],
+  ['SOUTH AUSTRALIA', 'SA'],
+  ['TAS', 'TAS'],
+  ['TASMANIA', 'TAS'],
+  ['ACT', 'ACT'],
+  ['AUSTRALIAN CAPITAL TERRITORY', 'ACT'],
+  ['NT', 'NT'],
+  ['NORTHERN TERRITORY', 'NT'],
+]);
+
 function asNumberOrNull(v) {
   if (v == null || v === '') return null;
   const n = Number(v);
@@ -14,6 +35,29 @@ function asDateOrNull(v) {
   // Extract only YYYY-MM-DD from ISO strings like "2004-05-07T00:00:00.000Z"
   const dateStr = String(v).split('T')[0];
   return /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? dateStr : null;
+}
+
+function validateEmployeeContact(rawContact = {}, { requireEmail = false, requirePhone = false, requireState = false } = {}) {
+  const email = String(rawContact?.email ?? '').trim().toLowerCase();
+  const phone = String(rawContact?.phone ?? '').trim();
+  const stateRaw = String(rawContact?.state ?? '').trim().toUpperCase();
+  const normalizedState = stateRaw ? (AU_STATE_LOOKUP.get(stateRaw) ?? null) : null;
+
+  if (requireEmail && !email) throw new Error('Email is required');
+  if (email && !EMAIL_REGEX.test(email)) throw new Error('Email format is invalid');
+
+  if (requirePhone && !phone) throw new Error('Phone number is required');
+  if (phone && !PHONE_DIGITS_REGEX.test(phone)) throw new Error('Phone number must be 8-15 digits');
+
+  if (requireState && !stateRaw) throw new Error('State is required');
+  if (stateRaw && !normalizedState) throw new Error('State must be a valid Australian state/territory');
+
+  return {
+    ...rawContact,
+    email,
+    phone: phone || null,
+    state: normalizedState,
+  };
 }
 
 async function getCompanyDisplayName(companyId) {
@@ -38,12 +82,18 @@ export async function createEmployee(companyId, payload) {
     const {
       employee_code,
       personal = {},
-      contact = {},
+      contact: rawContact = {},
       employment = {},
       account = {}, // { enable_login, password }
       qualifications = [],
       emergency_contacts = [],
     } = payload ?? {};
+
+    const contact = validateEmployeeContact(rawContact, {
+      requireEmail: true,
+      requirePhone: true,
+      requireState: true,
+    });
 
     let _newLoginEmail = null;
     let _tempPassword = null;
@@ -299,6 +349,12 @@ export async function getEmployee(companyId, id) {
 }
 
 export async function updateEmployee(companyId, id, body = {}) {
+  const normalizedContact = validateEmployeeContact(body?.contact ?? {}, {
+    requireEmail: false,
+    requirePhone: false,
+    requireState: false,
+  });
+
   const fields = [];
   const params = [];
 
@@ -309,12 +365,12 @@ export async function updateEmployee(companyId, id, body = {}) {
     gender: body?.personal?.gender,
     avatar_url: body?.personal?.avatar_url,
 
-    email: body?.contact?.email,
-    phone: body?.contact?.phone,
+    email: body?.contact?.email === undefined ? undefined : normalizedContact.email,
+    phone: body?.contact?.phone === undefined ? undefined : normalizedContact.phone,
     address_line1: body?.contact?.address_line1,
     address_line2: body?.contact?.address_line2,
     city: body?.contact?.city,
-    state: body?.contact?.state,
+    state: body?.contact?.state === undefined ? undefined : normalizedContact.state,
     postal_code: body?.contact?.postal_code,
     country: body?.contact?.country,
 

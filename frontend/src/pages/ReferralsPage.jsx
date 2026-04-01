@@ -321,7 +321,26 @@ export default function ReferralsPage() {
           <span className="referrals-bonus-chip">Battery: {formatCurrency(bonusConfig.battery)}</span>
           <span className="referrals-bonus-chip">Solar+Battery: {formatCurrency(bonusConfig['solar+battery'])}</span>
           <span className="referrals-bonus-chip">EV Charger: {formatCurrency(bonusConfig['ev-charger'])}</span>
+          <span className="referrals-bonus-chip">
+            e-visa Gift Card: {bonusConfig.evisaGiftCardEnabled ? formatCurrency(bonusConfig.evisaGiftCardAmount) : 'Disabled'}
+          </span>
+          <span className="referrals-bonus-chip">
+            Branding Surcharge: {bonusConfig.evisaBrandingEnabled ? formatCurrency(bonusConfig.evisaBrandingSurcharge) : 'Disabled'}
+          </span>
+          <span className="referrals-bonus-chip">
+            Support SLA: {bonusConfig.supportResponseMinutes || 90} mins
+          </span>
+          <span className="referrals-bonus-chip">
+            Company Compensation: {formatCurrency(bonusConfig.supportCompensationAmount || 50)}
+          </span>
+          <span className="referrals-bonus-chip">
+            XVRYTHING Escalation: {formatCurrency(bonusConfig.supportEscalationAmount || 250)}
+          </span>
         </div>
+        <p style={{ marginTop: 12, marginBottom: 0, color: '#64748b', fontSize: 13 }}>
+          Customer protection policy: if the company misses the support response SLA, the customer is eligible for a compensation gift card from the company.
+          If unresolved and escalated, XVRYTHING issues the escalation gift card and suspends the company.
+        </p>
       </div>
 
       {/* All Referrals Table */}

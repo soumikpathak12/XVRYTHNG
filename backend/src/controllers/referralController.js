@@ -144,12 +144,13 @@ export async function saveSettings(req, res) {
       });
     }
     
-    await referralService.saveSettings(settings);
+    const normalized = referralService.normalizeSettings(settings);
+    await referralService.saveSettings(normalized);
     
     res.json({
       success: true,
       message: 'Settings saved successfully',
-      settings,
+      settings: normalized,
     });
   } catch (error) {
     console.error('Error saving settings:', error);

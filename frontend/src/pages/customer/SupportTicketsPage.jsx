@@ -98,7 +98,7 @@ function NewTicketForm({ onSuccess, onCancel }) {
     <div className="support-ticket-form-card customer-portal-card">
       <h2 className="support-ticket-form-title">Submit a support ticket</h2>
       <p className="support-ticket-form-desc">
-        Describe your issue and we&apos;ll get back to you as soon as possible.
+        Use support tickets for the fastest response. Ticketed requests are tracked with a response SLA and help you avoid missed calls or out-of-hours messaging.
       </p>
       <form onSubmit={handleSubmit} className="support-ticket-form">
         <div className="support-ticket-form-group">
@@ -212,7 +212,7 @@ function TicketList({ tickets, loading, onNewTicket, onSelectTicket }) {
         <div className="support-tickets-empty customer-portal-card">
           <MessageCirclePlus size={48} className="support-tickets-empty-icon" />
           <h3>No support tickets yet</h3>
-          <p>Submit a ticket for any issues with your project. Our team will respond shortly.</p>
+          <p>Submit a ticket for any project issue. This channel is monitored under your company response policy.</p>
           <button onClick={onNewTicket} className="customer-portal-btn customer-portal-btn-primary">
             <MessageCirclePlus size={18} />
             Submit your first ticket

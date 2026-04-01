@@ -2,13 +2,16 @@
  * Admin support tickets – list and detail (thread-style) with reply and status update.
  * Brand theme: #1A7B7B, #4DB8A8, #1A1A2E, #555555.
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   listAdminSupportTickets,
   getAdminSupportTicket,
   addAdminSupportTicketReply,
   updateAdminSupportTicketStatus,
+  markAdminSupportCompanyCompensationPaid,
+  escalateAdminSupportCompensation,
+  getToken,
 } from '../../services/api.js';
 import { MessageCircle, ArrowLeft, Send, Loader2, AlertCircle, User, Headphones } from 'lucide-react';
 import '../../styles/AdminSupportTicketsPage.css';
@@ -36,6 +39,14 @@ const CATEGORY_LABELS = {
   others: 'Others',
 };
 
+const COMPENSATION_LABELS = {
+  none: 'Not triggered',
+  company_due: 'Company owes customer',
+  company_paid: 'Company paid',
+  xvrything_paid: 'XVRYTHING paid',
+  company_removed: 'Company suspended',
+};
+
 function capitalizeFirst(s) {
   return s ? String(s).charAt(0).toUpperCase() + String(s).slice(1) : '';
 }
@@ -52,8 +63,22 @@ function formatDate(d) {
   });
 }
 
+function formatCurrency(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return '$0';
+  return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 0 }).format(n);
+}
+
 /** Ticket list view */
-function TicketList({ tickets, loading, statusFilter, onStatusFilterChange, onSelectTicket }) {
+function TicketList({
+  tickets,
+  loading,
+  statusFilter,
+  onStatusFilterChange,
+  onSelectTicket,
+  newTicketCount,
+  onClearNewTicketNotice,
+}) {
   return (
     <div className="admin-support-list">
       <div className="admin-support-header">
@@ -72,6 +97,18 @@ function TicketList({ tickets, loading, statusFilter, onStatusFilterChange, onSe
           </select>
         </div>
       </div>
+      {newTicketCount > 0 && (
+        <div className="admin-support-live-alert" role="status" aria-live="polite">
+          <span>
+            {newTicketCount === 1
+              ? 'A new support ticket has arrived.'
+              : `${newTicketCount} new support tickets have arrived.`}
+          </span>
+          <button type="button" onClick={onClearNewTicketNotice} className="admin-support-live-alert-btn">
+            Dismiss
+          </button>
+        </div>
+      )}
       {loading ? (
         <div className="admin-support-loading">
           <Loader2 size={32} className="spin" />
@@ -92,6 +129,7 @@ function TicketList({ tickets, loading, statusFilter, onStatusFilterChange, onSe
                 <th>Customer</th>
                 <th>Category</th>
                 <th>Status</th>
+                <th>SLA</th>
                 <th>Priority</th>
                 <th>Updated</th>
               </tr>
@@ -114,6 +152,11 @@ function TicketList({ tickets, loading, statusFilter, onStatusFilterChange, onSe
                       {STATUS_LABELS[t.status] || t.status}
                     </span>
                   </td>
+                  <td>
+                    <span className={`admin-support-sla ${t.is_sla_breached ? 'breached' : 'ok'}`}>
+                      {t.is_sla_breached ? 'Breached' : 'On time'}
+                    </span>
+                  </td>
                   <td className="admin-support-priority">{capitalizeFirst(t.priority)}</td>
                   <td className="admin-support-date">{formatDate(t.updated_at)}</td>
                 </tr>
@@ -134,6 +177,7 @@ function TicketDetail({ ticketId, onBack }) {
   const [replyBody, setReplyBody] = useState('');
   const [sending, setSending] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [updatingCompensation, setUpdatingCompensation] = useState(false);
 
   const loadTicket = async () => {
     setLoading(true);
@@ -178,6 +222,34 @@ function TicketDetail({ ticketId, onBack }) {
       setError(err.message || 'Failed to update status');
     } finally {
       setUpdatingStatus(false);
+    }
+  };
+
+  const handleMarkCompanyPaid = async () => {
+    setUpdatingCompensation(true);
+    setError('');
+    try {
+      await markAdminSupportCompanyCompensationPaid(ticketId);
+      await loadTicket();
+    } catch (err) {
+      setError(err.message || 'Failed to mark company compensation');
+    } finally {
+      setUpdatingCompensation(false);
+    }
+  };
+
+  const handleEscalate = async () => {
+    const ok = confirm('Escalate this case to XVRYTHING compensation and suspend the company?');
+    if (!ok) return;
+    setUpdatingCompensation(true);
+    setError('');
+    try {
+      await escalateAdminSupportCompensation(ticketId);
+      await loadTicket();
+    } catch (err) {
+      setError(err.message || 'Failed to escalate compensation');
+    } finally {
+      setUpdatingCompensation(false);
     }
   };
 
@@ -237,6 +309,35 @@ function TicketDetail({ ticketId, onBack }) {
           )}
           <span><strong>Priority:</strong> {capitalizeFirst(ticket?.priority)}</span>
           <span><strong>Created:</strong> {formatDate(ticket?.created_at)}</span>
+          <span><strong>Response Due:</strong> {formatDate(ticket?.response_due_at)}</span>
+          <span><strong>SLA Status:</strong> {ticket?.is_sla_breached ? 'Breached' : 'On time'}</span>
+          <span><strong>Compensation:</strong> {COMPENSATION_LABELS[ticket?.effective_compensation_status || ticket?.compensation_status] || 'Not triggered'}</span>
+        </div>
+      </div>
+
+      <div className="admin-support-policy-panel">
+        <h3>Customer Protection Policy</h3>
+        <p>
+          If no staff response is sent within 90 minutes, company owes customer {formatCurrency(ticket?.company_compensation_amount || 50)}.
+          If the company fails to compensate, escalate to XVRYTHING {formatCurrency(ticket?.xvrything_compensation_amount || 250)} and suspend the company.
+        </p>
+        <div className="admin-support-policy-actions">
+          <button
+            type="button"
+            className="admin-support-btn-secondary"
+            onClick={handleMarkCompanyPaid}
+            disabled={updatingCompensation || !['company_due', 'company_paid'].includes(ticket?.effective_compensation_status || ticket?.compensation_status)}
+          >
+            Mark Company Compensation Paid
+          </button>
+          <button
+            type="button"
+            className="admin-support-btn-danger"
+            onClick={handleEscalate}
+            disabled={updatingCompensation || !['company_due', 'company_paid'].includes(ticket?.effective_compensation_status || ticket?.compensation_status)}
+          >
+            Escalate + Suspend Company
+          </button>
         </div>
       </div>
 
@@ -302,24 +403,94 @@ export default function AdminSupportTicketsPage() {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
+  const [newTicketCount, setNewTicketCount] = useState(0);
+  const knownTicketIdsRef = useRef(new Set());
+  const initializedRef = useRef(false);
 
-  const loadTickets = async () => {
-    setLoading(true);
+  const loadTickets = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const res = await listAdminSupportTickets({
         status: statusFilter || undefined,
       });
-      setTickets(res.data || []);
+      const nextTickets = res.data || [];
+      setTickets(nextTickets);
+
+      const nextIds = new Set(nextTickets.map((t) => Number(t.id)).filter(Number.isFinite));
+
+      if (!initializedRef.current) {
+        knownTicketIdsRef.current = nextIds;
+        initializedRef.current = true;
+        setNewTicketCount(0);
+      } else {
+        let freshCount = 0;
+        for (const id of nextIds) {
+          if (!knownTicketIdsRef.current.has(id)) freshCount += 1;
+        }
+        if (freshCount > 0) {
+          setNewTicketCount((prev) => prev + freshCount);
+        }
+        knownTicketIdsRef.current = nextIds;
+      }
     } catch {
       setTickets([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  };
+  }, [statusFilter]);
 
   useEffect(() => {
+    initializedRef.current = false;
+    knownTicketIdsRef.current = new Set();
+    setNewTicketCount(0);
     loadTickets();
-  }, [statusFilter]);
+  }, [statusFilter, loadTickets]);
+
+  useEffect(() => {
+    if (ticketId) return undefined;
+
+    const token = getToken();
+    if (!token) return undefined;
+
+    const env = import.meta.env?.VITE_WS_URL;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const defaultWsUrl = `${protocol}//${window.location.host}/ws`;
+    const wsUrl = `${(env ? env.replace(/^http/, 'ws') : defaultWsUrl)}?token=${encodeURIComponent(token)}`;
+    const ws = new WebSocket(wsUrl);
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data?.type !== 'support_ticket_created') return;
+
+        const incomingStatus = String(data?.ticket?.status || 'open');
+        const matchesCurrentFilter = !statusFilter || statusFilter === incomingStatus;
+
+        setNewTicketCount((prev) => prev + 1);
+        if (matchesCurrentFilter) {
+          loadTickets({ silent: true });
+        }
+      } catch {
+        // Ignore invalid websocket payloads.
+      }
+    };
+
+    return () => {
+      try {
+        ws.close();
+      } catch {
+        // ignore close error
+      }
+    };
+  }, [ticketId, statusFilter, loadTickets]);
+
+  useEffect(() => {
+    if (ticketId) return undefined;
+    const interval = setInterval(() => {
+      loadTickets({ silent: true });
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [ticketId, loadTickets]);
 
   const handleSelectTicket = (id) => {
     const base = window.location.pathname.startsWith('/dashboard') ? '/dashboard' : window.location.pathname.startsWith('/employee') ? '/employee' : '/admin';
@@ -347,6 +518,8 @@ export default function AdminSupportTicketsPage() {
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
         onSelectTicket={handleSelectTicket}
+        newTicketCount={newTicketCount}
+        onClearNewTicketNotice={() => setNewTicketCount(0)}
       />
     </div>
   );

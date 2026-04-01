@@ -778,7 +778,7 @@ export default function MessagesPage() {
                   disabled={sending || uploading || (!input.trim() && !attachment)}
                   aria-label="Send"
                 >
-                  {uploading ? '⌛' : '⚡'}
+                  {uploading ? 'Sending...' : 'Send'}
                 </button>
               </div>
             )}

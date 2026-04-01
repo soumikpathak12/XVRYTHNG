@@ -4,6 +4,21 @@
  */
 import db from '../config/db.js';
 
+const DEFAULT_SETTINGS = {
+  solar: 150,
+  battery: 150,
+  'solar+battery': 250,
+  'ev-charger': 100,
+  evisaGiftCardEnabled: true,
+  evisaGiftCardAmount: 50,
+  evisaBrandingEnabled: true,
+  evisaBrandingSurcharge: 20,
+  supportResponseMinutes: 90,
+  supportCompensationAmount: 50,
+  supportEscalationAmount: 250,
+  supportAutoRemoveCompany: true,
+};
+
 /**
  * Referral statuses:
  * - Pending: Lead is in early stages (new, contacted, qualified)
@@ -272,11 +287,39 @@ export async function getReferrers() {
  * Get default bonus settings.
  */
 export function getDefaultSettings() {
+  return { ...DEFAULT_SETTINGS };
+}
+
+export function normalizeSettings(rawSettings) {
+  const s = rawSettings && typeof rawSettings === 'object' ? rawSettings : {};
+
+  const toNumber = (value, fallback) => {
+    const n = Number(value);
+    return Number.isFinite(n) && n >= 0 ? n : fallback;
+  };
+
   return {
-    solar: 150,
-    battery: 150,
-    'solar+battery': 250,
-    'ev-charger': 100,
+    solar: toNumber(s.solar, DEFAULT_SETTINGS.solar),
+    battery: toNumber(s.battery, DEFAULT_SETTINGS.battery),
+    'solar+battery': toNumber(s['solar+battery'], DEFAULT_SETTINGS['solar+battery']),
+    'ev-charger': toNumber(s['ev-charger'], DEFAULT_SETTINGS['ev-charger']),
+    evisaGiftCardEnabled:
+      typeof s.evisaGiftCardEnabled === 'boolean'
+        ? s.evisaGiftCardEnabled
+        : DEFAULT_SETTINGS.evisaGiftCardEnabled,
+    evisaGiftCardAmount: toNumber(s.evisaGiftCardAmount, DEFAULT_SETTINGS.evisaGiftCardAmount),
+    evisaBrandingEnabled:
+      typeof s.evisaBrandingEnabled === 'boolean'
+        ? s.evisaBrandingEnabled
+        : DEFAULT_SETTINGS.evisaBrandingEnabled,
+    evisaBrandingSurcharge: toNumber(s.evisaBrandingSurcharge, DEFAULT_SETTINGS.evisaBrandingSurcharge),
+    supportResponseMinutes: toNumber(s.supportResponseMinutes, DEFAULT_SETTINGS.supportResponseMinutes),
+    supportCompensationAmount: toNumber(s.supportCompensationAmount, DEFAULT_SETTINGS.supportCompensationAmount),
+    supportEscalationAmount: toNumber(s.supportEscalationAmount, DEFAULT_SETTINGS.supportEscalationAmount),
+    supportAutoRemoveCompany:
+      typeof s.supportAutoRemoveCompany === 'boolean'
+        ? s.supportAutoRemoveCompany
+        : DEFAULT_SETTINGS.supportAutoRemoveCompany,
   };
 }
 
@@ -291,14 +334,14 @@ export async function getSettings() {
     `);
     
     if (rows.length > 0 && rows[0].settings_json) {
-      return JSON.parse(rows[0].settings_json);
+      return normalizeSettings(JSON.parse(rows[0].settings_json));
     }
     
-    return getDefaultSettings();
+    return normalizeSettings(getDefaultSettings());
   } catch (error) {
     // Table might not exist, return defaults
     if (error.code === 'ER_NO_SUCH_TABLE') {
-      return getDefaultSettings();
+      return normalizeSettings(getDefaultSettings());
     }
     throw error;
   }
@@ -308,13 +351,14 @@ export async function getSettings() {
  * Save referral bonus settings to database.
  */
 export async function saveSettings(settings) {
+  const normalized = normalizeSettings(settings);
   try {
     // Try to insert or update
     await db.execute(`
       INSERT INTO referral_settings (id, settings_json, updated_at)
       VALUES (1, ?, NOW())
       ON DUPLICATE KEY UPDATE settings_json = ?, updated_at = NOW()
-    `, [JSON.stringify(settings), JSON.stringify(settings)]);
+    `, [JSON.stringify(normalized), JSON.stringify(normalized)]);
     
     return { success: true };
   } catch (error) {
@@ -333,7 +377,7 @@ export async function saveSettings(settings) {
       await db.execute(`
         INSERT INTO referral_settings (id, settings_json)
         VALUES (1, ?)
-      `, [JSON.stringify(settings)]);
+      `, [JSON.stringify(normalized)]);
       
       return { success: true };
     }

@@ -254,6 +254,22 @@ export async function updateAdminSupportTicketStatus(ticketId, status) {
   return data;
 }
 
+/** POST /api/admin/support-tickets/:id/company-compensation-paid */
+export async function markAdminSupportCompanyCompensationPaid(ticketId) {
+  const data = await authFetchJSON(`/api/admin/support-tickets/${encodeURIComponent(ticketId)}/company-compensation-paid`, {
+    method: 'POST',
+  });
+  return data;
+}
+
+/** POST /api/admin/support-tickets/:id/escalate-compensation */
+export async function escalateAdminSupportCompensation(ticketId) {
+  const data = await authFetchJSON(`/api/admin/support-tickets/${encodeURIComponent(ticketId)}/escalate-compensation`, {
+    method: 'POST',
+  });
+  return data;
+}
+
 /** Fallback: simulated customer login from localStorage (when backend OTP not used). */
 export function customerLoginLocal(email, otp) {
   const creds = getCustomerCredentials(email);

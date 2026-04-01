@@ -27,21 +27,8 @@ function unregisterSocket(socket, userId) {
   }
 }
 
-/**
- * Broadcast a new message to all participants of a conversation (except optionally the sender, who already has it).
- * Payload: { type: 'new_message', conversationId, message: { id, senderId, senderName, body, createdAt } }
- */
-export async function broadcastNewMessage(conversationId, messagePayload) {
-  const [rows] = await db.execute(
-    `SELECT user_id FROM conversation_participants WHERE conversation_id = ?`,
-    [conversationId],
-  );
-  const userIds = new Set(rows.map((r) => r.user_id));
-  const payload = JSON.stringify({
-    type: 'new_message',
-    conversationId,
-    message: messagePayload,
-  });
+function sendJsonToUserIds(userIds, payloadObj) {
+  const payload = JSON.stringify(payloadObj);
   for (const userId of userIds) {
     const sockets = getSocketsForUser(userId);
     for (const ws of sockets) {
@@ -54,6 +41,59 @@ export async function broadcastNewMessage(conversationId, messagePayload) {
       }
     }
   }
+}
+
+/**
+ * Broadcast a new message to all participants of a conversation (except optionally the sender, who already has it).
+ * Payload: { type: 'new_message', conversationId, message: { id, senderId, senderName, body, createdAt } }
+ */
+export async function broadcastNewMessage(conversationId, messagePayload) {
+  const [rows] = await db.execute(
+    `SELECT user_id FROM conversation_participants WHERE conversation_id = ?`,
+    [conversationId],
+  );
+  const userIds = new Set(rows.map((r) => r.user_id));
+  sendJsonToUserIds(userIds, {
+    type: 'new_message',
+    conversationId,
+    message: messagePayload,
+  });
+}
+
+/**
+ * Broadcast a support ticket creation event to super admins and company admins/managers.
+ */
+export async function broadcastSupportTicketCreated(ticket) {
+  if (!ticket?.id) return;
+  const companyId = Number(ticket.company_id);
+
+  const params = ['super_admin'];
+  const companyClause = Number.isFinite(companyId)
+    ? " OR (u.company_id = ? AND LOWER(r.name) IN ('admin', 'company_admin', 'manager'))"
+    : '';
+  if (Number.isFinite(companyId)) params.push(companyId);
+
+  const [rows] = await db.execute(
+    `SELECT DISTINCT u.id
+     FROM users u
+     INNER JOIN roles r ON r.id = u.role_id
+     WHERE u.status = 'active'
+       AND (LOWER(r.name) = ?${companyClause})`,
+    params,
+  );
+
+  const userIds = new Set(rows.map((r) => Number(r.id)).filter(Number.isFinite));
+  if (userIds.size === 0) return;
+
+  sendJsonToUserIds(userIds, {
+    type: 'support_ticket_created',
+    ticket: {
+      id: Number(ticket.id),
+      company_id: Number.isFinite(companyId) ? companyId : null,
+      status: ticket.status || 'open',
+      created_at: ticket.created_at || new Date().toISOString(),
+    },
+  });
 }
 
 /**

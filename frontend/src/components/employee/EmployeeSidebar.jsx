@@ -78,7 +78,9 @@ export default function EmployeeSidebar() {
     return {
       sales: pathname === '/employee' || pathname.startsWith('/employee/leads'),
       project_manager: pathname.startsWith('/employee/projects'),
-      attendance: pathname.startsWith('/employee/attendance'),
+      attendance:
+        pathname.startsWith('/employee/attendance') ||
+        pathname.startsWith('/employee/leave'),
       on_field:
         pathname.startsWith('/employee/on-field') ||
         pathname.startsWith('/employee/site-inspection') ||
@@ -100,6 +102,8 @@ export default function EmployeeSidebar() {
 
   const hasOps = allowed.has('operations');
   const hasPayroll = allowed.has('payroll');
+  // Leave is a core HR flow and should remain visible even when role module keys vary.
+  const hasLeave = true;
   const operationsTitle =
     hasOps && hasPayroll ? 'Approvals & Payroll' : hasOps ? 'Approvals' : 'Payroll';
 
@@ -129,7 +133,10 @@ export default function EmployeeSidebar() {
     {
       key: 'attendance',
       title: 'Attendance',
-      items: [...(allowed.has('attendance') ? [EMP_MODULE_NAV.attendance] : [])],
+      items: [
+        ...(allowed.has('attendance') ? [EMP_MODULE_NAV.attendance] : []),
+        ...(hasLeave ? [EMP_MODULE_NAV.leave] : []),
+      ],
     },
     {
       key: 'on_field',
@@ -215,7 +222,9 @@ export default function EmployeeSidebar() {
     pathname === '/employee' ||
     pathname.startsWith('/employee/leads');
   const isProjectManagerPath = pathname.startsWith('/employee/projects');
-  const isAttendancePath = pathname.startsWith('/employee/attendance');
+  const isAttendancePath =
+    pathname.startsWith('/employee/attendance') ||
+    pathname.startsWith('/employee/leave');
   const isOnFieldPath =
     pathname.startsWith('/employee/on-field') ||
     pathname.startsWith('/employee/site-inspection') ||
