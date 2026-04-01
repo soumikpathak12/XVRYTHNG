@@ -539,6 +539,22 @@ export async function scheduleInspection(req, res) {
       });
     }
 
+    const dateOnly = String(scheduledDate).trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) {
+      return res.status(422).json({
+        success: false,
+        errors: { schedule: 'Invalid scheduled date format. Use YYYY-MM-DD.' },
+      });
+    }
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    if (dateOnly < todayStr) {
+      return res.status(422).json({
+        success: false,
+        errors: { schedule: 'Cannot schedule inspection in the past.' },
+      });
+    }
+
     const updated = await leadService.scheduleLeadInspection(leadId, {
       scheduledDate,
       scheduledTime,

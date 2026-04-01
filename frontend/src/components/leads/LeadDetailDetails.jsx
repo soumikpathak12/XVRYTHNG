@@ -891,32 +891,26 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
                     />
                   </Labeled>
                   <Labeled label="INVERTER BRAND">
-                    <input
-                      type="text"
-                      list="cec-inverter-brands"
+                    <SuggestInput
                       value={extras.pv_inverter_brand || ''}
-                      onChange={(e) => handleInverterBrandChange(e.target.value)}
-                      style={inputStyle}
-                      placeholder={cecOptions.loading ? 'Loading approved brands…' : 'Start typing'}
+                      onChange={handleInverterBrandChange}
+                      options={cecOptions.inverterBrands}
+                      placeholder={cecOptions.loading ? 'Loading approved brands...' : 'Start typing'}
                     />
                   </Labeled>
                   <Labeled label="INVERTER MODEL">
-                    <input
-                      type="text"
-                      list="cec-inverter-models"
+                    <SuggestInput
                       value={extras.pv_inverter_model || ''}
-                      onChange={(e) => handleInverterModelChange(e.target.value)}
-                      style={inputStyle}
+                      onChange={handleInverterModelChange}
+                      options={cecOptions.inverterModels}
                       placeholder={extras.pv_inverter_brand ? 'Start typing' : 'Select/enter inverter brand first'}
                     />
                   </Labeled>
                   <Labeled label="INVERTER SERIES">
-                    <input
-                      type="text"
-                      list="cec-inverter-series"
+                    <SuggestInput
                       value={extras.pv_inverter_series || ''}
-                      onChange={(e) => updateExtra('pv_inverter_series', e.target.value)}
-                      style={inputStyle}
+                      onChange={(value) => updateExtra('pv_inverter_series', value)}
+                      options={cecOptions.inverterSeries}
                       placeholder={extras.pv_inverter_model ? 'Start typing' : 'Select/enter inverter model first'}
                     />
                   </Labeled>
@@ -940,22 +934,18 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
                     />
                   </Labeled>
                   <Labeled label="PANEL BRAND">
-                    <input
-                      type="text"
-                      list="cec-pv-panel-brands"
+                    <SuggestInput
                       value={extras.pv_panel_brand || ''}
-                      onChange={(e) => handlePanelBrandChange(e.target.value)}
-                      style={inputStyle}
-                      placeholder={cecOptions.loading ? 'Loading approved brands…' : 'Start typing'}
+                      onChange={handlePanelBrandChange}
+                      options={cecOptions.pvPanelBrands}
+                      placeholder={cecOptions.loading ? 'Loading approved brands...' : 'Start typing'}
                     />
                   </Labeled>
                   <Labeled label="PANEL MODEL">
-                    <input
-                      type="text"
-                      list="cec-pv-panel-models"
+                    <SuggestInput
                       value={extras.pv_panel_model || ''}
-                      onChange={(e) => handlePanelModelChange(e.target.value)}
-                      style={inputStyle}
+                      onChange={handlePanelModelChange}
+                      options={cecOptions.pvPanelModels}
                       placeholder={extras.pv_panel_brand ? 'Start typing' : 'Select/enter panel brand first'}
                     />
                   </Labeled>
@@ -1018,22 +1008,18 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
                     />
                   </Labeled>
                   <Labeled label="BATTERY BRAND">
-                    <input
-                      type="text"
-                      list="cec-battery-brands"
+                    <SuggestInput
                       value={extras.battery_brand || ''}
-                      onChange={(e) => handleBatteryBrandChange(e.target.value)}
-                      style={inputStyle}
-                      placeholder={cecOptions.loading ? 'Loading approved brands…' : 'Start typing'}
+                      onChange={handleBatteryBrandChange}
+                      options={cecOptions.batteryBrands}
+                      placeholder={cecOptions.loading ? 'Loading approved brands...' : 'Start typing'}
                     />
                   </Labeled>
                   <Labeled label="BATTERY MODEL">
-                    <input
-                      type="text"
-                      list="cec-battery-models"
+                    <SuggestInput
                       value={extras.battery_model || ''}
-                      onChange={(e) => updateExtra('battery_model', e.target.value)}
-                      style={inputStyle}
+                      onChange={(value) => updateExtra('battery_model', value)}
+                      options={cecOptions.batteryModels}
                       placeholder={
                         extras.battery_brand
                           ? 'Start typing'
@@ -1047,43 +1033,6 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
           </>
         );
       })()}
-
-      {/* CEC Approved lists (datalists) */}
-      <datalist id="cec-pv-panel-brands">
-        {cecOptions.pvPanelBrands.map((b) => (
-          <option key={b} value={b} />
-        ))}
-      </datalist>
-      <datalist id="cec-inverter-brands">
-        {cecOptions.inverterBrands.map((b) => (
-          <option key={b} value={b} />
-        ))}
-      </datalist>
-      <datalist id="cec-inverter-models">
-        {cecOptions.inverterModels.map((m) => (
-          <option key={m} value={m} />
-        ))}
-      </datalist>
-      <datalist id="cec-inverter-series">
-        {cecOptions.inverterSeries.map((s) => (
-          <option key={s} value={s} />
-        ))}
-      </datalist>
-      <datalist id="cec-pv-panel-models">
-        {cecOptions.pvPanelModels.map((m) => (
-          <option key={m} value={m} />
-        ))}
-      </datalist>
-      <datalist id="cec-battery-brands">
-        {cecOptions.batteryBrands.map((b) => (
-          <option key={b} value={b} />
-        ))}
-      </datalist>
-      <datalist id="cec-battery-models">
-        {cecOptions.batteryModels.map((m) => (
-          <option key={m} value={m} />
-        ))}
-      </datalist>
 
       <Section title="PROPERTY INFORMATION">
         <FieldRow two>
@@ -1320,6 +1269,55 @@ function Labeled({ label, children }) {
   );
 }
 
+function SuggestInput({ value, onChange, options = [], placeholder = 'Start typing' }) {
+  const [open, setOpen] = useState(false);
+  const query = String(value || '').trim().toLowerCase();
+  const matches = useMemo(() => {
+    const all = Array.isArray(options) ? options : [];
+    if (!query) return all.slice(0, 40);
+    return all.filter((item) => String(item).toLowerCase().includes(query)).slice(0, 40);
+  }, [options, query]);
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        type="text"
+        value={value || ''}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 140)}
+        style={inputStyle}
+        placeholder={placeholder}
+      />
+      {open && matches.length > 0 ? (
+        <div style={suggestMenuStyle}>
+          {matches.map((option) => {
+            const text = String(option);
+            return (
+              <button
+                key={text}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onChange(text);
+                  setOpen(false);
+                }}
+                style={suggestItemStyle}
+                title={text}
+              >
+                {text}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 const btnPrimary = {
   backgroundColor: '#1A7B7B',
   color: '#FFFFFF',
@@ -1329,4 +1327,31 @@ const btnPrimary = {
   fontWeight: 700,
   letterSpacing: 0.2,
   cursor: 'pointer',
+};
+
+const suggestMenuStyle = {
+  position: 'absolute',
+  top: 'calc(100% + 6px)',
+  left: 0,
+  right: 0,
+  zIndex: 40,
+  background: '#fff',
+  border: `1px solid ${GRAY}`,
+  borderRadius: 10,
+  boxShadow: '0 10px 24px rgba(15, 23, 42, 0.14)',
+  maxHeight: 240,
+  overflowY: 'auto',
+  padding: 4,
+};
+
+const suggestItemStyle = {
+  width: '100%',
+  textAlign: 'left',
+  background: 'transparent',
+  border: 'none',
+  borderRadius: 8,
+  padding: '8px 10px',
+  color: '#0f172a',
+  cursor: 'pointer',
+  fontSize: 13,
 };

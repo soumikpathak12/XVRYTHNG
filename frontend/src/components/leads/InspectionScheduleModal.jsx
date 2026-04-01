@@ -35,6 +35,9 @@ const InspectionScheduleModal = ({ open, onClose, leadId, lead, onScheduled }) =
   const [error, setError] = useState('');
   const [conflicts, setConflicts] = useState([]);
 
+  const todayLocal = new Date();
+  const minDate = `${todayLocal.getFullYear()}-${String(todayLocal.getMonth() + 1).padStart(2, '0')}-${String(todayLocal.getDate()).padStart(2, '0')}`;
+
   useEffect(() => {
     if (open) {
       const { date: initialDate, time: initialTime } = lead ? parseInspectionDateTime(lead.site_inspection_date) : { date: '', time: '09:00' };
@@ -153,6 +156,7 @@ const InspectionScheduleModal = ({ open, onClose, leadId, lead, onScheduled }) =
               type="date"
               value={date}
               onChange={e => setDate(e.target.value)}
+              min={minDate}
               required
             />
           </div>
