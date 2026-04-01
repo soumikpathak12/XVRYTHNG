@@ -75,6 +75,36 @@
   margin: 0;
 }
 
+.admin-support-live-alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 1rem;
+  padding: 12px 14px;
+  background: #e8f7f3;
+  border: 1px solid #bde8dc;
+  border-radius: 10px;
+  color: #1A1A2E;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.admin-support-live-alert-btn {
+  border: none;
+  background: #1A7B7B;
+  color: #fff;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.admin-support-live-alert-btn:hover {
+  background: #4DB8A8;
+}
+
 .admin-support-table {
   background: #fff;
   border: 1px solid #e2e8f0;

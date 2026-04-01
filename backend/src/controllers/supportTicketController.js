@@ -2,6 +2,7 @@
  * Support ticket controller – customer portal (T-337).
  */
 import * as supportTicketService from '../services/supportTicketService.js';
+import { broadcastSupportTicketCreated } from '../chatSocket.js';
 
 /** POST /api/customer/support-tickets – create ticket */
 export async function createTicket(req, res) {
@@ -19,6 +20,11 @@ export async function createTicket(req, res) {
       category,
       categoryOther,
     });
+
+    broadcastSupportTicketCreated(ticket).catch(() => {
+      // Non-blocking realtime notification: ticket creation must still succeed.
+    });
+
     return res.status(201).json({
       success: true,
       message: 'Support ticket submitted. Please use this thread for updates; response SLA policy now applies to this ticket.',

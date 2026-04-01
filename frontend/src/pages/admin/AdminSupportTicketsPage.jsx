@@ -2,7 +2,7 @@
  * Admin support tickets – list and detail (thread-style) with reply and status update.
  * Brand theme: #1A7B7B, #4DB8A8, #1A1A2E, #555555.
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   listAdminSupportTickets,
@@ -11,6 +11,7 @@ import {
   updateAdminSupportTicketStatus,
   markAdminSupportCompanyCompensationPaid,
   escalateAdminSupportCompensation,
+  getToken,
 } from '../../services/api.js';
 import { MessageCircle, ArrowLeft, Send, Loader2, AlertCircle, User, Headphones } from 'lucide-react';
 import '../../styles/AdminSupportTicketsPage.css';
@@ -69,7 +70,15 @@ function formatCurrency(v) {
 }
 
 /** Ticket list view */
-function TicketList({ tickets, loading, statusFilter, onStatusFilterChange, onSelectTicket }) {
+function TicketList({
+  tickets,
+  loading,
+  statusFilter,
+  onStatusFilterChange,
+  onSelectTicket,
+  newTicketCount,
+  onClearNewTicketNotice,
+}) {
   return (
     <div className="admin-support-list">
       <div className="admin-support-header">
@@ -88,6 +97,18 @@ function TicketList({ tickets, loading, statusFilter, onStatusFilterChange, onSe
           </select>
         </div>
       </div>
+      {newTicketCount > 0 && (
+        <div className="admin-support-live-alert" role="status" aria-live="polite">
+          <span>
+            {newTicketCount === 1
+              ? 'A new support ticket has arrived.'
+              : `${newTicketCount} new support tickets have arrived.`}
+          </span>
+          <button type="button" onClick={onClearNewTicketNotice} className="admin-support-live-alert-btn">
+            Dismiss
+          </button>
+        </div>
+      )}
       {loading ? (
         <div className="admin-support-loading">
           <Loader2 size={32} className="spin" />
@@ -382,24 +403,94 @@ export default function AdminSupportTicketsPage() {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
+  const [newTicketCount, setNewTicketCount] = useState(0);
+  const knownTicketIdsRef = useRef(new Set());
+  const initializedRef = useRef(false);
 
-  const loadTickets = async () => {
-    setLoading(true);
+  const loadTickets = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const res = await listAdminSupportTickets({
         status: statusFilter || undefined,
       });
-      setTickets(res.data || []);
+      const nextTickets = res.data || [];
+      setTickets(nextTickets);
+
+      const nextIds = new Set(nextTickets.map((t) => Number(t.id)).filter(Number.isFinite));
+
+      if (!initializedRef.current) {
+        knownTicketIdsRef.current = nextIds;
+        initializedRef.current = true;
+        setNewTicketCount(0);
+      } else {
+        let freshCount = 0;
+        for (const id of nextIds) {
+          if (!knownTicketIdsRef.current.has(id)) freshCount += 1;
+        }
+        if (freshCount > 0) {
+          setNewTicketCount((prev) => prev + freshCount);
+        }
+        knownTicketIdsRef.current = nextIds;
+      }
     } catch {
       setTickets([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  };
+  }, [statusFilter]);
 
   useEffect(() => {
+    initializedRef.current = false;
+    knownTicketIdsRef.current = new Set();
+    setNewTicketCount(0);
     loadTickets();
-  }, [statusFilter]);
+  }, [statusFilter, loadTickets]);
+
+  useEffect(() => {
+    if (ticketId) return undefined;
+
+    const token = getToken();
+    if (!token) return undefined;
+
+    const env = import.meta.env?.VITE_WS_URL;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const defaultWsUrl = `${protocol}//${window.location.host}/ws`;
+    const wsUrl = `${(env ? env.replace(/^http/, 'ws') : defaultWsUrl)}?token=${encodeURIComponent(token)}`;
+    const ws = new WebSocket(wsUrl);
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data?.type !== 'support_ticket_created') return;
+
+        const incomingStatus = String(data?.ticket?.status || 'open');
+        const matchesCurrentFilter = !statusFilter || statusFilter === incomingStatus;
+
+        setNewTicketCount((prev) => prev + 1);
+        if (matchesCurrentFilter) {
+          loadTickets({ silent: true });
+        }
+      } catch {
+        // Ignore invalid websocket payloads.
+      }
+    };
+
+    return () => {
+      try {
+        ws.close();
+      } catch {
+        // ignore close error
+      }
+    };
+  }, [ticketId, statusFilter, loadTickets]);
+
+  useEffect(() => {
+    if (ticketId) return undefined;
+    const interval = setInterval(() => {
+      loadTickets({ silent: true });
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [ticketId, loadTickets]);
 
   const handleSelectTicket = (id) => {
     const base = window.location.pathname.startsWith('/dashboard') ? '/dashboard' : window.location.pathname.startsWith('/employee') ? '/employee' : '/admin';
@@ -427,6 +518,8 @@ export default function AdminSupportTicketsPage() {
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
         onSelectTicket={handleSelectTicket}
+        newTicketCount={newTicketCount}
+        onClearNewTicketNotice={() => setNewTicketCount(0)}
       />
     </div>
   );

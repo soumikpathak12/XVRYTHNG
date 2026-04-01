@@ -52,7 +52,7 @@ const RAW_NAV = [
   { to: '/admin/quotations', label: 'Quotations', icon: Calculator, permission: { resource: 'payroll', action: 'view' } },
   { to: '/admin/invoicing', label: 'Invoicing', icon: Calculator, permission: { resource: 'payroll', action: 'view' } },
   { to: '/admin/profit-loss-analysis', label: 'Profit/Loss Analysis', icon: Calculator, permission: { resource: 'payroll', action: 'view' } },
-  { to: '/admin/attendance', label: 'Attendance', icon: Clock3, permission: { resource: 'attendance', action: 'view' } },
+  { to: '/admin/attendance', label: 'Approval', icon: Clock3, permission: { resource: 'attendance', action: 'view' } },
   // Referrals is now accessible inside Settings → Referral Program tab
   { to: '/admin/messages', label: 'Messages', icon: MessageSquare, permission: { resource: 'messages', action: 'view' } },
   { to: '/admin/support-tickets', label: 'Customer Support Tickets', icon: MessageCircle, permission: { resource: 'support', action: 'view' } },

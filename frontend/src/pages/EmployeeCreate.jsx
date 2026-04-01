@@ -8,6 +8,33 @@ import {
   getEmploymentTypeOptions,getDepartmentOptions
 } from '../services/api.js';
 
+const AU_STATE_OPTIONS = [
+  { code: 'NSW', label: 'New South Wales' },
+  { code: 'VIC', label: 'Victoria' },
+  { code: 'QLD', label: 'Queensland' },
+  { code: 'WA', label: 'Western Australia' },
+  { code: 'SA', label: 'South Australia' },
+  { code: 'TAS', label: 'Tasmania' },
+  { code: 'ACT', label: 'Australian Capital Territory' },
+  { code: 'NT', label: 'Northern Territory' },
+];
+
+const AU_STATE_CODES = new Set(AU_STATE_OPTIONS.map((item) => item.code));
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_DIGITS_REGEX = /^\d{8,15}$/;
+
+function isValidEmail(value) {
+  return EMAIL_REGEX.test(String(value ?? '').trim());
+}
+
+function isValidPhoneDigits(value) {
+  return PHONE_DIGITS_REGEX.test(String(value ?? '').trim());
+}
+
+function isValidAuState(value) {
+  return AU_STATE_CODES.has(String(value ?? '').trim().toUpperCase());
+}
+
 function PrimaryButton({ children, onClick, type = 'button', color = '#146b6b', disabled }) {
   return (
     <button
@@ -183,11 +210,19 @@ function ContactAddrStep({ form, onChange, inputStyle, labelStyle }) {
         </div>
         <div style={{ display: 'grid', gap: 6 }}>
           <label style={labelStyle}>State</label>
-          <input
+          <select
             style={inputStyle}
             value={form.contact.state}
             onChange={e => onChange(['contact', 'state'], e.target.value)}
-          />
+            required
+          >
+            <option value="">-- Select state --</option>
+            {AU_STATE_OPTIONS.map((state) => (
+              <option key={state.code} value={state.code}>
+                {state.code} - {state.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -544,6 +579,11 @@ export default function EmployeeCreatePage() {
         return null;
       case 'contactAddr':
         if (!f.contact.email?.trim()) return fail('Email is required');
+        if (!isValidEmail(f.contact.email)) return fail('Email format is invalid');
+        if (!f.contact.phone?.trim()) return fail('Phone number is required');
+        if (!isValidPhoneDigits(f.contact.phone)) return fail('Phone number must be 8-15 digits');
+        if (!f.contact.state?.trim()) return fail('State is required');
+        if (!isValidAuState(f.contact.state)) return fail('State must be a valid Australian state/territory');
         return null;
       case 'employment':
         return null;
@@ -679,8 +719,23 @@ export default function EmployeeCreatePage() {
         throw new Error('Password does not match');
       if (!form.contact.email)
         throw new Error('Email is required');
+      if (!isValidEmail(form.contact.email))
+        throw new Error('Email format is invalid');
+      if (!form.contact.phone?.trim())
+        throw new Error('Phone number is required');
+      if (!isValidPhoneDigits(form.contact.phone))
+        throw new Error('Phone number must be 8-15 digits');
+      if (!form.contact.state?.trim())
+        throw new Error('State is required');
+      if (!isValidAuState(form.contact.state))
+        throw new Error('State must be a valid Australian state/territory');
 
-      const payload = { ...form };
+      const normalizedPayload = structuredClone(form);
+      normalizedPayload.contact.email = String(normalizedPayload.contact.email).trim().toLowerCase();
+      normalizedPayload.contact.phone = String(normalizedPayload.contact.phone).trim();
+      normalizedPayload.contact.state = String(normalizedPayload.contact.state).trim().toUpperCase();
+
+      const payload = normalizedPayload;
       if (!payload.employment.department_id) payload.employment.department_id = '';
       if (!payload.employment.job_role_id) payload.employment.job_role_id = '';
       if (!payload.employment.employment_type_id) payload.employment.employment_type_id = '';
@@ -860,14 +915,12 @@ export default function EmployeeCreatePage() {
         }}
       >
         <div style={{ display: 'grid', gap: 16, border: '1px solid #E5E7EB', borderRadius: 12, padding: 14 }}>
-          {renderStepBody()}
-
           {/* Validation banner */}
           {showErrors && currentError && (
             <div
               role="alert"
               style={{
-                color: '#991B1B',
+                color: '#DC3545',
                 background: '#FEE2E2',
                 border: '1px solid #EF4444',
                 borderRadius: 8,
@@ -882,8 +935,10 @@ export default function EmployeeCreatePage() {
 
           {/* Submit-wide errors */}
           {errText && (
-            <div style={{ color: '#B91C1C', fontWeight: 600, fontSize: 13 }}>{errText}</div>
+            <div style={{ color: '#DC3545', fontWeight: 600, fontSize: 13 }}>{errText}</div>
           )}
+
+          {renderStepBody()}
 
           {/* Controls */}
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
