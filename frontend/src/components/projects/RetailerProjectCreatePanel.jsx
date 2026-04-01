@@ -625,7 +625,21 @@ export default function RetailerProjectCreatePanel({ visible, onClose, onCreate 
                     type="text"
                     list="cec-rpcp-inverter-brands"
                     value={pvInverterBrand}
-                    onChange={(e) => setPvInverterBrand(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value !== pvInverterBrand) {
+                        setPvInverterModel('');
+                        setPvInverterSeries('');
+                        setCecOptions((p) => ({
+                          ...p,
+                          inverterModels: [],
+                          inverterModelsForBrand: '',
+                          inverterSeries: [],
+                          inverterSeriesForBrandModel: '',
+                        }));
+                      }
+                      setPvInverterBrand(value);
+                    }}
                   />
                 </label>
                 <label style={s.field}>
@@ -635,7 +649,18 @@ export default function RetailerProjectCreatePanel({ visible, onClose, onCreate 
                     type="text"
                     list="cec-rpcp-inverter-models"
                     value={pvInverterModel}
-                    onChange={(e) => setPvInverterModel(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value !== pvInverterModel) {
+                        setPvInverterSeries('');
+                        setCecOptions((p) => ({
+                          ...p,
+                          inverterSeries: [],
+                          inverterSeriesForBrandModel: '',
+                        }));
+                      }
+                      setPvInverterModel(value);
+                    }}
                   />
                 </label>
               </div>
@@ -681,7 +706,19 @@ export default function RetailerProjectCreatePanel({ visible, onClose, onCreate 
                     type="text"
                     list="cec-rpcp-panel-brands"
                     value={pvPanelBrand}
-                    onChange={(e) => setPvPanelBrand(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value !== pvPanelBrand) {
+                        setPvPanelModel('');
+                        setPvPanelModuleWatts('');
+                        setCecOptions((p) => ({
+                          ...p,
+                          pvPanelModels: [],
+                          pvPanelModelsForBrand: '',
+                        }));
+                      }
+                      setPvPanelBrand(value);
+                    }}
                   />
                 </label>
               </div>
@@ -693,7 +730,13 @@ export default function RetailerProjectCreatePanel({ visible, onClose, onCreate 
                     type="text"
                     list="cec-rpcp-panel-models"
                     value={pvPanelModel}
-                    onChange={(e) => setPvPanelModel(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value !== pvPanelModel) {
+                        setPvPanelModuleWatts('');
+                      }
+                      setPvPanelModel(value);
+                    }}
                   />
                 </label>
                 <label style={s.field}>
@@ -770,7 +813,18 @@ export default function RetailerProjectCreatePanel({ visible, onClose, onCreate 
                     type="text"
                     list="cec-rpcp-battery-brands"
                     value={batteryBrand}
-                    onChange={(e) => setBatteryBrand(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value !== batteryBrand) {
+                        setBatteryModel('');
+                        setCecOptions((p) => ({
+                          ...p,
+                          batteryModels: [],
+                          batteryModelsForBrand: '',
+                        }));
+                      }
+                      setBatteryBrand(value);
+                    }}
                   />
                 </label>
               </div>

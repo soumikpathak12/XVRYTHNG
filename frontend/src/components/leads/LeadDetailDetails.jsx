@@ -237,6 +237,95 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
   const updateExtra = (key, value) =>
     setExtras((prev) => ({ ...prev, [key]: value }));
 
+  const handleInverterBrandChange = useCallback((value) => {
+    setExtras((prev) => {
+      if ((prev.pv_inverter_brand || '') === value) {
+        return { ...prev, pv_inverter_brand: value };
+      }
+      return {
+        ...prev,
+        pv_inverter_brand: value,
+        pv_inverter_model: '',
+        pv_inverter_series: '',
+      };
+    });
+    setCecOptions((p) => ({
+      ...p,
+      inverterModels: [],
+      inverterModelsForBrand: '',
+      inverterSeries: [],
+      inverterSeriesForBrandModel: '',
+    }));
+  }, []);
+
+  const handleInverterModelChange = useCallback((value) => {
+    setExtras((prev) => {
+      if ((prev.pv_inverter_model || '') === value) {
+        return { ...prev, pv_inverter_model: value };
+      }
+      return {
+        ...prev,
+        pv_inverter_model: value,
+        pv_inverter_series: '',
+      };
+    });
+    setCecOptions((p) => ({
+      ...p,
+      inverterSeries: [],
+      inverterSeriesForBrandModel: '',
+    }));
+  }, []);
+
+  const handlePanelBrandChange = useCallback((value) => {
+    setExtras((prev) => {
+      if ((prev.pv_panel_brand || '') === value) {
+        return { ...prev, pv_panel_brand: value };
+      }
+      return {
+        ...prev,
+        pv_panel_brand: value,
+        pv_panel_model: '',
+        pv_panel_module_watts: '',
+      };
+    });
+    setCecOptions((p) => ({
+      ...p,
+      pvPanelModels: [],
+      pvPanelModelsForBrand: '',
+    }));
+  }, []);
+
+  const handlePanelModelChange = useCallback((value) => {
+    setExtras((prev) => {
+      if ((prev.pv_panel_model || '') === value) {
+        return { ...prev, pv_panel_model: value };
+      }
+      return {
+        ...prev,
+        pv_panel_model: value,
+        pv_panel_module_watts: '',
+      };
+    });
+  }, []);
+
+  const handleBatteryBrandChange = useCallback((value) => {
+    setExtras((prev) => {
+      if ((prev.battery_brand || '') === value) {
+        return { ...prev, battery_brand: value };
+      }
+      return {
+        ...prev,
+        battery_brand: value,
+        battery_model: '',
+      };
+    });
+    setCecOptions((p) => ({
+      ...p,
+      batteryModels: [],
+      batteryModelsForBrand: '',
+    }));
+  }, []);
+
   // ----- CEC Approved products options (cached) -----
   const [cecOptions, setCecOptions] = useState({
     pvPanelBrands: [],
@@ -791,7 +880,7 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
                       type="text"
                       list="cec-inverter-brands"
                       value={extras.pv_inverter_brand || ''}
-                      onChange={(e) => updateExtra('pv_inverter_brand', e.target.value)}
+                      onChange={(e) => handleInverterBrandChange(e.target.value)}
                       style={inputStyle}
                       placeholder={cecOptions.loading ? 'Loading approved brands…' : 'Start typing'}
                     />
@@ -801,7 +890,7 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
                       type="text"
                       list="cec-inverter-models"
                       value={extras.pv_inverter_model || ''}
-                      onChange={(e) => updateExtra('pv_inverter_model', e.target.value)}
+                      onChange={(e) => handleInverterModelChange(e.target.value)}
                       style={inputStyle}
                       placeholder={extras.pv_inverter_brand ? 'Start typing' : 'Select/enter inverter brand first'}
                     />
@@ -840,7 +929,7 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
                       type="text"
                       list="cec-pv-panel-brands"
                       value={extras.pv_panel_brand || ''}
-                      onChange={(e) => updateExtra('pv_panel_brand', e.target.value)}
+                      onChange={(e) => handlePanelBrandChange(e.target.value)}
                       style={inputStyle}
                       placeholder={cecOptions.loading ? 'Loading approved brands…' : 'Start typing'}
                     />
@@ -850,7 +939,7 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
                       type="text"
                       list="cec-pv-panel-models"
                       value={extras.pv_panel_model || ''}
-                      onChange={(e) => updateExtra('pv_panel_model', e.target.value)}
+                      onChange={(e) => handlePanelModelChange(e.target.value)}
                       style={inputStyle}
                       placeholder={extras.pv_panel_brand ? 'Start typing' : 'Select/enter panel brand first'}
                     />
@@ -918,7 +1007,7 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
                       type="text"
                       list="cec-battery-brands"
                       value={extras.battery_brand || ''}
-                      onChange={(e) => updateExtra('battery_brand', e.target.value)}
+                      onChange={(e) => handleBatteryBrandChange(e.target.value)}
                       style={inputStyle}
                       placeholder={cecOptions.loading ? 'Loading approved brands…' : 'Start typing'}
                     />

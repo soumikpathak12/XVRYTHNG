@@ -748,7 +748,33 @@ export default function RetailerProjectDetailDetails({
                 </div>
                 <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
                   <label style={labelStyle}>PV inverter brand</label>
-                  <input style={inputStyle} list="cec-rpdd-inverter-brands" value={detailForm.pv_inverter_brand} onChange={(e) => setDetailForm((f) => ({ ...f, pv_inverter_brand: e.target.value }))} />
+                  <input
+                    style={inputStyle}
+                    list="cec-rpdd-inverter-brands"
+                    value={detailForm.pv_inverter_brand}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setDetailForm((f) => {
+                        if (!f) return f;
+                        if ((f.pv_inverter_brand || '') === value) {
+                          return { ...f, pv_inverter_brand: value };
+                        }
+                        return {
+                          ...f,
+                          pv_inverter_brand: value,
+                          pv_inverter_model: '',
+                          pv_inverter_series: '',
+                        };
+                      });
+                      setCecOptions((p) => ({
+                        ...p,
+                        inverterModels: [],
+                        inverterModelsForBrand: '',
+                        inverterSeries: [],
+                        inverterSeriesForBrandModel: '',
+                      }));
+                    }}
+                  />
                 </div>
                 <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
                   <label style={labelStyle}>PV inverter model</label>
@@ -768,11 +794,53 @@ export default function RetailerProjectDetailDetails({
                 </div>
                 <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
                   <label style={labelStyle}>PV panel brand</label>
-                  <input style={inputStyle} list="cec-rpdd-panel-brands" value={detailForm.pv_panel_brand} onChange={(e) => setDetailForm((f) => ({ ...f, pv_panel_brand: e.target.value }))} />
+                  <input
+                    style={inputStyle}
+                    list="cec-rpdd-panel-brands"
+                    value={detailForm.pv_panel_brand}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setDetailForm((f) => {
+                        if (!f) return f;
+                        if ((f.pv_panel_brand || '') === value) {
+                          return { ...f, pv_panel_brand: value };
+                        }
+                        return {
+                          ...f,
+                          pv_panel_brand: value,
+                          pv_panel_model: '',
+                          pv_panel_module_watts: '',
+                        };
+                      });
+                      setCecOptions((p) => ({
+                        ...p,
+                        pvPanelModels: [],
+                        pvPanelModelsForBrand: '',
+                      }));
+                    }}
+                  />
                 </div>
                 <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
                   <label style={labelStyle}>PV panel model</label>
-                  <input style={inputStyle} list="cec-rpdd-panel-models" value={detailForm.pv_panel_model || ''} onChange={(e) => setDetailForm((f) => ({ ...f, pv_panel_model: e.target.value }))} />
+                  <input
+                    style={inputStyle}
+                    list="cec-rpdd-panel-models"
+                    value={detailForm.pv_panel_model || ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setDetailForm((f) => {
+                        if (!f) return f;
+                        if ((f.pv_panel_model || '') === value) {
+                          return { ...f, pv_panel_model: value };
+                        }
+                        return {
+                          ...f,
+                          pv_panel_model: value,
+                          pv_panel_module_watts: '',
+                        };
+                      });
+                    }}
+                  />
                 </div>
                 <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
                   <label style={labelStyle}>Quantity of panel</label>
@@ -804,7 +872,30 @@ export default function RetailerProjectDetailDetails({
                 </div>
                 <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
                   <label style={labelStyle}>Battery brand</label>
-                  <input style={inputStyle} list="cec-rpdd-battery-brands" value={detailForm.battery_brand} onChange={(e) => setDetailForm((f) => ({ ...f, battery_brand: e.target.value }))} />
+                  <input
+                    style={inputStyle}
+                    list="cec-rpdd-battery-brands"
+                    value={detailForm.battery_brand}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setDetailForm((f) => {
+                        if (!f) return f;
+                        if ((f.battery_brand || '') === value) {
+                          return { ...f, battery_brand: value };
+                        }
+                        return {
+                          ...f,
+                          battery_brand: value,
+                          battery_model: '',
+                        };
+                      });
+                      setCecOptions((p) => ({
+                        ...p,
+                        batteryModels: [],
+                        batteryModelsForBrand: '',
+                      }));
+                    }}
+                  />
                 </div>
                 <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
                   <label style={labelStyle}>Battery model</label>
