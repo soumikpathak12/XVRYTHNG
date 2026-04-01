@@ -10,24 +10,23 @@ import {
   MessageSquare,
   MessageCircle,
   Settings,
+  CreditCard,
+  HelpCircle,
+  FileText,
+  ShieldCheck,
   Building2,
-  UserCircle,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
-  LogOut,
-  UserPlus,
   UserCog,
   Wrench,
   Calculator,
   TrendingUp,
   Cog,
-  CheckSquare,
-  ClipboardList,
 } from 'lucide-react';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { getApprovalsPendingCount } from '../../services/api.js';
+import { navItemMatchesLocation } from '../../utils/navLinkMatch.js';
 
 /**
  * Top-level nav items.
@@ -35,31 +34,36 @@ import { getApprovalsPendingCount } from '../../services/api.js';
  */
 const RAW_NAV = [
   { to: '/admin/overview', label: 'Dashboard', icon: LayoutDashboard, permission: { resource: 'overview', action: 'view' } },
-  { to: '/admin/profile', label: 'My Profile', icon: UserCircle, permission: { resource: 'profile', action: 'view' } },
-  { to: '/admin/companies', label: 'Companies', icon: Building2, permission: { resource: 'companies', action: 'view' } },
-  { to: '/admin/leads', label: 'Lead Pipeline', icon: UsersRound, permission: { resource: 'leads', action: 'view' } },
+  { to: '/admin/companies', label: 'Partner Companies', icon: Building2, permission: { resource: 'companies', action: 'view' } },
+  { to: '/admin/leads', label: 'Leads Kanban', icon: TrendingUp, permission: { resource: 'leads', action: 'view' } },
   { to: '/admin/employees', label: 'Employees', icon: UserCog, permission: { resource: 'employees', action: 'view' } },
 
   { to: '/admin/projects/dashboard', label: 'Dashboard', icon: Boxes, permission: { resource: 'projects', action: 'view' } },
-  { to: '/admin/projects', label: 'In-house Project', icon: Boxes, permission: { resource: 'projects', action: 'view' } },
-  { to: '/admin/projects/retailer', label: 'Retailer Project', icon: Boxes, permission: { resource: 'projects', action: 'view' } },
+  { to: '/admin/projects', label: 'In-House Projects', icon: Boxes, permission: { resource: 'projects', action: 'view' } },
+  { to: '/admin/projects/retailer', label: 'Retailer Projects', icon: Boxes, permission: { resource: 'projects', action: 'view' } },
 
-  { to: '/admin/installation', label: 'Installation Day', icon: Wrench, permission: { resource: 'installation', action: 'view' } },
-  { to: '/admin/on-field', label: 'On-Field', icon: HardHat, permission: { resource: 'on_field', action: 'view' } },
-  { to: '/admin/operations', label: 'Operations', icon: Factory, permission: { resource: 'operations', action: 'view' } },
+  { to: '/admin/on-field-dashboard', label: 'Dashboard', icon: HardHat, permission: { resource: 'on_field', action: 'view' } },
+  { to: '/admin/installation', label: 'Job Management', icon: Wrench, permission: { resource: 'installation', action: 'view' } },
+  { to: '/admin/on-field', label: 'Job Scheduling', icon: HardHat, permission: { resource: 'on_field', action: 'view' } },
+  { to: '/admin/operations', label: 'Dashboard', icon: Factory, permission: { resource: 'operations', action: 'view' } },
+  { to: '/admin/customers', label: 'Customers', icon: UsersRound, permission: { resource: 'operations', action: 'view' } },
+  { to: '/admin/financial-dashboard', label: 'Dashboard', icon: Calculator, permission: { resource: 'payroll', action: 'view' } },
   { to: '/admin/payroll', label: 'Payroll', icon: Calculator, permission: { resource: 'payroll', action: 'view' } },
+  { to: '/admin/quotations', label: 'Quotations', icon: Calculator, permission: { resource: 'payroll', action: 'view' } },
+  { to: '/admin/invoicing', label: 'Invoicing', icon: Calculator, permission: { resource: 'payroll', action: 'view' } },
+  { to: '/admin/profit-loss-analysis', label: 'Profit/Loss Analysis', icon: Calculator, permission: { resource: 'payroll', action: 'view' } },
   { to: '/admin/attendance', label: 'Attendance', icon: Clock3, permission: { resource: 'attendance', action: 'view' } },
   // Referrals is now accessible inside Settings → Referral Program tab
   { to: '/admin/messages', label: 'Messages', icon: MessageSquare, permission: { resource: 'messages', action: 'view' } },
-  { to: '/admin/support-tickets', label: 'Support Tickets', icon: MessageCircle, permission: { resource: 'support', action: 'view' } },
-  { to: '/admin/trial-users', label: 'Trial Users', icon: UsersRound, permission: { resource: 'users', action: 'view' } },
+  { to: '/admin/support-tickets', label: 'Customer Support Tickets', icon: MessageCircle, permission: { resource: 'support', action: 'view' } },
+  { to: '/admin/trial-users', label: 'Guest Users', icon: UsersRound, permission: { resource: 'users', action: 'view' } },
   
-  // --- SETTINGS (flatten - no nested children) ---
-  { to: '/admin/settings', label: 'General', icon: Settings, permission: { resource: 'settings', action: 'view' } },
-  /*
-  { to: '/admin/settings/inspection-templates', label: 'Inspection Templates', icon: ClipboardList, permission: { resource: 'settings', action: 'view' } },
-  { to: '/admin/settings/checklist-templates', label: 'Checklist Templates', icon: CheckSquare, permission: { resource: 'settings', action: 'view' } },
-  */
+  // --- SETTINGS ---
+  { to: '/admin/settings?tab=company', label: 'General', icon: Settings, permission: { resource: 'settings', action: 'view' } },
+  { to: '/admin/settings?tab=subscription', label: 'Subscription Management', icon: CreditCard, permission: { resource: 'settings', action: 'view' } },
+  { to: '/admin/settings?tab=faq_helpdesk', label: 'FAQ & Helpdesk', icon: HelpCircle, permission: { resource: 'settings', action: 'view' } },
+  { to: '/admin/settings?tab=terms', label: 'Terms & Conditions', icon: FileText, permission: { resource: 'settings', action: 'view' } },
+  { to: '/admin/settings?tab=privacy', label: 'Privacy Policy', icon: ShieldCheck, permission: { resource: 'settings', action: 'view' } },
 ];
 
 export default function SuperAdminSidebar({
@@ -79,6 +83,7 @@ export default function SuperAdminSidebar({
   const { can } = useAuth();
 
   const [pendingCount, setPendingCount] = useState(0);
+  const brandLogoSrc = logoSrc || '/logo.jpeg';
   useEffect(() => {
     let alive = true;
     const fetchCount = async () => {
@@ -113,25 +118,22 @@ export default function SuperAdminSidebar({
 
   const sections = useMemo(() => {
     const findByTo = (to) => navItems.find((i) => i.to === to);
-    const findByKey = (key) => navItems.find((i) => i.key === key);
     const pick = (arr) => arr.filter(Boolean);
 
-    const salesItems = pick([
+    const leadManagementItems = pick([
       findByTo('/admin/overview'),
       findByTo('/admin/leads'),
     ]);
 
-    const projectManagerItems = pick([
+    const projectManagementItems = pick([
       findByTo('/admin/projects/dashboard'),
       findByTo('/admin/projects'),
       findByTo('/admin/projects/retailer'),
     ]);
 
-    const attendanceItems = pick([
-      findByTo('/admin/attendance'),
-    ]);
-
-    const onFieldItems = pick([
+    const onsiteFieldItems = pick([
+      // Keep a dedicated dashboard entry inside this module.
+      findByTo('/admin/on-field-dashboard'),
       findByTo('/admin/on-field'),
       findByTo('/admin/installation'),
     ]);
@@ -141,28 +143,41 @@ export default function SuperAdminSidebar({
       findByTo('/admin/support-tickets'),
     ]);
 
-    const operationsItems = pick([
+    const operationalManagementItems = pick([
       findByTo('/admin/operations'),
-      findByTo('/admin/payroll'),
-      findByTo('/admin/trial-users'),
       findByTo('/admin/employees'),
+      findByTo('/admin/attendance'),
       findByTo('/admin/companies'),
-      findByTo('/admin/profile'),
+      findByTo('/admin/trial-users'),
+      findByTo('/admin/customers'),
+      // findByTo('/admin/profile'),
+    ]);
+
+    const financialManagementItems = pick([
+      findByTo('/admin/financial-dashboard'),
+      findByTo('/admin/payroll'),
+      findByTo('/admin/quotations'),
+      findByTo('/admin/invoicing'),
+      findByTo('/admin/profit-loss-analysis'),
     ]);
 
     const settingsItems = pick([
-      findByTo('/admin/settings'),
+      findByTo('/admin/settings?tab=company'),
+      findByTo('/admin/settings?tab=subscription'),
+      findByTo('/admin/settings?tab=faq_helpdesk'),
+      findByTo('/admin/settings?tab=terms'),
+      findByTo('/admin/settings?tab=privacy'),
       findByTo('/admin/settings/inspection-templates'),
       findByTo('/admin/settings/checklist-templates'),
     ]);
 
     return [
-      { key: 'sales', title: 'Sales Module', icon: TrendingUp, items: salesItems },
-      { key: 'project_manager', title: 'Project Manager Module', icon: Boxes, items: projectManagerItems },
-      { key: 'attendance', title: 'Attendance', icon: Clock3, items: attendanceItems },
-      { key: 'on_field', title: 'On-Field Module', icon: HardHat, items: onFieldItems },
+      { key: 'lead_management', title: 'Sale Management', icon: TrendingUp, items: leadManagementItems },
+      { key: 'project_management', title: 'Project Management', icon: Boxes, items: projectManagementItems },
+      { key: 'onsite_field_management', title: 'Onsite Field Management', icon: HardHat, items: onsiteFieldItems },
+      { key: 'operational_management', title: 'Operational Management', icon: Factory, items: operationalManagementItems },
+      { key: 'financial_management', title: 'Financial Management', icon: Calculator, items: financialManagementItems },
       { key: 'communications', title: 'Communications', icon: MessageSquare, items: communicationsItems },
-      { key: 'operations', title: 'Operation', icon: Cog, items: operationsItems },
       { key: 'settings', title: 'Settings', icon: Settings, items: settingsItems },
     ].filter((s) => s.items.length > 0);
   }, [navItems]);
@@ -174,18 +189,29 @@ export default function SuperAdminSidebar({
   const [openKeys, setOpenKeys] = useState(() => {
     const pathname = location.pathname || '';
     return {
-      sales: pathname.startsWith('/admin/overview') || pathname.startsWith('/admin/leads'),
-      project_manager: pathname.startsWith('/admin/projects'),
-      attendance: pathname.startsWith('/admin/attendance'),
-      on_field: pathname.startsWith('/admin/on-field') || pathname.startsWith('/admin/installation'),
+      lead_management: pathname.startsWith('/admin/overview') || pathname.startsWith('/admin/leads'),
+      project_management: pathname.startsWith('/admin/projects'),
+      onsite_field_management:
+        pathname.startsWith('/admin/on-field-dashboard') ||
+        pathname.startsWith('/admin/on-field') ||
+        pathname.startsWith('/admin/installation'),
       communications: pathname.startsWith('/admin/messages') || pathname.startsWith('/admin/support-tickets'),
-      operations:
+      operational_management:
         pathname.startsWith('/admin/operations') ||
-        pathname.startsWith('/admin/payroll') ||
-        pathname.startsWith('/admin/trial-users') ||
         pathname.startsWith('/admin/employees') ||
+        pathname.startsWith('/admin/attendance') ||
         pathname.startsWith('/admin/companies') ||
-        pathname.startsWith('/admin/profile'),
+        pathname.startsWith('/admin/trial-users') ||
+        pathname.startsWith('/admin/customers') ||
+        false,
+      financial_management:
+        pathname.startsWith('/admin/financial-dashboard') ||
+        pathname.startsWith('/admin/payroll') ||
+        pathname.startsWith('/admin/quotations') ||
+        pathname.startsWith('/admin/invoicing') ||
+        pathname.startsWith('/admin/profit-loss-analysis') ||
+        false,
+      // pathname.startsWith('/admin/profile'),
       settings: pathname.startsWith('/admin/settings'),
     };
   });
@@ -301,10 +327,17 @@ export default function SuperAdminSidebar({
 
   const renderNavItem = (item) => {
     const Icon = item.icon;
+    const matchesLocation = (candidate) => {
+      if (!candidate?.to) return false;
+      if (String(candidate.to).includes('?')) {
+        return navItemMatchesLocation(candidate, location.pathname, location.search);
+      }
+      return location.pathname.startsWith(candidate.to);
+    };
 
     // --- Parent with children: render as a collapsible section ---
     if (item.children?.length) {
-      const anyChildActive = item.children.some((c) => location.pathname.startsWith(c.to));
+      const anyChildActive = item.children.some(matchesLocation);
       const isOpen = openKeys[item.key ?? 'projects'] ?? anyChildActive;
 
       // When sidebar is collapsed, we render only a single icon button (no children list)
@@ -394,21 +427,29 @@ export default function SuperAdminSidebar({
     // --- Normal single link ---
     const showBadge = item.to === '/admin/attendance' && pendingCount > 0;
     const exactEnd =
+      (typeof item.to === 'string' && item.to.includes('?')) ||
       item.to === '/admin/settings' ||
       item.to === '/admin/settings/inspection-templates' ||
       item.to === '/admin/settings/checklist-templates' ||
       // Avoid prefix-match highlighting for project subroutes:
       // "/admin/projects" should not appear active on "/admin/projects/retailer".
       item.to === '/admin/projects';
+    const queryAware =
+      typeof item.to === 'string' && item.to.includes('?');
     return (
       <NavLink
         key={item.to}
         to={item.to}
         end={exactEnd}
-        style={({ isActive }) => ({
-          ...linkBase,
-          ...(isActive ? activeStyle : {}),
-        })}
+        style={({ isActive }) => {
+          const active = queryAware
+            ? navItemMatchesLocation(item, location.pathname, location.search)
+            : isActive;
+          return {
+            ...linkBase,
+            ...(active ? activeStyle : {}),
+          };
+        }}
       >
         <div style={{ position: 'relative', flexShrink: 0 }}>
           <Icon size={20} />
@@ -459,15 +500,11 @@ export default function SuperAdminSidebar({
             background: '#fff',
           }}
         >
-          {logoSrc ? (
-            <img src={logoSrc} alt="Logo" style={{ width: 44, height: 44, objectFit: 'cover' }} />
-          ) : (
-            <span style={{ fontWeight: 800, color: '#146b6b' }}>⚡</span>
-          )}
+          <img src={brandLogoSrc} alt="Company logo" style={{ width: 44, height: 44, objectFit: 'cover' }} />
         </div>
         <div style={brandText}>
           <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2, color: '#6B7280' }}>
-            XVRYTHNG
+            XVRYTHING
           </div>
           <div style={{ fontSize: 18, fontWeight: 800, color: '#0f1a2b' }}>
             XTECHS RENEWABLES
@@ -486,8 +523,15 @@ export default function SuperAdminSidebar({
           <>
             {sections.map((sec, idx) => {
               const isPathActive = sec.items.some((item) => {
-                if (item.children?.length) return item.children.some((child) => location.pathname.startsWith(child.to));
-                return item.to ? location.pathname.startsWith(item.to) : false;
+                if (item.children?.length) return item.children.some((child) => {
+                  if (String(child.to).includes('?')) {
+                    return navItemMatchesLocation(child, location.pathname, location.search);
+                  }
+                  return location.pathname.startsWith(child.to);
+                });
+                return item.to
+                  ? navItemMatchesLocation(item, location.pathname, location.search)
+                  : false;
               });
               // Use openKeys as the source of truth so a user can collapse even when the current route is inside the module.
               const isOpen = openKeys[sec.key] ?? false;

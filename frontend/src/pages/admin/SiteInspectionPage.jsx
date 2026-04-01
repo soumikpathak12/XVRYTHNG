@@ -1,6 +1,7 @@
 // src/pages/admin/SiteInspectionPage.jsx
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
+import '../../styles/SiteInspectionPage.css';
 import {
   getLead,
   getSiteInspection,
@@ -272,6 +273,37 @@ function ChecklistWidget({ companyId = null }) {
   );
 }
 
+/** Vertical step rail (focused, one step at a time — similar to audit / checklist apps). */
+function StepRail({ steps, stepIdx, onStepChange }) {
+  const list = steps.length ? steps : [{ id: 'core', label: 'Inspection' }];
+  return (
+    <nav className="si-rail" aria-label="Inspection steps">
+      <p className="si-rail-title">Steps</p>
+      <ol className="si-step-list" role="list">
+        {list.map((s, i) => {
+          const active = i === stepIdx;
+          const done = i < stepIdx;
+          return (
+            <li key={s.id}>
+              <button
+                type="button"
+                className={`si-step-btn${active ? ' si-step-btn--active' : ''}${done ? ' si-step-btn--done' : ''}`}
+                onClick={() => onStepChange(i)}
+                aria-current={active ? 'step' : undefined}
+              >
+                <span className="si-step-num" aria-hidden>
+                  {done ? '✓' : i + 1}
+                </span>
+                <span>{s.label}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}
+
 // ================= Toolbar =================
 function TemplateToolbar({ templates, selectedId, onSelect, onRefresh }) {
   return (
@@ -505,6 +537,10 @@ export default function SiteInspectionPage() {
 
   // Step
   const [stepIdx, setStepIdx] = useState(0);
+  const [leadDetailsOpen, setLeadDetailsOpen] = useState(false);
+  const [otherInspectionsOpen, setOtherInspectionsOpen] = useState(false);
+  const formCardRef = useRef(null);
+  const didInitScrollRef = useRef(false);
 
   // Lists
   const [draftList, setDraftList] = useState([]);
@@ -744,11 +780,28 @@ const meta = base?.meta && typeof base.meta === 'string'
     if (!template || !steps?.length) return;
     const currentStep = steps[stepIdx];
     const currentStepId = currentStep?.id;
-    // chỉ clear banner liên quan guard
+    // Clear guard-related banner when step becomes valid
     if (msg && msg.startsWith('Please upload the required items') && currentStepId && stepPassesGuards(template, currentStepId, form)) {
       setMsg('');
     }
   }, [form, stepIdx, template, steps, msg]);
+
+  useEffect(() => {
+    if (!formCardRef.current) return;
+    if (!didInitScrollRef.current) {
+      didInitScrollRef.current = true;
+      return;
+    }
+
+    const rafId = window.requestAnimationFrame(() => {
+      formCardRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+
+    return () => window.cancelAnimationFrame(rafId);
+  }, [stepIdx]);
 
   // -------- File upload --------
   async function onPickFile(field) {
@@ -784,11 +837,15 @@ const meta = base?.meta && typeof base.meta === 'string'
   }
 
   // -------- Signature Canvas Functions --------
+  // Map pointer coords to canvas buffer pixels (internal width/height differ from CSS size when width: 100%).
   const pt = (e) => {
-    const t = e.touches?.[0] ?? e;
-    const r = canvasRef.current?.getBoundingClientRect();
-    if (!r) return [0, 0];
-    return [t.clientX - r.left, t.clientY - r.top];
+    const canvas = canvasRef.current;
+    const t = e.touches?.[0] ?? e.changedTouches?.[0] ?? e;
+    if (!canvas || !t) return [0, 0];
+    const r = canvas.getBoundingClientRect();
+    const sx = canvas.width / (r.width || 1);
+    const sy = canvas.height / (r.height || 1);
+    return [(t.clientX - r.left) * sx, (t.clientY - r.top) * sy];
   };
 
   const startDraw = (e) => {
@@ -802,7 +859,7 @@ const meta = base?.meta && typeof base.meta === 'string'
 
   const draw = (e) => {
     if (!drawingRef.current) return;
-    e.preventDefault();
+    // Do not call preventDefault here: React attaches touch handlers as passive; use touchAction: 'none' on canvas instead.
     const ctx = canvasRef.current?.getContext('2d');
     if (!ctx) return;
     const [x, y] = pt(e);
@@ -1182,53 +1239,67 @@ const meta = base?.meta && typeof base.meta === 'string'
   // ================= Render =================
   const okMsg = msg === 'Submitted!' || msg === 'Draft saved';
 
-  const Stepper = () => (
-    <div style={{ position: 'sticky', top: 8, zIndex: 5, background: 'transparent', paddingBottom: 8 }}>
-      <ol style={{ display: 'flex', gap: 8, flexWrap: 'wrap', listStyle: 'none', paddingLeft: 0, margin: 0 }}>
-        {(steps.length ? steps : [{ id: 'core', label: 'Core' }]).map((s, i) => {
-          const active = i === stepIdx;
-          const done = i < stepIdx;
-          return (
-            <li key={s.id}>
-              <button
-                type="button"
-                onClick={() => setStepIdx(i)}
-                style={{
-                  ...btn('secondary'),
-                  borderColor: active ? UI.color.teal : UI.color.border,
-                  background: active ? '#E6FFFB' : '#fff',
-                  color: active ? UI.color.teal : UI.color.navy,
-                }}
-              >
-                <span
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: 999,
-                    background: done ? UI.color.teal : active ? UI.color.teal : '#CBD5E1',
-                    display: 'inline-block',
-                  }}
-                />
-                <span style={{ marginLeft: 6 }}>{i + 1}. {s.label}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ol>
-    </div>
-  );
-
-  if (loading) return <div style={card}>Loading site inspection…</div>;
+  if (loading) {
+    return (
+      <div className="si-page">
+        <div className="si-shell">
+          <div className="si-panel">Loading site inspection…</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
-      {/* Main content */}
-      <div style={{ display: 'grid', gap: 12 }}>
-      {/* Header */}
-      {lead && (
-        <div style={{ ...card, position: 'relative' }}>
-          <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 6, color: UI.color.navy }}>BASIC DETAILS</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+    <div className="si-page">
+      <div className="si-shell">
+        <header className="si-topbar">
+          <div className="si-topbar-title">
+            <p className="si-topbar-kicker">Site inspection</p>
+            <h1 className="si-topbar-heading">
+              {lead?.customer_name ? lead.customer_name : 'Site inspection'}
+            </h1>
+            <p className="si-topbar-meta">
+              {[lead?.suburb, getSystemTypeForInspection(lead)].filter(Boolean).join(' · ') || '—'}
+            </p>
+          </div>
+          <div className="si-topbar-actions">
+            <span className="si-status-pill">
+              <span
+                className={`si-status-dot ${status === 'submitted' ? 'si-status-dot--submitted' : 'si-status-dot--draft'}`}
+              />
+              {status === 'submitted' ? 'Submitted' : 'Draft'}
+            </span>
+          </div>
+        </header>
+
+        <div className="si-layout">
+          <StepRail steps={steps} stepIdx={stepIdx} onStepChange={setStepIdx} />
+
+          <main className="si-main">
+            {lead && (
+              <section className="si-panel si-panel--subtle">
+                <div className="si-panel-head">
+                  <h2 className="si-panel-title">Job context</h2>
+                  <button
+                    type="button"
+                    className="si-panel-toggle"
+                    onClick={() => setLeadDetailsOpen((o) => !o)}
+                    aria-expanded={leadDetailsOpen}
+                  >
+                    {leadDetailsOpen ? 'Hide details' : 'Show all details'}
+                  </button>
+                </div>
+                {!leadDetailsOpen ? (
+                  <p className="si-summary-line">
+                    <strong>{lead.customer_name ?? '—'}</strong>
+                    {' · '}
+                    {lead.suburb ?? '—'}
+                    {' · '}
+                    {getSystemTypeForInspection(lead) || '—'}
+                  </p>
+                ) : null}
+                {leadDetailsOpen ? (
+          <div className="si-summary-grid">
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>Customer</div>
               <div>{lead.customer_name ?? '—'}</div>
@@ -1250,28 +1321,31 @@ const meta = base?.meta && typeof base.meta === 'string'
               <div>{getSystemTypeForInspection(lead) || '—'}</div>
             </div>
             {lead.pv_system_size_kw != null ||
-              lead.pv_inverter_brand ||
-              lead.pv_inverter_model ||
-              lead.pv_inverter_series ||
-              lead.pv_inverter_power_kw != null ||
-              lead.pv_inverter_quantity != null ||
               lead.pv_panel_brand ||
-              lead.pv_panel_model ||
-              lead.pv_panel_quantity != null ? (
+              lead.pv_panel_module_watts != null ? (
               <div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>PV System</div>
                 <div>
                   {[
                     lead.pv_system_size_kw != null ? `${lead.pv_system_size_kw} kW` : null,
-                    lead.pv_inverter_brand ? `Inverter: ${lead.pv_inverter_brand}` : null,
-                    lead.pv_inverter_model ? `Inverter Model: ${lead.pv_inverter_model}` : null,
-                    lead.pv_inverter_series ? `Inverter Series: ${lead.pv_inverter_series}` : null,
-                    lead.pv_inverter_power_kw != null ? `Inverter Power: ${lead.pv_inverter_power_kw} kW` : null,
-                    lead.pv_inverter_quantity != null ? `No. of Inverters: ${lead.pv_inverter_quantity}` : null,
                     lead.pv_panel_brand ? `Panel: ${lead.pv_panel_brand}` : null,
                     lead.pv_panel_model ? `Panel Model: ${lead.pv_panel_model}` : null,
                     lead.pv_panel_quantity != null ? `No. of Panels: ${lead.pv_panel_quantity}` : null,
                     lead.pv_panel_module_watts != null ? `${lead.pv_panel_module_watts} W` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' • ') || '—'}
+                </div>
+              </div>
+            ) : null}
+
+            {lead.pv_inverter_size_kw != null || lead.pv_inverter_brand ? (
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>Inverter System</div>
+                <div>
+                  {[
+                    lead.pv_inverter_size_kw != null ? `Inverter Size: ${lead.pv_inverter_size_kw} kW` : null,
+                    lead.pv_inverter_brand ? `Inverter Brand: ${lead.pv_inverter_brand}` : null,
                   ]
                     .filter(Boolean)
                     .join(' • ') || '—'}
@@ -1308,53 +1382,27 @@ const meta = base?.meta && typeof base.meta === 'string'
               </div>
             ) : null}
           </div>
-          <div
-            style={{
-              position: 'absolute',
-              top: 12,
-              right: 12,
-              border: `1px solid ${UI.color.border}`,
-              background: '#FFFFFF',
-              borderRadius: 999,
-              padding: '6px 12px',
-              fontSize: 12,
-              fontWeight: 700,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <span
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: 999,
-                background: status === 'submitted' ? '#16A34A' : '#F59E0B',
-                display: 'inline-block',
-              }}
-            />
-            {status.toUpperCase()}
-          </div>
-        </div>
-      )}
+                ) : null}
+              </section>
+            )}
 
-      {/* Progress */}
-      <div style={card}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <div style={{ fontWeight: 800, fontSize: 14, color: UI.color.navy }}>SITE INSPECTION</div>
-          <div style={{ fontWeight: 700, color: '#111827' }}>{progress}%</div>
-        </div>
-        <div style={barWrap}>
-          <div style={{ ...barFill, width: `${progress}%` }} />
-        </div>
-        <div style={{ color: UI.color.muted, fontSize: 12, marginTop: 6, display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span style={{ width: 8, height: 8, borderRadius: 999, background: '#22C55E', display: 'inline-block' }} />
-          Complete all required fields (marked <span style={{ color: UI.color.teal }}>*</span>) to reach 100%.
-        </div>
-      </div>
+            <section className="si-panel">
+              <div className="si-progress-row">
+                <span className="si-progress-label">
+                  Step {Math.min(stepIdx + 1, Math.max(steps.length, 1))} of {Math.max(steps.length, 1)} · Required
+                  fields
+                </span>
+                <span className="si-progress-pct">{progress}%</span>
+              </div>
+              <div className="si-progress-bar">
+                <div className="si-progress-fill" style={{ width: `${progress}%` }} />
+              </div>
+              <p className="si-hint">
+                Complete fields marked <span style={{ color: UI.color.teal }}>*</span> to finish this inspection.
+              </p>
+            </section>
 
-      {/* Form + Toolbar */}
-      <div style={card}>
+            <div className="si-panel si-form-card" ref={formCardRef}>
         {/* Temporarily hidden: template selector (always use template default) */}
         {/* <TemplateToolbar
           templates={templates}
@@ -1363,19 +1411,8 @@ const meta = base?.meta && typeof base.meta === 'string'
           onRefresh={refreshTemplates}
         /> */}
 
-        <Stepper />
-
         {msg && (
-          <div
-            style={{
-              color: okMsg ? '#065F46' : '#B91C1C',
-              background: okMsg ? '#ECFDF5' : '#FEF2F2',
-              border: `1px solid ${UI.color.border}`,
-              padding: 8,
-              borderRadius: 8,
-              marginBottom: 10,
-            }}
-          >
+          <div className={`si-alert ${okMsg ? 'si-alert--ok' : 'si-alert--err'}`} style={{ marginBottom: 12 }}>
             {msg}
           </div>
         )}
@@ -1409,24 +1446,22 @@ const meta = base?.meta && typeof base.meta === 'string'
             </div>
           </div>
         )}
+            </div>
 
-        {/* Customer Signature Section - Show on last step only */}
         {(!template || stepIdx === steps.length - 1) && (
-          <div style={{ ...card, marginTop: 16, marginBottom: 16, border: `2px solid ${UI.color.teal}` }}>
-            <div style={{ fontWeight: 800, fontSize: 15, color: UI.color.navy, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-              ✍️ Customer Sign-Off
-              <span style={{ fontSize: 10, fontWeight: 800, color: '#EF4444', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 4, padding: '2px 6px', marginLeft: 'auto' }}>
-                REQUIRED
-              </span>
+          <section className="si-panel si-signoff">
+            <div style={{ fontWeight: 700, fontSize: 16, color: UI.color.navy, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              Customer sign-off
+              <span className="si-signoff-badge">Required</span>
             </div>
 
             {/* Confirmation statement */}
             <div style={{
               padding: '14px 16px', borderRadius: 12,
-              background: `${UI.color.teal}11`, border: `1.5px solid ${UI.color.teal}33`,
+              background: '#f8fafc', border: '1.5px solid #e2e8f0',
               marginBottom: 16,
             }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: UI.color.teal, lineHeight: 1.5, fontStyle: 'italic' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#334155', lineHeight: 1.5, fontStyle: 'italic' }}>
                 "I confirm the site inspection has been completed and I approve all findings."
               </div>
             </div>
@@ -1516,61 +1551,85 @@ const meta = base?.meta && typeof base.meta === 'string'
                 />
               </div>
             </div>
-          </div>
+          </section>
         )}
 
-        <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-          <div style={{ color: UI.color.muted, fontSize: 12 }}>
-            Status: <b>{status}</b> • Core completion: <b>{progress}%</b>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" onClick={onSaveDraft} disabled={saving} style={btn('secondary')}>
-              Save Draft
-            </button>
-            <button type="button" onClick={exportPdf} disabled={exporting} style={btn('secondary')}>
-              Export PDF
-            </button>
-            {stepIdx > 0 && (
-              <button type="button" onClick={() => setStepIdx((i) => i - 1)} style={btn('secondary')}>
-                Back
-              </button>
-            )}
-            {template && stepIdx < (steps.length - 1) ? (
-              <button
-                type="button"
-                onClick={() => {
-                  const currentStep = steps[stepIdx];
-                  const currentStepId = currentStep?.id;
-                  const failMsg =
-                    'Please upload the required items before proceeding. (License selfie is required on Job Details)';
-                  if (template && currentStepId && !stepPassesGuards(template, currentStepId, form)) {
-                    setMsg(failMsg);
-                    // window.scrollTo({ top: 0, behavior: 'smooth' });
-                    return;
-                  }
-                  setMsg('');
-                  setStepIdx((i) => i + 1);
-                }}
-                style={btn('primary')}
-              >
-                Next
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={onSubmit}
-                disabled={saving || isSubmitted || !customerConfirmed || !customerName.trim()}
-                style={btn('primary')}
-              >
-                {isSubmitted ? 'Submitted' : saving ? 'Submitting…' : 'Submit'}
-              </button>
-            )}
-          </div>
+            <div className="si-footer-actions">
+              <div className="si-footer-meta">
+                {status} · {progress}% complete
+              </div>
+              <div className="si-footer-btns">
+                <button
+                  type="button"
+                  className="si-btn si-btn--ghost si-btn--lg"
+                  onClick={exportPdf}
+                  disabled={exporting}
+                >
+                  {exporting ? 'Exporting…' : 'Export PDF'}
+                </button>
+                <button
+                  type="button"
+                  className="si-btn si-btn--primary si-btn--lg"
+                  onClick={onSaveDraft}
+                  disabled={saving}
+                >
+                  {saving ? 'Saving…' : 'Save draft'}
+                </button>
+                {stepIdx > 0 && (
+                  <button type="button" onClick={() => setStepIdx((i) => i - 1)} className="si-btn si-btn--lg">
+                    Back
+                  </button>
+                )}
+                {template && stepIdx < (steps.length - 1) ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const currentStep = steps[stepIdx];
+                      const currentStepId = currentStep?.id;
+                      const failMsg =
+                        'Please upload the required items before proceeding. (License selfie is required on Job Details)';
+                      if (template && currentStepId && !stepPassesGuards(template, currentStepId, form)) {
+                        setMsg(failMsg);
+                        return;
+                      }
+                      setMsg('');
+                      setStepIdx((i) => i + 1);
+                    }}
+                    className="si-btn si-btn--primary si-btn--lg"
+                  >
+                    Next
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onSubmit}
+                    disabled={saving || isSubmitted || !customerConfirmed || !customerName.trim()}
+                    className="si-btn si-btn--primary si-btn--lg"
+                  >
+                    {isSubmitted ? 'Submitted' : saving ? 'Submitting…' : 'Submit'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </main>
         </div>
-      </div>
 
-      {/* Draft list */}
-      <div style={{ ...card }}>
+        <div className="si-lists">
+          <button
+            type="button"
+            className="si-lists-summary"
+            onClick={() => setOtherInspectionsOpen((o) => !o)}
+            aria-expanded={otherInspectionsOpen}
+          >
+            <span>Other inspections</span>
+            <span style={{ color: '#94a3b8', fontSize: 13 }}>
+              {draftList.length} draft · {submittedList.length} submitted · {otherInspectionsOpen ? '▼' : '▶'}
+            </span>
+          </button>
+
+          {otherInspectionsOpen ? (
+            <div className="si-lists-body">
+      <div className="si-list-block">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <div style={{ fontWeight: 800, fontSize: 14, color: UI.color.navy }}>Draft documents</div>
           <button type="button" onClick={() => loadInspectionLists()} style={btn('secondary')}>
@@ -1679,11 +1738,14 @@ const meta = base?.meta && typeof base.meta === 'string'
           </div>
         )}
       </div>
-    </div>
+            </div>
+          ) : null}
+        </div>
 
-    {/* Right sidebar - Checklist */}
-    {/* Temporarily hidden: checklist widget */}
-    {/* <ChecklistWidget companyId={form.company_id} /> */}
-  </div>
+        {/* Right sidebar - Checklist */}
+        {/* Temporarily hidden: checklist widget */}
+        {/* <ChecklistWidget companyId={form.company_id} /> */}
+      </div>
+    </div>
   );
 }

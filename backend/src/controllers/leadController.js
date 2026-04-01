@@ -65,6 +65,7 @@ export async function createLead(req, res) {
       source = null,
       inspector_id,
       site_inspection_date = null,
+      sales_segment,
     } = req.body || {};
 
     const errors = {};
@@ -134,6 +135,13 @@ export async function createLead(req, res) {
       errors.stage = 'This stage is disabled in your workflow settings.';
     }
 
+    if (sales_segment !== undefined && sales_segment !== null && sales_segment !== '') {
+      const s = String(sales_segment).toLowerCase();
+      if (s !== 'b2c' && s !== 'b2b') {
+        errors.sales_segment = 'Must be b2c or b2b.';
+      }
+    }
+
     if (Object.keys(errors).length > 0) {
       return res.status(422).json({ success: false, errors });
     }
@@ -158,6 +166,10 @@ export async function createLead(req, res) {
         inspector_id === undefined || inspector_id === null || inspector_id === ''
           ? undefined
           : Number(inspector_id),
+      sales_segment:
+        sales_segment === undefined || sales_segment === null || sales_segment === ''
+          ? null
+          : String(sales_segment).toLowerCase(),
     };
 
     const lead = await leadService.createLead(payload, { allowedStageKeys: enabledKeys });
@@ -225,12 +237,14 @@ export async function listLeads(req, res) {
   try {
     const grouped = String(req.query.grouped || '').trim() === '1';
 
+    const segQ = String(req.query.sales_segment || '').trim().toLowerCase();
     const filters = {
       stage: req.query.stage || undefined,
       search: req.query.search || undefined,
       assigned_user: req.query.assigned_user || undefined,
       limit: req.query.limit ? Number(req.query.limit) : undefined,
       offset: req.query.offset ? Number(req.query.offset) : undefined,
+      sales_segment: segQ === 'b2c' || segQ === 'b2b' ? segQ : undefined,
     };
 
     // IMPORTANT:
@@ -335,6 +349,18 @@ export async function updateLead(req, res) {
     if (body.value_amount !== undefined) payload.value_amount = body.value_amount;
     if (body.source !== undefined) payload.source = body.source;
     if (body.site_inspection_date !== undefined) payload.site_inspection_date = toMySQLDateTime(body.site_inspection_date);
+    if (body.sales_segment !== undefined) {
+      const s = body.sales_segment;
+      if (s === null || s === '') {
+        payload.sales_segment = null;
+      } else {
+        const low = String(s).toLowerCase();
+        if (low !== 'b2c' && low !== 'b2b') {
+          return res.status(422).json({ success: false, errors: { sales_segment: 'Must be b2c or b2b.' } });
+        }
+        payload.sales_segment = low;
+      }
+    }
 
     if (body.system_type !== undefined) payload.system_type = trimOrNull(body.system_type, 100);
     if (body.house_storey !== undefined) payload.house_storey = trimOrNull(body.house_storey, 50);

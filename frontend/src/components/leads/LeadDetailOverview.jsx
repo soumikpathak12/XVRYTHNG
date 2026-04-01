@@ -28,6 +28,29 @@ export default function LeadDetailOverview({ lead, onEdit }) {
 
   const v = (x) => (!x && x !== 0 ? "—" : x);
 
+  const formatMySqlDateTimeForDisplay = (dt) => {
+    if (!dt) return '—';
+    const s = String(dt).trim();
+    if (!s) return '—';
+
+    // Handle naive MySQL DATETIME/APIs (no timezone info): treat as wall-clock.
+    // Examples: "2026-03-27 06:00:00" or "2026-03-27T06:00:00"
+    const m = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(?::\d{2})?$/);
+    if (m) {
+      const localIso = `${m[1]}T${m[2]}`;
+      const d = new Date(localIso);
+      if (!Number.isNaN(d.getTime())) {
+        return d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+      }
+    }
+
+    // Fallback: best-effort.
+    const d = new Date(s);
+    return Number.isNaN(d.getTime())
+      ? s
+      : d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+  };
+
   const phone  = v(lead?.phone);
   const email  = v(lead?.email);
   const suburb = v(lead?.suburb);
@@ -125,7 +148,7 @@ export default function LeadDetailOverview({ lead, onEdit }) {
                 <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.8 }}>DATE & TIME</span>
               </div>
               <div style={{ fontSize: 15, fontWeight: 700, marginTop: 4 }}>
-                {new Date(lead.site_inspection_date).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                {formatMySqlDateTimeForDisplay(lead.site_inspection_date)}
               </div>
             </div>
             <div>

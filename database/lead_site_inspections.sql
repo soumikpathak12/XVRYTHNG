@@ -39,7 +39,7 @@ CREATE TABLE `lead_site_inspections` (
   `meter_phase` enum('single','three') DEFAULT NULL,
   `inverter_location` varchar(255) DEFAULT NULL,
   `msb_condition` text DEFAULT NULL,
-  `shading` enum('none','light','moderate','heavy') DEFAULT NULL,
+  `shading` varchar(255) DEFAULT NULL,
   `additional_notes` text DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime DEFAULT NULL

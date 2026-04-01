@@ -1,4 +1,4 @@
-// components/leads/LeadDetailDetails.jsx – editable Details tab (core form + extras + 2 nút ở cuối)
+// components/leads/LeadDetailDetails.jsx — editable Details tab (core form + extras + footer actions)
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import LeadForm from './LeadForm.jsx';
 import '../../styles/LeadDetailModal.css';
@@ -15,17 +15,11 @@ import {
   getCecPvPanelBrands,
   syncCecNow,
 } from '../../services/api.js';
+import { dbDatetimeToDatetimeLocalInput } from '../../utils/inspectionPrefillFromLead.js';
 
 function formatDateTimeLocal(isoString) {
-  if (!isoString) return '';
-  const d = new Date(isoString);
-  if (Number.isNaN(d.getTime())) return '';
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mi = String(d.getMinutes()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+  const v = dbDatetimeToDatetimeLocalInput(isoString);
+  return v ?? '';
 }
 // Coerce 0/1/"0"/"1"/"true"/"false"/"" → true/false/null
 function toBoolOrNull(v) {
@@ -76,6 +70,10 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
             stage,
             site_inspection_date: formatDateTimeLocal(siteInspectionDateIso),
             inspector_id: inspectorId,
+            sales_segment: (() => {
+              const s = lead?.sales_segment ?? lead?._raw?.sales_segment;
+              return s === 'b2c' || s === 'b2b' ? s : '';
+            })(),
           }
         : null,
     [lead, email, phone, suburb, systemSizeKw, valueAmount, stage, siteInspectionDateIso, inspectorId],

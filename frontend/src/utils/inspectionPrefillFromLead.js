@@ -112,7 +112,7 @@ export function getSystemTypeForInspection(lead) {
 
 /**
  * @param {object|null} lead – row from GET /api/leads/:id (snake_case)
- * @returns {{ roof_type?: string, meter_phase?: string, house_storey?: string }}
+ * @returns {{ roof_type?: string, meter_phase?: string, house_storey?: string, 'switchboard.meterNumber'?: string, 'switchboard.nmi'?: string }}
  */
 export function buildInspectionDefaultsFromLead(lead) {
   if (!lead) return {};
@@ -122,6 +122,14 @@ export function buildInspectionDefaultsFromLead(lead) {
   const roofFromLead = trimStr(lead.roof_type);
   const meterFromLead = trimStr(lead.meter_phase);
   const storeyFromLead = trimStr(lead.house_storey);
+  const meterNumberFromLead =
+    trimStr(lead.meter_number) ||
+    trimStr(lead.meterNumber) ||
+    trimStr(lead.lead_meter_number);
+  const nmiFromLead =
+    trimStr(lead.nmi_number) ||
+    trimStr(lead.nmiNumber) ||
+    trimStr(lead.lead_nmi_number);
 
   const mappedRoof = sq?.mappedRoofType != null ? trimStr(sq.mappedRoofType) : '';
   const storiesSq = fuzzySqValue(sq, ['stories', 'storeys', 'house_storey', 'housestorey', 'storiescount', 'floors']);
@@ -138,6 +146,8 @@ export function buildInspectionDefaultsFromLead(lead) {
   if (roof) out.roof_type = roof;
   if (meter) out.meter_phase = meter;
   if (storey) out.house_storey = storey;
+  if (meterNumberFromLead) out['switchboard.meterNumber'] = meterNumberFromLead;
+  if (nmiFromLead) out['switchboard.nmi'] = nmiFromLead;
   return out;
 }
 
@@ -169,6 +179,13 @@ export function dbDatetimeToDatetimeLocalInput(raw) {
     const m = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/);
     if (m) return `${m[1]}T${m[2]}:${m[3]}`;
   }
+
+  // MySQL DATETIME is timezone-less, but some drivers / serializers may return it with `Z`.
+  // For datetime-local inputs, we want the wall-clock parts (ignore timezone marker).
+  const wall = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})(?::\d{2})?/);
+  if (wall) return `${wall[1]}T${wall[2]}:${wall[3]}`;
+
+  // Fallback: best-effort parsing to local wall-clock.
   const d = new Date(s);
   if (Number.isNaN(d.getTime())) return null;
   const pad = (n) => String(n).padStart(2, '0');

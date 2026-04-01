@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import LeadCard from './LeadCards.jsx';
-import { colorForStage } from './theme.js';
 
 
 export default function KanbanColumn({
@@ -16,7 +15,6 @@ export default function KanbanColumn({
   isHighlighted,
   renderItem,
 }) {
-  const headerColor = colorForStage(stageKey);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -49,7 +47,7 @@ export default function KanbanColumn({
 
   return (
     <section
-      className={`leads-column ${isHighlighted ? 'highlighted' : ''}`}
+      className={`leads-column stage-${stageKey} ${isHighlighted ? 'highlighted' : ''}`}
       onDragOver={handleDragOverInternal}
       onDragLeave={handleDragLeave}
       onDrop={handleDropInternal}
@@ -57,7 +55,7 @@ export default function KanbanColumn({
     >
       <div
         className="leads-column-header"
-        style={{ backgroundColor: headerColor, minHeight: '48px' }}
+        style={{ minHeight: '48px' }}
       >
         {isSearchOpen ? (
           <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: '8px' }}>

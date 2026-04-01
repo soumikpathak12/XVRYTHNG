@@ -14,9 +14,9 @@ export const STAGES = [
   { key: 'closed_lost', label: 'Closed Lost' },
 ];
 
-const COL_WIDTH = 300;
-const COL_GAP = 20;
-const BOARD_PADDING = 28;
+const COL_WIDTH = 260;
+const COL_GAP = 16;
+const BOARD_PADDING = 0;
 
 function bucketStageForLead(leadStage, stageList) {
   const keys = stageList.map((s) => s.key);
@@ -181,55 +181,57 @@ export default function KanbanBoard({
 
   return (
     <div className="leads-board-root">
-      <div className="leads-column-jump" role="navigation" aria-label="Jump to pipeline stage">
-        {STAGES_LIST.map((s, i) => (
-          <button
-            key={s.key}
-            type="button"
-            className={activeColumnIndex === i ? 'active' : ''}
-            onClick={() => scrollToColumn(i)}
-            title={`Go to ${s.label}`}
-          >
-            {s.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="leads-board-wrap">
-        <div
-          ref={scrollRef}
-          className="leads-board-scroll"
-          role="region"
-          aria-label="Pipeline columns – scroll horizontally to see all stages"
-          onDragOver={handleContainerDragOver}
-        >
-          <div className="leads-board" role="list" aria-label="Sales pipeline kanban">
-            {STAGES_LIST.map((s) => (
-              <KanbanColumn
-                key={s.key}
-                title={s.label}
-                stageKey={s.key}
-                leads={byStage[s.key]}
-                isHighlighted={s.key === highlightedStage}
-                onDragStart={handleDragStart}
-                onDragEnd={handleDragEnd}
-                onDragOver={handleDragOver}
-                onDrop={handleDrop}
-                onFocusSearch={onFocusSearch}
-                onSelectLead={onSelectLead}
-              />
-            ))}
-          </div>
+      <div className="leads-board-layout">
+        <div className="leads-column-jump leads-column-jump-vertical" role="navigation" aria-label="Jump to pipeline stage">
+          {STAGES_LIST.map((s, i) => (
+            <button
+              key={s.key}
+              type="button"
+              className={activeColumnIndex === i ? 'active' : ''}
+              onClick={() => scrollToColumn(i)}
+              title={`Go to ${s.label}`}
+            >
+              {s.label}
+            </button>
+          ))}
         </div>
 
-        <div
-          className={`leads-scroll-shadow left ${scrollState.canScrollLeft ? 'visible' : ''}`}
-          aria-hidden="true"
-        />
-        <div
-          className={`leads-scroll-shadow right ${scrollState.canScrollRight ? 'visible' : ''}`}
-          aria-hidden="true"
-        />
+        <div className="leads-board-wrap">
+          <div
+            ref={scrollRef}
+            className="leads-board-scroll"
+            role="region"
+            aria-label="Pipeline columns – scroll horizontally to see all stages"
+            onDragOver={handleContainerDragOver}
+          >
+            <div className="leads-board" role="list" aria-label="Sales pipeline kanban">
+              {STAGES_LIST.map((s) => (
+                <KanbanColumn
+                  key={s.key}
+                  title={s.label}
+                  stageKey={s.key}
+                  leads={byStage[s.key]}
+                  isHighlighted={s.key === highlightedStage}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  onFocusSearch={onFocusSearch}
+                  onSelectLead={onSelectLead}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div
+            className={`leads-scroll-shadow left ${scrollState.canScrollLeft ? 'visible' : ''}`}
+            aria-hidden="true"
+          />
+          <div
+            className={`leads-scroll-shadow right ${scrollState.canScrollRight ? 'visible' : ''}`}
+            aria-hidden="true"
+          />
+        </div>
       </div>
     </div>
   );

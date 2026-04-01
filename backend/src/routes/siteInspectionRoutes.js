@@ -16,6 +16,12 @@ const router = Router({ mergeParams: true });
 const SI_COL_SQL = siInsertColumnListSql();
 const SI_PLACEHOLDERS = siInsertPlaceholders();
 
+function normalizeShadingText(value) {
+  if (value == null) return null;
+  const text = String(value).trim();
+  return text ? text : null;
+}
+
 /** Prefer submitted, then newest row (form lives in si_* or legacy JSON). */
 const BEST_ROW_ORDER = `
   ORDER BY
@@ -62,8 +68,9 @@ router.put('/', async (req, res) => {
       inspected_at = null, inspector_name = null, customer_name = null, signature_url = null, customer_notes = null,
       roof_type = null, roof_pitch_deg = null,
       house_storey = null, meter_phase = null, inverter_location = null, msb_condition = null,
-      shading = null, form_data_json: formDataJsonBody = null, template_key = null, template_version = null,
+      shading: rawShading = null, form_data_json: formDataJsonBody = null, template_key = null, template_version = null,
     } = req.body || {};
+    const shading = normalizeShadingText(rawShading);
 
     const [rows] = inspectionId
       ? await db.execute('SELECT * FROM lead_site_inspections WHERE id=? AND lead_id=? LIMIT 1', [inspectionId, leadId])
@@ -143,9 +150,10 @@ router.post('/submit', async (req, res) => {
     const {
       inspected_at, inspector_name, customer_name, signature_url, customer_notes,
       roof_type = null, roof_pitch_deg = null, house_storey = null, meter_phase = null,
-      inverter_location = null, msb_condition = null, shading = null,
+      inverter_location = null, msb_condition = null, shading: rawShading = null,
       form_data_json: submitFormDataJson = null, template_key = null, template_version = null,
     } = req.body || {};
+    const shading = normalizeShadingText(rawShading);
 
     if (!inspected_at || !customer_name?.trim()) {
       return res.status(400).json({ success: false, message: 'inspected_at and customer_name are required' });
