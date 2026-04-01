@@ -2,10 +2,56 @@
  * Support ticket service – customer portal tickets, liaison routing (T-335, T-337, T-340).
  */
 import db from '../config/db.js';
+import * as referralService from './referralService.js';
 
 const STATUSES = new Set(['open', 'in_progress', 'resolved', 'closed', 'withdrawn']);
 const PRIORITIES = new Set(['low', 'medium', 'high', 'urgent']);
 const CATEGORIES = new Set(['installation', 'referral', 'others']);
+const COMPENSATION_STATUSES = new Set([
+  'none',
+  'company_due',
+  'company_paid',
+  'xvrything_paid',
+  'company_removed',
+]);
+
+function addMinutes(date, minutes) {
+  const ts = new Date(date).getTime();
+  return new Date(ts + Math.max(0, Number(minutes) || 0) * 60000);
+}
+
+function serializeSupportPolicy(settings) {
+  return {
+    enabled: true,
+    responseMinutes: Number(settings.supportResponseMinutes) || 90,
+    companyCompensationAmount: Number(settings.supportCompensationAmount) || 50,
+    escalationAmount: Number(settings.supportEscalationAmount) || 250,
+    autoRemoveCompany: Boolean(settings.supportAutoRemoveCompany),
+  };
+}
+
+async function getSupportPolicy() {
+  const settings = await referralService.getSettings();
+  return serializeSupportPolicy(settings || referralService.getDefaultSettings());
+}
+
+function withPolicyState(ticket) {
+  if (!ticket) return ticket;
+  const isClosedLike = ['closed', 'resolved', 'withdrawn'].includes(ticket.status);
+  const dueAt = ticket.response_due_at ? new Date(ticket.response_due_at) : null;
+  const isSlaBreached = Boolean(
+    dueAt && !ticket.first_staff_reply_at && !isClosedLike && Date.now() > dueAt.getTime()
+  );
+  const effectiveCompensationStatus =
+    isSlaBreached && ticket.compensation_status === 'none'
+      ? 'company_due'
+      : ticket.compensation_status || 'none';
+  return {
+    ...ticket,
+    is_sla_breached: isSlaBreached,
+    effective_compensation_status: effectiveCompensationStatus,
+  };
+}
 
 /**
  * Route ticket to liaison based on project (lead).
@@ -98,11 +144,17 @@ export async function createTicket({ leadId, subject, body, priority = 'medium',
   }
 
   const assignedUserId = await resolveLiaison(Number(leadId));
+  const supportPolicy = await getSupportPolicy();
+  const responseDueAt = supportPolicy.enabled ? addMinutes(new Date(), supportPolicy.responseMinutes) : null;
+  const policySnapshot = JSON.stringify(supportPolicy);
 
   const categoryOtherVal = cat === 'others' ? String(categoryOther).trim().slice(0, 255) : null;
   const [result] = await db.execute(
-    `INSERT INTO support_tickets (lead_id, company_id, subject, category, category_other, body, status, priority, assigned_user_id)
-     VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?)`,
+    `INSERT INTO support_tickets (
+      lead_id, company_id, subject, category, category_other, body, status, priority, assigned_user_id,
+      response_due_at, company_compensation_amount, xvrything_compensation_amount, compensation_status, policy_snapshot_json
+    )
+     VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, 'none', ?)`,
     [
       Number(leadId),
       companyId,
@@ -112,6 +164,10 @@ export async function createTicket({ leadId, subject, body, priority = 'medium',
       String(body).trim(),
       priority || 'medium',
       assignedUserId,
+      responseDueAt,
+      supportPolicy.companyCompensationAmount,
+      supportPolicy.escalationAmount,
+      policySnapshot,
     ]
   );
   const ticketId = result.insertId;
@@ -127,7 +183,7 @@ export async function createTicket({ leadId, subject, body, priority = 'medium',
     'SELECT * FROM support_tickets WHERE id = ? LIMIT 1',
     [ticketId]
   );
-  return rows[0];
+  return withPolicyState(rows[0]);
 }
 
 /**
@@ -140,13 +196,16 @@ export async function listTicketsByLead(leadId) {
     throw err;
   }
   const [rows] = await db.execute(
-    `SELECT id, lead_id, subject, status, priority, assigned_user_id, created_at, updated_at
+    `SELECT id, lead_id, subject, status, priority, assigned_user_id, created_at, updated_at,
+            response_due_at, first_staff_reply_at, company_compensation_amount,
+            xvrything_compensation_amount, compensation_status, company_compensation_paid_at,
+            xvrything_compensation_paid_at, company_removed_at
      FROM support_tickets
      WHERE lead_id = ?
      ORDER BY updated_at DESC, created_at DESC`,
     [Number(leadId)]
   );
-  return rows;
+  return rows.map(withPolicyState);
 }
 
 /**
@@ -173,7 +232,7 @@ export async function getTicketById(ticketId, leadId) {
     err.statusCode = 404;
     throw err;
   }
-  return ticket;
+  return withPolicyState(ticket);
 }
 
 /**
@@ -214,8 +273,11 @@ export async function listTicketsForAdmin(filters = {}) {
   params.push(Number(limit), Number(offset));
 
   const [rows] = await db.execute(
-    `SELECT st.id, st.lead_id, st.company_id, st.subject, st.category, st.category_other, st.status, st.priority,
-            st.assigned_user_id, st.created_at, st.updated_at,
+        `SELECT st.id, st.lead_id, st.company_id, st.subject, st.category, st.category_other, st.status, st.priority,
+          st.assigned_user_id, st.created_at, st.updated_at,
+          st.response_due_at, st.first_staff_reply_at, st.company_compensation_amount,
+          st.xvrything_compensation_amount, st.compensation_status, st.company_compensation_paid_at,
+          st.xvrything_compensation_paid_at, st.company_removed_at,
             l.customer_name, l.email
      FROM support_tickets st
      LEFT JOIN leads l ON l.id = st.lead_id
@@ -224,7 +286,7 @@ export async function listTicketsForAdmin(filters = {}) {
      LIMIT ? OFFSET ?`,
     params
   );
-  return rows;
+  return rows.map(withPolicyState);
 }
 
 /**
@@ -249,7 +311,7 @@ export async function getTicketByIdAdmin(ticketId) {
     err.statusCode = 404;
     throw err;
   }
-  return ticket;
+  return withPolicyState(ticket);
 }
 
 /**
@@ -290,7 +352,16 @@ export async function addStaffReply(ticketId, userId, { body }) {
     [Number(ticketId), Number(userId), String(body).trim()]
   );
   await db.execute(
-    'UPDATE support_tickets SET updated_at = NOW(), status = ? WHERE id = ?',
+    `UPDATE support_tickets
+     SET updated_at = NOW(),
+         status = ?,
+         first_staff_reply_at = COALESCE(first_staff_reply_at, NOW()),
+         compensation_status = CASE
+           WHEN compensation_status = 'none' AND response_due_at IS NOT NULL AND NOW() > response_due_at
+             THEN 'company_due'
+           ELSE compensation_status
+         END
+     WHERE id = ?`,
     ['in_progress', Number(ticketId)]
   );
   const [rows] = await db.execute(
@@ -315,7 +386,7 @@ export async function updateTicketStatus(ticketId, status) {
     [status, Number(ticketId)]
   );
   const [rows] = await db.execute('SELECT * FROM support_tickets WHERE id = ? LIMIT 1', [Number(ticketId)]);
-  return rows[0];
+  return withPolicyState(rows[0]);
 }
 
 /**
@@ -340,7 +411,14 @@ export async function addReply(ticketId, leadId, { body, authorType = 'customer'
   );
   const replyId = result.insertId;
   await db.execute(
-    'UPDATE support_tickets SET updated_at = NOW() WHERE id = ?',
+    `UPDATE support_tickets
+     SET updated_at = NOW(),
+         compensation_status = CASE
+           WHEN compensation_status = 'none' AND response_due_at IS NOT NULL AND NOW() > response_due_at
+             THEN 'company_due'
+           ELSE compensation_status
+         END
+     WHERE id = ?`,
     [Number(ticketId)]
   );
   const [rows] = await db.execute(
@@ -365,5 +443,67 @@ export async function withdrawTicket(ticketId, leadId) {
     ['withdrawn', Number(ticketId), Number(leadId)]
   );
   const [rows] = await db.execute('SELECT * FROM support_tickets WHERE id = ? LIMIT 1', [Number(ticketId)]);
-  return rows[0];
+  return withPolicyState(rows[0]);
+}
+
+export async function markCompanyCompensationPaid(ticketId) {
+  const ticket = await getTicketByIdAdmin(ticketId);
+  const current = ticket.effective_compensation_status || ticket.compensation_status || 'none';
+  if (!COMPENSATION_STATUSES.has(current) || !['company_due', 'company_paid'].includes(current)) {
+    const err = new Error('Company compensation is not currently due for this ticket');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  await db.execute(
+    `UPDATE support_tickets
+     SET compensation_status = 'company_paid',
+         company_compensation_paid_at = COALESCE(company_compensation_paid_at, NOW()),
+         updated_at = NOW()
+     WHERE id = ?`,
+    [Number(ticketId)]
+  );
+
+  const [rows] = await db.execute('SELECT * FROM support_tickets WHERE id = ? LIMIT 1', [Number(ticketId)]);
+  return withPolicyState(rows[0]);
+}
+
+export async function escalateCompensationAndSuspendCompany(ticketId) {
+  const ticket = await getTicketByIdAdmin(ticketId);
+  const current = ticket.effective_compensation_status || ticket.compensation_status || 'none';
+  if (!['company_due', 'company_paid', 'xvrything_paid', 'company_removed'].includes(current)) {
+    const err = new Error('Ticket is not eligible for escalation');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  await db.execute(
+    `UPDATE support_tickets
+     SET compensation_status = 'xvrything_paid',
+         xvrything_compensation_paid_at = COALESCE(xvrything_compensation_paid_at, NOW()),
+         updated_at = NOW()
+     WHERE id = ?`,
+    [Number(ticketId)]
+  );
+
+  if (ticket.company_id) {
+    await db.execute(
+      `UPDATE companies
+       SET status = 'suspended', updated_at = NOW()
+       WHERE id = ?`,
+      [Number(ticket.company_id)]
+    );
+
+    await db.execute(
+      `UPDATE support_tickets
+       SET compensation_status = 'company_removed',
+           company_removed_at = COALESCE(company_removed_at, NOW()),
+           updated_at = NOW()
+       WHERE id = ?`,
+      [Number(ticketId)]
+    );
+  }
+
+  const [rows] = await db.execute('SELECT * FROM support_tickets WHERE id = ? LIMIT 1', [Number(ticketId)]);
+  return withPolicyState(rows[0]);
 }

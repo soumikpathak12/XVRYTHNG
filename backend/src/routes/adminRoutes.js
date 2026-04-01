@@ -35,6 +35,8 @@ import {
   getTicket,
   addReply,
   updateStatus,
+  markCompanyCompensationPaid,
+  escalateCompensation,
 } from '../controllers/adminSupportTicketController.js';
 import { tenantContext } from '../middleware/tenantContext.js';
 import { requirePermission } from '../middleware/requirePermission.js';
@@ -81,6 +83,8 @@ router.get('/support-tickets', requirePermission('support', 'view'), listTickets
 router.get('/support-tickets/:id', requirePermission('support', 'view'), getTicket);
 router.post('/support-tickets/:id/replies', requirePermission('support', 'edit'), addReply);
 router.patch('/support-tickets/:id/status', requirePermission('support', 'edit'), updateStatus);
+router.post('/support-tickets/:id/company-compensation-paid', requirePermission('support', 'edit'), markCompanyCompensationPaid);
+router.post('/support-tickets/:id/escalate-compensation', requirePermission('support', 'edit'), escalateCompensation);
 
 router.post('/users', requireSuperAdmin, createUser);
 

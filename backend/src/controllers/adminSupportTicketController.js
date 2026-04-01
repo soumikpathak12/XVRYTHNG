@@ -6,7 +6,9 @@ import * as supportTicketService from '../services/supportTicketService.js';
 /** GET /api/admin/support-tickets – list tickets (filtered by company for tenant) */
 export async function listTickets(req, res) {
   try {
-    const companyId = req.tenantId ?? req.query.companyId ?? null;
+    const companyId = req.isSuperAdmin
+      ? (req.query.companyId ?? null)
+      : (req.tenantId ?? req.query.companyId ?? null);
     const status = req.query.status || null;
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
     const offset = parseInt(req.query.offset, 10) || 0;
@@ -85,6 +87,44 @@ export async function updateStatus(req, res) {
     return res.status(code).json({
       success: false,
       message: err.message || 'Failed to update status',
+    });
+  }
+}
+
+/** POST /api/admin/support-tickets/:id/company-compensation-paid */
+export async function markCompanyCompensationPaid(req, res) {
+  try {
+    const ticketId = req.params.id;
+    const ticket = await supportTicketService.markCompanyCompensationPaid(ticketId);
+    return res.status(200).json({
+      success: true,
+      message: 'Company compensation marked as paid.',
+      data: ticket,
+    });
+  } catch (err) {
+    const code = err.statusCode || 500;
+    return res.status(code).json({
+      success: false,
+      message: err.message || 'Failed to mark company compensation as paid',
+    });
+  }
+}
+
+/** POST /api/admin/support-tickets/:id/escalate-compensation */
+export async function escalateCompensation(req, res) {
+  try {
+    const ticketId = req.params.id;
+    const ticket = await supportTicketService.escalateCompensationAndSuspendCompany(ticketId);
+    return res.status(200).json({
+      success: true,
+      message: 'Escalation recorded and company suspended.',
+      data: ticket,
+    });
+  } catch (err) {
+    const code = err.statusCode || 500;
+    return res.status(code).json({
+      success: false,
+      message: err.message || 'Failed to escalate compensation',
     });
   }
 }

@@ -11,6 +11,14 @@ export default function EditReferralSettingsModal({ open, onClose, settings, onS
     battery: '',
     'solar+battery': '',
     'ev-charger': '',
+    evisaGiftCardEnabled: true,
+    evisaGiftCardAmount: '',
+    evisaBrandingEnabled: true,
+    evisaBrandingSurcharge: '',
+    supportResponseMinutes: '',
+    supportCompensationAmount: '',
+    supportEscalationAmount: '',
+    supportAutoRemoveCompany: true,
   });
 
   useEffect(() => {
@@ -20,6 +28,14 @@ export default function EditReferralSettingsModal({ open, onClose, settings, onS
         battery: settings.battery || '',
         'solar+battery': settings['solar+battery'] || '',
         'ev-charger': settings['ev-charger'] || '',
+        evisaGiftCardEnabled: settings.evisaGiftCardEnabled !== false,
+        evisaGiftCardAmount: settings.evisaGiftCardAmount ?? 50,
+        evisaBrandingEnabled: settings.evisaBrandingEnabled !== false,
+        evisaBrandingSurcharge: settings.evisaBrandingSurcharge ?? 20,
+        supportResponseMinutes: settings.supportResponseMinutes ?? 90,
+        supportCompensationAmount: settings.supportCompensationAmount ?? 50,
+        supportEscalationAmount: settings.supportEscalationAmount ?? 250,
+        supportAutoRemoveCompany: settings.supportAutoRemoveCompany !== false,
       });
     }
   }, [open, settings]);
@@ -37,13 +53,16 @@ export default function EditReferralSettingsModal({ open, onClose, settings, onS
       battery: parseInt(formData.battery) || 0,
       'solar+battery': parseInt(formData['solar+battery']) || 0,
       'ev-charger': parseInt(formData['ev-charger']) || 0,
+      evisaGiftCardEnabled: Boolean(formData.evisaGiftCardEnabled),
+      evisaGiftCardAmount: parseInt(formData.evisaGiftCardAmount) || 0,
+      evisaBrandingEnabled: Boolean(formData.evisaBrandingEnabled),
+      evisaBrandingSurcharge: parseInt(formData.evisaBrandingSurcharge) || 0,
+      supportResponseMinutes: parseInt(formData.supportResponseMinutes) || 0,
+      supportCompensationAmount: parseInt(formData.supportCompensationAmount) || 0,
+      supportEscalationAmount: parseInt(formData.supportEscalationAmount) || 0,
+      supportAutoRemoveCompany: Boolean(formData.supportAutoRemoveCompany),
     };
     onSave(settingsToSave);
-  };
-
-  const formatCurrency = (amount) => {
-    if (!amount) return '$0';
-    return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 0 }).format(amount);
   };
 
   return (
@@ -54,6 +73,9 @@ export default function EditReferralSettingsModal({ open, onClose, settings, onS
         </p>
 
         <div className="edit-referral-settings-fields">
+          <div className="edit-referral-settings-field">
+            <label className="edit-referral-settings-label">Referral Bonus Amounts</label>
+          </div>
           <div className="edit-referral-settings-field">
             <label className="edit-referral-settings-label" htmlFor="solar">
               Solar Only
@@ -125,6 +147,127 @@ export default function EditReferralSettingsModal({ open, onClose, settings, onS
               />
             </div>
           </div>
+
+          <div className="edit-referral-settings-field">
+            <label className="edit-referral-settings-label">XVRYTHING e-visa Gift Card</label>
+          </div>
+          <label className="edit-referral-settings-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={formData.evisaGiftCardEnabled}
+              onChange={(e) => setFormData((prev) => ({ ...prev, evisaGiftCardEnabled: e.target.checked }))}
+            />
+            Enable company purchase of XVRYTHING e-visa gift cards
+          </label>
+
+          <div className="edit-referral-settings-field">
+            <label className="edit-referral-settings-label" htmlFor="evisaGiftCardAmount">
+              Gift Card Face Value
+            </label>
+            <div className="edit-referral-settings-input-wrapper">
+              <span className="edit-referral-settings-currency">$</span>
+              <input
+                id="evisaGiftCardAmount"
+                type="text"
+                className="edit-referral-settings-input"
+                value={formData.evisaGiftCardAmount}
+                onChange={(e) => handleChange('evisaGiftCardAmount', e.target.value)}
+                placeholder="50"
+                required
+              />
+            </div>
+          </div>
+
+          <label className="edit-referral-settings-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={formData.evisaBrandingEnabled}
+              onChange={(e) => setFormData((prev) => ({ ...prev, evisaBrandingEnabled: e.target.checked }))}
+            />
+            Allow company-branded gift cards (extra charge)
+          </label>
+
+          <div className="edit-referral-settings-field">
+            <label className="edit-referral-settings-label" htmlFor="evisaBrandingSurcharge">
+              Branding Surcharge
+            </label>
+            <div className="edit-referral-settings-input-wrapper">
+              <span className="edit-referral-settings-currency">$</span>
+              <input
+                id="evisaBrandingSurcharge"
+                type="text"
+                className="edit-referral-settings-input"
+                value={formData.evisaBrandingSurcharge}
+                onChange={(e) => handleChange('evisaBrandingSurcharge', e.target.value)}
+                placeholder="20"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="edit-referral-settings-field">
+            <label className="edit-referral-settings-label">Customer Support Protection Policy</label>
+          </div>
+
+          <div className="edit-referral-settings-field">
+            <label className="edit-referral-settings-label" htmlFor="supportResponseMinutes">
+              Company Response Window (minutes)
+            </label>
+            <input
+              id="supportResponseMinutes"
+              type="text"
+              className="edit-referral-settings-input"
+              value={formData.supportResponseMinutes}
+              onChange={(e) => handleChange('supportResponseMinutes', e.target.value)}
+              placeholder="90"
+              required
+            />
+          </div>
+
+          <div className="edit-referral-settings-field">
+            <label className="edit-referral-settings-label" htmlFor="supportCompensationAmount">
+              Company Compensation Amount
+            </label>
+            <div className="edit-referral-settings-input-wrapper">
+              <span className="edit-referral-settings-currency">$</span>
+              <input
+                id="supportCompensationAmount"
+                type="text"
+                className="edit-referral-settings-input"
+                value={formData.supportCompensationAmount}
+                onChange={(e) => handleChange('supportCompensationAmount', e.target.value)}
+                placeholder="50"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="edit-referral-settings-field">
+            <label className="edit-referral-settings-label" htmlFor="supportEscalationAmount">
+              XVRYTHING Escalation Gift Card Amount
+            </label>
+            <div className="edit-referral-settings-input-wrapper">
+              <span className="edit-referral-settings-currency">$</span>
+              <input
+                id="supportEscalationAmount"
+                type="text"
+                className="edit-referral-settings-input"
+                value={formData.supportEscalationAmount}
+                onChange={(e) => handleChange('supportEscalationAmount', e.target.value)}
+                placeholder="250"
+                required
+              />
+            </div>
+          </div>
+
+          <label className="edit-referral-settings-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={formData.supportAutoRemoveCompany}
+              onChange={(e) => setFormData((prev) => ({ ...prev, supportAutoRemoveCompany: e.target.checked }))}
+            />
+            Suspend company when escalation compensation is triggered
+          </label>
         </div>
 
         <div className="edit-referral-settings-actions">

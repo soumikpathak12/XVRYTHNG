@@ -21,7 +21,7 @@ export async function createTicket(req, res) {
     });
     return res.status(201).json({
       success: true,
-      message: 'Support ticket submitted. Our team will respond shortly.',
+      message: 'Support ticket submitted. Please use this thread for updates; response SLA policy now applies to this ticket.',
       data: ticket,
     });
   } catch (err) {
