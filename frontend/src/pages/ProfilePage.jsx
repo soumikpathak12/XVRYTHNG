@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as api from '../services/api.js';
+import { useAuth } from '../context/AuthContext.jsx';
 import '../styles/ProfilePage.css';
 
 const BASE = import.meta.env.VITE_API_URL || '';
@@ -45,6 +46,7 @@ function resizeImage(file, maxSize = MAX_RESIZE, quality = JPEG_QUALITY) {
 }
 
 export default function ProfilePage() {
+  const { updateCurrentUser } = useAuth();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -132,6 +134,11 @@ export default function ProfilePage() {
         photoFile: photoFile || undefined,
       });
       setProfile(data);
+      updateCurrentUser({
+        name: data.name,
+        email: data.email,
+        image_url: data.image_url,
+      });
       setForm({
         name: data.name || '',
         email: data.email || '',

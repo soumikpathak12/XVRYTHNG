@@ -506,6 +506,10 @@ export async function updateLead(leadId, payload) {
     updates.push('pv_panel_brand = ?');
     params.push(payload.pv_panel_brand ?? null);
   }
+  if (payload.pv_panel_model !== undefined) {
+    updates.push('pv_panel_model = ?');
+    params.push(payload.pv_panel_model ?? null);
+  }
   if (payload.pv_panel_module_watts !== undefined) {
     updates.push('pv_panel_module_watts = ?');
     params.push(
@@ -542,7 +546,9 @@ export async function updateLead(leadId, payload) {
   // Handle inline assignment of inspector
   if (payload.inspector_id !== undefined) {
     // inspector_id will be saved down below or we can update `lead_site_inspections` here
-    await saveLeadInspector(leadId, payload.inspector_id);
+    await saveLeadInspector(leadId, payload.inspector_id, payload.site_inspection_date ?? null);
+  } else if (payload.site_inspection_date !== undefined) {
+    await saveLeadInspectionDate(leadId, payload.site_inspection_date ?? null);
   }
 
   // No fields to update -> return current row
@@ -678,7 +684,7 @@ export async function updateLeadStage(leadId, nextStage) {
   return lead;
 }
 
-async function saveLeadInspector(leadId, inspectorId) {
+async function saveLeadInspector(leadId, inspectorId, scheduledAt = null) {
   if (!inspectorId) return;
 
   // Get inspector_name
@@ -692,16 +698,42 @@ async function saveLeadInspector(leadId, inspectorId) {
 
   const [inspRows] = await db.execute('SELECT id FROM lead_site_inspections WHERE lead_id = ? LIMIT 1', [leadId]);
   if (inspRows[0]) {
-    await db.execute(
-      'UPDATE lead_site_inspections SET inspector_id = ?, inspector_name = ? WHERE lead_id = ?',
-      [inspectorId, inspectorName, leadId]
-    );
+    if (scheduledAt) {
+      await db.execute(
+        'UPDATE lead_site_inspections SET inspector_id = ?, inspector_name = ?, scheduled_at = ? WHERE lead_id = ?',
+        [inspectorId, inspectorName, scheduledAt, leadId]
+      );
+    } else {
+      await db.execute(
+        'UPDATE lead_site_inspections SET inspector_id = ?, inspector_name = ? WHERE lead_id = ?',
+        [inspectorId, inspectorName, leadId]
+      );
+    }
   } else {
-    await db.execute(
-      'INSERT INTO lead_site_inspections (lead_id, inspector_id, inspector_name, status) VALUES (?, ?, ?, ?)',
-      [leadId, inspectorId, inspectorName, 'draft']
-    );
+    if (scheduledAt) {
+      await db.execute(
+        'INSERT INTO lead_site_inspections (lead_id, inspector_id, inspector_name, scheduled_at, status) VALUES (?, ?, ?, ?, ?)',
+        [leadId, inspectorId, inspectorName, scheduledAt, 'draft']
+      );
+    } else {
+      await db.execute(
+        'INSERT INTO lead_site_inspections (lead_id, inspector_id, inspector_name, status) VALUES (?, ?, ?, ?)',
+        [leadId, inspectorId, inspectorName, 'draft']
+      );
+    }
   }
+}
+
+async function saveLeadInspectionDate(leadId, scheduledAt) {
+  if (!scheduledAt) return;
+
+  const [inspRows] = await db.execute('SELECT id FROM lead_site_inspections WHERE lead_id = ? LIMIT 1', [leadId]);
+  if (!inspRows[0]) return;
+
+  await db.execute(
+    'UPDATE lead_site_inspections SET scheduled_at = ? WHERE lead_id = ?',
+    [scheduledAt, leadId]
+  );
 }
 
 /** -------------------- SCHEDULE INSPECTION -------------------- */
@@ -845,10 +877,16 @@ export async function getLeadById(leadId) {
     throw err;
   }
 
-  const [inspRows] = await db.execute('SELECT inspector_id, inspector_name FROM lead_site_inspections WHERE lead_id = ? LIMIT 1', [leadId]);
+  const [inspRows] = await db.execute('SELECT inspector_id, inspector_name, scheduled_at FROM lead_site_inspections WHERE lead_id = ? LIMIT 1', [leadId]);
   if (inspRows[0]) {
     if (inspRows[0].inspector_name) lead.inspector_name = inspRows[0].inspector_name;
     if (inspRows[0].inspector_id != null) lead.inspector_id = inspRows[0].inspector_id;
+    if (inspRows[0].scheduled_at) {
+      lead.site_inspection_scheduled_at = inspRows[0].scheduled_at;
+      if (!lead.site_inspection_date) {
+        lead.site_inspection_date = inspRows[0].scheduled_at;
+      }
+    }
   }
 
   const notes = await getLeadNotes(leadId);

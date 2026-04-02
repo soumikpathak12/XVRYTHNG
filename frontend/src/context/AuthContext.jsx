@@ -236,6 +236,15 @@ export function AuthProvider({ children }) {
     });
   }, []);
 
+  const updateCurrentUser = useCallback((patch = {}) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...patch };
+      localStorage.setItem(USER_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   const value = {
     user,
     customerUser,
@@ -251,6 +260,7 @@ export function AuthProvider({ children }) {
     customerLogin,
     customerLogout,
     markPasswordChanged,
+    updateCurrentUser,
     isAuthenticated: !!user,
     isCustomerAuthenticated: !!customerUser,
   };

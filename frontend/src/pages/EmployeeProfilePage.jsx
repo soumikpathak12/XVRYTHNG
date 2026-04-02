@@ -15,6 +15,67 @@ import {
 
 const brand = '#146b6b';
 
+const dateFormatter = new Intl.DateTimeFormat('en-AU', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+});
+
+const timeFormatter = new Intl.DateTimeFormat('en-AU', {
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+function parseDateValue(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  const normalized = typeof value === 'string' && value.includes(' ') && !value.includes('T')
+    ? value.replace(' ', 'T')
+    : value;
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDate(value) {
+  if (!value) return '—';
+  const date = parseDateValue(value);
+  return date ? dateFormatter.format(date) : '—';
+}
+
+function formatDateTime(value) {
+  if (!value) return '—';
+  const date = parseDateValue(value);
+  return date ? `${dateFormatter.format(date)} ${timeFormatter.format(date)}` : '—';
+}
+
+function getLeaveLabel(leaveType) {
+  const labels = {
+    annual: 'Annual Leave',
+    sick: 'Sick Leave',
+    personal: 'Personal Leave',
+    unpaid: 'Unpaid Leave',
+  };
+  return labels[leaveType] ?? leaveType ?? 'Leave';
+}
+
+function formatMoney(amount, currency = 'AUD') {
+  const value = Number(amount ?? 0);
+  if (!Number.isFinite(value)) return '—';
+  return new Intl.NumberFormat('en-AU', {
+    style: 'currency',
+    currency: currency || 'AUD',
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+function expenseStatusStyle(status) {
+  if (status === 'approved') return { bg: '#DCFCE7', fg: '#166534' };
+  if (status === 'pending') return { bg: '#FEF3C7', fg: '#92400E' };
+  if (status === 'rejected') return { bg: '#FEE2E2', fg: '#991B1B' };
+  if (status === 'cancelled') return { bg: '#F3F4F6', fg: '#4B5563' };
+  return { bg: '#F3F4F6', fg: '#111827' };
+}
+
 function Pill({ children, tone = 'success' }) {
   const map = {
     success: { bg: '#DCFCE7', fg: '#28A745' },
@@ -29,7 +90,7 @@ function Pill({ children, tone = 'success' }) {
         alignItems: 'center',
         gap: 6,
         background: c.bg,
-        color:brand,
+        color: c.fg,
         padding: '2px 10px',
         borderRadius: 999,
         fontSize: 12,
@@ -71,6 +132,22 @@ function Section({ title, children }) {
   );
 }
 
+function EmptyState({ title, description }) {
+  return (
+    <div
+      style={{
+        border: '1px dashed #D1D5DB',
+        borderRadius: 10,
+        background: '#F9FAFB',
+        padding: '12px 14px',
+      }}
+    >
+      <div style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>{title}</div>
+      <div style={{ marginTop: 4, fontSize: 12, color: '#6B7280' }}>{description}</div>
+    </div>
+  );
+}
+
 function TwoCol({ labelL, valueL, labelR, valueR }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -90,7 +167,7 @@ function KeyValue({ label, value }) {
 }
 
 function Progress({ label, value, total }) {
-  const pct = Math.max(0, Math.min(100, Math.round((value / total) * 100)));
+  const pct = total > 0 ? Math.max(0, Math.min(100, Math.round((value / total) * 100))) : 0;
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#111827', marginBottom: 6 }}>
@@ -124,40 +201,6 @@ function KpiRow({ items = [] }) {
           <div style={{ color: '#6B7280', fontSize: 12, fontWeight: 800, textTransform: 'uppercase' }}>{i.label}</div>
           <div style={{ marginTop: 4, fontSize: 22, fontWeight: 900, color: '#111827' }}>{i.value}</div>
         </div>
-      ))}
-    </div>
-  );
-}
-
-function ActionList() {
-  const items = [
-    { icon: '⏺️', text: 'Check-in / Check-out' },
-    { icon: '📝', text: 'Request Leave' },
-    { icon: '💳', text: 'Submit Expense' },
-    { icon: '📄', text: 'View Documents' },
-  ];
-  return (
-    <div style={{ display: 'grid', gap: 8 }}>
-      {items.map((i) => (
-        <button
-          key={i.text}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-            background: '#fff', color: '#111827', border: '1px solid #D1D5DB',
-            borderRadius: 8, padding: '10px 12px', fontWeight: 800, cursor: 'pointer',
-          }}
-          onClick={() => alert(`${i.text} (UI only)`)}
-        >
-          <span
-            style={{
-              width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              background: '#F3F4F6', borderRadius: 6,
-            }}
-          >
-            {i.icon}
-          </span>
-          {i.text}
-        </button>
       ))}
     </div>
   );
@@ -460,8 +503,6 @@ export default function EmployeeProfilePage() {
     return c ? Number(c) : null;
   }, [location.search]);
 
-  const qs = useMemo(() => (companyId ? `?companyId=${companyId}` : ''), [companyId]);
-
   const [emp, setEmp] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -554,6 +595,27 @@ export default function EmployeeProfilePage() {
     return n || emp.email || `#${emp.id}`;
   }, [emp]);
 
+  const attendanceSummary = emp?.attendance_summary ?? {
+    working_days: 0,
+    days_present: 0,
+    approved_leave_days: 0,
+    days_absent: 0,
+    recent_check_ins: [],
+  };
+
+  const leaveSummary = emp?.leave_summary ?? {
+    year: new Date().getFullYear(),
+    approved_days_this_month: 0,
+    balances: [],
+  };
+
+  const performanceSummary = emp?.performance_summary ?? {
+    leads_converted: 0,
+    revenue_generated: 0,
+  };
+
+  const recentExpenseClaims = Array.isArray(emp?.recent_expense_claims) ? emp.recent_expense_claims : [];
+
   const handleSubmitEdit = async (payload) => {
     try {
       setSavingEdit(true);
@@ -574,7 +636,7 @@ export default function EmployeeProfilePage() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <button
           onClick={() => navigate(-1)}
-          style={{ border: 'none', background: 'transparent', color: 'brand', cursor: 'pointer', fontWeight: 700 }}
+          style={{ border: 'none', background: 'transparent', color: brand, cursor: 'pointer', fontWeight: 700 }}
         >
           ← Back to Employees
         </button>
@@ -632,7 +694,7 @@ export default function EmployeeProfilePage() {
           <Tile icon="✉️" title="Email" body={emp?.email || '—'} />
           <Tile icon="📞" title="Phone" body={emp?.phone || '—'} />
           <Tile icon="📍" title="Location" body={emp?.city || '—'} />
-          <Tile icon="🗓️" title="Start Date" body={emp?.start_date || '—'} />
+          <Tile icon="🗓️" title="Start Date" body={formatDate(emp?.start_date)} />
         </div>
       </div>
 
@@ -642,68 +704,146 @@ export default function EmployeeProfilePage() {
         <div style={{ display: 'grid', gap: 12 }}>
           <Section title="Personal Information">
             <TwoCol
-                labelL="Full Name"
-                valueL={fullName}
-                labelR="Employee Code"  
-                valueR={emp?.employee_code || '—'}  
+              labelL="Full Name"
+              valueL={fullName}
+              labelR="Employee Code"
+              valueR={emp?.employee_code || '—'}
             />
-            <TwoCol labelL="Date of Birth" valueL={emp?.date_of_birth || '—'} labelR="Emergency Contact" valueR="—" />
+            <TwoCol labelL="Date of Birth" valueL={formatDate(emp?.date_of_birth)} labelR="Emergency Contact" valueR="—" />
           </Section>
 
           <Section title="Attendance — This Month">
-            <KpiRow items={[
-              { label: 'Days Present', value: 18 },
-              { label: 'Days Leave', value: 2 },
-              { label: 'Days Absent', value: 0 },
-            ]} />
-            <div style={{ marginTop: 10, fontSize: 13, color: '#6B7280' }}>Recent check-ins</div>
-            <div style={{ marginTop: 6, color: '#111827' }}>—</div>
-          </Section>
-
-          <Section title="Leave Balance">
-            <Progress label="Annual Leave" value={12} total={20} />
-            <Progress label="Sick Leave" value={8} total={10} />
-            <Progress label="Personal Leave" value={5} total={10} />
-            <div style={{ marginTop: 10 }}>
-            <button
-              style={{
-                background: brand,
-                color: '#fff',
-                border: 'none',
-                borderRadius: 8,
-                padding: '10px 14px',
-                fontWeight: 800,
-                cursor: 'pointer',
-                width: '100%',
-              }}
-              onClick={() => alert('Request Leave (UI only)')}
-            >
-              Request Leave
-            </button>
+            <KpiRow
+              items={[
+                { label: 'Days Present', value: attendanceSummary.days_present },
+                { label: 'Days Leave', value: attendanceSummary.approved_leave_days },
+                { label: 'Days Absent', value: attendanceSummary.days_absent },
+              ]}
+            />
+            <div style={{ marginTop: 12, fontSize: 13, color: '#6B7280', fontWeight: 700 }}>
+              Recent check-ins
+            </div>
+            <div style={{ marginTop: 8, display: 'grid', gap: 8 }}>
+              {attendanceSummary.recent_check_ins.length > 0 ? (
+                attendanceSummary.recent_check_ins.map((entry) => (
+                  <div
+                    key={entry.id}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '120px 1fr 1fr',
+                      gap: 10,
+                      alignItems: 'center',
+                      padding: '10px 12px',
+                      border: '1px solid #E5E7EB',
+                      borderRadius: 10,
+                      background: '#FAFAFA',
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 800, color: '#111827' }}>{formatDate(entry.date)}</div>
+                    <div style={{ fontSize: 13, color: '#374151' }}>
+                      Check in: <strong>{formatDateTime(entry.check_in_time)}</strong>
+                    </div>
+                    <div style={{ fontSize: 13, color: '#374151' }}>
+                      Check out: <strong>{formatDateTime(entry.check_out_time)}</strong>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <EmptyState
+                  title="No check-ins this month"
+                  description="Attendance logs will appear here after check-in/check-out records are created."
+                />
+              )}
             </div>
           </Section>
 
+          <Section title="Leave Balance">
+            {leaveSummary.balances.length > 0 ? (
+              <div style={{ display: 'grid', gap: 12 }}>
+                {leaveSummary.balances.map((balance) => (
+                  <Progress
+                    key={balance.leave_type}
+                    label={getLeaveLabel(balance.leave_type)}
+                    value={balance.remaining}
+                    total={balance.total_days}
+                  />
+                ))}
+                <div style={{ fontSize: 13, color: '#6B7280' }}>
+                  Approved leave this month: {leaveSummary.approved_days_this_month} day(s)
+                </div>
+              </div>
+            ) : (
+              <EmptyState
+                title="No leave balances"
+                description="Leave allocations have not been generated for this employee yet."
+              />
+            )}
+          </Section>
+
           <Section title="Recent Expense Claims">
-            <div style={{ color: '#6B7280' }}>(no data)</div>
+            {recentExpenseClaims.length === 0 ? (
+              <EmptyState
+                title="No expense claims"
+                description="Recent claims will appear here once this employee submits expenses."
+              />
+            ) : (
+              <div style={{ display: 'grid', gap: 8 }}>
+                {recentExpenseClaims.map((item) => {
+                  const tone = expenseStatusStyle(item.status);
+                  return (
+                    <div
+                      key={item.id}
+                      style={{
+                        border: '1px solid #E5E7EB',
+                        borderRadius: 10,
+                        padding: '10px 12px',
+                        background: '#fff',
+                        display: 'grid',
+                        gap: 6,
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                        <div style={{ color: '#111827', fontWeight: 700, fontSize: 13 }}>
+                          {item.project_name || 'Expense claim'}
+                        </div>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 800,
+                            padding: '2px 8px',
+                            borderRadius: 999,
+                            background: tone.bg,
+                            color: tone.fg,
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          {item.status || 'unknown'}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13 }}>
+                        <span style={{ color: '#6B7280' }}>{formatDate(item.expense_date)}</span>
+                        <span style={{ color: '#111827', fontWeight: 700 }}>
+                          {formatMoney(item.amount, item.currency)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </Section>
         </div>
 
         {/* Right column */}
         <div style={{ display: 'grid', gap: 12 }}>
-          <Section title="Quick Actions">
-            <ActionList />
-          </Section>
-
           <Section title="Employment Details">
             <ListRow label="Department" value={emp?.department || '—'} />
             <ListRow label="Job Role" value={emp?.role || '—'} />
-            <ListRow label="Reports to" value="—" />
           </Section>
 
           <Section title="This Month">
-            <KeyValue label="Leads Converted" value="12" />
-            <KeyValue label="Revenue Generated" value="$189K" />
-            <KeyValue label="Customer Satisfaction" value="4.8/5.0" />
+            <KeyValue label="Leads Converted" value={performanceSummary.leads_converted} />
+            <KeyValue label="Revenue Generated" value={formatMoney(performanceSummary.revenue_generated, 'AUD')} />
           </Section>
 
           {/* Documents */}
@@ -731,7 +871,10 @@ export default function EmployeeProfilePage() {
             {docLoading ? (
               <div>Loading…</div>
             ) : docs.length === 0 ? (
-              <div style={{ color: '#6B7280', fontSize: 13 }}>(no documents)</div>
+              <EmptyState
+                title="No documents uploaded"
+                description="Use Upload Document to attach employee files such as contracts, IDs, or certificates."
+              />
             ) : (
               <div style={{ display: 'grid', gap: 8 }}>
                 {docs.map((d) => (

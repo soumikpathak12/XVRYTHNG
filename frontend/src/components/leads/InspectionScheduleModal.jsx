@@ -37,10 +37,24 @@ const InspectionScheduleModal = ({ open, onClose, leadId, lead, onScheduled }) =
 
   useEffect(() => {
     if (open) {
-      const { date: initialDate, time: initialTime } = lead ? parseInspectionDateTime(lead.site_inspection_date) : { date: '', time: '09:00' };
+      const initialScheduleValue =
+        lead?.site_inspection_scheduled_at ??
+        lead?.site_inspection_date ??
+        lead?._raw?.site_inspection_scheduled_at ??
+        lead?._raw?.site_inspection_date ??
+        '';
+      const { date: initialDate, time: initialTime } = lead
+        ? parseInspectionDateTime(initialScheduleValue)
+        : { date: '', time: '09:00' };
       setDate(initialDate);
       setTime(initialTime);
-      setInspectorId(lead?.inspector_id != null ? String(lead.inspector_id) : '');
+      const nextInspectorId =
+        lead?.inspector_id ??
+        lead?.site_inspection_inspector_id ??
+        lead?._raw?.inspector_id ??
+        lead?._raw?.site_inspection_inspector_id ??
+        '';
+      setInspectorId(nextInspectorId != null && nextInspectorId !== '' ? String(nextInspectorId) : '');
       setError('');
       setConflicts([]);
       listEmployees({ status: 'active' }).then(res => {

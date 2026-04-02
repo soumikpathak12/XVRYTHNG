@@ -15,6 +15,7 @@ const pool = mysql.createPool({
   queueLimit: 0,
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,
+  dateStrings: true, // Keep DATETIME/TIMESTAMP as strings, not Date objects (avoid UTC timezone shifts)
 });
 
 export default pool;

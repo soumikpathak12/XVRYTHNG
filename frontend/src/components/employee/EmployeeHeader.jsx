@@ -2,11 +2,24 @@
 import { useState, useEffect, useRef } from 'react';
 import { LogOut, User } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import * as api from '../../services/api.js';
+import { useAuth } from '../../context/AuthContext.jsx';
 
 import ChatNotificationMenu from '../admin/chatNotificationMenu.jsx'; // reuse same menu
 import { useChatNotifications } from '../../hooks/useChatNotification.js';
 import { useNotificationSound } from '../../hooks/useChatNotificationSound.js';
 import { useTitleBadge } from '../../hooks/useTitleBadge.js';
+
+const BASE = import.meta.env.VITE_API_URL || '';
+const ALLOWED_MIMES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+
+function resolveProfileImageUrl(imageUrl) {
+  if (!imageUrl) return null;
+  if (String(imageUrl).startsWith('http')) return imageUrl;
+  if (!BASE) return imageUrl;
+  const cleanBase = BASE.endsWith('/api') ? BASE.slice(0, -4) : BASE;
+  return `${cleanBase}${imageUrl}`;
+}
 
 /** Inline popup (same style/behavior as admin) */
 function InlineChatPopup({ conversation, message, onClick, onClose, durationMs = 4000, bottom = 20, right = 20 }) {
@@ -123,6 +136,11 @@ export default function EmployeeHeader({
   onLogout,
   onOpenConversation,
 }) {
+  const { updateCurrentUser } = useAuth();
+  const fileInputRef = useRef(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoError, setPhotoError] = useState('');
+
   const { bump, reset } = useTitleBadge({
     baseTitle: 'KTCHS Renewables',
     singular: 'New message',
@@ -153,6 +171,37 @@ export default function EmployeeHeader({
 
   const [popup, setPopup] = useState(null);
 
+  const avatarSrc = resolveProfileImageUrl(user?.image_url);
+
+  async function handlePhotoChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setPhotoError('');
+      setPhotoUploading(true);
+      if (!ALLOWED_MIMES.has(file.type)) {
+        setPhotoError('Only PNG, JPG or WebP files are supported.');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setPhotoError('Photo must be under 5MB.');
+        return;
+      }
+      const res = await api.updateProfileMe({ photoFile: file });
+      const profile = res?.data ?? {};
+      updateCurrentUser({
+        name: profile.name ?? user?.name,
+        email: profile.email ?? user?.email,
+        image_url: profile.image_url ?? user?.image_url,
+      });
+    } catch (err) {
+      setPhotoError(err?.message || 'Failed to update profile image.');
+    } finally {
+      setPhotoUploading(false);
+      e.target.value = '';
+    }
+  }
+
   return (
     <header
       style={{
@@ -180,6 +229,13 @@ export default function EmployeeHeader({
       />
 
       {/* User block (original style preserved) */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        onChange={handlePhotoChange}
+        style={{ display: 'none' }}
+      />
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <div
           style={{
@@ -193,9 +249,17 @@ export default function EmployeeHeader({
             justifyContent: 'center',
             fontWeight: 700,
             fontSize: 14,
+            overflow: 'hidden',
+            cursor: photoUploading ? 'default' : 'pointer',
           }}
         >
-          {user?.name ? user.name.charAt(0).toUpperCase() : <User size={16} />}
+          {avatarSrc ? (
+            <img
+              src={avatarSrc}
+              alt={user?.name || 'User'}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          ) : user?.name ? user.name.charAt(0).toUpperCase() : <User size={16} />}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <span style={{ fontSize: 14, fontWeight: 600, color: '#1F2937' }}>
@@ -204,6 +268,7 @@ export default function EmployeeHeader({
           <span style={{ fontSize: 11, color: '#6B7280' }}>
             {user?.role ? user.role.replace('_', ' ') : 'User'}
           </span>
+          {photoError && <span style={{ fontSize: 11, color: '#B91C1C' }}>{photoError}</span>}
         </div>
       </div>
 

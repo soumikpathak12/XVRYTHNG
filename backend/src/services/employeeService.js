@@ -37,6 +37,53 @@ function asDateOrNull(v) {
   return /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? dateStr : null;
 }
 
+function toSqlDateString(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function startOfMonthSqlDate(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
+function parseSqlDate(value) {
+  const dateStr = String(value ?? '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const parsed = new Date(year, month - 1, day);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function businessDaysBetween(startDate, endDate) {
+  const start = parseSqlDate(startDate);
+  const end = parseSqlDate(endDate);
+  if (!start || !end || end < start) return 0;
+
+  let count = 0;
+  const current = new Date(start);
+  while (current <= end) {
+    const dayOfWeek = current.getDay();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) count += 1;
+    current.setDate(current.getDate() + 1);
+  }
+  return count;
+}
+
+function overlapBusinessDays(startDateA, endDateA, startDateB, endDateB) {
+  const start = String(startDateA).slice(0, 10) > String(startDateB).slice(0, 10)
+    ? String(startDateA).slice(0, 10)
+    : String(startDateB).slice(0, 10);
+  const end = String(endDateA).slice(0, 10) < String(endDateB).slice(0, 10)
+    ? String(endDateA).slice(0, 10)
+    : String(endDateB).slice(0, 10);
+  if (end < start) return 0;
+  return businessDaysBetween(start, end);
+}
+
 function validateEmployeeContact(rawContact = {}, { requireEmail = false, requirePhone = false, requireState = false } = {}) {
   const email = String(rawContact?.email ?? '').trim().toLowerCase();
   const phone = String(rawContact?.phone ?? '').trim();
@@ -338,14 +385,149 @@ export async function listEmployees(companyId, {
 export async function getEmployee(companyId, id) {
   const [[row]] = await db.execute(
     `
-    SELECT e.*
+    SELECT
+      e.*,
+      d.name AS department,
+      jr.name AS role
     FROM employees e
+    LEFT JOIN departments d
+      ON d.id = CAST(e.department_id AS UNSIGNED) AND d.company_id = e.company_id
+    LEFT JOIN job_roles jr
+      ON jr.id = CAST(e.job_role_id AS UNSIGNED) AND jr.company_id = e.company_id
     WHERE e.company_id = ? AND e.id = ?
     LIMIT 1
     `,
     [Number(companyId), Number(id)]
   );
-  return row ?? null;
+  if (!row) return null;
+
+  const today = toSqlDateString();
+  const monthStart = startOfMonthSqlDate();
+  const year = new Date().getFullYear();
+
+  const [attendanceRows, leaveRows, balanceRows, performanceRows, expenseRows] = await Promise.all([
+    db.execute(
+      `
+      SELECT id, date, check_in_time, check_out_time, hours_worked
+      FROM employee_attendance
+      WHERE company_id = ? AND employee_id = ?
+        AND date >= ? AND date <= ?
+      ORDER BY date DESC, check_in_time DESC
+      `,
+      [Number(companyId), Number(id), monthStart, today]
+    ),
+    db.execute(
+      `
+      SELECT id, leave_type, start_date, end_date, days_count, status, created_at
+      FROM leave_requests
+      WHERE company_id = ? AND employee_id = ?
+        AND status = 'approved'
+        AND start_date <= ? AND end_date >= ?
+      ORDER BY start_date DESC, created_at DESC
+      `,
+      [Number(companyId), Number(id), today, monthStart]
+    ),
+    db.execute(
+      `
+      SELECT leave_type, total_days, used_days, year
+      FROM leave_balances
+      WHERE company_id = ? AND employee_id = ? AND year = ?
+      ORDER BY leave_type
+      `,
+      [Number(companyId), Number(id), year]
+    ),
+    row.user_id
+      ? db.execute(
+          `
+          SELECT
+            COUNT(*) AS leads_converted,
+            COALESCE(SUM(COALESCE(value_amount, 0)), 0) AS revenue_generated
+          FROM leads
+          WHERE company_id = ?
+            AND assigned_user_id = ?
+            AND stage = 'closed_won'
+            AND DATE(COALESCE(won_lost_at, updated_at, created_at)) >= ?
+            AND DATE(COALESCE(won_lost_at, updated_at, created_at)) <= ?
+          `,
+          [Number(companyId), Number(row.user_id), monthStart, today]
+        )
+      : Promise.resolve([[{ leads_converted: 0, revenue_generated: 0 }]]),
+    db.execute(
+      `
+      SELECT id, project_name, category, amount, currency, expense_date, status, created_at
+      FROM expense_claims
+      WHERE company_id = ? AND employee_id = ?
+      ORDER BY created_at DESC
+      LIMIT 5
+      `,
+      [Number(companyId), Number(id)]
+    ),
+  ]);
+
+  const attendanceList = Array.isArray(attendanceRows?.[0]) ? attendanceRows[0] : [];
+  const approvedLeaveList = Array.isArray(leaveRows?.[0]) ? leaveRows[0] : [];
+  const balanceList = Array.isArray(balanceRows?.[0]) ? balanceRows[0] : [];
+  const performance = Array.isArray(performanceRows?.[0]) ? performanceRows[0]?.[0] ?? {} : {};
+  const recentExpenseClaims = Array.isArray(expenseRows?.[0]) ? expenseRows[0] : [];
+
+  const presentDates = new Set(
+    attendanceList
+      .map((entry) => String(entry.date ?? '').slice(0, 10))
+      .filter(Boolean)
+  );
+
+  const approvedLeaveDays = approvedLeaveList.reduce(
+    (total, entry) => total + overlapBusinessDays(entry.start_date, entry.end_date, monthStart, today),
+    0
+  );
+  const workingDays = businessDaysBetween(monthStart, today);
+  const daysPresent = presentDates.size;
+
+  return {
+    ...row,
+    attendance_summary: {
+      period_start: monthStart,
+      period_end: today,
+      working_days: workingDays,
+      days_present: daysPresent,
+      approved_leave_days: approvedLeaveDays,
+      days_absent: Math.max(0, workingDays - daysPresent - approvedLeaveDays),
+      recent_check_ins: attendanceList.slice(0, 5).map((entry) => ({
+        id: entry.id,
+        date: entry.date,
+        check_in_time: entry.check_in_time,
+        check_out_time: entry.check_out_time,
+        hours_worked: entry.hours_worked,
+      })),
+    },
+    leave_summary: {
+      year,
+      approved_days_this_month: approvedLeaveDays,
+      balances: balanceList.map((entry) => ({
+        leave_type: entry.leave_type,
+        total_days: Number(entry.total_days ?? 0),
+        used_days: Number(entry.used_days ?? 0),
+        remaining: Math.max(0, Number(entry.total_days ?? 0) - Number(entry.used_days ?? 0)),
+        year: entry.year,
+      })),
+    },
+    performance_summary: {
+      period_start: monthStart,
+      period_end: today,
+      leads_converted: Number(performance?.leads_converted ?? 0),
+      revenue_generated: Number(performance?.revenue_generated ?? 0),
+    },
+    recent_expense_claims: recentExpenseClaims.map((entry) => ({
+      id: entry.id,
+      project_name: entry.project_name,
+      category: entry.category,
+      amount: Number(entry.amount ?? 0),
+      currency: entry.currency || 'AUD',
+      expense_date: entry.expense_date,
+      status: entry.status,
+      created_at: entry.created_at,
+    })),
+  };
 }
 
 export async function updateEmployee(companyId, id, body = {}) {

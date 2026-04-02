@@ -1100,6 +1100,21 @@ export async function updateLead(id, payload) {
 }
 
 /**
+ * GET /api/leads/catalog/panels[?brand=...]
+ * - no brand: returns sorted panel brands
+ * - with brand: returns sorted models for that brand
+ */
+export async function getLeadPanelCatalog(brand) {
+  const q = new URLSearchParams();
+  if (brand) q.set('brand', String(brand));
+  const suffix = q.toString() ? `?${q.toString()}` : '';
+  const res = await authFetch(`/api/leads/catalog/panels${suffix}`, { method: 'GET' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Failed to load panel catalog');
+  return data;
+}
+
+/**
  * POST /api/leads/:id/customer-portal-announce — staff only; type: 'pre_approval' | 'solar_vic'
  */
 export async function announceCustomerPortalUtility(leadId, type) {

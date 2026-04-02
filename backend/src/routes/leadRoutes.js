@@ -15,6 +15,7 @@ import {
   getSalesDashboard,
   scheduleInspection,
   announceCustomerPortalUtility,
+  getLeadPanelCatalog,
 } from '../controllers/leadController.js';
 import { tenantContext } from '../middleware/tenantContext.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -30,6 +31,7 @@ router.get('/customer-portal-test-link', getCustomerPortalTestLink); // ?leadId=
 router.post('/customer-portal-test-link', getCustomerPortalTestLink); // body: { leadId: 69 }
 router.get('/count',     getLeadsCount);
 router.get('/dashboard', getSalesDashboard);
+router.get('/catalog/panels', getLeadPanelCatalog);
 
 router.get('/:id/customer-portal-test-link', getCustomerPortalTestLink);
 router.post('/:id/customer-portal-announce', announceCustomerPortalUtility);

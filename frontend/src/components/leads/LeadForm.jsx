@@ -142,7 +142,10 @@ export default function LeadForm({
           initialValues.site_inspection_date ||
             initialValues.siteInspectionDate
         ),
-        inspector_id: initialValues.inspector_id || '',
+        inspector_id:
+          initialValues.inspector_id == null || initialValues.inspector_id === ''
+            ? ''
+            : String(initialValues.inspector_id),
         sales_segment: segNorm,
       });
     }
@@ -259,7 +262,7 @@ export default function LeadForm({
       suburb: form.suburb.trim(),
       source: sourceFinal || null,
       site_inspection_date: inspectionDate,
-      inspector_id: form.inspector_id || undefined,
+      inspector_id: form.inspector_id ? Number(form.inspector_id) : undefined,
     };
 
     if (initialValues) {
@@ -532,7 +535,7 @@ export default function LeadForm({
           >
             <option value="">Select Inspector</option>
             {inspectors.map((emp) => (
-              <option key={emp.id} value={emp.id}>
+              <option key={emp.id} value={String(emp.id)}>
                 {emp.first_name} {emp.last_name}
               </option>
             ))}

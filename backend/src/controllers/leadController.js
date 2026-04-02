@@ -3,6 +3,10 @@ import * as customerCredentialsService from '../services/customerCredentialsServ
 import * as db from '../config/db.js';
 import * as activityService from '../services/activityService.js';
 import * as companyWorkflowService from '../services/companyWorkflowService.js';
+import {
+  getPanelBrandOptions,
+  getPanelModelOptionsByBrand,
+} from '../services/cecApprovedService.js';
 
 const STAGES = [
   'new',
@@ -21,15 +25,23 @@ const STAGES_SET = new Set(STAGES);
 
 function toMySQLDateTime(value) {
   if (!value) return null;
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return null;
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mi = String(d.getMinutes()).padStart(2, '0');
-  const ss = '00';
-  return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+  const s = String(value).trim();
+  if (!s) return null;
+
+  // Expected from datetime-local: "YYYY-MM-DDTHH:mm" (naive wall-clock time)
+  // DO NOT use `new Date()` as it interprets the time as UTC!
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::\d{2})?$/);
+  if (m) {
+    // Extract wall-clock parts directly, no timezone conversion
+    return `${m[1]} ${m[2]}:00`;
+  }
+
+  // Fallback: try to parse if it's already in MySQL format
+  if (s.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)) {
+    return s;
+  }
+
+  return null;
 }
 function toBoolOrNull(v) {
   if (v === null || v === undefined || v === '') return null;
@@ -349,6 +361,7 @@ export async function updateLead(req, res) {
     if (body.value_amount !== undefined) payload.value_amount = body.value_amount;
     if (body.source !== undefined) payload.source = body.source;
     if (body.site_inspection_date !== undefined) payload.site_inspection_date = toMySQLDateTime(body.site_inspection_date);
+    if (body.inspector_id !== undefined) payload.inspector_id = body.inspector_id;
     if (body.email !== undefined) {
       const email = trimOrNull(body.email, 255);
       if (email && !EMAIL_RE.test(email)) {
@@ -418,6 +431,8 @@ export async function updateLead(req, res) {
       payload.pv_inverter_brand = trimOrNull(body.pv_inverter_brand, 120);
     if (body.pv_panel_brand !== undefined)
       payload.pv_panel_brand = trimOrNull(body.pv_panel_brand, 120);
+    if (body.pv_panel_model !== undefined)
+      payload.pv_panel_model = trimOrNull(body.pv_panel_model, 120);
     if (body.pv_panel_module_watts !== undefined)
       payload.pv_panel_module_watts = body.pv_panel_module_watts;
 
@@ -460,6 +475,23 @@ export async function updateLead(req, res) {
       success: false,
       message: err.message || 'Failed to update lead.',
     });
+  }
+}
+
+/** GET /api/leads/catalog/panels?brand=... */
+export async function getLeadPanelCatalog(req, res) {
+  try {
+    const brand = trimOrNull(req.query?.brand, 255);
+    if (brand) {
+      const data = await getPanelModelOptionsByBrand(brand);
+      return res.status(200).json({ success: true, data });
+    }
+
+    const data = await getPanelBrandOptions();
+    return res.status(200).json({ success: true, data });
+  } catch (err) {
+    console.error('getLeadPanelCatalog error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to load panel catalog.' });
   }
 }
 
