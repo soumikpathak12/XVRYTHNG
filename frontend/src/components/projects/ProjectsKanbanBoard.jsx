@@ -216,6 +216,7 @@ export default function ProjectsKanbanBoard({
                   <ProjectCard
                     data={{
                       id: item.id,
+                      projectCode: item.projectCode || item?._raw?.project_code || (item.id != null ? `PRJ-${item.id}` : ''),
                       customerName: item.customerName,
                       address: item.address,
                       systemSummary: item.systemSummary,

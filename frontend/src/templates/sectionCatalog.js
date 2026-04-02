@@ -36,7 +36,7 @@ export function getSectionCatalog() {
       sections: [{
         id: 'jobdetails', label: 'Job Details',
         fields: [
-          { key: 'jobDetails.inspectionCompany', label: 'Inspection Company', type: 'text', default: 'xTechs Renewables' },
+          { key: 'jobDetails.inspectionCompany', label: 'Inspection Company', type: 'text', default: 'xTechs Renewables Pty Ltd' },
           { key: 'jobDetails.isMultiOccupancy', label: 'Is Multi‑Occupancy?', type: 'select', options: ['Yes','No'] },
           {
             key: 'jobDetails.consumerMains',

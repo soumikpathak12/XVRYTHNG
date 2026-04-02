@@ -36,6 +36,7 @@ function formatMoney(value) {
 export default function ProjectCard({ data, onClick, onDragStart, onDragEnd }) {
   const {
     customerName = '—',
+    projectCode,
     address,
     systemSummary,
     value,
@@ -52,8 +53,11 @@ export default function ProjectCard({ data, onClick, onDragStart, onDragEnd }) {
       onDragEnd={onDragEnd}
       onClick={onClick}
     >
-      {/* Header: customer name */}
-      <div className="pcard__title">{customerName}</div>
+      {/* Header: customer name + project code */}
+      <div className="pcard__titleRow">
+        <div className="pcard__title">{customerName}</div>
+        {projectCode ? <span className="pcard__code">{projectCode}</span> : null}
+      </div>
 
       {/* Subline: address with location dot icon */}
       {address && (

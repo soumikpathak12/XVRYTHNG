@@ -764,6 +764,22 @@
     font-size: 0.9375rem;
     line-height: 1.4;
     letter-spacing: -0.01em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.leads-card-prj {
+    font-size: 0.6875rem;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: rgba(20, 107, 107, 0.12);
+    color: #146b6b;
+    border: 1px solid rgba(20, 107, 107, 0.22);
+    line-height: 1.2;
+    white-space: nowrap;
 }
 
 /* Match card header text color with stage dot palette */

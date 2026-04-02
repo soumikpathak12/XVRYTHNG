@@ -98,7 +98,10 @@ export async function createLead(payload, options = {}) {
   }
   const insertedId = result.insertId;
 
-  const [rows] = await db.execute('SELECT * FROM leads WHERE id = ? LIMIT 1', [insertedId]);
+  const [rows] = await db.execute(
+    "SELECT leads.*, CONCAT('PRJ-', leads.id) AS project_code FROM leads WHERE id = ? LIMIT 1",
+    [insertedId],
+  );
   if (!rows?.[0]) {
     const err = new Error('Insert succeeded but row not found when re-querying');
     err.statusCode = 500;
@@ -184,9 +187,20 @@ export async function getLeads(filters = {}) {
     params.push(filters.assigned_user);
   }
   if (filters.search) {
-    where.push('(customer_name LIKE ? OR suburb LIKE ? OR source LIKE ?)');
-    const q = `%${filters.search}%`;
-    params.push(q, q, q);
+    const raw = String(filters.search || '').trim();
+    const prj = raw.match(/^prj-\s*(\d+)\s*$/i);
+    const idOnly = raw.match(/^\d+$/);
+    if (prj) {
+      where.push('leads.id = ?');
+      params.push(Number(prj[1]));
+    } else if (idOnly) {
+      where.push('leads.id = ?');
+      params.push(Number(raw));
+    } else {
+      where.push('(customer_name LIKE ? OR suburb LIKE ? OR source LIKE ? OR email LIKE ? OR phone LIKE ? OR CAST(leads.id AS CHAR) LIKE ?)');
+      const q = `%${raw}%`;
+      params.push(q, q, q, q, q, q);
+    }
   }
 
   if (filters.sales_segment === 'b2c' || filters.sales_segment === 'b2b') {
@@ -208,12 +222,13 @@ export async function getLeads(filters = {}) {
     : '';
   const selectSql = joinInspector
     ? `SELECT leads.*,
+              CONCAT('PRJ-', leads.id) AS project_code,
               lsi.scheduled_at AS site_inspection_scheduled_at,
               lsi.inspector_id AS site_inspection_inspector_id,
               lsi.inspector_name AS site_inspection_inspector_name,
               lsi.status AS site_inspection_status
        FROM leads`
-    : 'SELECT leads.* FROM leads';
+    : "SELECT leads.*, CONCAT('PRJ-', leads.id) AS project_code FROM leads";
   let limitSql = '';
   if (typeof filters.limit === 'number' && filters.limit > 0) {
     limitSql = 'LIMIT ?';
@@ -904,7 +919,10 @@ export async function getLeadById(leadId) {
     throw err;
   }
 
-  const [rows] = await db.execute('SELECT * FROM leads WHERE id = ? LIMIT 1', [leadId]);
+  const [rows] = await db.execute(
+    "SELECT leads.*, CONCAT('PRJ-', leads.id) AS project_code FROM leads WHERE id = ? LIMIT 1",
+    [leadId],
+  );
   const lead = rows[0];
   if (!lead) {
     const err = new Error('Lead not found');
@@ -1169,9 +1187,20 @@ export async function countLeads({ stage, search } = {}) {
     args.push(stage);
   }
   if (search) {
-    where.push('(customer_name LIKE ? OR suburb LIKE ? OR source LIKE ?)');
-    const q = `%${search}%`;
-    args.push(q, q, q);
+    const raw = String(search || '').trim();
+    const prj = raw.match(/^prj-\s*(\d+)\s*$/i);
+    const idOnly = raw.match(/^\d+$/);
+    if (prj) {
+      where.push('id = ?');
+      args.push(Number(prj[1]));
+    } else if (idOnly) {
+      where.push('id = ?');
+      args.push(Number(raw));
+    } else {
+      where.push('(customer_name LIKE ? OR suburb LIKE ? OR source LIKE ? OR email LIKE ? OR phone LIKE ? OR CAST(id AS CHAR) LIKE ?)');
+      const q = `%${raw}%`;
+      args.push(q, q, q, q, q, q);
+    }
   }
 
   const sql = `

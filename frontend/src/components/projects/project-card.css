@@ -16,6 +16,27 @@
   line-height: 1.2;
 }
 
+.pcard__titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pcard__code {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(20, 107, 107, 0.12);
+  color: #146b6b;
+  border: 1px solid rgba(20, 107, 107, 0.22);
+  line-height: 1.2;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
 /* Address row: small and muted */
 .pcard__address {
   display: flex;

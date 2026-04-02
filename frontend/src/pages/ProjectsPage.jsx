@@ -53,6 +53,11 @@ function normalizeProject(row) {
   const address = row.address ?? row.lead_suburb ?? row.suburb ?? undefined;
   return {
     id: row.id,
+    // Project code must match Lead code: PRJ-<lead_id>
+    projectCode:
+      row.project_code ||
+      row.projectCode ||
+      (row.lead_id != null ? `PRJ-${row.lead_id}` : ''),
     stage: row.stage,
     customerName: row.customerName ?? row.customer_name ?? '—',
     address,
@@ -370,7 +375,7 @@ export default function ProjectsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onBlur={() => { if (!search) setSearchStage(null); }}
-              placeholder={searchStage ? `Search in ${searchStage.replace('_', ' ')}...` : 'Search projects...'}
+              placeholder={searchStage ? `Search in ${searchStage.replace('_', ' ')}...` : 'Search by PRJ-ID, project id, email, phone, name, suburb...'}
               aria-label="Search projects"
             />
             {search && (

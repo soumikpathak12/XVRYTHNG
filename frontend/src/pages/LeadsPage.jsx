@@ -143,6 +143,10 @@ export default function LeadsPage() {
 
     return {
       id: row.id,
+      projectCode:
+        row.project_code ||
+        row.projectCode ||
+        (row.id != null ? `PRJ-${row.id}` : ''),
       customerName: row.customer_name ?? row.customerName ?? '',
       suburb: row.suburb ?? '',
       systemSize: systemSizeKw != null ? `${systemSizeKw}kW` : '',
@@ -315,6 +319,10 @@ export default function LeadsPage() {
     if (q) {
       list = list.filter((l) => {
         const haystacks = [
+          l.projectCode,
+          l.id != null ? String(l.id) : '',
+          l._raw?.email,
+          l._raw?.phone,
           l.customerName,
           l.suburb,
           l.source,
@@ -448,7 +456,7 @@ export default function LeadsPage() {
                 }
               }}
               placeholder={
-                searchStage ? `Search in ${searchStage.replace('_', ' ')}...` : 'Search by name, suburb, source, stage...'
+                searchStage ? `Search in ${searchStage.replace('_', ' ')}...` : 'Search by PRJ-ID, lead id, email, phone, name, suburb...'
               }
               aria-label="Search leads"
             />

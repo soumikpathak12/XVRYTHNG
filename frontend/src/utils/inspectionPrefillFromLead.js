@@ -223,6 +223,11 @@ export function mergeLeadDefaultsIntoInspectionForm(form, lead) {
   const defaults = buildInspectionDefaultsFromLead(lead);
   const next = { ...form };
 
+  // Always seed inspection company if missing (acts as a default, does not overwrite user input).
+  if (isEmptyInspectionValue(next['jobDetails.inspectionCompany'])) {
+    next['jobDetails.inspectionCompany'] = 'xTechs Renewables Pty Ltd';
+  }
+
   if (Object.keys(defaults).length) {
     for (const [key, val] of Object.entries(defaults)) {
       if (val == null || val === '') continue;

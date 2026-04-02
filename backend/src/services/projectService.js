@@ -55,9 +55,22 @@ export async function getProjects(filters = {}) {
     params.push(filters.stage);
   }
   if (filters.search) {
-    where.push('(p.customer_name LIKE ? OR l.email LIKE ? OR l.phone LIKE ? OR l.suburb LIKE ?)');
-    const q = `%${filters.search}%`;
-    params.push(q, q, q, q);
+    const raw = String(filters.search || '').trim();
+    const prj = raw.match(/^prj-\s*(\d+)\s*$/i);
+    const idOnly = raw.match(/^\d+$/);
+    if (prj) {
+      // Project code is derived from lead_id: PRJ-<lead_id>
+      where.push('p.lead_id = ?');
+      params.push(Number(prj[1]));
+    } else if (idOnly) {
+      // Allow searching by either project.id or lead_id for convenience
+      where.push('(p.id = ? OR p.lead_id = ?)');
+      params.push(Number(raw), Number(raw));
+    } else {
+      where.push('(p.customer_name LIKE ? OR l.email LIKE ? OR l.phone LIKE ? OR l.suburb LIKE ? OR CAST(p.id AS CHAR) LIKE ? OR CAST(p.lead_id AS CHAR) LIKE ?)');
+      const q = `%${raw}%`;
+      params.push(q, q, q, q, q, q);
+    }
   }
 
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
@@ -73,7 +86,20 @@ export async function getProjects(filters = {}) {
 
   const sql = `
     SELECT
-      p.*,
+      p.id,
+      p.lead_id,
+      p.stage,
+      p.customer_name,
+      p.email,
+      p.phone,
+      p.suburb,
+      p.system_size_kw,
+      p.value_amount,
+      p.created_at,
+      p.updated_at,
+      p.expected_completion_date,
+      p.post_install_reference_no,
+      COALESCE(p.project_code, CONCAT('PRJ-', p.lead_id)) AS project_code,
       l.email        AS lead_email,
       l.phone        AS lead_phone,
       l.suburb       AS lead_suburb,
@@ -101,7 +127,7 @@ export async function getProjects(filters = {}) {
     FROM projects p
     LEFT JOIN leads l ON l.id = p.lead_id
     ${whereSql}
-    ORDER BY p.updated_at DESC, p.created_at DESC
+    ORDER BY p.created_at DESC, p.id DESC
     ${limitSql}
   `;
   const [rows] = await db.execute(sql, params);
@@ -267,7 +293,20 @@ export async function getProjectById(projectId) {
   }
   const sql = `
     SELECT
-      p.*,
+      p.id,
+      p.lead_id,
+      p.stage,
+      p.customer_name,
+      p.email,
+      p.phone,
+      p.suburb,
+      p.system_size_kw,
+      p.value_amount,
+      p.created_at,
+      p.updated_at,
+      p.expected_completion_date,
+      p.post_install_reference_no,
+      COALESCE(p.project_code, CONCAT('PRJ-', p.lead_id)) AS project_code,
       l.email        AS lead_email,
       l.phone        AS lead_phone,
       l.suburb       AS lead_suburb,

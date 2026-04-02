@@ -39,6 +39,7 @@ export default function LeadCard({ lead, onDragStart, onDragEnd, onSelect }) {
 
   const email = lead?._raw?.email || 'No email';
   const phone = lead?._raw?.phone || 'No phone';
+  const projectCode = lead.projectCode || lead?._raw?.project_code || (lead.id != null ? `PRJ-${lead.id}` : '');
 
   return (
     <article
@@ -51,7 +52,10 @@ export default function LeadCard({ lead, onDragStart, onDragEnd, onSelect }) {
     >
       <div className="leads-card-top">
         <div className="leads-card-top-main">
-          <div className="leads-card-name">{lead.customerName}</div>
+          <div className="leads-card-name">
+            {lead.customerName}
+            {projectCode ? <span className="leads-card-prj">{projectCode}</span> : null}
+          </div>
           <div className="leads-card-suburb">
             <span className="leads-card-meta-dot">⌖</span> {lead.suburb || 'No location'}
           </div>

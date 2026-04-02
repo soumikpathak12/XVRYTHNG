@@ -211,9 +211,29 @@ export default function ProjectsTable({ projects = [], onRowClick, onStageChange
               >
                 {/* Name */}
                 <td style={{ padding: '10px 14px', minWidth: 200 }}>
-                  <div style={{ fontWeight: 700, color: '#0f172a' }}>{p.customerName}</div>
-                  {p._raw?.email && (
-                    <div style={{ fontSize: 12, color: '#6b7280' }}>{p._raw.email}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <div style={{ fontWeight: 700, color: '#0f172a' }}>{p.customerName}</div>
+                    {(p.projectCode || p._raw?.project_code) && (
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 800,
+                          letterSpacing: 0.2,
+                          padding: '3px 8px',
+                          borderRadius: 999,
+                          background: 'rgba(20, 107, 107, 0.12)',
+                          color: '#146b6b',
+                          border: '1px solid rgba(20, 107, 107, 0.22)',
+                          lineHeight: 1.2,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {p.projectCode || p._raw?.project_code}
+                      </span>
+                    )}
+                  </div>
+                  {(p._raw?.lead_email || p._raw?.email) && (
+                    <div style={{ fontSize: 12, color: '#6b7280' }}>{p._raw?.lead_email || p._raw?.email}</div>
                   )}
                 </td>
 

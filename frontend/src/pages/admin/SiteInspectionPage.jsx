@@ -10,6 +10,9 @@ import {
   uploadSiteInspectionFile,
   getLeads,
   getCompanyInspectionTemplates,
+  getAdminMe,
+  getCompanyProfile,
+  getToken,
 } from '../../services/api.js';
 
 // Fetch checklist templates from API (add this API function)
@@ -24,7 +27,7 @@ async function getChecklistTemplates(companyId = null) {
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import FormRenderer from '../../components/FormRenderer.jsx';
-import { getRequiredKeys, formatValueForPdf } from '../../utils/template.js';
+import { getRequiredKeys, formatValueForPdf, isVisible } from '../../utils/template.js';
 import { buildStepsFromEnabled } from '../../templates/sectionCatalog.js';
 import {
   mergeLeadDefaultsIntoInspectionForm,
@@ -407,6 +410,12 @@ function applyTemplateOverrides(tpl) {
     sections: (st.sections || []).map((sec) => ({
       ...sec,
       fields: (sec.fields || []).filter((f) => f?.key !== 'switchboard.flag').map((f) => {
+        if (f?.key === 'jobDetails.inspectionCompany') {
+          return {
+            ...f,
+            default: 'xTechs Renewables Pty Ltd.',
+          };
+        }
         if (f?.key === 'switchboard.voltageReadingPhotos' && f?.type === 'array') {
           return {
             ...f,
@@ -546,6 +555,47 @@ export default function SiteInspectionPage() {
   const [draftList, setDraftList] = useState([]);
   const [submittedList, setSubmittedList] = useState([]);
   const [listsLoading, setListsLoading] = useState(false);
+  const [pdfBrand, setPdfBrand] = useState({
+    companyName: 'xTechs Renewables',
+    logoUrl: '',
+  });
+
+  useEffect(() => {
+    let aborted = false;
+    async function loadPdfBrand() {
+      try {
+        const isAdminPath = location.pathname.startsWith('/admin');
+        if (isAdminPath) {
+          const { data } = await getAdminMe();
+          if (!aborted) {
+            setPdfBrand({
+              companyName: String(data?.name || '').trim() || 'xTechs Renewables',
+              logoUrl: String(data?.image_url || '').trim(),
+            });
+          }
+          return;
+        }
+        const { data } = await getCompanyProfile();
+        if (!aborted) {
+          setPdfBrand({
+            companyName: String(data?.name || '').trim() || 'xTechs Renewables',
+            logoUrl: String(data?.image_url || '').trim(),
+          });
+        }
+      } catch {
+        if (!aborted) {
+          setPdfBrand((prev) => ({
+            companyName: prev.companyName || 'xTechs Renewables',
+            logoUrl: prev.logoUrl || '',
+          }));
+        }
+      }
+    }
+    loadPdfBrand();
+    return () => {
+      aborted = true;
+    };
+  }, [location.pathname]);
 
   // -------- Load lead + inspection --------
   useEffect(() => {
@@ -1020,7 +1070,8 @@ const meta = base?.meta && typeof base.meta === 'string'
       const page = { w: doc.internal.pageSize.getWidth(), h: doc.internal.pageSize.getHeight() };
       const API_BASE = String(import.meta.env.VITE_API_URL || '').trim();
       const BRAND = {
-        primary: [20, 107, 107],
+        // Tropical Teal #18877e
+        primary: [24, 135, 126],
         dark: [30, 41, 59],
         gray: [100, 116, 139],
         light: [241, 245, 249],
@@ -1029,6 +1080,52 @@ const meta = base?.meta && typeof base.meta === 'string'
       const margin = { l: 50, r: 50, t: 70, b: 60 };
       let y = margin.t;
       const clean = (v) => String(v ?? '').trim() || '—';
+      const fixSpacedLetters = (s) => {
+        let str = String(s ?? '');
+        // Remove common zero-width separators that can sneak into labels.
+        str = str.replace(/[\u200B-\u200D\uFEFF]/g, '');
+        // Normalize a wide range of unicode spaces to regular spaces.
+        str = str.replace(/[\s\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]+/g, ' ');
+        // Normalize unicode dashes/hyphens that jsPDF's built-in fonts often cannot encode.
+        str = str.replace(/[\u2010\u2011\u2012\u2013\u2014\u2015\u2212]/g, '-');
+        // Normalize a few common punctuation marks to ASCII equivalents to avoid encoding issues.
+        str = str
+          .replace(/[\u2018\u2019\u201B\u2032]/g, "'")
+          .replace(/[\u201C\u201D\u201F\u2033]/g, '"')
+          .replace(/\u2026/g, '...');
+
+        const tokens = str.trim().split(/[\s\u00A0]+/g).filter(Boolean);
+        const singleCount = tokens.filter((t) => t.length === 1).length;
+        const looksLikeSpaced =
+          tokens.length >= 8 && singleCount / Math.max(1, tokens.length) >= 0.7;
+
+        // Collapse "I s M u l t i O c c u p a n c y ?" -> "IsMultiOccupancy?"
+        const compact = tokens.join('');
+        const compactKey = compact.toLowerCase();
+        if (compactKey === 'ismultioccupancy?' || compactKey === 'ismultioccupancy') {
+          return 'Is Multi Occupancy?';
+        }
+
+        if (!looksLikeSpaced) return str;
+        // Heuristic: re-insert word spaces based on casing transitions.
+        // "IsMultiOccupancy?" -> "Is Multi Occupancy?"
+        const withSpaces = compact
+          .replace(/([a-z])([A-Z])/g, '$1 $2')
+          .replace(/([A-Za-z])(\d)/g, '$1 $2')
+          .replace(/(\d)([A-Za-z])/g, '$1 $2');
+
+        return withSpaces;
+      };
+      const hasValueForPdf = (v) => {
+        if (v == null) return false;
+        if (typeof v === 'string') return v.trim() !== '';
+        if (Array.isArray(v)) return v.some((x) => hasValueForPdf(x));
+        if (typeof v === 'object') {
+          if (v.preview_data_url || v.storage_url || v.filename) return true;
+          return Object.values(v).some((x) => hasValueForPdf(x));
+        }
+        return true;
+      };
       const resolveAssetUrl = (url) => {
         const raw = String(url || '').trim();
         if (!raw) return '';
@@ -1045,7 +1142,10 @@ const meta = base?.meta && typeof base.meta === 'string'
       const fetchImageAsDataUrl = async (url) => {
         const src = resolveAssetUrl(url);
         if (!src) return null;
-        const resp = await fetch(src);
+        const token = getToken();
+        const resp = await fetch(src, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
         if (!resp.ok) return null;
         const type = String(resp.headers.get('content-type') || '');
         if (!type.startsWith('image/')) return null;
@@ -1058,13 +1158,13 @@ const meta = base?.meta && typeof base.meta === 'string'
         });
       };
       const section = (title) => {
-        doc.setFillColor(...BRAND.light);
-        doc.rect(margin.l, y, page.w - margin.l - margin.r, 32, 'F');
+        doc.setFillColor(...BRAND.primary);
+        doc.rect(margin.l, y, page.w - margin.l - margin.r, 30, 'F');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(13);
-        doc.setTextColor(...BRAND.dark);
-        doc.text(title, margin.l + 10, y + 21);
-        y += 42;
+        doc.setTextColor(255, 255, 255);
+        doc.text(fixSpacedLetters(title), margin.l + 10, y + 20);
+        y += 40;
       };
       const maybeNewPage = (extra = 120) => {
         if (y > page.h - margin.b - extra) {
@@ -1077,48 +1177,79 @@ const meta = base?.meta && typeof base.meta === 'string'
         autoTable(doc, {
           startY: y,
           theme: 'grid',
-          styles: { fontSize: 11, textColor: BRAND.dark, cellPadding: 6, lineColor: BRAND.border },
+          styles: {
+            fontSize: 11,
+            textColor: BRAND.dark,
+            cellPadding: 6,
+            lineColor: BRAND.border,
+            overflow: 'linebreak',
+            valign: 'top',
+          },
           headStyles: { fillColor: BRAND.primary, textColor: '#ffffff' },
-          body: rows.map(([k, v]) => [k, clean(v)]),
+          body: rows.map(([k, v]) => [fixSpacedLetters(k), fixSpacedLetters(clean(v))]),
           columns: [
             { header: 'Field', dataKey: '0' },
             { header: 'Value', dataKey: '1' },
           ],
           tableWidth: page.w - margin.l - margin.r,
           margin: { left: margin.l, right: margin.r },
+          columnStyles: {
+            0: { cellWidth: 220 },
+            1: { cellWidth: 'auto' },
+          },
         });
         y = doc.lastAutoTable.finalY + 20;
       };
       const imageCard = async (title, fileObj) => {
         maybeNewPage(200);
+        const candidates = Array.isArray(fileObj) ? fileObj : [fileObj];
+        let dataURL = null;
+        for (const item of candidates) {
+          if (!item || typeof item !== 'object') continue;
+          dataURL = item.preview_data_url || null;
+          if (!dataURL && item.storage_url) {
+            dataURL = await fetchImageAsDataUrl(item.storage_url);
+          }
+          if (dataURL) break;
+        }
+        if (!dataURL) return; // Skip empty image fields entirely.
+
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(12);
-        doc.text(title, margin.l, y);
+        doc.text(fixSpacedLetters(title), margin.l, y);
         y += 10;
         doc.setDrawColor(...BRAND.border);
         doc.rect(margin.l, y, 220, 150);
-        let dataURL = fileObj?.preview_data_url || null;
-        if (!dataURL && fileObj?.storage_url) {
-          dataURL = await fetchImageAsDataUrl(fileObj.storage_url);
-        }
-        if (dataURL) doc.addImage(dataURL, 'JPEG', margin.l + 5, y + 5, 210, 140);
-        else {
-          doc.setFontSize(10);
-          doc.text('No image', margin.l + 10, y + 20);
-        }
+        doc.addImage(dataURL, 'JPEG', margin.l + 5, y + 5, 210, 140);
         y += 170;
       };
 
       // Cover
+      const logoDataUrl = await fetchImageAsDataUrl(`${window.location.origin}/logo-removebg.png`);
+      // Ensure no unexpected character spacing in the PDF.
+      if (typeof doc.setCharSpace === 'function') doc.setCharSpace(0);
       doc.setFillColor(...BRAND.primary);
       doc.rect(0, 0, page.w, 150, 'F');
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(24);
       doc.setTextColor(255, 255, 255);
       doc.text('Site Inspection Report', margin.l, 85);
+      if (logoDataUrl) {
+        const logoMaxW = 120;
+        const logoMaxH = 56;
+        const props = doc.getImageProperties(logoDataUrl);
+        const srcW = Number(props?.width || logoMaxW);
+        const srcH = Number(props?.height || logoMaxH);
+        const scale = Math.min(logoMaxW / srcW, logoMaxH / srcH);
+        const drawW = Math.max(1, Math.round(srcW * scale));
+        const drawH = Math.max(1, Math.round(srcH * scale));
+        const drawX = page.w - margin.r - drawW;
+        const drawY = 34 + (logoMaxH - drawH) / 2;
+        doc.addImage(logoDataUrl, 'PNG', drawX, drawY, drawW, drawH);
+      }
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(12);
-      doc.text('xTechs Renewables', margin.l, 115);
+      doc.text(clean(pdfBrand.companyName), margin.l, 115);
       doc.setFillColor(...BRAND.light);
       doc.rect(margin.l, 190, page.w - margin.l - margin.r, 120, 'F');
       doc.setFont('helvetica', 'bold');
@@ -1137,14 +1268,41 @@ const meta = base?.meta && typeof base.meta === 'string'
       // Body from template
       if (template && steps.length) {
         for (const st of steps) {
+          // Skip steps that have no printable content (prevents blank pages / bad spacing).
+          const stepHasContent = (st.sections || []).some((sec) =>
+            (sec.fields || []).some((f) => {
+              if (!isVisible(f, form)) return false;
+              const val = getValueFlex(form, f.key);
+              if (!hasValueForPdf(val)) return false;
+              if (f.type === 'photo' || f.type === 'file') {
+                const mediaItems = Array.isArray(val) ? val : [val];
+                return mediaItems.some(
+                  (x) => x && typeof x === 'object' && (x.preview_data_url || x.storage_url),
+                );
+              }
+              return true;
+            }),
+          );
+          if (!stepHasContent) continue;
+
           section(st.label);
           for (const sec of st.sections || []) {
             const tableRows = [];
             const imgs = [];
             for (const f of sec.fields || []) {
-              const val = form[f.key];
-              if (f.type === 'photo' || f.type === 'file') imgs.push({ title: f.label, fileObj: val });
-              else tableRows.push([f.label, formatValueForPdf(val)]);
+              if (!isVisible(f, form)) continue;
+              const val = getValueFlex(form, f.key);
+              if (!hasValueForPdf(val)) continue;
+              if (f.type === 'photo' || f.type === 'file') {
+                const mediaItems = Array.isArray(val) ? val : [val];
+                const hasMediaSource = mediaItems.some(
+                  (x) => x && typeof x === 'object' && (x.preview_data_url || x.storage_url),
+                );
+                if (!hasMediaSource) continue;
+                imgs.push({ title: f.label, fileObj: val });
+              } else {
+                tableRows.push([f.label, formatValueForPdf(val)]);
+              }
             }
             if (tableRows.length) keyValueTable(tableRows);
             for (const im of imgs) await imageCard(im.title, im.fileObj);
@@ -1190,8 +1348,10 @@ const meta = base?.meta && typeof base.meta === 'string'
         const signOffRows = [
           ['Customer Name', clean(effectiveCustomerName)],
           ['Confirmed', effectiveCustomerConfirmed ? 'Yes' : 'No'],
-          ['Notes', clean(effectiveCustomerNotes)],
         ];
+        if (hasValueForPdf(effectiveCustomerNotes)) {
+          signOffRows.push(['Notes', clean(effectiveCustomerNotes)]);
+        }
         keyValueTable(signOffRows);
         
         // Add signature image if available

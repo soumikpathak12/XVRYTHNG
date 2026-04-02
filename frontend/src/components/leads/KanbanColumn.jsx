@@ -22,7 +22,10 @@ export default function KanbanColumn({
     if (!searchQuery.trim()) return leads;
     const q = searchQuery.toLowerCase();
     return leads.filter((l) => {
-      const searchStr = `${l.customerName ?? ''} ${l.suburb ?? ''} ${l.value ?? ''} ${l.systemSize ?? ''}`.toLowerCase();
+      const prj = l.projectCode || l?._raw?.project_code || (l.id != null ? `PRJ-${l.id}` : '');
+      const email = l._raw?.email ?? l._raw?.lead_email ?? '';
+      const phone = l._raw?.phone ?? l._raw?.lead_phone ?? '';
+      const searchStr = `${prj} ${l.id ?? ''} ${email} ${phone} ${l.customerName ?? ''} ${l.suburb ?? ''} ${l.value ?? ''} ${l.systemSize ?? ''} ${l.systemSummary ?? ''}`.toLowerCase();
       return searchStr.includes(q);
     });
   }, [leads, searchQuery]);
