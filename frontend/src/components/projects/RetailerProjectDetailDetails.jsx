@@ -54,16 +54,16 @@ function seedInHouseForm(p) {
     access_to_second_storey: p.access_to_two_storey === 'Yes',
     access_to_inverter: p.access_to_inverter === 'Yes',
     pv_system_size_kw: p.pv_system_size_kw ?? p.system_size_kw ?? '',
-    pv_inverter_size_kw: p.pv_inverter_size_kw ?? '',
-    pv_inverter_brand: p.pv_inverter_brand || '',
-    pv_inverter_model: p.pv_inverter_model || '',
-    pv_inverter_series: p.pv_inverter_series || '',
-    pv_inverter_power_kw: p.pv_inverter_power_kw ?? '',
-    pv_inverter_quantity: p.pv_inverter_quantity ?? '',
-    pv_panel_brand: p.pv_panel_brand || '',
-    pv_panel_model: p.pv_panel_model || '',
-    pv_panel_quantity: p.pv_panel_quantity ?? '',
-    pv_panel_module_watts: p.pv_panel_module_watts ?? '',
+    pv_inverter_size_kw: p.pv_inverter_size_kw ?? p.lead_pv_inverter_size_kw ?? '',
+    pv_inverter_brand: p.pv_inverter_brand || p.lead_pv_inverter_brand || '',
+    pv_inverter_model: p.pv_inverter_model || p.lead_pv_inverter_model || '',
+    pv_inverter_series: p.pv_inverter_series || p.lead_pv_inverter_series || '',
+    pv_inverter_power_kw: p.pv_inverter_power_kw ?? p.lead_pv_inverter_power_kw ?? '',
+    pv_inverter_quantity: p.pv_inverter_quantity ?? p.lead_pv_inverter_quantity ?? '',
+    pv_panel_brand: p.pv_panel_brand || p.lead_pv_panel_brand || '',
+    pv_panel_model: p.pv_panel_model || p.lead_pv_panel_model || '',
+    pv_panel_quantity: p.pv_panel_quantity ?? p.lead_pv_panel_quantity ?? '',
+    pv_panel_module_watts: p.pv_panel_module_watts ?? p.lead_pv_panel_module_watts ?? '',
     ev_charger_brand: p.ev_charger_brand || '',
     ev_charger_model: p.ev_charger_model || '',
     battery_size_kwh: p.battery_size_kwh ?? '',
@@ -1261,17 +1261,17 @@ export default function RetailerProjectDetailDetails({
                   label="Inverter Size"
                   value={project.pv_inverter_size_kw != null ? `${project.pv_inverter_size_kw} kW` : null}
                 />
-                <KV label="PV Inverter Brand" value={project.pv_inverter_brand} />
-                <KV label="PV Inverter Model" value={project.pv_inverter_model} />
-                <KV label="PV Inverter Series" value={project.pv_inverter_series} />
-                <KV label="Inverter Power (kW)" value={project.pv_inverter_power_kw != null ? `${project.pv_inverter_power_kw} kW` : null} />
-                <KV label="Number of Inverter" value={project.pv_inverter_quantity != null ? String(project.pv_inverter_quantity) : null} />
-                <KV label="PV Panel Brand" value={project.pv_panel_brand} />
-                <KV label="PV Panel Model" value={project.pv_panel_model} />
-                <KV label="Quantity of Panel" value={project.pv_panel_quantity != null ? String(project.pv_panel_quantity) : null} />
+                <KV label="PV Inverter Brand" value={project.pv_inverter_brand || project.lead_pv_inverter_brand} />
+                <KV label="PV Inverter Model" value={project.pv_inverter_model || project.lead_pv_inverter_model} />
+                <KV label="PV Inverter Series" value={project.pv_inverter_series || project.lead_pv_inverter_series} />
+                <KV label="Inverter Power (kW)" value={(project.pv_inverter_power_kw ?? project.lead_pv_inverter_power_kw) != null ? `${project.pv_inverter_power_kw ?? project.lead_pv_inverter_power_kw} kW` : null} />
+                <KV label="Number of Inverter" value={(project.pv_inverter_quantity ?? project.lead_pv_inverter_quantity) != null ? String(project.pv_inverter_quantity ?? project.lead_pv_inverter_quantity) : null} />
+                <KV label="PV Panel Brand" value={project.pv_panel_brand || project.lead_pv_panel_brand} />
+                <KV label="PV Panel Model" value={project.pv_panel_model || project.lead_pv_panel_model} />
+                <KV label="Quantity of Panel" value={(project.pv_panel_quantity ?? project.lead_pv_panel_quantity) != null ? String(project.pv_panel_quantity ?? project.lead_pv_panel_quantity) : null} />
                 <KV
                   label="Panel Power"
-                  value={project.pv_panel_module_watts != null ? `${project.pv_panel_module_watts} W` : null}
+                  value={(project.pv_panel_module_watts ?? project.lead_pv_panel_module_watts) != null ? `${project.pv_panel_module_watts ?? project.lead_pv_panel_module_watts} W` : null}
                 />
               </>
             )}
