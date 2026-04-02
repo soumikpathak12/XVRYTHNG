@@ -384,10 +384,28 @@ function PhotoSection({ jobId, photos: initialPhotos, photoRequirements, disable
   useEffect(() => { setPhotos(initialPhotos ?? []); }, [initialPhotos]);
   useEffect(() => { onPhotosChange?.(photos); }, [photos, onPhotosChange]);
 
+  // Make the UX less confusing: auto-focus the first required tab that is still missing photos.
+  useEffect(() => {
+    if (!photoRequirements) return;
+    const pick = ['before', 'during', 'after'].find((k) => {
+      const req = photoRequirements?.[k];
+      if (!req?.is_required) return false;
+      const count = (photos || []).filter((p) => p.section === k).length;
+      return count < (req.min_count ?? 1);
+    });
+    if (pick && pick !== activeTab) setActiveTab(pick);
+  }, [photoRequirements, photos]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const tabPhotos = photos.filter(p => p.section === activeTab);
   const tab       = PHOTO_TABS.find(t => t.key === activeTab);
   const req       = photoRequirements?.[activeTab];
   const meetsReq  = !req?.is_required || tabPhotos.length >= (req?.min_count ?? 1);
+  const nextTabKey = (() => {
+    const idx = PHOTO_TABS.findIndex((t) => t.key === activeTab);
+    if (idx === -1) return null;
+    return PHOTO_TABS[idx + 1]?.key ?? null;
+  })();
+  const nextTab = nextTabKey ? PHOTO_TABS.find((t) => t.key === nextTabKey) : null;
 
   // T-247 – GPS capture
   const getGps = () => new Promise(resolve => {
@@ -454,6 +472,10 @@ function PhotoSection({ jobId, photos: initialPhotos, photoRequirements, disable
         <div style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 600 }}>{photos.length} total</div>
       </div>
 
+      <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 10 }}>
+        Upload photos into the correct tab (Before / During / After). The “Add Photo” button uploads into the <b>{tab?.label}</b> tab.
+      </div>
+
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 14, background: '#F3F4F6', borderRadius: 12, padding: 4 }}>
         {PHOTO_TABS.map(t => {
@@ -495,6 +517,45 @@ function PhotoSection({ jobId, photos: initialPhotos, photoRequirements, disable
           </span>
         </div>
       )}
+
+      {/* Next hint (only when current required is satisfied) */}
+      {req?.is_required && meetsReq && nextTab ? (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 10,
+            padding: '10px 12px',
+            borderRadius: 10,
+            background: '#ECFDF5',
+            border: '1px solid #A7F3D0',
+            marginBottom: 12,
+          }}
+        >
+          <div style={{ fontSize: 12, color: '#065F46', fontWeight: 700 }}>
+            Done with <span style={{ color: tab?.color || BRAND }}>{tab?.label}</span>. Next: <span style={{ color: nextTab.color }}>{nextTab.label}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab(nextTab.key)}
+            style={{
+              padding: '8px 12px',
+              borderRadius: 10,
+              border: 'none',
+              cursor: 'pointer',
+              background: BRAND,
+              color: '#fff',
+              fontWeight: 800,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            Next <ChevronRight size={16} />
+          </button>
+        </div>
+      ) : null}
 
       {/* Gallery grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8, marginBottom: 12 }}>
@@ -554,6 +615,9 @@ function PhotoSection({ jobId, photos: initialPhotos, photoRequirements, disable
             }
             <span style={{ fontSize: 11, fontWeight: 700, color: uploading ? '#9CA3AF' : BRAND }}>
               {uploading ? 'Uploading…' : 'Add Photo'}
+            </span>
+            <span style={{ fontSize: 10, fontWeight: 800, color: tab?.color || BRAND, marginTop: 2 }}>
+              to {tab?.label}
             </span>
           </button>
         )}
@@ -683,8 +747,23 @@ function ChecklistItem({ item, onTick, disabled }) {
           )}
           {/* existing note preview */}
           {item.note && !noteOpen && (
-            <div style={{ fontSize: 12, color: '#6B7280', marginTop: 3, fontStyle: 'italic' }}>
-              "{item.note}"
+            <div
+              style={{
+                marginTop: 6,
+                padding: '8px 10px',
+                borderRadius: 10,
+                background: '#F8FAFC',
+                border: '1px solid #E2E8F0',
+                fontSize: 12,
+                color: '#334155',
+                lineHeight: 1.35,
+                display: 'flex',
+                gap: 8,
+                alignItems: 'flex-start',
+              }}
+            >
+              <span style={{ color: BRAND, fontWeight: 900, marginTop: 1 }}>Note</span>
+              <span style={{ whiteSpace: 'pre-wrap' }}>{item.note}</span>
             </div>
           )}
         </div>
@@ -694,8 +773,17 @@ function ChecklistItem({ item, onTick, disabled }) {
             onClick={e => { e.stopPropagation(); setNoteOpen(v => !v); }}
             title="Add note"
             style={{
-              flexShrink: 0, padding: 4, background: 'none', border: 'none', cursor: 'pointer',
-              color: item.note ? BRAND : '#D1D5DB',
+              flexShrink: 0,
+              width: 30,
+              height: 30,
+              borderRadius: 10,
+              border: '1px solid #E2E8F0',
+              background: item.note ? '#ECFDF5' : '#F8FAFC',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: item.note ? BRAND : '#64748B',
             }}
           >
             <MessageSquare size={15} />
@@ -875,27 +963,89 @@ function SignoffPanel({ job, onSignoff }) {
   const [done, setDone]         = useState(!!job.signoff);
   const canvasRef = useRef(null);
   const drawing   = useRef(false);
+  const dprRef    = useRef(1);
+
+  const ensureCanvasHiDpi = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const r = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    dprRef.current = dpr;
+    const w = Math.max(1, Math.round(r.width * dpr));
+    const h = Math.max(1, Math.round(r.height * dpr));
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    // Draw using CSS pixel coordinates.
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#111827';
+    ctx.lineWidth = 2.5;
+  }, []);
+
+  useEffect(() => {
+    ensureCanvasHiDpi();
+    const onResize = () => ensureCanvasHiDpi();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [ensureCanvasHiDpi]);
 
   const pt = e => {
-    const t = e.touches?.[0] ?? e;
-    const r = canvasRef.current.getBoundingClientRect();
-    return [t.clientX - r.left, t.clientY - r.top];
+    const canvas = canvasRef.current;
+    if (!canvas) return [0, 0];
+    const t = e.touches?.[0] ?? e.changedTouches?.[0] ?? e;
+    if (!t) return [0, 0];
+    const r = canvas.getBoundingClientRect();
+    return [t.clientX - r.left, t.clientY - r.top]; // CSS px (ctx is scaled to dpr)
   };
   const startDraw = e => {
     drawing.current = true;
+    ensureCanvasHiDpi();
     const ctx = canvasRef.current.getContext('2d');
     const [x, y] = pt(e);
     ctx.beginPath(); ctx.moveTo(x, y);
   };
   const draw = e => {
     if (!drawing.current) return;
-    e.preventDefault();
     const ctx = canvasRef.current.getContext('2d');
     const [x, y] = pt(e);
-    ctx.lineTo(x, y); ctx.strokeStyle = '#111827'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke();
+    ctx.lineTo(x, y);
+    ctx.stroke();
   };
   const endDraw = () => { drawing.current = false; };
-  const clear   = () => canvasRef.current.getContext('2d').clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+  const clear   = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    const r = canvas.getBoundingClientRect();
+    ctx.clearRect(0, 0, r.width, r.height);
+  };
+
+  const generateSignatureFromName = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    ensureCanvasHiDpi();
+    const r = canvas.getBoundingClientRect();
+    const text = String(name || job.customer_name || '').trim();
+    if (!text) return;
+    clear();
+    ctx.fillStyle = '#111827';
+    const baseSize = 44;
+    ctx.font = `${baseSize}px "Pacifico", "Segoe Script", "Brush Script MT", "Comic Sans MS", cursive`;
+    const padX = 16;
+    const maxW = Math.max(10, r.width - padX * 2);
+    const m = ctx.measureText(text);
+    const scale = m.width > maxW ? maxW / m.width : 1;
+    const size = Math.max(18, Math.floor(baseSize * scale));
+    ctx.font = `${size}px "Pacifico", "Segoe Script", "Brush Script MT", "Comic Sans MS", cursive`;
+    const y = Math.round(r.height / 2 + size / 2.6);
+    ctx.fillText(text, padX, y);
+  };
 
   const canSubmit = name.trim() && confirmed && !saving;
 
@@ -967,17 +1117,51 @@ function SignoffPanel({ job, onSignoff }) {
         <div>
           <FieldLabel>Signature</FieldLabel>
           <canvas
-            ref={canvasRef} width={480} height={140}
+            ref={canvasRef}
             onMouseDown={startDraw} onMouseMove={draw} onMouseUp={endDraw} onMouseLeave={endDraw}
             onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={endDraw}
             style={{
               border: '1.5px dashed #D1D5DB', borderRadius: 10, background: '#FAFAFA',
-              display: 'block', width: '100%', cursor: 'crosshair', touchAction: 'none',
+              display: 'block', width: '100%', height: 140,
+              cursor: 'crosshair', touchAction: 'none',
             }}
           />
-          <button onClick={clear} style={{ marginTop: 10, padding: '10px 16px', fontSize: 13, fontWeight: 700, color: '#FAFAFA', background: '#1A7B7B', border: '1px solid #D1D5DB', borderRadius: 10, cursor: 'pointer', transition: 'all 0.2s' }}>
-            Clear signature
-          </button>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 10 }}>
+            <button
+              onClick={clear}
+              type="button"
+              style={{
+                padding: '10px 16px',
+                fontSize: 13,
+                fontWeight: 700,
+                color: '#FAFAFA',
+                background: BRAND,
+                border: '1px solid #D1D5DB',
+                borderRadius: 10,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              Clear signature
+            </button>
+            <button
+              onClick={generateSignatureFromName}
+              type="button"
+              style={{
+                padding: '10px 16px',
+                fontSize: 13,
+                fontWeight: 800,
+                color: '#0F172A',
+                background: '#F1F5F9',
+                border: '1px solid #CBD5E1',
+                borderRadius: 10,
+                cursor: 'pointer',
+              }}
+              title="Generate a signature from customer name"
+            >
+              Generate from name
+            </button>
+          </div>
         </div>
 
         {/* Confirmation checkbox */}
@@ -1098,7 +1282,14 @@ export default function InstallationJobCard() {
 
   // Group checklist by section
   const sections = {};
+  const hasBattery = /battery/i.test(String(job.system_type || '')) || !!job.battery_included;
   (job.checklist ?? []).forEach(item => {
+    // Hide battery-only checklist items/sections when system has no battery.
+    if (!hasBattery) {
+      const secKey = String(item.section || '').toLowerCase();
+      const label = String(item.label || '').toLowerCase();
+      if (secKey.includes('battery') || label.includes('battery')) return;
+    }
     if (!sections[item.section]) sections[item.section] = [];
     sections[item.section].push(item);
   });

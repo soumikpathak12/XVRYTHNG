@@ -394,12 +394,36 @@
     background: #fef2f2;
     color: #991b1b;
     border: 1px solid #fecaca;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
 }
 
 .leads-toast.leads-toast-success {
     background: #f0fdf4;
     color: #28A745;
     border: 1px solid #86efac;
+}
+
+.leads-toast-dismiss {
+    flex: 0 0 auto;
+    border: 1px solid rgba(148, 163, 184, 0.6);
+    background: rgba(255, 255, 255, 0.7);
+    color: currentColor;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    cursor: pointer;
+    line-height: 1;
+    font-size: 18px;
+    font-weight: 800;
+    display: grid;
+    place-items: center;
+}
+.leads-toast-dismiss:hover {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(100, 116, 139, 0.7);
 }
 
 .leads-error-box {

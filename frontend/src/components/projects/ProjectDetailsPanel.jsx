@@ -193,6 +193,7 @@ useEffect(() => {
    */
   const fields = useMemo(() => {
     const r = inspection ?? {};
+    const raw = project?._raw ?? project ?? {};
 
     // Read both camel & snake to be bulletproof
     const roofType = r.roofType ?? r.roof_type ?? null;
@@ -233,12 +234,25 @@ useEffect(() => {
       address,
 
       // System (basic summary—adjust as needed)
-      systemType: project?._raw?.system_type ?? project?._raw?.lead_system_type ?? '—',
-      systemKw: project?._raw?.system_size_kw ?? project?._raw?.lead_system_size_kw ?? null,
-      panelBrand: null,
-      panelWatt: null,
-      inverterBrand: null,
-      inverterKw: null,
+      systemType: raw.system_type ?? raw.lead_system_type ?? '—',
+      systemKw:
+        raw.system_size_kw ??
+        raw.lead_pv_system_size_kw ??
+        raw.lead_system_size_kw ??
+        null,
+      panelBrand: raw.lead_pv_panel_brand ?? null,
+      panelModel: raw.lead_pv_panel_model ?? null,
+      panelWatt: raw.lead_pv_panel_module_watts ?? null,
+      panelQty: raw.lead_pv_panel_quantity ?? null,
+      inverterBrand: raw.lead_pv_inverter_brand ?? null,
+      inverterModel: raw.lead_pv_inverter_model ?? null,
+      inverterSeries: raw.lead_pv_inverter_series ?? null,
+      inverterKw: raw.lead_pv_inverter_size_kw ?? null,
+      inverterPowerKw: raw.lead_pv_inverter_power_kw ?? null,
+      inverterQty: raw.lead_pv_inverter_quantity ?? null,
+      batterySizeKwh: raw.lead_battery_size_kwh ?? null,
+      batteryBrand: raw.lead_battery_brand ?? null,
+      batteryModel: raw.lead_battery_model ?? null,
 
       // Property from inspection
       houseStorey,
@@ -477,13 +491,30 @@ useEffect(() => {
               {fields.systemKw != null ? String(fields.systemKw) : '—'}
             </LabelValue>
             <LabelValue label="Panel Brand">{fields.panelBrand ?? '—'}</LabelValue>
+            <LabelValue label="Panel Model">{fields.panelModel ?? '—'}</LabelValue>
             <LabelValue label="Panel Module (Watt)">
               {fields.panelWatt != null ? String(fields.panelWatt) : '—'}
             </LabelValue>
+            <LabelValue label="Panel Quantity">
+              {fields.panelQty != null ? String(fields.panelQty) : '—'}
+            </LabelValue>
             <LabelValue label="Inverter Brand">{fields.inverterBrand ?? '—'}</LabelValue>
+            <LabelValue label="Inverter Model">{fields.inverterModel ?? '—'}</LabelValue>
+            <LabelValue label="Inverter Series">{fields.inverterSeries ?? '—'}</LabelValue>
             <LabelValue label="Inverter Size (kW)">
               {fields.inverterKw != null ? String(fields.inverterKw) : '—'}
             </LabelValue>
+            <LabelValue label="Inverter Power (kW)">
+              {fields.inverterPowerKw != null ? String(fields.inverterPowerKw) : '—'}
+            </LabelValue>
+            <LabelValue label="Inverter Quantity">
+              {fields.inverterQty != null ? String(fields.inverterQty) : '—'}
+            </LabelValue>
+            <LabelValue label="Battery Size (kWh)">
+              {fields.batterySizeKwh != null ? String(fields.batterySizeKwh) : '—'}
+            </LabelValue>
+            <LabelValue label="Battery Brand">{fields.batteryBrand ?? '—'}</LabelValue>
+            <LabelValue label="Battery Model">{fields.batteryModel ?? '—'}</LabelValue>
           </div>
         </div>
 

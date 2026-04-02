@@ -1,5 +1,5 @@
 // components/leads/LeadDetailDetails.jsx — editable Details tab (core form + extras + footer actions)
-import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import LeadForm from './LeadForm.jsx';
 import '../../styles/LeadDetailModal.css';
 import {
@@ -394,6 +394,37 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
     };
   }, [hasPV, hasBattery]);
 
+  // Auto-sync CEC once when system type requires it (no manual button).
+  const didAutoSyncRef = useRef(false);
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!hasPV && !hasBattery) return;
+      if (didAutoSyncRef.current) return;
+      didAutoSyncRef.current = true;
+
+      try {
+        await syncCecNow({ force: false }).catch(() => null);
+      } catch {
+        /* silent */
+      }
+
+      // Refresh meta timestamp after background sync attempt.
+      try {
+        const meta = await getCecMeta().catch(() => null);
+        if (cancelled) return;
+        const updatedAt = meta?.data?.updatedAt || '';
+        setCecLastUpdatedAt(updatedAt);
+      } catch {
+        /* silent */
+      }
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasPV, hasBattery]);
+
   useEffect(() => {
     let cancelled = false;
     async function run() {
@@ -729,35 +760,7 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
     }
   };
 
-  const runManualCecSync = async () => {
-    if (syncingCec) return;
-    setSyncingCec(true);
-    setCecSyncMessage('');
-    try {
-      const [syncRes, pvPanelBrands, inverterBrands, batteryBrands, meta] = await Promise.all([
-        syncCecNow({ force: true }),
-        getCecPvPanelBrands().catch(() => []),
-        getCecInverterBrands().catch(() => []),
-        getCecBatteryBrands().catch(() => []),
-        getCecMeta().catch(() => null),
-      ]);
-
-      setCecOptions((p) => ({
-        ...p,
-        pvPanelBrands: Array.isArray(pvPanelBrands) ? pvPanelBrands : p.pvPanelBrands,
-        inverterBrands: Array.isArray(inverterBrands) ? inverterBrands : p.inverterBrands,
-        batteryBrands: Array.isArray(batteryBrands) ? batteryBrands : p.batteryBrands,
-      }));
-
-      const updatedAt = meta?.data?.updatedAt || syncRes?.data?.updatedAt || '';
-      setCecLastUpdatedAt(updatedAt);
-      setCecSyncMessage('CEC approved products synced successfully.');
-    } catch (err) {
-      setCecSyncMessage(err?.message || 'CEC sync failed.');
-    } finally {
-      setSyncingCec(false);
-    }
-  };
+  // Manual sync removed: CEC sync happens automatically.
 
   return (
     <div className="lead-detail-details" style={{ display: 'grid', gap: 16 }}>
@@ -823,21 +826,8 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
           <div style={{ fontSize: 12, color: '#6b7280' }}>
             {cecLastUpdatedAt
               ? `CEC last sync: ${new Date(cecLastUpdatedAt).toLocaleString()}`
-              : 'CEC last sync: not synced yet'}
+              : 'CEC last sync: pending'}
           </div>
-          <button
-            type="button"
-            onClick={runManualCecSync}
-            disabled={syncingCec}
-            style={{
-              ...btnPrimary,
-              padding: '8px 12px',
-              opacity: syncingCec ? 0.7 : 1,
-              cursor: syncingCec ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {syncingCec ? 'Syncing...' : 'Sync CEC'}
-          </button>
         </div>
         {cecSyncMessage ? (
           <div style={{ fontSize: 12, color: /failed/i.test(cecSyncMessage) ? '#b91c1c' : '#065f46', marginBottom: 10 }}>

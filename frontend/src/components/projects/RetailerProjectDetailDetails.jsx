@@ -1,5 +1,5 @@
 // src/components/projects/RetailerProjectDetailDetails.jsx
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import './RetailerProjectDetails.css'; // Re-use old panel styles if needed, or inline
 import {
   getCecMeta,
@@ -33,6 +33,11 @@ const SYSTEM_TYPES = [
   'PV + EV Chargers',
 ];
 
+// Keep Property Characteristics options consistent with LeadDetailDetails.jsx
+const HOUSE_STOREY_OPTS = ['Single', 'Double', 'Triple', 'Other'];
+const ROOF_TYPE_OPTS = ['Tin(Colorbond)', 'Tin(Kliplock)', 'Tile(Concrete)', 'Tile(Terracotta)', 'Flat', 'Other'];
+const METER_PHASE_OPTS = ['Single', 'Double', 'Three'];
+
 function seedInHouseForm(p) {
   if (!p) return null;
   return {
@@ -40,7 +45,7 @@ function seedInHouseForm(p) {
     email: p.customer_email || '',
     phone: p.customer_contact || '',
     suburb: p.address || '',
-    system_size_kw: p.system_size_kw ?? '',
+    system_size_kw: p.system_size_kw ?? p.pv_system_size_kw ?? '',
     value_amount: p.lead_value_amount ?? p.value_amount ?? '',
     system_type: p.system_type || '',
     house_storey: p.house_storey || '',
@@ -48,7 +53,7 @@ function seedInHouseForm(p) {
     meter_phase: p.meter_phase || '',
     access_to_second_storey: p.access_to_two_storey === 'Yes',
     access_to_inverter: p.access_to_inverter === 'Yes',
-    pv_system_size_kw: p.pv_system_size_kw ?? '',
+    pv_system_size_kw: p.pv_system_size_kw ?? p.system_size_kw ?? '',
     pv_inverter_size_kw: p.pv_inverter_size_kw ?? '',
     pv_inverter_brand: p.pv_inverter_brand || '',
     pv_inverter_model: p.pv_inverter_model || '',
@@ -190,11 +195,11 @@ function AssigneePicker({ users = [], value = [], onChange }) {
       </div>
 
       <div className="rpdp-row" style={{ display: 'flex', gap: '10px' }}>
-        <button type="button" className="lead-detail-btn secondary" onClick={() => setOpen(v => !v)}>
+        <button type="button" className="lead-detail-btn primary" onClick={() => setOpen(v => !v)}>
           {open ? 'Close list' : 'Add assignees'}
         </button>
-        <button type="button" className="lead-detail-btn secondary" onClick={selectAll} disabled={users.length === 0}>Select all</button>
-        <button type="button" className="lead-detail-btn secondary" onClick={clearAll} disabled={value.length === 0}>Clear</button>
+        <button type="button" className="lead-detail-btn primary" onClick={selectAll} disabled={users.length === 0}>Select all</button>
+        <button type="button" className="lead-detail-btn primary" onClick={clearAll} disabled={value.length === 0}>Clear</button>
       </div>
 
       {open && (
@@ -276,6 +281,8 @@ export default function RetailerProjectDetailDetails({
   const [isEditingInHouse, setIsEditingInHouse] = useState(false);
   const [detailForm, setDetailForm] = useState(null);
   const [savingInHouse, setSavingInHouse] = useState(false);
+  const [saveToast, setSaveToast] = useState('');
+  const [editSection, setEditSection] = useState('system'); // customer | system | property | utility
   const [announcingUtility, setAnnouncingUtility] = useState(null);
   const [cecOptions, setCecOptions] = useState({
     pvPanelBrands: [],
@@ -302,6 +309,20 @@ export default function RetailerProjectDetailDetails({
   const [notes, setNotes] = useState('');
   const [assigneeIds, setAssigneeIds] = useState([]);
 
+  const showToast = useCallback((message, { isError = false } = {}) => {
+    setSaveToast(message);
+    window.setTimeout(() => setSaveToast(''), isError ? 3500 : 2500);
+  }, []);
+
+  const [scheduleSaveStatus, setScheduleSaveStatus] = useState(null); // { ok:boolean, msg:string } | null
+  const [assigneesSaveStatus, setAssigneesSaveStatus] = useState(null); // { ok:boolean, msg:string } | null
+  const clearInlineStatusSoon = useCallback((which) => {
+    window.setTimeout(() => {
+      if (which === 'schedule') setScheduleSaveStatus(null);
+      if (which === 'assignees') setAssigneesSaveStatus(null);
+    }, 2500);
+  }, []);
+
   useEffect(() => {
     const s = schedule ?? {};
     let nextDate = s.scheduled_date || '';
@@ -322,12 +343,53 @@ export default function RetailerProjectDetailDetails({
     setAssigneeIds(Array.isArray(assignees) ? [...assignees] : []);
   }, [project, schedule, assignees]);
 
+  // If user sets a scheduled date and expected completion isn't set yet, default to +1 month.
+  useEffect(() => {
+    if (!date) return;
+    if (!onChangeExpectedCompletionDate) return;
+    if (expectedCompletionDate) return;
+    try {
+      const d = new Date(`${date}T00:00:00`);
+      if (Number.isNaN(d.getTime())) return;
+      const next = new Date(d);
+      next.setMonth(next.getMonth() + 1);
+      const pad = (n) => String(n).padStart(2, '0');
+      const ymd = `${next.getFullYear()}-${pad(next.getMonth() + 1)}-${pad(next.getDate())}`;
+      onChangeExpectedCompletionDate(ymd);
+    } catch {
+      /* ignore */
+    }
+  }, [date, expectedCompletionDate, onChangeExpectedCompletionDate]);
+
   if (activeTab === 'schedule') {
     const inputStyle = { width: '100%', padding: '0.65rem', border: '1px solid #CBD5E1', borderRadius: '8px', fontSize: '0.95rem', color: '#0F172A', outline: 'none', transition: 'border-color 0.2s', backgroundColor: '#fff' };
     const labelStyle = { fontWeight: 700, fontSize: '0.75rem', color: '#64748B', marginBottom: '0.4rem', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' };
 
     return (
       <div className="lead-detail-form fade-in" style={{ paddingBottom: '200px' }}>
+        {saveToast ? (
+          <div
+            role="status"
+            style={{
+              position: 'fixed',
+              top: 16,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 9999,
+              background: /failed|error/i.test(saveToast) ? '#FEF2F2' : '#ECFDF5',
+              color: /failed|error/i.test(saveToast) ? '#991B1B' : '#065F46',
+              border: `1px solid ${/failed|error/i.test(saveToast) ? '#FECACA' : '#A7F3D0'}`,
+              borderRadius: 12,
+              padding: '10px 14px',
+              fontWeight: 700,
+              boxShadow: '0 12px 30px rgba(2,6,23,0.16)',
+              maxWidth: 720,
+              width: 'calc(100% - 32px)',
+            }}
+          >
+            {saveToast}
+          </div>
+        ) : null}
         <h3 style={{ margin: '0 0 16px 0', color: '#0d9488', fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' }}>
           Manage Schedule
         </h3>
@@ -372,35 +434,91 @@ export default function RetailerProjectDetailDetails({
           />
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '32px' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: '12px', marginBottom: '32px' }}>
           <button 
             type="button" 
             className="lead-detail-btn primary"
-            onClick={() => onSaveSchedule({
-              job_type: hideJobType ? undefined : jobType,
-              date,
-              time: hideJobType || jobType === 'site_inspection' ? time : null,
-              notes,
-              assignees: assigneeIds, // persist assignees together with schedule
-              nextStage: status,
-            })}
+            onClick={async () => {
+              try {
+                await onSaveSchedule?.({
+                  job_type: hideJobType ? undefined : jobType,
+                  date,
+                  time: hideJobType || jobType === 'site_inspection' ? time : null,
+                  notes,
+                  assignees: assigneeIds, // persist assignees together with schedule
+                  nextStage: status,
+                });
+                showToast('Saved successfully.');
+                setScheduleSaveStatus({ ok: true, msg: 'Saved.' });
+                clearInlineStatusSoon('schedule');
+              } catch (err) {
+                showToast(err?.message || 'Save failed.', { isError: true });
+                setScheduleSaveStatus({ ok: false, msg: err?.message || 'Save failed.' });
+                clearInlineStatusSoon('schedule');
+              }
+            }}
           >
             Save Schedule Updates
           </button>
+          {scheduleSaveStatus ? (
+            <span
+              role="status"
+              aria-live="polite"
+              style={{
+                fontSize: '0.9rem',
+                fontWeight: 700,
+                color: scheduleSaveStatus.ok ? '#0f766e' : '#b91c1c',
+                background: scheduleSaveStatus.ok ? '#ecfdf5' : '#fef2f2',
+                border: `1px solid ${scheduleSaveStatus.ok ? '#99f6e4' : '#fecaca'}`,
+                padding: '6px 10px',
+                borderRadius: '999px',
+              }}
+            >
+              {scheduleSaveStatus.msg}
+            </span>
+          ) : null}
         </div>
 
         <h3 style={{ margin: '0 0 16px 0', color: '#0d9488', fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' }}>
           Assigned Personnel
         </h3>
         <AssigneePicker users={users} value={assigneeIds} onChange={setAssigneeIds} />
-        <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-start' }}>
+        <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: '12px' }}>
           <button 
             type="button" 
-            className="lead-detail-btn secondary"
-            onClick={() => onSaveAssignees(assigneeIds)}
+            className="lead-detail-btn primary"
+            onClick={async () => {
+              try {
+                await onSaveAssignees?.(assigneeIds);
+                showToast('Saved successfully.');
+                setAssigneesSaveStatus({ ok: true, msg: 'Saved.' });
+                clearInlineStatusSoon('assignees');
+              } catch (err) {
+                showToast(err?.message || 'Save failed.', { isError: true });
+                setAssigneesSaveStatus({ ok: false, msg: err?.message || 'Save failed.' });
+                clearInlineStatusSoon('assignees');
+              }
+            }}
           >
             Save Assignees
           </button>
+          {assigneesSaveStatus ? (
+            <span
+              role="status"
+              aria-live="polite"
+              style={{
+                fontSize: '0.9rem',
+                fontWeight: 700,
+                color: assigneesSaveStatus.ok ? '#0f766e' : '#b91c1c',
+                background: assigneesSaveStatus.ok ? '#ecfdf5' : '#fef2f2',
+                border: `1px solid ${assigneesSaveStatus.ok ? '#99f6e4' : '#fecaca'}`,
+                padding: '6px 10px',
+                borderRadius: '999px',
+              }}
+            >
+              {assigneesSaveStatus.msg}
+            </span>
+          ) : null}
         </div>
       </div>
     );
@@ -602,19 +720,14 @@ export default function RetailerProjectDetailDetails({
   const solarVicPortalAnnounced =
     Number(project?.customer_portal_solar_vic_announced) === 1
     || Number(project?.lead_customer_portal_solar_vic_announced) === 1;
-
-  const announceBtnStyle = {
-    flexShrink: 0,
-    padding: '0.5rem 0.85rem',
-    fontSize: '0.75rem',
-    fontWeight: 700,
-    borderRadius: '8px',
-    border: '1px solid #0d9488',
-    background: '#f0fdfa',
-    color: '#0f766e',
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-  };
+  const preApprovalValue = String(project?.pre_approval_reference_no || '').trim();
+  const solarVicRawValue = project?.solar_vic_eligibility;
+  const hasSolarVicValue = !(
+    solarVicRawValue === null ||
+    solarVicRawValue === undefined ||
+    solarVicRawValue === ''
+  );
+  const autoAnnouncedRef = useRef({ preApproval: '', solarVic: '' });
 
   async function runAnnounce(type) {
     if (!onAnnounceUtilityToCustomer) return;
@@ -626,38 +739,98 @@ export default function RetailerProjectDetailDetails({
     }
   }
 
+  useEffect(() => {
+    let cancelled = false;
+    async function autoAnnounceUtility() {
+      if (editMode) return;
+      if (!inHouseEditable) return;
+      if (!onAnnounceUtilityToCustomer) return;
+      if (announcingUtility) return;
+
+      if (
+        preApprovalValue &&
+        !preApprovalAnnounced &&
+        autoAnnouncedRef.current.preApproval !== preApprovalValue
+      ) {
+        autoAnnouncedRef.current.preApproval = preApprovalValue;
+        await runAnnounce('pre_approval');
+        if (cancelled) return;
+      }
+
+      const solarVicKey = hasSolarVicValue ? String(solarVicRawValue) : '';
+      if (
+        solarVicKey &&
+        !solarVicPortalAnnounced &&
+        autoAnnouncedRef.current.solarVic !== solarVicKey
+      ) {
+        autoAnnouncedRef.current.solarVic = solarVicKey;
+        await runAnnounce('solar_vic');
+      }
+    }
+
+    autoAnnounceUtility();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    editMode,
+    inHouseEditable,
+    onAnnounceUtilityToCustomer,
+    announcingUtility,
+    preApprovalValue,
+    preApprovalAnnounced,
+    hasSolarVicValue,
+    solarVicRawValue,
+    solarVicPortalAnnounced,
+  ]);
+
   const inputStyle = { width: '100%', padding: '0.65rem', border: '1px solid #CBD5E1', borderRadius: '8px', fontSize: '0.95rem', color: '#0F172A', outline: 'none', backgroundColor: '#fff' };
   const labelStyle = { fontWeight: 700, fontSize: '0.75rem', color: '#64748B', marginBottom: '0.4rem', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' };
 
-  async function runManualCecSync() {
-    if (syncingCec) return;
-    setSyncingCec(true);
-    setCecSyncMessage('');
-    try {
-      const [syncRes, pvPanelBrands, inverterBrands, batteryBrands, meta] = await Promise.all([
-        syncCecNow({ force: true }),
-        hasPV ? getCecPvPanelBrands().catch(() => []) : Promise.resolve([]),
-        hasPV ? getCecInverterBrands().catch(() => []) : Promise.resolve([]),
-        hasBattery ? getCecBatteryBrands().catch(() => []) : Promise.resolve([]),
-        getCecMeta().catch(() => null),
-      ]);
+  // Auto-sync CEC once per page load when entering edit mode.
+  const didAutoSyncRef = React.useRef(false);
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!editMode) return;
+      if (!hasPV && !hasBattery) return;
+      if (didAutoSyncRef.current) return;
+      didAutoSyncRef.current = true;
 
-      setCecOptions((p) => ({
-        ...p,
-        pvPanelBrands: Array.isArray(pvPanelBrands) ? pvPanelBrands : p.pvPanelBrands,
-        inverterBrands: Array.isArray(inverterBrands) ? inverterBrands : p.inverterBrands,
-        batteryBrands: Array.isArray(batteryBrands) ? batteryBrands : p.batteryBrands,
-      }));
+      try {
+        await syncCecNow({ force: false }).catch(() => null);
+      } catch {
+        /* silent */
+      }
 
-      const updatedAt = meta?.data?.updatedAt || syncRes?.data?.updatedAt || '';
-      setCecLastUpdatedAt(updatedAt);
-      setCecSyncMessage('CEC approved products synced successfully.');
-    } catch (err) {
-      setCecSyncMessage(err?.message || 'CEC sync failed.');
-    } finally {
-      setSyncingCec(false);
+      // Refresh brands + meta after background sync attempt.
+      setCecOptions((p) => ({ ...p, loading: true }));
+      try {
+        const [pvPanelBrands, inverterBrands, batteryBrands, meta] = await Promise.all([
+          hasPV ? getCecPvPanelBrands().catch(() => []) : Promise.resolve([]),
+          hasPV ? getCecInverterBrands().catch(() => []) : Promise.resolve([]),
+          hasBattery ? getCecBatteryBrands().catch(() => []) : Promise.resolve([]),
+          getCecMeta().catch(() => null),
+        ]);
+        if (cancelled) return;
+        setCecOptions((p) => ({
+          ...p,
+          pvPanelBrands: pvPanelBrands.length ? pvPanelBrands : p.pvPanelBrands,
+          inverterBrands: inverterBrands.length ? inverterBrands : p.inverterBrands,
+          batteryBrands: batteryBrands.length ? batteryBrands : p.batteryBrands,
+          loading: false,
+        }));
+        setCecLastUpdatedAt(meta?.data?.updatedAt || '');
+      } catch {
+        if (cancelled) return;
+        setCecOptions((p) => ({ ...p, loading: false }));
+      }
     }
-  }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [editMode, hasPV, hasBattery]);
 
   async function handleInHouseSaveClick() {
     if (!detailForm || !onSaveInHouseDetails) return;
@@ -666,8 +839,12 @@ export default function RetailerProjectDetailDetails({
       await onSaveInHouseDetails(detailForm);
       setIsEditingInHouse(false);
       setDetailForm(null);
+      setSaveToast('Saved successfully.');
+      window.setTimeout(() => setSaveToast(''), 2500);
     } catch (err) {
       console.error(err);
+      setSaveToast(err?.message || 'Save failed.');
+      window.setTimeout(() => setSaveToast(''), 3500);
     } finally {
       setSavingInHouse(false);
     }
@@ -675,6 +852,29 @@ export default function RetailerProjectDetailDetails({
 
   return (
     <div className="fade-in" style={{ display: 'grid', gap: '1.5rem', gridTemplateColumns: 'minmax(0, 1fr)' }}>
+      {saveToast ? (
+        <div
+          role="status"
+          style={{
+            position: 'fixed',
+            top: 16,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 9999,
+            background: /failed/i.test(saveToast) ? '#FEF2F2' : '#ECFDF5',
+            color: /failed/i.test(saveToast) ? '#991B1B' : '#065F46',
+            border: `1px solid ${/failed/i.test(saveToast) ? '#FECACA' : '#A7F3D0'}`,
+            borderRadius: 12,
+            padding: '10px 14px',
+            fontWeight: 700,
+            boxShadow: '0 12px 30px rgba(2,6,23,0.16)',
+            maxWidth: 720,
+            width: 'calc(100% - 32px)',
+          }}
+        >
+          {saveToast}
+        </div>
+      ) : null}
       {inHouseEditable && onSaveInHouseDetails && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           {!isEditingInHouse ? (
@@ -684,6 +884,7 @@ export default function RetailerProjectDetailDetails({
               onClick={() => {
                 setDetailForm(seedInHouseForm(project));
                 setIsEditingInHouse(true);
+                setEditSection('system');
               }}
             >
               Edit project
@@ -708,6 +909,38 @@ export default function RetailerProjectDetailDetails({
           )}
         </div>
       )}
+
+      {/* In-house edit: keep UI simple by editing one section at a time */}
+      {editMode ? (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: -6 }}>
+          {[
+            { key: 'customer', label: 'Customer' },
+            { key: 'system', label: 'System' },
+            { key: 'property', label: 'Property' },
+            { key: 'utility', label: 'Utility' },
+          ].map((t) => {
+            const active = editSection === t.key;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setEditSection(t.key)}
+                className="lead-detail-btn"
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 999,
+                  border: `1px solid ${active ? '#0d9488' : '#E2E8F0'}`,
+                  background: active ? '#E6F4F1' : '#fff',
+                  color: active ? '#0f766e' : '#334155',
+                  fontWeight: 800,
+                }}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
 
       <SectionCard title="Project Information" icon={Icons.info}>
         <KV label="Project Code" value={project.code} />
@@ -739,7 +972,7 @@ export default function RetailerProjectDetailDetails({
       </SectionCard>
 
       <SectionCard title="Customer Details" icon={Icons.user}>
-        {editMode ? (
+        {editMode && editSection === 'customer' ? (
           <>
             <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
               <label style={labelStyle}>Customer name</label>
@@ -773,28 +1006,15 @@ export default function RetailerProjectDetailDetails({
       </SectionCard>
 
       <SectionCard title="System Specifications" icon={Icons.zap}>
-        {editMode ? (
+        {editMode && editSection === 'system' ? (
           <>
             <div className="lead-detail-field" style={{ gridColumn: '1 / -1', padding: '0.25rem 0 0.75rem 0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <div style={{ fontSize: 12, color: '#6b7280' }}>
                   {cecLastUpdatedAt
                     ? `CEC last sync: ${new Date(cecLastUpdatedAt).toLocaleString()}`
-                    : 'CEC last sync: not synced yet'}
+                    : 'CEC last sync: pending'}
                 </div>
-                <button
-                  type="button"
-                  className="lead-detail-btn primary"
-                  onClick={runManualCecSync}
-                  disabled={syncingCec}
-                  style={{
-                    padding: '8px 12px',
-                    opacity: syncingCec ? 0.7 : 1,
-                    cursor: syncingCec ? 'not-allowed' : 'pointer',
-                  }}
-                >
-                  {syncingCec ? 'Syncing...' : 'Sync CEC'}
-                </button>
               </div>
               {cecSyncMessage ? (
                 <div style={{ fontSize: 12, color: /failed/i.test(cecSyncMessage) ? '#b91c1c' : '#065f46', marginTop: 8 }}>
@@ -1042,7 +1262,13 @@ export default function RetailerProjectDetailDetails({
                   value={project.pv_inverter_size_kw != null ? `${project.pv_inverter_size_kw} kW` : null}
                 />
                 <KV label="PV Inverter Brand" value={project.pv_inverter_brand} />
+                <KV label="PV Inverter Model" value={project.pv_inverter_model} />
+                <KV label="PV Inverter Series" value={project.pv_inverter_series} />
+                <KV label="Inverter Power (kW)" value={project.pv_inverter_power_kw != null ? `${project.pv_inverter_power_kw} kW` : null} />
+                <KV label="Number of Inverter" value={project.pv_inverter_quantity != null ? String(project.pv_inverter_quantity) : null} />
                 <KV label="PV Panel Brand" value={project.pv_panel_brand} />
+                <KV label="PV Panel Model" value={project.pv_panel_model} />
+                <KV label="Quantity of Panel" value={project.pv_panel_quantity != null ? String(project.pv_panel_quantity) : null} />
                 <KV
                   label="Panel Power"
                   value={project.pv_panel_module_watts != null ? `${project.pv_panel_module_watts} W` : null}
@@ -1071,56 +1297,116 @@ export default function RetailerProjectDetailDetails({
         )}
       </SectionCard>
       <SectionCard title="Property Characteristics" icon={Icons.home}>
-        {editMode ? (
+        {editMode && editSection === 'property' ? (
           <>
             <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
               <label style={labelStyle}>House storeys</label>
-              <input style={inputStyle} value={detailForm.house_storey} onChange={(e) => setDetailForm((f) => ({ ...f, house_storey: e.target.value }))} />
+              <select
+                style={inputStyle}
+                value={detailForm.house_storey || ''}
+                onChange={(e) => setDetailForm((f) => ({ ...f, house_storey: e.target.value }))}
+              >
+                <option value="">Select</option>
+                {HOUSE_STOREY_OPTS.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
             </div>
             <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
               <label style={labelStyle}>Roof type</label>
-              <input style={inputStyle} value={detailForm.roof_type} onChange={(e) => setDetailForm((f) => ({ ...f, roof_type: e.target.value }))} />
+              <select
+                style={inputStyle}
+                value={detailForm.roof_type || ''}
+                onChange={(e) => setDetailForm((f) => ({ ...f, roof_type: e.target.value }))}
+              >
+                <option value="">Select</option>
+                {ROOF_TYPE_OPTS.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
             </div>
             <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
               <label style={labelStyle}>Meter phase</label>
-              <input style={inputStyle} value={detailForm.meter_phase} onChange={(e) => setDetailForm((f) => ({ ...f, meter_phase: e.target.value }))} />
+              <select
+                style={inputStyle}
+                value={detailForm.meter_phase || ''}
+                onChange={(e) => setDetailForm((f) => ({ ...f, meter_phase: e.target.value }))}
+              >
+                <option value="">Select</option>
+                {METER_PHASE_OPTS.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
             </div>
             <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
               <label style={labelStyle}>Access to 2nd Story</label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.95rem' }}>
-                <input
-                  type="checkbox"
-                  checked={!!detailForm.access_to_second_storey}
-                  onChange={(e) => setDetailForm((f) => ({ ...f, access_to_second_storey: e.target.checked }))}
-                />
-                Yes
-              </label>
+              <select
+                style={inputStyle}
+                value={detailForm.access_to_second_storey == null ? '' : detailForm.access_to_second_storey ? '1' : '0'}
+                onChange={(e) =>
+                  setDetailForm((f) => ({
+                    ...f,
+                    access_to_second_storey: e.target.value === '' ? null : e.target.value === '1',
+                  }))
+                }
+              >
+                <option value="">Select</option>
+                <option value="1">Yes</option>
+                <option value="0">No</option>
+              </select>
             </div>
             <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
               <label style={labelStyle}>Access to inverter</label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.95rem' }}>
-                <input
-                  type="checkbox"
-                  checked={!!detailForm.access_to_inverter}
-                  onChange={(e) => setDetailForm((f) => ({ ...f, access_to_inverter: e.target.checked }))}
-                />
-                Yes
-              </label>
+              <select
+                style={inputStyle}
+                value={detailForm.access_to_inverter == null ? '' : detailForm.access_to_inverter ? '1' : '0'}
+                onChange={(e) =>
+                  setDetailForm((f) => ({
+                    ...f,
+                    access_to_inverter: e.target.value === '' ? null : e.target.value === '1',
+                  }))
+                }
+              >
+                <option value="">Select</option>
+                <option value="1">Yes</option>
+                <option value="0">No</option>
+              </select>
             </div>
           </>
         ) : (
           <>
-            <KV label="House Storeys" value={project.house_storey} />
-            <KV label="Roof Type" value={project.roof_type} />
-            <KV label="Meter Phase" value={project.meter_phase} />
-            <KV label="Access to 2nd Story" value={project.access_to_two_storey} />
-            <KV label="Access to Inverter" value={project.access_to_inverter} />
+            {/* Keep view-mode consistent with edit-mode seeds (in-house uses lead_* fallbacks). */}
+            <KV label="House Storeys" value={project.house_storey || project.lead_house_storey} />
+            <KV label="Roof Type" value={project.roof_type || project.lead_roof_type} />
+            <KV label="Meter Phase" value={project.meter_phase || project.lead_meter_phase} />
+            <KV
+              label="Access to 2nd Story"
+              value={
+                project.access_to_two_storey ||
+                (project.lead_access_to_second_storey == null
+                  ? null
+                  : project.lead_access_to_second_storey
+                    ? 'Yes'
+                    : 'No')
+              }
+            />
+            <KV
+              label="Access to Inverter"
+              value={
+                project.access_to_inverter ||
+                (project.lead_access_to_inverter == null
+                  ? null
+                  : project.lead_access_to_inverter
+                    ? 'Yes'
+                    : 'No')
+              }
+            />
           </>
         )}
       </SectionCard>
 
       <SectionCard title="Utility Information" icon={Icons.info}>
-        {editMode && inHouseEditable ? (
+        {editMode && inHouseEditable && editSection === 'utility' ? (
           <>
             <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
               <label style={labelStyle}>Pre-approval reference number</label>
@@ -1173,15 +1459,8 @@ export default function RetailerProjectDetailDetails({
               <span style={labelStyle}>Pre-Approval Reference Number</span>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '0.95rem', color: '#0F172A' }}>{project.pre_approval_reference_no || '—'}</span>
-                {String(project.pre_approval_reference_no || '').trim() && onAnnounceUtilityToCustomer && !preApprovalAnnounced ? (
-                  <button
-                    type="button"
-                    style={announceBtnStyle}
-                    disabled={!!announcingUtility}
-                    onClick={() => runAnnounce('pre_approval')}
-                  >
-                    {announcingUtility === 'pre_approval' ? 'Updating…' : 'Update to customer'}
-                  </button>
+                {announcingUtility === 'pre_approval' ? (
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#0f766e' }}>Updating customer portal…</span>
                 ) : null}
                 {preApprovalAnnounced ? (
                   <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#059669' }}>Shared on customer portal</span>
@@ -1194,15 +1473,8 @@ export default function RetailerProjectDetailDetails({
               <span style={labelStyle}>Solar Victoria Eligibility</span>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '0.95rem', color: '#0F172A' }}>{solarVicLabel ?? '—'}</span>
-                {solarVicLabel != null && onAnnounceUtilityToCustomer && !solarVicPortalAnnounced ? (
-                  <button
-                    type="button"
-                    style={announceBtnStyle}
-                    disabled={!!announcingUtility}
-                    onClick={() => runAnnounce('solar_vic')}
-                  >
-                    {announcingUtility === 'solar_vic' ? 'Updating…' : 'Update to customer'}
-                  </button>
+                {announcingUtility === 'solar_vic' ? (
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#0f766e' }}>Updating customer portal…</span>
                 ) : null}
                 {solarVicPortalAnnounced ? (
                   <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#059669' }}>Shared on customer portal</span>

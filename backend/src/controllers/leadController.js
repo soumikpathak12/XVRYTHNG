@@ -508,6 +508,26 @@ export async function updateLead(req, res) {
       }
     }
     const updated = await leadService.updateLead(leadId, payload);
+
+    // Log activity: lead updated (field edits)
+    try {
+      const companyId = req.tenantId ?? req.user?.companyId ?? null;
+      const userId = req.user?.id ?? null;
+      const fields = Object.keys(payload || {}).filter((k) => k !== 'inspector_id'); // inspector handled separately
+      if (fields.length) {
+        await activityService.logActivity({
+          companyId,
+          userId,
+          leadId,
+          actionType: 'lead_updated',
+          description: `updated lead details`,
+          meta: { fields },
+        });
+      }
+    } catch (e) {
+      console.warn('logActivity lead_updated failed:', e?.message);
+    }
+
     return res.status(200).json({ success: true, data: updated });
   } catch (err) {
     console.error('Update lead error:', err);

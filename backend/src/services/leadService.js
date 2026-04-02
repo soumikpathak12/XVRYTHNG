@@ -905,7 +905,19 @@ export async function getLeadNotes(leadId) {
     throw err;
   }
   const [rows] = await db.execute(
-    'SELECT id, lead_id, body, follow_up_at, created_by, created_at FROM lead_notes WHERE lead_id = ? ORDER BY created_at DESC',
+    `SELECT
+      n.id,
+      n.lead_id,
+      n.body,
+      n.follow_up_at,
+      n.created_by,
+      n.created_at,
+      u.name AS created_by_name,
+      u.email AS created_by_email
+    FROM lead_notes n
+    LEFT JOIN users u ON u.id = n.created_by
+    WHERE n.lead_id = ?
+    ORDER BY n.created_at DESC`,
     [leadId],
   );
   return rows;
@@ -943,13 +955,142 @@ export async function getLeadById(leadId) {
   }
 
   const notes = await getLeadNotes(leadId);
-  const activities = notes.map((n) => ({
-    id: `note-${n.id}`,
-    type: 'note',
-    title: 'Comment added',
-    created_at: n.created_at,
-    body: n.body + (n.follow_up_at ? `\n\nNext follow-up: ${String(n.follow_up_at).slice(0, 10)}` : ''),
-  }));
+  const noteActivities = notes.map((n) => {
+    const who = n.created_by_name || n.created_by_email || (n.created_by != null ? `User #${n.created_by}` : '');
+    const title = who ? `Comment added — ${who}` : 'Comment added';
+    return {
+      id: `note-${n.id}`,
+      type: 'note',
+      title,
+      created_at: n.created_at,
+      body: n.body + (n.follow_up_at ? `\n\nNext follow-up: ${String(n.follow_up_at).slice(0, 10)}` : ''),
+    };
+  });
+
+  // Activity logs (stage changes, edits, etc.) with actor info
+  const [alogRows] = await db.execute(
+    `SELECT
+      al.id,
+      al.action_type,
+      al.description,
+      al.meta_json,
+      al.created_at,
+      al.user_id,
+      u.name  AS user_name,
+      u.email AS user_email
+    FROM activity_logs al
+    LEFT JOIN users u ON u.id = al.user_id
+    WHERE al.lead_id = ?
+    ORDER BY al.created_at DESC, al.id DESC`,
+    [leadId],
+  );
+  const logActivities = (alogRows || []).map((al) => {
+    const who = al.user_name || al.user_email || (al.user_id != null ? `User #${al.user_id}` : '');
+    const actionType = String(al.action_type || 'activity');
+    let meta = null;
+    try {
+      meta = al.meta_json ? JSON.parse(al.meta_json) : null;
+    } catch {
+      meta = null;
+    }
+
+    const fieldLabels = {
+      // Core lead fields
+      customer_name: 'Customer name',
+      suburb: 'Suburb',
+      email: 'Email',
+      phone: 'Phone',
+      system_size_kw: 'System size (kW)',
+      value_amount: 'Value amount',
+      source: 'Source',
+      system_type: 'System type',
+      house_storey: 'House storeys',
+      roof_type: 'Roof type',
+      meter_phase: 'Meter phase',
+      access_to_second_storey: 'Access to 2nd storey',
+      access_to_inverter: 'Access to inverter',
+      pre_approval_reference_no: 'Pre-approval reference #',
+      energy_retailer: 'Energy retailer',
+      energy_distributor: 'Energy distributor',
+      solar_vic_eligibility: 'Solar Vic eligibility',
+      nmi_number: 'NMI number',
+      meter_number: 'Meter number',
+      // PV
+      pv_system_size_kw: 'PV system size (kW)',
+      pv_inverter_size_kw: 'PV inverter size (kW)',
+      pv_inverter_brand: 'PV inverter brand',
+      pv_inverter_model: 'PV inverter model',
+      pv_inverter_series: 'PV inverter series',
+      pv_inverter_power_kw: 'Inverter power (kW)',
+      pv_inverter_quantity: 'Number of inverter',
+      pv_panel_brand: 'PV panel brand',
+      pv_panel_model: 'PV panel model',
+      pv_panel_quantity: 'Quantity of panel',
+      pv_panel_module_watts: 'Panel module (W)',
+      // Battery
+      battery_size_kwh: 'Battery size (kWh)',
+      battery_brand: 'Battery brand',
+      battery_model: 'Battery model',
+      // EV
+      ev_charger_brand: 'EV charger brand',
+      ev_charger_model: 'EV charger model',
+      // Project-ish
+      post_install_reference_no: 'Post-install reference #',
+    };
+
+    const describeFields = (arr) => {
+      const list = Array.isArray(arr) ? arr : [];
+      const pretty = list.map((k) => fieldLabels[k] || k).filter(Boolean);
+      if (!pretty.length) return '';
+      return `Updated: ${pretty.join(', ')}`;
+    };
+
+    const build = () => {
+      switch (actionType) {
+        case 'lead_created':
+          return { title: 'Lead created', body: al.description || '' };
+        case 'stage_changed':
+        case 'proposal_sent': {
+          const from = meta?.from ?? null;
+          const to = meta?.to ?? null;
+          const title = actionType === 'proposal_sent' ? 'Proposal sent' : 'Stage changed';
+          const body = from || to ? `Stage: ${from ?? '—'} → ${to ?? '—'}` : (al.description || '');
+          return { title, body };
+        }
+        case 'call_logged':
+          return { title: 'Call logged', body: al.description || '' };
+        case 'lead_updated':
+          return { title: 'Lead updated', body: describeFields(meta?.fields) || (al.description || '') };
+        case 'project_updated':
+          return { title: 'Project updated', body: describeFields(meta?.fields) || (al.description || '') };
+        case 'project_stage_changed':
+          return { title: 'Project stage changed', body: meta?.to ? `Stage: ${meta.to}` : (al.description || '') };
+        case 'project_schedule_updated':
+          return { title: 'Project schedule updated', body: al.description || '' };
+        case 'project_assignees_updated':
+          return { title: 'Project assignees updated', body: al.description || '' };
+        default:
+          return { title: actionType.replace(/_/g, ' '), body: al.description || '' };
+      }
+    };
+
+    const built = build();
+    const title = who ? `${built.title} — ${who}` : built.title;
+    return {
+      id: `log-${al.id}`,
+      type: 'log',
+      title,
+      created_at: al.created_at,
+      body: String(built.body || '').trim(),
+    };
+  });
+
+  // Merge and sort: newest first
+  const activities = [...logActivities, ...noteActivities].sort((a, b) => {
+    const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return tb - ta;
+  });
 
   let referredBy = null;
   const refLeadId = lead.referred_by_lead_id;
@@ -1214,7 +1355,7 @@ export async function countLeads({ stage, search } = {}) {
 
 async function ensureProjectForLead(leadId) {
   const [rows] = await db.execute(
-    'SELECT id, customer_name, email, phone, suburb, system_size_kw, value_amount FROM leads WHERE id = ? LIMIT 1',
+    'SELECT id, customer_name, email, phone, suburb, system_size_kw, pv_system_size_kw, value_amount FROM leads WHERE id = ? LIMIT 1',
     [leadId]
   );
   const lead = rows?.[0];
@@ -1235,7 +1376,9 @@ async function ensureProjectForLead(leadId) {
       lead.email ?? null,
       lead.phone ?? null,
       lead.suburb ?? null,
-      lead.system_size_kw == null ? null : Number(lead.system_size_kw),
+      (lead.pv_system_size_kw ?? lead.system_size_kw) == null
+        ? null
+        : Number(lead.pv_system_size_kw ?? lead.system_size_kw),
       lead.value_amount == null ? null : Number(lead.value_amount),
     ]);
   } catch (e) {

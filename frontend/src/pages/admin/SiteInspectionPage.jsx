@@ -932,6 +932,36 @@ const meta = base?.meta && typeof base.meta === 'string'
     setSignatureUrl('');
   };
 
+  const generateSignatureFromName = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    const text = String(customerName || '').trim();
+    if (!text) return;
+    clearSignature();
+
+    const r = canvas.getBoundingClientRect();
+    const sx = canvas.width / (r.width || 1);
+    const sy = canvas.height / (r.height || 1);
+
+    // Draw in canvas pixel space (buffer coords).
+    ctx.save();
+    ctx.fillStyle = '#111827';
+    // More "professional" signature font stack (falls back per OS).
+    const baseSize = 44;
+    const fontStack = '"Segoe Script","Snell Roundhand","Lucida Handwriting","Brush Script MT","Apple Chancery",cursive';
+    ctx.font = `${Math.round(baseSize * sy)}px ${fontStack}`;
+    const padX = 16 * sx;
+    const maxW = Math.max(10, canvas.width - padX * 2);
+    const m = ctx.measureText(text);
+    const scale = m.width > maxW ? maxW / m.width : 1;
+    const size = Math.max(18, Math.floor(baseSize * scale));
+    ctx.font = `${Math.round(size * sy)}px ${fontStack}`;
+    const y = Math.round(canvas.height / 2 + (size * sy) / 2.6);
+    ctx.fillText(text, padX, y);
+    ctx.restore();
+  };
+
   // -------- Signature upload --------
   const uploadSignature = async () => {
     try {
@@ -1662,24 +1692,42 @@ const meta = base?.meta && typeof base.meta === 'string'
                     marginTop: 4,
                   }}
                 />
-                <button
-                  type="button"
-                  onClick={clearSignature}
-                  style={{
-                    marginTop: 10,
-                    padding: '10px 16px',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: '#fff',
-                    background: UI.color.teal,
-                    border: `1px solid ${UI.color.border}`,
-                    borderRadius: 10,
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                  }}
-                >
-                  Clear Signature
-                </button>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 10 }}>
+                  <button
+                    type="button"
+                    onClick={clearSignature}
+                    style={{
+                      padding: '10px 16px',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: '#fff',
+                      background: UI.color.teal,
+                      border: `1px solid ${UI.color.border}`,
+                      borderRadius: 10,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    Clear Signature
+                  </button>
+                  <button
+                    type="button"
+                    onClick={generateSignatureFromName}
+                    style={{
+                      padding: '10px 16px',
+                      fontSize: 13,
+                      fontWeight: 800,
+                      color: UI.color.navy,
+                      background: '#F1F5F9',
+                      border: `1px solid ${UI.color.borderStrong}`,
+                      borderRadius: 10,
+                      cursor: 'pointer',
+                    }}
+                    title="Generate a signature from customer name"
+                  >
+                    Generate from name
+                  </button>
+                </div>
               </div>
 
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>

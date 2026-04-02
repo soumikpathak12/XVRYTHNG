@@ -37,7 +37,7 @@ const LEGACY_PROJECT_STAGE_MAP = {
 };
 
 function normalizeProject(row) {
-  const sizeKw = row.lead_system_size_kw ?? row.system_size_kw;
+  const sizeKw = row.lead_pv_system_size_kw ?? row.lead_system_size_kw ?? row.system_size_kw;
   const sysType = row.lead_system_type ?? row.system_type;
   const value = row.lead_value_amount ?? row.value_amount ?? row.value;
   let systemSummary;
@@ -91,7 +91,7 @@ export default function ProjectsPage() {
   const location = useLocation();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState('');
+  const [toast, setToast] = useState(null); // { msg: string, kind?: 'error'|'success'|'info', sticky?: boolean } | null
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [searchStage, setSearchStage] = useState(null);
@@ -101,6 +101,7 @@ export default function ProjectsPage() {
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [scheduleMap, setScheduleMap] = useState(new Map()); // Map<projectId, { scheduled_at, status?, notes? }>
   const searchInputRef = useRef(null);
+  const toastTimerRef = useRef(null);
   const [wfProjectStages, setWfProjectStages] = useState(null);
 
   // View state (kanban/table/calendar)
@@ -117,6 +118,28 @@ export default function ProjectsPage() {
     const id = setTimeout(() => setDebouncedSearch(search.trim()), 250);
     return () => clearTimeout(id);
   }, [search]);
+
+  const showToast = useCallback((msg, { kind = 'error', sticky = false, timeoutMs } = {}) => {
+    if (!msg) return;
+    if (toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+    setToast({ msg: String(msg), kind, sticky: !!sticky });
+    if (!sticky) {
+      const ms = timeoutMs != null ? Number(timeoutMs) : (kind === 'error' ? 5000 : 3000);
+      toastTimerRef.current = window.setTimeout(() => {
+        setToast(null);
+        toastTimerRef.current = null;
+      }, Number.isFinite(ms) ? ms : 3000);
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -147,8 +170,7 @@ export default function ProjectsPage() {
           setProjects(rows.map(normalizeProject));
         }
       } catch (err) {
-        setToast(err.message || 'Failed to load projects');
-        setTimeout(() => setToast(''), 3000);
+        showToast(err.message || 'Failed to load projects', { kind: 'error' });
       } finally {
         if (alive) setLoading(false);
       }
@@ -183,10 +205,10 @@ export default function ProjectsPage() {
       const solarVic = raw.lead_solar_vic_eligibility ?? raw.solar_vic_eligibility;
 
       if (!preRef || solarVic == null || solarVic === '') {
-        setToast(
+        showToast(
           'Pre-approval reference number and Solar Victoria eligibility are required before moving to a later stage. Open the project and complete Utility information.',
+          { kind: 'error', sticky: true }
         );
-        setTimeout(() => setToast(''), 5000);
         return;
       }
     }
@@ -197,25 +219,24 @@ export default function ProjectsPage() {
       const raw = current._raw || {};
       const postRef = String(raw.post_install_reference_no ?? '').trim();
       if (!postRef) {
-        setToast(
+        showToast(
           'Post-install reference number is required before moving past GRID Connection Initiated. Open the project and add it, then try again.',
+          { kind: 'error', sticky: true }
         );
-        setTimeout(() => setToast(''), 5000);
         return;
       }
       try {
         const docBody = await getProjectDocuments(projectId);
         const list = Array.isArray(docBody?.data) ? docBody.data : [];
         if (list.length === 0) {
-          setToast(
+          showToast(
             'Upload at least one file in the project Documents tab before moving past GRID Connection Initiated.',
+            { kind: 'error', sticky: true }
           );
-          setTimeout(() => setToast(''), 5000);
           return;
         }
       } catch (err) {
-        setToast(err.message || 'Could not verify documents');
-        setTimeout(() => setToast(''), 5000);
+        showToast(err.message || 'Could not verify documents', { kind: 'error' });
         return;
       }
     }
@@ -235,8 +256,7 @@ export default function ProjectsPage() {
             : p
         )
       );
-      setToast(err.message || 'Failed to update stage');
-      setTimeout(() => setToast(''), 3000);
+      showToast(err.message || 'Failed to update stage', { kind: 'error' });
     } finally {
       setProjects((prev) => prev.map((p) => ({ ...p, _reverting: undefined })));
     }
@@ -422,7 +442,19 @@ export default function ProjectsPage() {
         </div>
       </header>
 
-      {toast && <div className="leads-toast">{toast}</div>}
+      {toast?.msg ? (
+        <div className={`leads-toast ${toast.kind === 'success' ? 'leads-toast-success' : ''}`}>
+          <div style={{ flex: 1, minWidth: 0 }}>{toast.msg}</div>
+          <button
+            type="button"
+            className="leads-toast-dismiss"
+            aria-label="Dismiss message"
+            onClick={() => setToast(null)}
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
 
       <div className="leads-page-content">
         {loading ? (

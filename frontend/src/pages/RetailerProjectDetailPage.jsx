@@ -334,10 +334,6 @@ export default function RetailerProjectDetailPage() {
                       <span className="lead-detail-card-value">{project.suburb || '—'}</span>
                     </div>
                     <div className="lead-detail-card">
-                      <span className="lead-detail-card-label">Est. Value</span>
-                      <span className="lead-detail-card-value">{fmtAUD(project.value_amount)}</span>
-                    </div>
-                    <div className="lead-detail-card">
                       <span className="lead-detail-card-label">System Size</span>
                       <span className="lead-detail-card-value">{project.system_size_kw != null ? `${project.system_size_kw} kW` : '—'}</span>
                     </div>
@@ -379,10 +375,6 @@ export default function RetailerProjectDetailPage() {
               ) : activeTab === 'financials' ? (
                 <div className="fade-in" style={{ padding: '24px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                   <h3 style={{ marginTop: 0 }}>Financial Overview</h3>
-                  <p>
-                    <strong>Estimated Value: </strong> 
-                    {project?.value_amount ? new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(project.value_amount) : 'Not specified'}
-                  </p>
                   <p>
                     <strong>Cost (approved expenses): </strong>
                     {fmtAUD(project?.approved_expense_total)}
