@@ -429,10 +429,20 @@ export async function updateLead(req, res) {
       payload.pv_inverter_size_kw = body.pv_inverter_size_kw;
     if (body.pv_inverter_brand !== undefined)
       payload.pv_inverter_brand = trimOrNull(body.pv_inverter_brand, 120);
+    if (body.pv_inverter_model !== undefined)
+      payload.pv_inverter_model = trimOrNull(body.pv_inverter_model, 120);
+    if (body.pv_inverter_series !== undefined)
+      payload.pv_inverter_series = trimOrNull(body.pv_inverter_series, 120);
+    if (body.pv_inverter_power_kw !== undefined)
+      payload.pv_inverter_power_kw = body.pv_inverter_power_kw;
+    if (body.pv_inverter_quantity !== undefined)
+      payload.pv_inverter_quantity = body.pv_inverter_quantity;
     if (body.pv_panel_brand !== undefined)
       payload.pv_panel_brand = trimOrNull(body.pv_panel_brand, 120);
     if (body.pv_panel_model !== undefined)
       payload.pv_panel_model = trimOrNull(body.pv_panel_model, 120);
+    if (body.pv_panel_quantity !== undefined)
+      payload.pv_panel_quantity = body.pv_panel_quantity;
     if (body.pv_panel_module_watts !== undefined)
       payload.pv_panel_module_watts = body.pv_panel_module_watts;
 
@@ -556,6 +566,22 @@ export async function scheduleInspection(req, res) {
       return res.status(422).json({
         success: false,
         errors: { schedule: 'Date, time, and inspector are required.' },
+      });
+    }
+
+    const dateOnly = String(scheduledDate).trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) {
+      return res.status(422).json({
+        success: false,
+        errors: { schedule: 'Invalid scheduled date format. Use YYYY-MM-DD.' },
+      });
+    }
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    if (dateOnly < todayStr) {
+      return res.status(422).json({
+        success: false,
+        errors: { schedule: 'Cannot schedule inspection in the past.' },
       });
     }
 

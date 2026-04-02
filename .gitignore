@@ -35,3 +35,6 @@ coverage
 .env
 .env.*
 !.env.example
+
+# Runtime caches
+backend/data/

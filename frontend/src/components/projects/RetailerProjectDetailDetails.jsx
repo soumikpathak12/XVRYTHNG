@@ -1,6 +1,19 @@
 // src/components/projects/RetailerProjectDetailDetails.jsx
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import './RetailerProjectDetails.css'; // Re-use old panel styles if needed, or inline
+import {
+  getCecMeta,
+  getCecBatteryBrands,
+  getCecBatteryModels,
+  getCecInverterBrands,
+  getCecInverterDetails,
+  getCecInverterModels,
+  getCecInverterSeries,
+  getCecPvPanelBrands,
+  getCecPvPanelDetails,
+  getCecPvPanelModels,
+  syncCecNow,
+} from '../../services/api.js';
 
 const JOB_TYPES = [
   { key: 'site_inspection', label: 'Site Inspection' },
@@ -38,7 +51,13 @@ function seedInHouseForm(p) {
     pv_system_size_kw: p.pv_system_size_kw ?? '',
     pv_inverter_size_kw: p.pv_inverter_size_kw ?? '',
     pv_inverter_brand: p.pv_inverter_brand || '',
+    pv_inverter_model: p.pv_inverter_model || '',
+    pv_inverter_series: p.pv_inverter_series || '',
+    pv_inverter_power_kw: p.pv_inverter_power_kw ?? '',
+    pv_inverter_quantity: p.pv_inverter_quantity ?? '',
     pv_panel_brand: p.pv_panel_brand || '',
+    pv_panel_model: p.pv_panel_model || '',
+    pv_panel_quantity: p.pv_panel_quantity ?? '',
     pv_panel_module_watts: p.pv_panel_module_watts ?? '',
     ev_charger_brand: p.ev_charger_brand || '',
     ev_charger_model: p.ev_charger_model || '',
@@ -258,6 +277,23 @@ export default function RetailerProjectDetailDetails({
   const [detailForm, setDetailForm] = useState(null);
   const [savingInHouse, setSavingInHouse] = useState(false);
   const [announcingUtility, setAnnouncingUtility] = useState(null);
+  const [cecOptions, setCecOptions] = useState({
+    pvPanelBrands: [],
+    pvPanelModels: [],
+    pvPanelModelsForBrand: '',
+    inverterBrands: [],
+    inverterModels: [],
+    inverterModelsForBrand: '',
+    inverterSeries: [],
+    inverterSeriesForBrandModel: '',
+    batteryBrands: [],
+    batteryModels: [],
+    batteryModelsForBrand: '',
+    loading: false,
+  });
+  const [syncingCec, setSyncingCec] = useState(false);
+  const [cecSyncMessage, setCecSyncMessage] = useState('');
+  const [cecLastUpdatedAt, setCecLastUpdatedAt] = useState('');
 
   const [status, setStatus] = useState(project?.stage ?? '');
   const [jobType, setJobType] = useState('');
@@ -383,6 +419,174 @@ export default function RetailerProjectDetailDetails({
   const hasEV = /EV/i.test(sysTypeForFlags);
   const hasBattery = /Battery/i.test(sysTypeForFlags);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!editMode) return;
+      if (!hasPV && !hasBattery) return;
+      setCecOptions((p) => ({ ...p, loading: true }));
+      try {
+        const [pvPanelBrands, inverterBrands, batteryBrands] = await Promise.all([
+          hasPV ? getCecPvPanelBrands().catch(() => []) : Promise.resolve([]),
+          hasPV ? getCecInverterBrands().catch(() => []) : Promise.resolve([]),
+          hasBattery ? getCecBatteryBrands().catch(() => []) : Promise.resolve([]),
+        ]);
+        if (cancelled) return;
+        setCecOptions((p) => ({
+          ...p,
+          pvPanelBrands: pvPanelBrands.length ? pvPanelBrands : p.pvPanelBrands,
+          inverterBrands: inverterBrands.length ? inverterBrands : p.inverterBrands,
+          batteryBrands: batteryBrands.length ? batteryBrands : p.batteryBrands,
+          loading: false,
+        }));
+      } catch {
+        if (cancelled) return;
+        setCecOptions((p) => ({ ...p, loading: false }));
+      }
+    }
+    run();
+    return () => { cancelled = true; };
+  }, [editMode, hasPV, hasBattery]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!editMode) return;
+      try {
+        const meta = await getCecMeta();
+        if (cancelled) return;
+        setCecLastUpdatedAt(meta?.data?.updatedAt || '');
+      } catch {
+        if (cancelled) return;
+        setCecLastUpdatedAt('');
+      }
+    }
+    run();
+    return () => { cancelled = true; };
+  }, [editMode]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!editMode || !hasPV) return;
+      const brand = String(detailForm?.pv_panel_brand || '').trim();
+      if (!brand) {
+        setCecOptions((p) => ({ ...p, pvPanelModels: [], pvPanelModelsForBrand: '' }));
+        return;
+      }
+      if (cecOptions.pvPanelModelsForBrand === brand) return;
+      const models = await getCecPvPanelModels(brand).catch(() => []);
+      if (cancelled) return;
+      setCecOptions((p) => ({ ...p, pvPanelModels: Array.isArray(models) ? models : [], pvPanelModelsForBrand: brand }));
+    }
+    run();
+    return () => { cancelled = true; };
+  }, [editMode, hasPV, detailForm?.pv_panel_brand, cecOptions.pvPanelModelsForBrand]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!editMode || !hasPV) return;
+      const brand = String(detailForm?.pv_inverter_brand || '').trim();
+      if (!brand) {
+        setCecOptions((p) => ({ ...p, inverterModels: [], inverterModelsForBrand: '' }));
+        return;
+      }
+      if (cecOptions.inverterModelsForBrand === brand) return;
+      const models = await getCecInverterModels(brand).catch(() => []);
+      if (cancelled) return;
+      setCecOptions((p) => ({ ...p, inverterModels: Array.isArray(models) ? models : [], inverterModelsForBrand: brand }));
+    }
+    run();
+    return () => { cancelled = true; };
+  }, [editMode, hasPV, detailForm?.pv_inverter_brand, cecOptions.inverterModelsForBrand]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!editMode || !hasPV) return;
+      const brand = String(detailForm?.pv_inverter_brand || '').trim();
+      const model = String(detailForm?.pv_inverter_model || '').trim();
+      if (!brand || !model) {
+        setCecOptions((p) => ({ ...p, inverterSeries: [], inverterSeriesForBrandModel: '' }));
+        return;
+      }
+      const key = `${brand}::${model}`;
+      if (cecOptions.inverterSeriesForBrandModel === key) return;
+      const [seriesList, details] = await Promise.all([
+        getCecInverterSeries(brand, model).catch(() => []),
+        getCecInverterDetails(brand, model).catch(() => null),
+      ]);
+      if (cancelled) return;
+      setCecOptions((p) => ({ ...p, inverterSeries: Array.isArray(seriesList) ? seriesList : [], inverterSeriesForBrandModel: key }));
+      setDetailForm((f) => {
+        if (!f) return f;
+        const next = { ...f };
+        if (!next.pv_inverter_series && details?.series) next.pv_inverter_series = details.series;
+        if (!next.pv_inverter_power_kw && details?.power_kw != null) next.pv_inverter_power_kw = String(details.power_kw);
+        return next;
+      });
+    }
+    run();
+    return () => { cancelled = true; };
+  }, [editMode, hasPV, detailForm?.pv_inverter_brand, detailForm?.pv_inverter_model, cecOptions.inverterSeriesForBrandModel]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!editMode || !hasBattery) return;
+      const brand = String(detailForm?.battery_brand || '').trim();
+      if (!brand) {
+        setCecOptions((p) => ({ ...p, batteryModels: [], batteryModelsForBrand: '' }));
+        return;
+      }
+      if (cecOptions.batteryModelsForBrand === brand) return;
+      const models = await getCecBatteryModels(brand).catch(() => []);
+      if (cancelled) return;
+      setCecOptions((p) => ({ ...p, batteryModels: Array.isArray(models) ? models : [], batteryModelsForBrand: brand }));
+    }
+    run();
+    return () => { cancelled = true; };
+  }, [editMode, hasBattery, detailForm?.battery_brand, cecOptions.batteryModelsForBrand]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!editMode || !hasPV) return;
+      const brand = String(detailForm?.pv_panel_brand || '').trim();
+      const model = String(detailForm?.pv_panel_model || '').trim();
+      if (!brand || !model) return;
+      if (String(detailForm?.pv_panel_module_watts || '').trim() !== '') return;
+      const details = await getCecPvPanelDetails(brand, model).catch(() => null);
+      if (cancelled) return;
+      if (details?.module_watts != null) {
+        setDetailForm((f) => (f ? { ...f, pv_panel_module_watts: String(details.module_watts) } : f));
+      }
+    }
+    run();
+    return () => { cancelled = true; };
+  }, [editMode, hasPV, detailForm?.pv_panel_brand, detailForm?.pv_panel_model, detailForm?.pv_panel_module_watts]);
+
+  useEffect(() => {
+    if (!editMode || !hasPV || !detailForm) return;
+    const qty = Number(detailForm.pv_panel_quantity);
+    const watts = Number(detailForm.pv_panel_module_watts);
+    if (!Number.isFinite(qty) || !Number.isFinite(watts) || qty <= 0 || watts <= 0) return;
+    const nextKw = String(Number(((qty * watts) / 1000).toFixed(3)));
+    if (String(detailForm.system_size_kw || '') === nextKw) return;
+    setDetailForm((f) => (f ? { ...f, system_size_kw: nextKw, pv_system_size_kw: nextKw } : f));
+  }, [editMode, hasPV, detailForm?.pv_panel_quantity, detailForm?.pv_panel_module_watts, detailForm?.system_size_kw]);
+
+  useEffect(() => {
+    if (!editMode || !hasPV || !detailForm) return;
+    const powerKw = Number(detailForm.pv_inverter_power_kw);
+    const qty = Number(detailForm.pv_inverter_quantity);
+    if (!Number.isFinite(powerKw) || !Number.isFinite(qty) || powerKw <= 0 || qty <= 0) return;
+    const nextKw = String(Number((powerKw * qty).toFixed(3)));
+    if (String(detailForm.pv_inverter_size_kw || '') === nextKw) return;
+    setDetailForm((f) => (f ? { ...f, pv_inverter_size_kw: nextKw } : f));
+  }, [editMode, hasPV, detailForm?.pv_inverter_power_kw, detailForm?.pv_inverter_quantity, detailForm?.pv_inverter_size_kw]);
+
   const solarVicLabel =
     project?.solar_vic_eligibility === null ||
     project?.solar_vic_eligibility === undefined ||
@@ -424,6 +628,36 @@ export default function RetailerProjectDetailDetails({
 
   const inputStyle = { width: '100%', padding: '0.65rem', border: '1px solid #CBD5E1', borderRadius: '8px', fontSize: '0.95rem', color: '#0F172A', outline: 'none', backgroundColor: '#fff' };
   const labelStyle = { fontWeight: 700, fontSize: '0.75rem', color: '#64748B', marginBottom: '0.4rem', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' };
+
+  async function runManualCecSync() {
+    if (syncingCec) return;
+    setSyncingCec(true);
+    setCecSyncMessage('');
+    try {
+      const [syncRes, pvPanelBrands, inverterBrands, batteryBrands, meta] = await Promise.all([
+        syncCecNow({ force: true }),
+        hasPV ? getCecPvPanelBrands().catch(() => []) : Promise.resolve([]),
+        hasPV ? getCecInverterBrands().catch(() => []) : Promise.resolve([]),
+        hasBattery ? getCecBatteryBrands().catch(() => []) : Promise.resolve([]),
+        getCecMeta().catch(() => null),
+      ]);
+
+      setCecOptions((p) => ({
+        ...p,
+        pvPanelBrands: Array.isArray(pvPanelBrands) ? pvPanelBrands : p.pvPanelBrands,
+        inverterBrands: Array.isArray(inverterBrands) ? inverterBrands : p.inverterBrands,
+        batteryBrands: Array.isArray(batteryBrands) ? batteryBrands : p.batteryBrands,
+      }));
+
+      const updatedAt = meta?.data?.updatedAt || syncRes?.data?.updatedAt || '';
+      setCecLastUpdatedAt(updatedAt);
+      setCecSyncMessage('CEC approved products synced successfully.');
+    } catch (err) {
+      setCecSyncMessage(err?.message || 'CEC sync failed.');
+    } finally {
+      setSyncingCec(false);
+    }
+  }
 
   async function handleInHouseSaveClick() {
     if (!detailForm || !onSaveInHouseDetails) return;
@@ -541,6 +775,33 @@ export default function RetailerProjectDetailDetails({
       <SectionCard title="System Specifications" icon={Icons.zap}>
         {editMode ? (
           <>
+            <div className="lead-detail-field" style={{ gridColumn: '1 / -1', padding: '0.25rem 0 0.75rem 0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>
+                  {cecLastUpdatedAt
+                    ? `CEC last sync: ${new Date(cecLastUpdatedAt).toLocaleString()}`
+                    : 'CEC last sync: not synced yet'}
+                </div>
+                <button
+                  type="button"
+                  className="lead-detail-btn primary"
+                  onClick={runManualCecSync}
+                  disabled={syncingCec}
+                  style={{
+                    padding: '8px 12px',
+                    opacity: syncingCec ? 0.7 : 1,
+                    cursor: syncingCec ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {syncingCec ? 'Syncing...' : 'Sync CEC'}
+                </button>
+              </div>
+              {cecSyncMessage ? (
+                <div style={{ fontSize: 12, color: /failed/i.test(cecSyncMessage) ? '#b91c1c' : '#065f46', marginTop: 8 }}>
+                  {cecSyncMessage}
+                </div>
+              ) : null}
+            </div>
             <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
               <label style={labelStyle}>System type</label>
               <select
@@ -561,20 +822,132 @@ export default function RetailerProjectDetailDetails({
             {hasPV && (
               <>
                 <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
-                  <label style={labelStyle}>PV system size (kW)</label>
-                  <input style={inputStyle} type="number" step="any" min="0" value={detailForm.pv_system_size_kw} onChange={(e) => setDetailForm((f) => ({ ...f, pv_system_size_kw: e.target.value }))} />
-                </div>
-                <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
                   <label style={labelStyle}>PV inverter size (kW)</label>
                   <input style={inputStyle} type="number" step="any" min="0" value={detailForm.pv_inverter_size_kw} onChange={(e) => setDetailForm((f) => ({ ...f, pv_inverter_size_kw: e.target.value }))} />
                 </div>
                 <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
                   <label style={labelStyle}>PV inverter brand</label>
-                  <input style={inputStyle} value={detailForm.pv_inverter_brand} onChange={(e) => setDetailForm((f) => ({ ...f, pv_inverter_brand: e.target.value }))} />
+                  <SuggestInput
+                    value={detailForm.pv_inverter_brand || ''}
+                    onChange={(value) => {
+                      setDetailForm((f) => {
+                        if (!f) return f;
+                        if ((f.pv_inverter_brand || '') === value) {
+                          return { ...f, pv_inverter_brand: value };
+                        }
+                        return {
+                          ...f,
+                          pv_inverter_brand: value,
+                          pv_inverter_model: '',
+                          pv_inverter_series: '',
+                        };
+                      });
+                      setCecOptions((p) => ({
+                        ...p,
+                        inverterModels: [],
+                        inverterModelsForBrand: '',
+                        inverterSeries: [],
+                        inverterSeriesForBrandModel: '',
+                      }));
+                    }}
+                    options={cecOptions.inverterBrands}
+                    placeholder={cecOptions.loading ? 'Loading approved brands...' : 'Start typing'}
+                  />
+                </div>
+                <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+                  <label style={labelStyle}>PV inverter model</label>
+                  <SuggestInput
+                    value={detailForm.pv_inverter_model || ''}
+                    onChange={(value) => {
+                      setDetailForm((f) => {
+                        if (!f) return f;
+                        if ((f.pv_inverter_model || '') === value) {
+                          return { ...f, pv_inverter_model: value };
+                        }
+                        return {
+                          ...f,
+                          pv_inverter_model: value,
+                          pv_inverter_series: '',
+                        };
+                      });
+                      setCecOptions((p) => ({
+                        ...p,
+                        inverterSeries: [],
+                        inverterSeriesForBrandModel: '',
+                      }));
+                    }}
+                    options={cecOptions.inverterModels}
+                    placeholder={detailForm.pv_inverter_brand ? 'Start typing' : 'Select/enter inverter brand first'}
+                  />
+                </div>
+                <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+                  <label style={labelStyle}>PV inverter series</label>
+                  <SuggestInput
+                    value={detailForm.pv_inverter_series || ''}
+                    onChange={(value) => setDetailForm((f) => ({ ...f, pv_inverter_series: value }))}
+                    options={cecOptions.inverterSeries}
+                    placeholder={detailForm.pv_inverter_model ? 'Start typing' : 'Select/enter inverter model first'}
+                  />
+                </div>
+                <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+                  <label style={labelStyle}>Inverter power (kW)</label>
+                  <input style={inputStyle} type="number" step="any" min="0" value={detailForm.pv_inverter_power_kw || ''} onChange={(e) => setDetailForm((f) => ({ ...f, pv_inverter_power_kw: e.target.value }))} />
+                </div>
+                <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+                  <label style={labelStyle}>Number of inverter</label>
+                  <input style={inputStyle} type="number" step="1" min="0" value={detailForm.pv_inverter_quantity || ''} onChange={(e) => setDetailForm((f) => ({ ...f, pv_inverter_quantity: e.target.value }))} />
                 </div>
                 <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
                   <label style={labelStyle}>PV panel brand</label>
-                  <input style={inputStyle} value={detailForm.pv_panel_brand} onChange={(e) => setDetailForm((f) => ({ ...f, pv_panel_brand: e.target.value }))} />
+                  <SuggestInput
+                    value={detailForm.pv_panel_brand || ''}
+                    onChange={(value) => {
+                      setDetailForm((f) => {
+                        if (!f) return f;
+                        if ((f.pv_panel_brand || '') === value) {
+                          return { ...f, pv_panel_brand: value };
+                        }
+                        return {
+                          ...f,
+                          pv_panel_brand: value,
+                          pv_panel_model: '',
+                          pv_panel_module_watts: '',
+                        };
+                      });
+                      setCecOptions((p) => ({
+                        ...p,
+                        pvPanelModels: [],
+                        pvPanelModelsForBrand: '',
+                      }));
+                    }}
+                    options={cecOptions.pvPanelBrands}
+                    placeholder={cecOptions.loading ? 'Loading approved brands...' : 'Start typing'}
+                  />
+                </div>
+                <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+                  <label style={labelStyle}>PV panel model</label>
+                  <SuggestInput
+                    value={detailForm.pv_panel_model || ''}
+                    onChange={(value) => {
+                      setDetailForm((f) => {
+                        if (!f) return f;
+                        if ((f.pv_panel_model || '') === value) {
+                          return { ...f, pv_panel_model: value };
+                        }
+                        return {
+                          ...f,
+                          pv_panel_model: value,
+                          pv_panel_module_watts: '',
+                        };
+                      });
+                    }}
+                    options={cecOptions.pvPanelModels}
+                    placeholder={detailForm.pv_panel_brand ? 'Start typing' : 'Select/enter panel brand first'}
+                  />
+                </div>
+                <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
+                  <label style={labelStyle}>Quantity of panel</label>
+                  <input style={inputStyle} type="number" step="1" min="0" value={detailForm.pv_panel_quantity || ''} onChange={(e) => setDetailForm((f) => ({ ...f, pv_panel_quantity: e.target.value }))} />
                 </div>
                 <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
                   <label style={labelStyle}>Panel module (W)</label>
@@ -602,11 +975,38 @@ export default function RetailerProjectDetailDetails({
                 </div>
                 <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
                   <label style={labelStyle}>Battery brand</label>
-                  <input style={inputStyle} value={detailForm.battery_brand} onChange={(e) => setDetailForm((f) => ({ ...f, battery_brand: e.target.value }))} />
+                  <SuggestInput
+                    value={detailForm.battery_brand || ''}
+                    onChange={(value) => {
+                      setDetailForm((f) => {
+                        if (!f) return f;
+                        if ((f.battery_brand || '') === value) {
+                          return { ...f, battery_brand: value };
+                        }
+                        return {
+                          ...f,
+                          battery_brand: value,
+                          battery_model: '',
+                        };
+                      });
+                      setCecOptions((p) => ({
+                        ...p,
+                        batteryModels: [],
+                        batteryModelsForBrand: '',
+                      }));
+                    }}
+                    options={cecOptions.batteryBrands}
+                    placeholder={cecOptions.loading ? 'Loading approved brands...' : 'Start typing'}
+                  />
                 </div>
                 <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
                   <label style={labelStyle}>Battery model</label>
-                  <input style={inputStyle} value={detailForm.battery_model} onChange={(e) => setDetailForm((f) => ({ ...f, battery_model: e.target.value }))} />
+                  <SuggestInput
+                    value={detailForm.battery_model || ''}
+                    onChange={(value) => setDetailForm((f) => ({ ...f, battery_model: value }))}
+                    options={cecOptions.batteryModels}
+                    placeholder={detailForm.battery_brand ? 'Start typing' : 'Select/enter battery brand first'}
+                  />
                 </div>
               </>
             )}
@@ -653,7 +1053,6 @@ export default function RetailerProjectDetailDetails({
           </>
         )}
       </SectionCard>
-
       <SectionCard title="Property Characteristics" icon={Icons.home}>
         {editMode ? (
           <>
@@ -802,3 +1201,90 @@ export default function RetailerProjectDetailDetails({
     </div>
   );
 }
+
+function SuggestInput({ value, onChange, options = [], placeholder = 'Start typing' }) {
+  const [open, setOpen] = useState(false);
+  const query = String(value || '').trim().toLowerCase();
+  const matches = useMemo(() => {
+    const all = Array.isArray(options) ? options : [];
+    if (!query) return all.slice(0, 40);
+    return all.filter((item) => String(item).toLowerCase().includes(query)).slice(0, 40);
+  }, [options, query]);
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        type="text"
+        value={value || ''}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 140)}
+        style={suggestInputStyle}
+        placeholder={placeholder}
+      />
+      {open && matches.length > 0 ? (
+        <div style={suggestMenuStyle}>
+          {matches.map((option) => {
+            const text = String(option);
+            return (
+              <button
+                key={text}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onChange(text);
+                  setOpen(false);
+                }}
+                style={suggestItemStyle}
+                title={text}
+              >
+                {text}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+const suggestInputStyle = {
+  width: '100%',
+  padding: '0.65rem',
+  border: '1px solid #CBD5E1',
+  borderRadius: '8px',
+  fontSize: '0.95rem',
+  color: '#0F172A',
+  outline: 'none',
+  backgroundColor: '#fff',
+};
+
+const suggestMenuStyle = {
+  position: 'absolute',
+  top: 'calc(100% + 6px)',
+  left: 0,
+  right: 0,
+  zIndex: 40,
+  background: '#fff',
+  border: '1px solid #CBD5E1',
+  borderRadius: '10px',
+  boxShadow: '0 10px 24px rgba(15, 23, 42, 0.14)',
+  maxHeight: 240,
+  overflowY: 'auto',
+  padding: 4,
+};
+
+const suggestItemStyle = {
+  width: '100%',
+  textAlign: 'left',
+  background: 'transparent',
+  border: 'none',
+  borderRadius: 8,
+  padding: '8px 10px',
+  color: '#0f172a',
+  cursor: 'pointer',
+  fontSize: 13,
+};

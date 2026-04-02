@@ -1329,6 +1329,8 @@ const meta = base?.meta && typeof base.meta === 'string'
                   {[
                     lead.pv_system_size_kw != null ? `${lead.pv_system_size_kw} kW` : null,
                     lead.pv_panel_brand ? `Panel: ${lead.pv_panel_brand}` : null,
+                    lead.pv_panel_model ? `Panel Model: ${lead.pv_panel_model}` : null,
+                    lead.pv_panel_quantity != null ? `No. of Panels: ${lead.pv_panel_quantity}` : null,
                     lead.pv_panel_module_watts != null ? `${lead.pv_panel_module_watts} W` : null,
                   ]
                     .filter(Boolean)

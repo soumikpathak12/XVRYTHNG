@@ -2,6 +2,19 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import LeadForm from './LeadForm.jsx';
 import '../../styles/LeadDetailModal.css';
+import {
+  getCecBatteryBrands,
+  getCecBatteryModels,
+  getCecInverterDetails,
+  getCecMeta,
+  getCecInverterBrands,
+  getCecInverterModels,
+  getCecInverterSeries,
+  getCecPvPanelModels,
+  getCecPvPanelDetails,
+  getCecPvPanelBrands,
+  syncCecNow,
+} from '../../services/api.js';
 import { dbDatetimeToDatetimeLocalInput } from '../../utils/inspectionPrefillFromLead.js';
 
 function formatDateTimeLocal(isoString) {
@@ -160,9 +173,33 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
         leadData?.pv_inverter_brand ??
         leadData?._raw?.pv_inverter_brand ??
         '',
+      pv_inverter_model:
+        lead?.pv_inverter_model ??
+        lead?._raw?.pv_inverter_model ??
+        '',
+      pv_inverter_series:
+        lead?.pv_inverter_series ??
+        lead?._raw?.pv_inverter_series ??
+        '',
+      pv_inverter_power_kw:
+        lead?.pv_inverter_power_kw ??
+        lead?._raw?.pv_inverter_power_kw ??
+        '',
+      pv_inverter_quantity:
+        lead?.pv_inverter_quantity ??
+        lead?._raw?.pv_inverter_quantity ??
+        '',
       pv_panel_brand:
         leadData?.pv_panel_brand ??
         leadData?._raw?.pv_panel_brand ??
+        '',
+      pv_panel_model:
+        lead?.pv_panel_model ??
+        lead?._raw?.pv_panel_model ??
+        '',
+      pv_panel_quantity:
+        lead?.pv_panel_quantity ??
+        lead?._raw?.pv_panel_quantity ??
         '',
       pv_panel_module_watts:
         leadData?.pv_panel_module_watts ??
@@ -204,6 +241,371 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
 
   const updateExtra = (key, value) =>
     setExtras((prev) => ({ ...prev, [key]: value }));
+
+  const handleInverterBrandChange = useCallback((value) => {
+    setExtras((prev) => {
+      if ((prev.pv_inverter_brand || '') === value) {
+        return { ...prev, pv_inverter_brand: value };
+      }
+      return {
+        ...prev,
+        pv_inverter_brand: value,
+        pv_inverter_model: '',
+        pv_inverter_series: '',
+      };
+    });
+    setCecOptions((p) => ({
+      ...p,
+      inverterModels: [],
+      inverterModelsForBrand: '',
+      inverterSeries: [],
+      inverterSeriesForBrandModel: '',
+    }));
+  }, []);
+
+  const handleInverterModelChange = useCallback((value) => {
+    setExtras((prev) => {
+      if ((prev.pv_inverter_model || '') === value) {
+        return { ...prev, pv_inverter_model: value };
+      }
+      return {
+        ...prev,
+        pv_inverter_model: value,
+        pv_inverter_series: '',
+      };
+    });
+    setCecOptions((p) => ({
+      ...p,
+      inverterSeries: [],
+      inverterSeriesForBrandModel: '',
+    }));
+  }, []);
+
+  const handlePanelBrandChange = useCallback((value) => {
+    setExtras((prev) => {
+      if ((prev.pv_panel_brand || '') === value) {
+        return { ...prev, pv_panel_brand: value };
+      }
+      return {
+        ...prev,
+        pv_panel_brand: value,
+        pv_panel_model: '',
+        pv_panel_module_watts: '',
+      };
+    });
+    setCecOptions((p) => ({
+      ...p,
+      pvPanelModels: [],
+      pvPanelModelsForBrand: '',
+    }));
+  }, []);
+
+  const handlePanelModelChange = useCallback((value) => {
+    setExtras((prev) => {
+      if ((prev.pv_panel_model || '') === value) {
+        return { ...prev, pv_panel_model: value };
+      }
+      return {
+        ...prev,
+        pv_panel_model: value,
+        pv_panel_module_watts: '',
+      };
+    });
+  }, []);
+
+  const handleBatteryBrandChange = useCallback((value) => {
+    setExtras((prev) => {
+      if ((prev.battery_brand || '') === value) {
+        return { ...prev, battery_brand: value };
+      }
+      return {
+        ...prev,
+        battery_brand: value,
+        battery_model: '',
+      };
+    });
+    setCecOptions((p) => ({
+      ...p,
+      batteryModels: [],
+      batteryModelsForBrand: '',
+    }));
+  }, []);
+
+  // ----- CEC Approved products options (cached) -----
+  const [cecOptions, setCecOptions] = useState({
+    pvPanelBrands: [],
+    pvPanelModels: [],
+    pvPanelModelsForBrand: '',
+    inverterBrands: [],
+    inverterModels: [],
+    inverterModelsForBrand: '',
+    inverterSeries: [],
+    inverterSeriesForBrandModel: '',
+    batteryBrands: [],
+    batteryModels: [],
+    batteryModelsForBrand: '',
+    loading: false,
+  });
+  const [syncingCec, setSyncingCec] = useState(false);
+  const [cecSyncMessage, setCecSyncMessage] = useState('');
+  const [cecLastUpdatedAt, setCecLastUpdatedAt] = useState('');
+
+  const currentType = extras.system_type_sel || '';
+  const hasPV = /PV/i.test(currentType);
+  const hasBattery = /Battery/i.test(currentType);
+
+  // Load brand lists lazily, only when needed by system type.
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!hasPV && !hasBattery) return;
+      setCecOptions((p) => ({ ...p, loading: true }));
+      try {
+        const [pvPanelBrands, inverterBrands, batteryBrands] = await Promise.all([
+          hasPV ? getCecPvPanelBrands().catch(() => []) : Promise.resolve([]),
+          hasPV ? getCecInverterBrands().catch(() => []) : Promise.resolve([]),
+          hasBattery ? getCecBatteryBrands().catch(() => []) : Promise.resolve([]),
+        ]);
+        if (cancelled) return;
+        setCecOptions((p) => ({
+          ...p,
+          pvPanelBrands: pvPanelBrands.length ? pvPanelBrands : p.pvPanelBrands,
+          inverterBrands: inverterBrands.length ? inverterBrands : p.inverterBrands,
+          batteryBrands: batteryBrands.length ? batteryBrands : p.batteryBrands,
+          loading: false,
+        }));
+      } catch {
+        if (cancelled) return;
+        setCecOptions((p) => ({ ...p, loading: false }));
+      }
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasPV, hasBattery]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      try {
+        const meta = await getCecMeta();
+        if (cancelled) return;
+        const updatedAt = meta?.data?.updatedAt || '';
+        setCecLastUpdatedAt(updatedAt);
+      } catch {
+        if (cancelled) return;
+        setCecLastUpdatedAt('');
+      }
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Load battery models when brand changes (only for battery system types).
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!hasBattery) return;
+      const brand = (extras.battery_brand || '').trim();
+      if (!brand) {
+        setCecOptions((p) => ({ ...p, batteryModels: [], batteryModelsForBrand: '' }));
+        return;
+      }
+      if (cecOptions.batteryModelsForBrand && cecOptions.batteryModelsForBrand === brand) return;
+      try {
+        const models = await getCecBatteryModels(brand);
+        if (cancelled) return;
+        setCecOptions((p) => ({
+          ...p,
+          batteryModels: Array.isArray(models) ? models : [],
+          batteryModelsForBrand: brand,
+        }));
+      } catch {
+        if (cancelled) return;
+        setCecOptions((p) => ({ ...p, batteryModels: [], batteryModelsForBrand: brand }));
+      }
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasBattery, extras.battery_brand, cecOptions.batteryModelsForBrand]);
+
+  // Load PV panel models when panel brand changes.
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!hasPV) return;
+      const brand = (extras.pv_panel_brand || '').trim();
+      if (!brand) {
+        setCecOptions((p) => ({ ...p, pvPanelModels: [], pvPanelModelsForBrand: '' }));
+        return;
+      }
+      if (cecOptions.pvPanelModelsForBrand && cecOptions.pvPanelModelsForBrand === brand) return;
+      try {
+        const models = await getCecPvPanelModels(brand);
+        if (cancelled) return;
+        setCecOptions((p) => ({
+          ...p,
+          pvPanelModels: Array.isArray(models) ? models : [],
+          pvPanelModelsForBrand: brand,
+        }));
+      } catch {
+        if (cancelled) return;
+        setCecOptions((p) => ({ ...p, pvPanelModels: [], pvPanelModelsForBrand: brand }));
+      }
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasPV, extras.pv_panel_brand, cecOptions.pvPanelModelsForBrand]);
+
+  // Auto-fill panel module watts from selected panel model when available.
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!hasPV) return;
+      const brand = (extras.pv_panel_brand || '').trim();
+      const model = (extras.pv_panel_model || '').trim();
+      if (!brand || !model) return;
+      // Do not overwrite existing manual value.
+      if (String(extras.pv_panel_module_watts || '').trim() !== '') return;
+      try {
+        const details = await getCecPvPanelDetails(brand, model);
+        if (cancelled) return;
+        if (details?.module_watts != null && String(details.module_watts).trim() !== '') {
+          updateExtra('pv_panel_module_watts', String(details.module_watts));
+        }
+      } catch {
+        // silent - keep manual entry behavior
+      }
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasPV, extras.pv_panel_brand, extras.pv_panel_model, extras.pv_panel_module_watts]);
+
+  // Auto-calculate PV system size (kW) from panel quantity * panel module watts.
+  useEffect(() => {
+    if (!hasPV) return;
+    const qty = Number(extras.pv_panel_quantity);
+    const watts = Number(extras.pv_panel_module_watts);
+    if (!Number.isFinite(qty) || !Number.isFinite(watts) || qty <= 0 || watts <= 0) return;
+    const kw = (qty * watts) / 1000;
+    const next = String(Number(kw.toFixed(3)));
+    if (String(extras.pv_system_size_kw || '') === next) return;
+    updateExtra('pv_system_size_kw', next);
+  }, [hasPV, extras.pv_panel_quantity, extras.pv_panel_module_watts, extras.pv_system_size_kw]);
+
+  // Auto-calculate inverter size (kW) from inverter power * inverter quantity.
+  useEffect(() => {
+    if (!hasPV) return;
+    const powerKw = Number(extras.pv_inverter_power_kw);
+    const qty = Number(extras.pv_inverter_quantity);
+    if (!Number.isFinite(powerKw) || !Number.isFinite(qty) || powerKw <= 0 || qty <= 0) return;
+    const totalKw = powerKw * qty;
+    const next = String(Number(totalKw.toFixed(3)));
+    if (String(extras.pv_inverter_size_kw || '') === next) return;
+    updateExtra('pv_inverter_size_kw', next);
+  }, [hasPV, extras.pv_inverter_power_kw, extras.pv_inverter_quantity, extras.pv_inverter_size_kw]);
+
+  // Load inverter models when inverter brand changes.
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!hasPV) return;
+      const brand = (extras.pv_inverter_brand || '').trim();
+      if (!brand) {
+        setCecOptions((p) => ({
+          ...p,
+          inverterModels: [],
+          inverterModelsForBrand: '',
+          inverterSeries: [],
+          inverterSeriesForBrandModel: '',
+        }));
+        return;
+      }
+      if (cecOptions.inverterModelsForBrand && cecOptions.inverterModelsForBrand === brand) return;
+      try {
+        const models = await getCecInverterModels(brand);
+        if (cancelled) return;
+        setCecOptions((p) => ({
+          ...p,
+          inverterModels: Array.isArray(models) ? models : [],
+          inverterModelsForBrand: brand,
+          inverterSeries: [],
+          inverterSeriesForBrandModel: '',
+        }));
+      } catch {
+        if (cancelled) return;
+        setCecOptions((p) => ({
+          ...p,
+          inverterModels: [],
+          inverterModelsForBrand: brand,
+          inverterSeries: [],
+          inverterSeriesForBrandModel: '',
+        }));
+      }
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasPV, extras.pv_inverter_brand, cecOptions.inverterModelsForBrand]);
+
+  // Load inverter series/details when inverter model changes.
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!hasPV) return;
+      const brand = (extras.pv_inverter_brand || '').trim();
+      const model = (extras.pv_inverter_model || '').trim();
+      if (!brand || !model) {
+        setCecOptions((p) => ({ ...p, inverterSeries: [], inverterSeriesForBrandModel: '' }));
+        return;
+      }
+      const key = `${brand}::${model}`;
+      if (cecOptions.inverterSeriesForBrandModel && cecOptions.inverterSeriesForBrandModel === key) return;
+
+      try {
+        const [seriesList, details] = await Promise.all([
+          getCecInverterSeries(brand, model).catch(() => []),
+          getCecInverterDetails(brand, model).catch(() => null),
+        ]);
+        if (cancelled) return;
+        setCecOptions((p) => ({
+          ...p,
+          inverterSeries: Array.isArray(seriesList) ? seriesList : [],
+          inverterSeriesForBrandModel: key,
+        }));
+        if (!extras.pv_inverter_series && details?.series) {
+          updateExtra('pv_inverter_series', details.series);
+        }
+        if (!extras.pv_inverter_power_kw && details?.power_kw != null) {
+          updateExtra('pv_inverter_power_kw', String(details.power_kw));
+        }
+      } catch {
+        if (cancelled) return;
+        setCecOptions((p) => ({ ...p, inverterSeries: [], inverterSeriesForBrandModel: key }));
+      }
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    hasPV,
+    extras.pv_inverter_brand,
+    extras.pv_inverter_model,
+    extras.pv_inverter_series,
+    extras.pv_inverter_power_kw,
+    cecOptions.inverterSeriesForBrandModel,
+  ]);
 
   /** After save: in-app result (success / error), not browser alert or top toast */
   const [resultDialog, setResultDialog] = useState(null);
@@ -287,7 +689,13 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
       pv_system_size_kw: trimOrNull(extras.pv_system_size_kw),
       pv_inverter_size_kw: trimOrNull(extras.pv_inverter_size_kw),
       pv_inverter_brand: trimOrNull(extras.pv_inverter_brand),
+      pv_inverter_model: trimOrNull(extras.pv_inverter_model),
+      pv_inverter_series: trimOrNull(extras.pv_inverter_series),
+      pv_inverter_power_kw: trimOrNull(extras.pv_inverter_power_kw),
+      pv_inverter_quantity: trimOrNull(extras.pv_inverter_quantity),
       pv_panel_brand: trimOrNull(extras.pv_panel_brand),
+      pv_panel_model: trimOrNull(extras.pv_panel_model),
+      pv_panel_quantity: trimOrNull(extras.pv_panel_quantity),
       pv_panel_module_watts: trimOrNull(extras.pv_panel_module_watts),
 
       // EV charger details
@@ -308,6 +716,36 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
         variant: 'error',
         message: err?.message || 'Failed to save changes.',
       });
+    }
+  };
+
+  const runManualCecSync = async () => {
+    if (syncingCec) return;
+    setSyncingCec(true);
+    setCecSyncMessage('');
+    try {
+      const [syncRes, pvPanelBrands, inverterBrands, batteryBrands, meta] = await Promise.all([
+        syncCecNow({ force: true }),
+        getCecPvPanelBrands().catch(() => []),
+        getCecInverterBrands().catch(() => []),
+        getCecBatteryBrands().catch(() => []),
+        getCecMeta().catch(() => null),
+      ]);
+
+      setCecOptions((p) => ({
+        ...p,
+        pvPanelBrands: Array.isArray(pvPanelBrands) ? pvPanelBrands : p.pvPanelBrands,
+        inverterBrands: Array.isArray(inverterBrands) ? inverterBrands : p.inverterBrands,
+        batteryBrands: Array.isArray(batteryBrands) ? batteryBrands : p.batteryBrands,
+      }));
+
+      const updatedAt = meta?.data?.updatedAt || syncRes?.data?.updatedAt || '';
+      setCecLastUpdatedAt(updatedAt);
+      setCecSyncMessage('CEC approved products synced successfully.');
+    } catch (err) {
+      setCecSyncMessage(err?.message || 'CEC sync failed.');
+    } finally {
+      setSyncingCec(false);
     }
   };
 
@@ -371,6 +809,31 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
       />
 
       <Section title="SYSTEM INFORMATION">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 10 }}>
+          <div style={{ fontSize: 12, color: '#6b7280' }}>
+            {cecLastUpdatedAt
+              ? `CEC last sync: ${new Date(cecLastUpdatedAt).toLocaleString()}`
+              : 'CEC last sync: not synced yet'}
+          </div>
+          <button
+            type="button"
+            onClick={runManualCecSync}
+            disabled={syncingCec}
+            style={{
+              ...btnPrimary,
+              padding: '8px 12px',
+              opacity: syncingCec ? 0.7 : 1,
+              cursor: syncingCec ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {syncingCec ? 'Syncing...' : 'Sync CEC'}
+          </button>
+        </div>
+        {cecSyncMessage ? (
+          <div style={{ fontSize: 12, color: /failed/i.test(cecSyncMessage) ? '#b91c1c' : '#065f46', marginBottom: 10 }}>
+            {cecSyncMessage}
+          </div>
+        ) : null}
         <FieldRow>
           <Labeled label="SYSTEM TYPE">
             <select
@@ -428,18 +891,71 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
                     />
                   </Labeled>
                   <Labeled label="INVERTER BRAND">
-                    <input
-                      type="text"
+                    <SuggestInput
                       value={extras.pv_inverter_brand || ''}
-                      onChange={(e) => updateExtra('pv_inverter_brand', e.target.value)}
+                      onChange={handleInverterBrandChange}
+                      options={cecOptions.inverterBrands}
+                      placeholder={cecOptions.loading ? 'Loading approved brands...' : 'Start typing'}
+                    />
+                  </Labeled>
+                  <Labeled label="INVERTER MODEL">
+                    <SuggestInput
+                      value={extras.pv_inverter_model || ''}
+                      onChange={handleInverterModelChange}
+                      options={cecOptions.inverterModels}
+                      placeholder={extras.pv_inverter_brand ? 'Start typing' : 'Select/enter inverter brand first'}
+                    />
+                  </Labeled>
+                  <Labeled label="INVERTER SERIES">
+                    <SuggestInput
+                      value={extras.pv_inverter_series || ''}
+                      onChange={(value) => updateExtra('pv_inverter_series', value)}
+                      options={cecOptions.inverterSeries}
+                      placeholder={extras.pv_inverter_model ? 'Start typing' : 'Select/enter inverter model first'}
+                    />
+                  </Labeled>
+                  <Labeled label="INVERTER POWER (kW)">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={extras.pv_inverter_power_kw || ''}
+                      onChange={(e) => updateExtra('pv_inverter_power_kw', e.target.value)}
+                      style={inputStyle}
+                    />
+                  </Labeled>
+                  <Labeled label="NUMBER OF INVERTER">
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={extras.pv_inverter_quantity || ''}
+                      onChange={(e) => updateExtra('pv_inverter_quantity', e.target.value)}
                       style={inputStyle}
                     />
                   </Labeled>
                   <Labeled label="PANEL BRAND">
-                    <input
-                      type="text"
+                    <SuggestInput
                       value={extras.pv_panel_brand || ''}
-                      onChange={(e) => updateExtra('pv_panel_brand', e.target.value)}
+                      onChange={handlePanelBrandChange}
+                      options={cecOptions.pvPanelBrands}
+                      placeholder={cecOptions.loading ? 'Loading approved brands...' : 'Start typing'}
+                    />
+                  </Labeled>
+                  <Labeled label="PANEL MODEL">
+                    <SuggestInput
+                      value={extras.pv_panel_model || ''}
+                      onChange={handlePanelModelChange}
+                      options={cecOptions.pvPanelModels}
+                      placeholder={extras.pv_panel_brand ? 'Start typing' : 'Select/enter panel brand first'}
+                    />
+                  </Labeled>
+                  <Labeled label="QUANTITY OF PANEL">
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={extras.pv_panel_quantity || ''}
+                      onChange={(e) => updateExtra('pv_panel_quantity', e.target.value)}
                       style={inputStyle}
                     />
                   </Labeled>
@@ -492,19 +1008,23 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
                     />
                   </Labeled>
                   <Labeled label="BATTERY BRAND">
-                    <input
-                      type="text"
+                    <SuggestInput
                       value={extras.battery_brand || ''}
-                      onChange={(e) => updateExtra('battery_brand', e.target.value)}
-                      style={inputStyle}
+                      onChange={handleBatteryBrandChange}
+                      options={cecOptions.batteryBrands}
+                      placeholder={cecOptions.loading ? 'Loading approved brands...' : 'Start typing'}
                     />
                   </Labeled>
                   <Labeled label="BATTERY MODEL">
-                    <input
-                      type="text"
+                    <SuggestInput
                       value={extras.battery_model || ''}
-                      onChange={(e) => updateExtra('battery_model', e.target.value)}
-                      style={inputStyle}
+                      onChange={(value) => updateExtra('battery_model', value)}
+                      options={cecOptions.batteryModels}
+                      placeholder={
+                        extras.battery_brand
+                          ? 'Start typing'
+                          : 'Select/enter brand first'
+                      }
                     />
                   </Labeled>
                 </FieldRow>
@@ -749,6 +1269,55 @@ function Labeled({ label, children }) {
   );
 }
 
+function SuggestInput({ value, onChange, options = [], placeholder = 'Start typing' }) {
+  const [open, setOpen] = useState(false);
+  const query = String(value || '').trim().toLowerCase();
+  const matches = useMemo(() => {
+    const all = Array.isArray(options) ? options : [];
+    if (!query) return all.slice(0, 40);
+    return all.filter((item) => String(item).toLowerCase().includes(query)).slice(0, 40);
+  }, [options, query]);
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        type="text"
+        value={value || ''}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 140)}
+        style={inputStyle}
+        placeholder={placeholder}
+      />
+      {open && matches.length > 0 ? (
+        <div style={suggestMenuStyle}>
+          {matches.map((option) => {
+            const text = String(option);
+            return (
+              <button
+                key={text}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onChange(text);
+                  setOpen(false);
+                }}
+                style={suggestItemStyle}
+                title={text}
+              >
+                {text}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 const btnPrimary = {
   backgroundColor: '#1A7B7B',
   color: '#FFFFFF',
@@ -758,4 +1327,31 @@ const btnPrimary = {
   fontWeight: 700,
   letterSpacing: 0.2,
   cursor: 'pointer',
+};
+
+const suggestMenuStyle = {
+  position: 'absolute',
+  top: 'calc(100% + 6px)',
+  left: 0,
+  right: 0,
+  zIndex: 40,
+  background: '#fff',
+  border: `1px solid ${GRAY}`,
+  borderRadius: 10,
+  boxShadow: '0 10px 24px rgba(15, 23, 42, 0.14)',
+  maxHeight: 240,
+  overflowY: 'auto',
+  padding: 4,
+};
+
+const suggestItemStyle = {
+  width: '100%',
+  textAlign: 'left',
+  background: 'transparent',
+  border: 'none',
+  borderRadius: 8,
+  padding: '8px 10px',
+  color: '#0f172a',
+  cursor: 'pointer',
+  fontSize: 13,
 };

@@ -51,6 +51,7 @@ import installationRoutes from './routes/installationRoutes.js';
 import onFieldRoutes from './routes/onFieldRoutes.js';
 import activityRoutes from './routes/activityRoutes.js';
 import approvalsRoutes from './routes/approvalsRoutes.js';
+import cecApprovedProductsRoutes from './routes/cecApprovedProductsRoutes.js';
 import financialRoutes from './routes/financialRoutes.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -131,6 +132,7 @@ app.use('/api/retailer-projects/:id/notes', retailerProjectNoteRoutes);
 app.use('/api/installation-jobs', installationRoutes);
 app.use('/api/on-field', onFieldRoutes);
 app.use('/api/approvals', approvalsRoutes);
+app.use('/api/cec', cecApprovedProductsRoutes);
 app.use('/api/financial', financialRoutes);
 app.use('/api', activityRoutes);
 // ---------------------------------------------------------------------------
@@ -144,6 +146,18 @@ cron.schedule('0 * * * *', async () => {
     console.log(`[Cron] SolarQuotes sync complete. Found ${count} leads.`);
   } catch (err) {
     console.error('[Cron] SolarQuotes sync failed:', err);
+  }
+});
+
+// Refresh CEC approved products daily at 03:15
+cron.schedule('15 3 * * *', async () => {
+  console.log('[Cron] Syncing CEC approved products...');
+  try {
+    const { syncCecApprovedProducts } = await import('./services/cecApprovedProductsService.js');
+    const res = await syncCecApprovedProducts();
+    console.log('[Cron] CEC sync complete:', res);
+  } catch (err) {
+    console.error('[Cron] CEC sync failed:', err);
   }
 });
 // 404
