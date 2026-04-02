@@ -66,6 +66,12 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.3
 
+# path_provider_foundation 2.6.x adds objective_c (Dart native assets) whose
+# framework can embed simulator platform markers and stray dSYMs — rejected
+# by App Store / Transporter. See: https://stackoverflow.com/q/79893370
+dependency_overrides:
+  path_provider_foundation: 2.5.1
+
 flutter_launcher_icons:
   android: true
   ios: true

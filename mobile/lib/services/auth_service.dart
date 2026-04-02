@@ -84,7 +84,15 @@ class AuthService {
   Future<Map<String, dynamic>> getSidebarConfig() async {
     try {
       final response = await _api.get('/api/me/sidebar');
-      return Map<String, dynamic>.from(response.data);
+      final map = Map<String, dynamic>.from(
+        response.data is Map ? response.data as Map : const {},
+      );
+      // API: { success, data: { role, modules } } — match web `getCompanySidebar`.
+      final data = map['data'];
+      if (data is Map) {
+        return Map<String, dynamic>.from(data);
+      }
+      return map;
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../../core/navigation/role_sidebar_drawer.dart';
 import '../../core/theme/app_colors.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/common/app_drawer.dart';
 import '../../widgets/common/shell_scaffold_scope.dart';
 
@@ -21,56 +24,10 @@ class EmployeeShell extends StatefulWidget {
 class _EmployeeShellState extends State<EmployeeShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  List<DrawerItem> get _drawerItems => const [
-        DrawerItem.divider(label: 'Onsite Field Management'),
-        DrawerItem(
-          label: 'Dashboard',
-          icon: Icons.space_dashboard_outlined,
-          route: '/employee/on-field',
-        ),
-        DrawerItem(
-          label: 'Job Scheduling',
-          icon: Icons.engineering_outlined,
-          route: '/employee/on-field',
-        ),
-        DrawerItem(
-          label: 'Job Management',
-          icon: Icons.build_outlined,
-          route: '/employee/installation',
-        ),
-        DrawerItem.divider(label: 'Operation'),
-        DrawerItem(
-          label: 'Leave',
-          icon: Icons.event_busy_outlined,
-          route: '/employee/leave',
-        ),
-        DrawerItem(
-          label: 'Expenses',
-          icon: Icons.receipt_long_outlined,
-          route: '/employee/expenses',
-        ),
-        DrawerItem(
-          label: 'Messages',
-          icon: Icons.message_outlined,
-          route: '/employee/messages',
-        ),
-        DrawerItem(
-          label: 'Referrals',
-          icon: Icons.share_outlined,
-          route: '/employee/referrals',
-        ),
-        DrawerItem(
-          label: 'Support Tickets',
-          icon: Icons.support_agent_outlined,
-          route: '/employee/support-tickets',
-        ),
-        DrawerItem.divider(),
-        DrawerItem(
-          label: 'Settings',
-          icon: Icons.settings_outlined,
-          route: '/employee/settings',
-        ),
-      ];
+  List<DrawerItem> _drawerItems(AuthProvider auth) {
+    final modules = RoleSidebarDrawer.modulesFromConfig(auth.sidebarConfig);
+    return RoleSidebarDrawer.buildEmployeeDrawerItems(modules);
+  }
 
   int get _currentNavIndex {
     final route = widget.currentRoute;
@@ -98,12 +55,13 @@ class _EmployeeShellState extends State<EmployeeShell> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
     return ShellScaffoldScope(
       scaffoldKey: _scaffoldKey,
       child: Scaffold(
         key: _scaffoldKey,
         drawer: AppDrawer(
-          items: _drawerItems,
+          items: _drawerItems(auth),
           currentRoute: widget.currentRoute,
           onNavigate: (route) => context.go(route),
         ),

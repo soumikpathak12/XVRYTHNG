@@ -1,3 +1,16 @@
+/// API may return DECIMAL columns as strings (e.g. `"0.00"`).
+double? _jsonToDouble(dynamic v) {
+  if (v == null) return null;
+  if (v is double) return v;
+  if (v is int) return v.toDouble();
+  if (v is String) {
+    final t = v.trim();
+    if (t.isEmpty) return null;
+    return double.tryParse(t);
+  }
+  return null;
+}
+
 class AttendanceToday {
   final int? id;
   final String? date;
@@ -31,11 +44,11 @@ class AttendanceToday {
         date: json['date'],
         checkInTime: json['check_in_time'],
         checkOutTime: json['check_out_time'],
-        hoursWorked: json['hours_worked']?.toDouble(),
-        checkInLat: json['check_in_lat']?.toDouble(),
-        checkInLng: json['check_in_lng']?.toDouble(),
-        checkOutLat: json['check_out_lat']?.toDouble(),
-        checkOutLng: json['check_out_lng']?.toDouble(),
+        hoursWorked: _jsonToDouble(json['hours_worked']),
+        checkInLat: _jsonToDouble(json['check_in_lat']),
+        checkInLng: _jsonToDouble(json['check_in_lng']),
+        checkOutLat: _jsonToDouble(json['check_out_lat']),
+        checkOutLng: _jsonToDouble(json['check_out_lng']),
       );
 }
 
@@ -60,7 +73,7 @@ class AttendanceRecord {
         date: json['date'] ?? '',
         checkInTime: json['check_in_time'],
         checkOutTime: json['check_out_time'],
-        hoursWorked: json['hours_worked']?.toDouble(),
+        hoursWorked: _jsonToDouble(json['hours_worked']),
       );
 }
 
@@ -99,7 +112,7 @@ class AttendanceEditRequest {
         attendanceDate: json['attendance_date'],
         origCheckIn: json['orig_check_in'],
         origCheckOut: json['orig_check_out'],
-        origHours: json['orig_hours']?.toDouble(),
+        origHours: _jsonToDouble(json['orig_hours']),
         reqCheckIn: json['req_check_in'],
         reqCheckOut: json['req_check_out'],
         reason: json['reason'],

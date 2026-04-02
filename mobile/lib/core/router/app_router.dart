@@ -400,6 +400,37 @@ GoRouter createRouter(AuthProvider authProvider) {
             builder: (context, state) => const SupportTicketsScreen(),
           ),
           GoRoute(
+            path: '/employee/approvals',
+            builder: (context, state) => const ApprovalsScreen(),
+          ),
+          GoRoute(
+            path: '/employee/payroll',
+            builder: (context, state) => const PayrollScreen(),
+          ),
+          GoRoute(
+            path: '/employee/pm-dashboard',
+            builder: (context, state) => const PmDashboardScreen(),
+          ),
+          GoRoute(
+            path: '/employee/projects/dashboard',
+            builder: (context, state) => const PmDashboardScreen(),
+          ),
+          GoRoute(
+            path: '/employee/projects/retailer',
+            builder: (context, state) => const RetailerProjectsScreen(),
+          ),
+          GoRoute(
+            path: '/employee/projects/retailer/new',
+            builder: (context, state) =>
+                const ProjectFormScreen(isRetailer: true),
+          ),
+          GoRoute(
+            path: '/employee/projects/retailer/:id',
+            builder: (context, state) => RetailerProjectDetailScreen(
+              projectId: int.parse(state.pathParameters['id']!),
+            ),
+          ),
+          GoRoute(
             path: '/employee/projects',
             builder: (context, state) => const ProjectsScreen(),
           ),

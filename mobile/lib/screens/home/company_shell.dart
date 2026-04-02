@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../../core/navigation/role_sidebar_drawer.dart';
 import '../../core/theme/app_colors.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/common/app_drawer.dart';
 import '../../widgets/common/shell_scaffold_scope.dart';
 
@@ -21,66 +24,35 @@ class CompanyShell extends StatefulWidget {
 class _CompanyShellState extends State<CompanyShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  List<DrawerItem> get _drawerItems => const [
-        DrawerItem.divider(label: 'Onsite Field Management'),
-        DrawerItem(
+  List<DrawerItem> _drawerItems(AuthProvider auth) {
+    final modules = RoleSidebarDrawer.modulesFromConfig(auth.sidebarConfig);
+    if (!auth.loading && modules.isEmpty) {
+      final r = (auth.user?.role ?? '').toLowerCase();
+      return [
+        const DrawerItem(
           label: 'Dashboard',
-          icon: Icons.space_dashboard_outlined,
-          route: '/dashboard/on-field',
+          icon: Icons.dashboard_outlined,
+          route: '/dashboard',
         ),
-        DrawerItem(
-          label: 'Job Scheduling',
-          icon: Icons.event_note_outlined,
-          route: '/dashboard/on-field',
-        ),
-        DrawerItem(
-          label: 'Job Management',
-          icon: Icons.build_outlined,
-          route: '/dashboard/installation',
-        ),
-        DrawerItem.divider(label: 'Operation'),
-        DrawerItem(
-          label: 'Operations',
-          icon: Icons.factory_outlined,
-          route: '/dashboard/operations',
-        ),
-        DrawerItem(
-          label: 'Attendance',
-          icon: Icons.access_time_outlined,
-          route: '/dashboard/attendance',
-        ),
-        DrawerItem(
-          label: 'Payroll',
-          icon: Icons.calculate_outlined,
-          route: '/dashboard/payroll',
-        ),
-        DrawerItem(
-          label: 'Referrals',
-          icon: Icons.share_outlined,
-          route: '/dashboard/referrals',
-        ),
-        DrawerItem(
-          label: 'Messages',
-          icon: Icons.message_outlined,
-          route: '/dashboard/messages',
-        ),
-        DrawerItem(
-          label: 'Support Tickets',
-          icon: Icons.support_agent_outlined,
-          route: '/dashboard/support-tickets',
-        ),
-        DrawerItem.divider(),
-        DrawerItem(
-          label: 'Settings',
-          icon: Icons.settings_outlined,
-          route: '/dashboard/settings',
-        ),
-        DrawerItem(
+        if (r == 'company_admin' || r == 'manager')
+          const DrawerItem(
+            label: 'Settings',
+            icon: Icons.settings_outlined,
+            route: '/dashboard/settings',
+          ),
+        const DrawerItem(
           label: 'Profile',
           icon: Icons.person_outline,
           route: '/dashboard/profile',
         ),
       ];
+    }
+    return RoleSidebarDrawer.buildCompanyDrawerItems(
+      modules: modules,
+      apiRole: RoleSidebarDrawer.roleFromConfig(auth.sidebarConfig),
+      userRole: auth.user?.role ?? '',
+    );
+  }
 
   int get _currentNavIndex {
     final route = widget.currentRoute;
@@ -108,12 +80,13 @@ class _CompanyShellState extends State<CompanyShell> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
     return ShellScaffoldScope(
       scaffoldKey: _scaffoldKey,
       child: Scaffold(
         key: _scaffoldKey,
         drawer: AppDrawer(
-          items: _drawerItems,
+          items: _drawerItems(auth),
           currentRoute: widget.currentRoute,
           onNavigate: (route) => context.go(route),
         ),
