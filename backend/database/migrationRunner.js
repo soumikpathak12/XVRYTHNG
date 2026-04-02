@@ -439,6 +439,24 @@ const MIGRATIONS = [
     },
   },
 
+  /* ── V012: Pylon (Observer) solar project link on leads ── */
+  {
+    version: 'V012__leads_pylon_solar_project',
+    description: 'Store Pylon solar_projects id and last proposal URL for CRM leads',
+    up: async () => {
+      const schema = process.env.DB_NAME;
+      const cols = [
+        ['pylon_solar_project_id', 'VARCHAR(32) NULL'],
+        ['pylon_proposal_url', 'VARCHAR(768) NULL'],
+      ];
+      for (const [col, def] of cols) {
+        if (!(await columnExists(schema, 'leads', col))) {
+          await db.execute(`ALTER TABLE leads ADD COLUMN ${col} ${def}`);
+        }
+      }
+    },
+  },
+
 
 ];
 

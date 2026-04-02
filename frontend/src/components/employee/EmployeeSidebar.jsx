@@ -17,6 +17,8 @@ import {
   CheckCircle2,
   Calculator,
   TrendingUp,
+  Briefcase,
+  Building2,
 } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { getCompanySidebar } from '../../services/api.js';

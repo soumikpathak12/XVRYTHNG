@@ -21,20 +21,11 @@ const STAGE_LABELS = {
   closed_lost: 'Closed Lost',
 };
 
- const handleCreateProposal = async () => {
-    try {
-      await createLeadProposal(leadId);
-      onLeadUpdated?.(leadId, 'proposal_sent');
-      await loadLead(); // refresh
-    } catch (err) {
-      setError(err?.message || 'Failed to create proposal');
-    }
-  };
-
 export default function LeadDetailModal({ leadId, onClose, onLeadUpdated }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [creatingProposal, setCreatingProposal] = useState(false);
   const [activeTab, setActiveTab] = useState('details'); // mở Overview trong tab Details trước
 
   const loadLead = useCallback(async () => {
@@ -76,6 +67,25 @@ export default function LeadDetailModal({ leadId, onClose, onLeadUpdated }) {
       setError(err.message || 'Failed to update stage');
     }
   };
+
+  const handleCreateProposal = useCallback(async () => {
+    if (!leadId) return;
+    setCreatingProposal(true);
+    setError('');
+    try {
+      const result = await createLeadProposal(leadId);
+      onLeadUpdated?.(leadId, 'proposal_sent');
+      await loadLead();
+      const openUrl = result?.pylon?.webProposalUrl || result?.pylon?.libraryUrl;
+      if (openUrl) {
+        window.open(openUrl, '_blank', 'noopener,noreferrer');
+      }
+    } catch (err) {
+      setError(err?.message || 'Failed to create proposal');
+    } finally {
+      setCreatingProposal(false);
+    }
+  }, [leadId, loadLead, onLeadUpdated]);
 
   const lead = data?.lead;
   const stageLabel = lead ? (STAGE_LABELS[lead.stage] || lead.stage) : '';
@@ -161,9 +171,9 @@ export default function LeadDetailModal({ leadId, onClose, onLeadUpdated }) {
                   type="button"
                   className="lead-detail-popup-footer-btn primary"
                   onClick={handleCreateProposal}
-                  disabled={lead?.proposal_sent === 1}
+                  disabled={creatingProposal || lead?.proposal_sent === 1}
                 >
-                  {lead?.proposal_sent ? 'Proposal Sent' : 'Create Proposal'}
+                  {creatingProposal ? 'Creating…' : (lead?.proposal_sent ? 'Proposal Sent' : 'Create Proposal')}
               </button>
             </footer>
           </>

@@ -144,14 +144,17 @@ export default function LeadDetailPage() {
     }
   }, [data, leadId]);
 
-  // NEW: Create Proposal
   const handleCreateProposal = useCallback(async () => {
     if (!leadId) return;
     setCreatingProposal(true);
     setError('');
     try {
-      await createLeadProposal(leadId);
-      await loadLead(); // refresh UI (stage, proposal_sent)
+      const result = await createLeadProposal(leadId);
+      await loadLead();
+      const openUrl = result?.pylon?.webProposalUrl || result?.pylon?.libraryUrl;
+      if (openUrl) {
+        window.open(openUrl, '_blank', 'noopener,noreferrer');
+      }
     } catch (err) {
       setError(err?.message || 'Failed to create proposal');
     } finally {
