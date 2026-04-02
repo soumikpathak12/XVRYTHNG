@@ -10,10 +10,6 @@ import {
   MessageSquare,
   MessageCircle,
   Settings,
-  CreditCard,
-  HelpCircle,
-  FileText,
-  ShieldCheck,
   Building2,
   ChevronLeft,
   ChevronRight,
@@ -21,7 +17,6 @@ import {
   Wrench,
   Calculator,
   TrendingUp,
-  Cog,
 } from 'lucide-react';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -58,12 +53,8 @@ const RAW_NAV = [
   { to: '/admin/support-tickets', label: 'Customer Support Tickets', icon: MessageCircle, permission: { resource: 'support', action: 'view' } },
   { to: '/admin/trial-users', label: 'Guest Users', icon: UsersRound, permission: { resource: 'users', action: 'view' } },
   
-  // --- SETTINGS ---
-  { to: '/admin/settings?tab=company', label: 'General', icon: Settings, permission: { resource: 'settings', action: 'view' } },
-  { to: '/admin/settings?tab=subscription', label: 'Subscription Management', icon: CreditCard, permission: { resource: 'settings', action: 'view' } },
-  { to: '/admin/settings?tab=faq_helpdesk', label: 'FAQ & Helpdesk', icon: HelpCircle, permission: { resource: 'settings', action: 'view' } },
-  { to: '/admin/settings?tab=terms', label: 'Terms & Conditions', icon: FileText, permission: { resource: 'settings', action: 'view' } },
-  { to: '/admin/settings?tab=privacy', label: 'Privacy Policy', icon: ShieldCheck, permission: { resource: 'settings', action: 'view' } },
+  // --- SETTINGS (single entry; tabs live inside Settings page) ---
+  { to: '/admin/settings?tab=company', label: 'Settings', icon: Settings, permission: { resource: 'settings', action: 'view' } },
 ];
 
 export default function SuperAdminSidebar({
@@ -161,15 +152,7 @@ export default function SuperAdminSidebar({
       findByTo('/admin/profit-loss-analysis'),
     ]);
 
-    const settingsItems = pick([
-      findByTo('/admin/settings?tab=company'),
-      findByTo('/admin/settings?tab=subscription'),
-      findByTo('/admin/settings?tab=faq_helpdesk'),
-      findByTo('/admin/settings?tab=terms'),
-      findByTo('/admin/settings?tab=privacy'),
-      findByTo('/admin/settings/inspection-templates'),
-      findByTo('/admin/settings/checklist-templates'),
-    ]);
+    const settingsItems = pick([findByTo('/admin/settings?tab=company')]);
 
     return [
       { key: 'lead_management', title: 'Sale Management', icon: TrendingUp, items: leadManagementItems },
@@ -178,7 +161,8 @@ export default function SuperAdminSidebar({
       { key: 'operational_management', title: 'Operational Management', icon: Factory, items: operationalManagementItems },
       { key: 'financial_management', title: 'Financial Management', icon: Calculator, items: financialManagementItems },
       { key: 'communications', title: 'Communications', icon: MessageSquare, items: communicationsItems },
-      { key: 'settings', title: 'Settings', icon: Settings, items: settingsItems },
+      // Render Settings as a single top-level nav item (no submenu).
+      { key: 'settings', noHeader: true, title: 'Settings', icon: Settings, items: settingsItems },
     ].filter((s) => s.items.length > 0);
   }, [navItems]);
 
@@ -211,8 +195,7 @@ export default function SuperAdminSidebar({
         pathname.startsWith('/admin/invoicing') ||
         pathname.startsWith('/admin/profit-loss-analysis') ||
         false,
-      // pathname.startsWith('/admin/profile'),
-      settings: pathname.startsWith('/admin/settings'),
+      // Settings is a single link (no submenu) so no openKey needed.
     };
   });
 
@@ -522,6 +505,54 @@ export default function SuperAdminSidebar({
         ) : (
           <>
             {sections.map((sec, idx) => {
+              // Single top-level row styled like a module header, but navigates to Settings (no submenu).
+              if (sec.noHeader) {
+                const item = sec.items[0];
+                if (!item) return null;
+                const Icon = item.icon;
+                const queryAware =
+                  typeof item.to === 'string' && item.to.includes('?');
+                const exactEnd =
+                  queryAware ||
+                  item.to === '/admin/settings' ||
+                  item.to === '/admin/settings/inspection-templates' ||
+                  item.to === '/admin/settings/checklist-templates';
+
+                const isSettingsActive =
+                  queryAware
+                    ? navItemMatchesLocation(item, location.pathname, location.search)
+                    : location.pathname.startsWith('/admin/settings');
+
+                return (
+                  <div key={sec.key}>
+                    {idx > 0 && <div style={{ height: 1, background: '#F3F4F6', margin: '8px 0' }} />}
+                    <NavLink
+                      to={item.to}
+                      end={exactEnd}
+                      style={{
+                        ...linkBase,
+                        ...moduleHeader,
+                        cursor: 'pointer',
+                        justifyContent: 'flex-start',
+                        textDecoration: 'none',
+                        userSelect: 'none',
+                        ...(isSettingsActive ? moduleHeaderActiveStyle : {}),
+                      }}
+                    >
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+                        <Icon size={18} />
+                        <span
+                          style={{
+                            color: isSettingsActive ? '#0f1a2b' : moduleHeader.color,
+                          }}
+                        >
+                          {sec.title}
+                        </span>
+                      </span>
+                    </NavLink>
+                  </div>
+                );
+              }
               const isPathActive = sec.items.some((item) => {
                 if (item.children?.length) return item.children.some((child) => {
                   if (String(child.to).includes('?')) {
