@@ -320,7 +320,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
 }
 
-class _CalendarView extends StatelessWidget {
+class _CalendarView extends StatefulWidget {
   final List<Project> projects;
   final DateTime selectedDay;
   final ValueChanged<DateTime> onDayChanged;
@@ -336,26 +336,48 @@ class _CalendarView extends StatelessWidget {
   });
 
   @override
+  State<_CalendarView> createState() => _CalendarViewState();
+}
+
+class _CalendarViewState extends State<_CalendarView> {
+  static const int _maxCollapsedDayItems = 3;
+  bool _showAllDayItems = false;
+
+  @override
+  void didUpdateWidget(_CalendarView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedDay != widget.selectedDay) {
+      _showAllDayItems = false;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     DateTime norm(DateTime d) => DateTime(d.year, d.month, d.day);
     final eventsByDay = <DateTime, List<Project>>{};
-    for (final p in projects) {
+    for (final p in widget.projects) {
       final dt = p.scheduledAt ?? p.createdAt;
       if (dt == null) continue;
       final key = norm(dt);
       eventsByDay.putIfAbsent(key, () => []).add(p);
     }
 
-    final dayItems = projects.where((p) {
+    final dayItems = widget.projects.where((p) {
       final dt = p.scheduledAt ?? p.createdAt;
       if (dt == null) return false;
-      return dt.year == selectedDay.year &&
-          dt.month == selectedDay.month &&
-          dt.day == selectedDay.day;
+      return dt.year == widget.selectedDay.year &&
+          dt.month == widget.selectedDay.month &&
+          dt.day == widget.selectedDay.day;
     }).toList();
 
+    final overflow = dayItems.length - _maxCollapsedDayItems;
+    final visibleDayItems = (!_showAllDayItems &&
+            dayItems.length > _maxCollapsedDayItems)
+        ? dayItems.take(_maxCollapsedDayItems).toList()
+        : dayItems;
+
     return RefreshIndicator(
-      onRefresh: onRefresh,
+      onRefresh: widget.onRefresh,
       color: AppColors.primary,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
@@ -370,10 +392,11 @@ class _CalendarView extends StatelessWidget {
             child: TableCalendar<Project>(
               firstDay: DateTime.utc(2020, 1, 1),
               lastDay: DateTime.utc(2100, 12, 31),
-              focusedDay: selectedDay,
+              focusedDay: widget.selectedDay,
               currentDay: DateTime.now(),
-              selectedDayPredicate: (d) => isSameDay(d, selectedDay),
-              onDaySelected: (selected, focused) => onDayChanged(selected),
+              selectedDayPredicate: (d) => isSameDay(d, widget.selectedDay),
+              onDaySelected: (selected, focused) =>
+                  widget.onDayChanged(selected),
               startingDayOfWeek: StartingDayOfWeek.monday,
               availableCalendarFormats: const {CalendarFormat.month: 'Month'},
               calendarFormat: CalendarFormat.month,
@@ -430,11 +453,40 @@ class _CalendarView extends StatelessWidget {
               title: 'No projects for this date',
               subtitle: 'Switch dates to check schedule.',
             )
-          else
-            ...dayItems.map((p) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _ProjectCard(project: p, onTap: () => onTap(p)),
-                )),
+          else ...[
+            for (var i = 0; i < visibleDayItems.length; i++) ...[
+              if (i > 0) const SizedBox(height: 10),
+              _ProjectCard(
+                project: visibleDayItems[i],
+                onTap: () => widget.onTap(visibleDayItems[i]),
+              ),
+            ],
+            if (dayItems.length > _maxCollapsedDayItems) ...[
+              const SizedBox(height: 8),
+              Center(
+                child: TextButton.icon(
+                  onPressed: () =>
+                      setState(() => _showAllDayItems = !_showAllDayItems),
+                  icon: Icon(
+                    _showAllDayItems
+                        ? Icons.expand_less
+                        : Icons.expand_more,
+                    size: 20,
+                    color: AppColors.primary,
+                  ),
+                  label: Text(
+                    _showAllDayItems
+                        ? 'Show less'
+                        : '+$overflow more project${overflow == 1 ? '' : 's'}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ],
       ),
     );

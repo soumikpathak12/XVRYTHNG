@@ -204,12 +204,12 @@ class RoleSidebarDrawer {
       );
     }
     if (allowed.contains('site_inspection')) {
-      // No dedicated mobile screen; calendar lives on On-Field (web has /employee/site-inspection).
+      // Points to dedicated inspection list (web has /employee/site-inspection)
       onFieldItems.add(
         const DrawerItem(
           label: 'Site Inspection',
           icon: Icons.assignment_outlined,
-          route: '/employee/on-field',
+          route: '/employee/site-inspection',
         ),
       );
     }

@@ -35,10 +35,6 @@ class _AttendanceScreenState extends State<AttendanceScreen>
 
   late final TabController _tabController;
 
-  // Edit request form
-  final _editDateCtrl = TextEditingController();
-  final _editCheckInCtrl = TextEditingController();
-  final _editCheckOutCtrl = TextEditingController();
   final _editReasonCtrl = TextEditingController();
   final _editFormKey = GlobalKey<FormState>();
 
@@ -53,9 +49,6 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   void dispose() {
     _liveTimer?.cancel();
     _tabController.dispose();
-    _editDateCtrl.dispose();
-    _editCheckInCtrl.dispose();
-    _editCheckOutCtrl.dispose();
     _editReasonCtrl.dispose();
     super.dispose();
   }
@@ -111,20 +104,38 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   }
 
   Future<Position> _getPosition() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      throw Exception('Location services are disabled. Please enable GPS.');
+    }
+
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
-        throw Exception('Location permission denied');
+        throw Exception('Location permission denied.');
       }
     }
     if (permission == LocationPermission.deniedForever) {
       throw Exception(
-          'Location permission permanently denied. Enable in settings.');
+          'Location permissions are permanently denied. Please enable them in App Settings.');
     }
-    return Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-    );
+
+    try {
+      // Use 'high' instead of 'best' for faster locks on most devices
+      return await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 25),
+        ),
+      );
+    } catch (e) {
+      if (e is TimeoutException) {
+        throw Exception(
+            'Location request timed out. Please ensure you are in an open area with good GPS signal.');
+      }
+      throw Exception('Could not determine location: $e');
+    }
   }
 
   Future<void> _handleCheckIn() async {
@@ -185,19 +196,84 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     }
   }
 
-  Future<void> _submitEditRequest() async {
+  /// Matches web: completed shift with fewer than 8 recorded hours may request a correction.
+  bool _shortShiftNeedsEditRecord(AttendanceRecord r) {
+    if (r.checkInTime == null || r.checkOutTime == null) return false;
+    return (r.hoursWorked ?? 0) < 8;
+  }
+
+  bool _shortShiftNeedsEditToday(AttendanceToday? t) {
+    if (t == null || !t.isCheckedOut) return false;
+    return (t.hoursWorked ?? 0) < 8;
+  }
+
+  AttendanceRecord? _recordFromToday(AttendanceToday t) {
+    if (t.id == null) return null;
+    final rawDate = t.date ?? DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final dateOnly = rawDate.split('T').first;
+    return AttendanceRecord(
+      id: t.id!,
+      date: dateOnly,
+      checkInTime: t.checkInTime,
+      checkOutTime: t.checkOutTime,
+      hoursWorked: t.hoursWorked,
+    );
+  }
+
+  DateTime _recordDayFromString(String dateStr) {
+    final p = dateStr.split('T').first;
+    final d = DateTime.tryParse(p);
+    if (d != null) return DateTime(d.year, d.month, d.day);
+    return DateTime.now();
+  }
+
+  DateTime? _combinedDateTimeForRecord(AttendanceRecord r, String? timeRaw) {
+    if (timeRaw == null || timeRaw.isEmpty) return null;
+    final day = _recordDayFromString(r.date);
+    final iso = DateTime.tryParse(timeRaw);
+    if (iso != null) {
+      return DateTime(
+          day.year, day.month, day.day, iso.hour, iso.minute, iso.second);
+    }
+    final parts = timeRaw.split(':');
+    if (parts.length >= 2) {
+      final h = int.tryParse(parts[0].trim()) ?? 0;
+      final m = int.tryParse(parts[1].trim()) ?? 0;
+      return DateTime(day.year, day.month, day.day, h, m);
+    }
+    return null;
+  }
+
+  String _toApiDatetimeLocal(DateTime dt) {
+    String p2(int n) => n.toString().padLeft(2, '0');
+    return '${dt.year}-${p2(dt.month)}-${p2(dt.day)}T${p2(dt.hour)}:${p2(dt.minute)}';
+  }
+
+  Future<void> _submitEditRequestForRecord(
+    AttendanceRecord record,
+    DateTime reqIn,
+    DateTime reqOut,
+  ) async {
     if (!_editFormKey.currentState!.validate()) return;
+    if (!reqOut.isAfter(reqIn)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content:
+                Text('Check-out must be after check-in.'),
+            backgroundColor: AppColors.danger),
+        );
+      }
+      return;
+    }
     setState(() => _actionLoading = true);
     try {
       await _service.submitEditRequest({
-        'attendance_date': _editDateCtrl.text,
-        'req_check_in': _editCheckInCtrl.text,
-        'req_check_out': _editCheckOutCtrl.text,
-        'reason': _editReasonCtrl.text,
+        'attendanceId': record.id,
+        'reqCheckIn': _toApiDatetimeLocal(reqIn),
+        'reqCheckOut': _toApiDatetimeLocal(reqOut),
+        'reason': _editReasonCtrl.text.trim(),
       });
-      _editDateCtrl.clear();
-      _editCheckInCtrl.clear();
-      _editCheckOutCtrl.clear();
       _editReasonCtrl.clear();
       if (mounted) {
         Navigator.pop(context);
@@ -219,6 +295,242 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     } finally {
       if (mounted) setState(() => _actionLoading = false);
     }
+  }
+
+  void _openEditRequestSheet(AttendanceRecord record) {
+    _editReasonCtrl.clear();
+    var draftIn =
+        _combinedDateTimeForRecord(record, record.checkInTime) ??
+            _recordDayFromString(record.date);
+    var draftOut =
+        _combinedDateTimeForRecord(record, record.checkOutTime) ??
+            draftIn.add(const Duration(hours: 1));
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
+        ),
+        child: StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                child: Form(
+                  key: _editFormKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Request attendance edit',
+                        style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Original — ${_fmtDate(record.date)}',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                  color: AppColors.textPrimary),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Check in: ${_fmtTime(record.checkInTime)} · Check out: ${_fmtTime(record.checkOutTime)} · '
+                              '${record.hoursWorked != null ? '${record.hoursWorked!.toStringAsFixed(2)} h' : '—'}',
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Corrected check-in',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14)),
+                        subtitle: Text(
+                          DateFormat('dd MMM yyyy, hh:mm a').format(draftIn),
+                          style: const TextStyle(
+                              fontSize: 13, color: AppColors.primary),
+                        ),
+                        trailing:
+                            const Icon(Icons.schedule, color: AppColors.primary),
+                        onTap: () async {
+                          final t = await showTimePicker(
+                            context: ctx,
+                            initialTime:
+                                TimeOfDay(hour: draftIn.hour, minute: draftIn.minute),
+                          );
+                          if (t != null) {
+                            final day = _recordDayFromString(record.date);
+                            draftIn = DateTime(
+                                day.year, day.month, day.day, t.hour, t.minute);
+                            setModalState(() {});
+                          }
+                        },
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Corrected check-out',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14)),
+                        subtitle: Text(
+                          DateFormat('dd MMM yyyy, hh:mm a').format(draftOut),
+                          style: const TextStyle(
+                              fontSize: 13, color: AppColors.primary),
+                        ),
+                        trailing:
+                            const Icon(Icons.schedule, color: AppColors.primary),
+                        onTap: () async {
+                          final t = await showTimePicker(
+                            context: ctx,
+                            initialTime: TimeOfDay(
+                                hour: draftOut.hour, minute: draftOut.minute),
+                          );
+                          if (t != null) {
+                            final day = _recordDayFromString(record.date);
+                            draftOut = DateTime(
+                                day.year, day.month, day.day, t.hour, t.minute);
+                            setModalState(() {});
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _editReasonCtrl,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          labelText: 'Reason *',
+                          alignLabelWithHint: true,
+                          prefixIcon: Padding(
+                            padding: EdgeInsets.only(bottom: 44),
+                            child: Icon(Icons.notes_rounded),
+                          ),
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Enter a reason'
+                            : null,
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: _actionLoading
+                                  ? null
+                                  : () => Navigator.pop(context),
+                              child: const Text('Cancel'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: FilledButton(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                              ),
+                              onPressed: _actionLoading
+                                  ? null
+                                  : () => _submitEditRequestForRecord(
+                                        record,
+                                        draftIn,
+                                        draftOut,
+                                      ),
+                              child: const Text('Submit request'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  void _showPickRecordForEditDialog() {
+    final eligible =
+        _history.where(_shortShiftNeedsEditRecord).toList();
+    if (eligible.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No eligible days in history. Corrections apply to completed shifts under 8 hours.',
+          ),
+        ),
+      );
+      return;
+    }
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Choose attendance day'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: eligible.length,
+            itemBuilder: (_, i) {
+              final r = eligible[i];
+              return ListTile(
+                title: Text(_fmtDate(r.date)),
+                subtitle: Text(
+                  '${_fmtTime(r.checkInTime)} – ${_fmtTime(r.checkOutTime)} · ${(r.hoursWorked ?? 0).toStringAsFixed(1)} h',
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _openEditRequestSheet(r);
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
   }
 
   String _fmtDuration(Duration d) {
@@ -325,7 +637,59 @@ class _AttendanceScreenState extends State<AttendanceScreen>
             const SizedBox(height: 20),
             _buildWorkedSummary(),
           ],
+          if (_shortShiftNeedsEditToday(_today)) ...[
+            const SizedBox(height: 16),
+            _buildTodayEditAttendanceCta(),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildTodayEditAttendanceCta() {
+    final rec = _recordFromToday(_today!);
+    if (rec == null) return const SizedBox.shrink();
+    return Card(
+      color: const Color(0xFFFFF9C4),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFFDE68A)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.edit_calendar_outlined,
+                    size: 20, color: Color(0xFF92400E)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Shift complete but under 8 hours — you can request a time correction.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF92400E),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _actionLoading ? null : () => _openEditRequestSheet(rec),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF92400E),
+                side: const BorderSide(color: Color(0xFFFDE68A)),
+              ),
+              icon: const Icon(Icons.edit_rounded, size: 18),
+              label: const Text('Request attendance edit'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -547,59 +911,87 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   }
 
   Widget _historyCard(AttendanceRecord r) {
+    final needsEdit = _shortShiftNeedsEditRecord(r);
     return Card(
       elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.calendar_today_rounded,
-                  color: AppColors.primary, size: 20),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _fmtDate(r.date),
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                        color: AppColors.textPrimary),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${_fmtTime(r.checkInTime)} – ${_fmtTime(r.checkOutTime)}',
-                    style: const TextStyle(
-                        fontSize: 13, color: AppColors.textSecondary),
+                  child: const Icon(Icons.calendar_today_rounded,
+                      color: AppColors.primary, size: 20),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _fmtDate(r.date),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                            color: AppColors.textPrimary),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${_fmtTime(r.checkInTime)} – ${_fmtTime(r.checkOutTime)}',
+                        style: const TextStyle(
+                            fontSize: 13, color: AppColors.textSecondary),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: needsEdit
+                        ? const Color(0xFFFFF9C4)
+                        : AppColors.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '${(r.hoursWorked ?? 0).toStringAsFixed(1)}h',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: needsEdit
+                          ? const Color(0xFFD97706)
+                          : AppColors.primary,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                '${(r.hoursWorked ?? 0).toStringAsFixed(1)}h',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
-                  color: AppColors.primary,
+            if (needsEdit) ...[
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _actionLoading
+                      ? null
+                      : () => _openEditRequestSheet(r),
+                  icon: const Icon(Icons.edit_rounded, size: 18),
+                  label: const Text('Request edit'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFF92400E),
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -613,21 +1005,36 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                side: const BorderSide(color: AppColors.primary),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(vertical: 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Request a correction for a completed shift under 8 hours (same rules as the web app).',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary.withOpacity(0.95),
+                  height: 1.35,
+                ),
               ),
-              onPressed: () => _showEditRequestSheet(),
-              icon: const Icon(Icons.edit_calendar_rounded, size: 20),
-              label: const Text('Submit Edit Request',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-            ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: const BorderSide(color: AppColors.primary),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  onPressed:
+                      _actionLoading ? null : _showPickRecordForEditDialog,
+                  icon: const Icon(Icons.playlist_add_check_rounded, size: 20),
+                  label: const Text('Choose day to request edit',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
           ),
         ),
         Expanded(
@@ -734,165 +1141,5 @@ class _AttendanceScreenState extends State<AttendanceScreen>
         ],
       ),
     );
-  }
-
-  void _showEditRequestSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: _editRequestForm(),
-      ),
-    );
-  }
-
-  Widget _editRequestForm() {
-    return StatefulBuilder(builder: (ctx, setSheetState) {
-      return SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-          child: Form(
-            key: _editFormKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Attendance Edit Request',
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary),
-                ),
-                const SizedBox(height: 20),
-                TextFormField(
-                  controller: _editDateCtrl,
-                  readOnly: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Date',
-                    prefixIcon: Icon(Icons.calendar_today_rounded),
-                    border: OutlineInputBorder(),
-                  ),
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: ctx,
-                      initialDate: DateTime.now(),
-                      firstDate:
-                          DateTime.now().subtract(const Duration(days: 30)),
-                      lastDate: DateTime.now(),
-                    );
-                    if (picked != null) {
-                      _editDateCtrl.text =
-                          DateFormat('yyyy-MM-dd').format(picked);
-                      setSheetState(() {});
-                    }
-                  },
-                  validator: (v) =>
-                      (v == null || v.isEmpty) ? 'Select a date' : null,
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _editCheckInCtrl,
-                        readOnly: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Check In Time',
-                          prefixIcon: Icon(Icons.login_rounded),
-                          border: OutlineInputBorder(),
-                        ),
-                        onTap: () async {
-                          final picked = await showTimePicker(
-                            context: ctx,
-                            initialTime: TimeOfDay.now(),
-                          );
-                          if (picked != null) {
-                            _editCheckInCtrl.text =
-                                '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
-                            setSheetState(() {});
-                          }
-                        },
-                        validator: (v) =>
-                            (v == null || v.isEmpty) ? 'Required' : null,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _editCheckOutCtrl,
-                        readOnly: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Check Out Time',
-                          prefixIcon: Icon(Icons.logout_rounded),
-                          border: OutlineInputBorder(),
-                        ),
-                        onTap: () async {
-                          final picked = await showTimePicker(
-                            context: ctx,
-                            initialTime: TimeOfDay.now(),
-                          );
-                          if (picked != null) {
-                            _editCheckOutCtrl.text =
-                                '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
-                            setSheetState(() {});
-                          }
-                        },
-                        validator: (v) =>
-                            (v == null || v.isEmpty) ? 'Required' : null,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                TextFormField(
-                  controller: _editReasonCtrl,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Reason',
-                    alignLabelWithHint: true,
-                    prefixIcon:
-                        Padding(padding: EdgeInsets.only(bottom: 44), child: Icon(Icons.notes_rounded)),
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Enter a reason' : null,
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onPressed: _actionLoading ? null : _submitEditRequest,
-                    child: const Text('Submit Request',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w600)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    });
   }
 }

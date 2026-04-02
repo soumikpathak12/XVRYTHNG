@@ -40,6 +40,8 @@ import '../../screens/projects/project_form_screen.dart';
 import '../../screens/operations/operations_dashboard_screen.dart';
 import '../../screens/operations/operational_users_placeholder_screen.dart';
 import '../../screens/leads/import_leads_screen.dart';
+import '../../screens/on_field/site_inspection_form_screen.dart';
+import '../../screens/on_field/site_inspection_leads_screen.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -105,6 +107,12 @@ GoRouter createRouter(AuthProvider authProvider) {
           GoRoute(
             path: '/admin/leads/:id',
             builder: (context, state) => LeadDetailScreen(
+              leadId: int.parse(state.pathParameters['id']!),
+            ),
+          ),
+          GoRoute(
+            path: '/admin/leads/:id/site-inspection',
+            builder: (context, state) => SiteInspectionFormScreen(
               leadId: int.parse(state.pathParameters['id']!),
             ),
           ),
@@ -256,6 +264,12 @@ GoRouter createRouter(AuthProvider authProvider) {
             ),
           ),
           GoRoute(
+            path: '/dashboard/leads/:id/site-inspection',
+            builder: (context, state) => SiteInspectionFormScreen(
+              leadId: int.parse(state.pathParameters['id']!),
+            ),
+          ),
+          GoRoute(
             path: '/dashboard/projects',
             builder: (context, state) => const ProjectsScreen(),
           ),
@@ -356,8 +370,18 @@ GoRouter createRouter(AuthProvider authProvider) {
             builder: (context, state) => const LeadsScreen(),
           ),
           GoRoute(
+            path: '/employee/site-inspection',
+            builder: (context, state) => const SiteInspectionLeadsScreen(),
+          ),
+          GoRoute(
             path: '/employee/leads/:id',
             builder: (context, state) => LeadDetailScreen(
+              leadId: int.parse(state.pathParameters['id']!),
+            ),
+          ),
+          GoRoute(
+            path: '/employee/leads/:id/site-inspection',
+            builder: (context, state) => SiteInspectionFormScreen(
               leadId: int.parse(state.pathParameters['id']!),
             ),
           ),

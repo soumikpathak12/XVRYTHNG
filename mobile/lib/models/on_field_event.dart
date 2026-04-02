@@ -30,15 +30,22 @@ class OnFieldEvent {
   });
 
   factory OnFieldEvent.fromJson(Map<String, dynamic> json) {
+    final rawType = json['type'] ?? 'site_inspection';
+    final normalisedType = _normaliseType(rawType);
+    final leadId = json['lead_id'] ??
+        json['leadId'] ??
+        // calendar/leads returns `id` as the lead id; keep as fallback
+        (normalisedType == 'site_inspection' ? json['id'] : null);
+
     return OnFieldEvent(
       id: json['id'] ?? 0,
       title: json['title'] ?? json['customer_name'] ?? '',
-      type: json['type'] ?? 'site_inspection',
+      type: normalisedType,
       start: DateTime.tryParse(json['start'] ?? json['scheduled_date'] ?? '') ??
           DateTime.now(),
       end: json['end'] != null ? DateTime.tryParse(json['end']) : null,
       address: json['address'] ?? json['site_address'],
-      leadId: json['lead_id'] ?? json['leadId'],
+      leadId: leadId,
       jobId: json['job_id'] ?? json['jobId'],
       projectId: json['project_id'] ?? json['projectId'],
       assigneeName: json['assignee_name'] ?? json['assigneeName'],
@@ -51,6 +58,11 @@ class OnFieldEvent {
   String get dayKey =>
       '${start.year}-${start.month.toString().padLeft(2, '0')}-${start.day.toString().padLeft(2, '0')}';
 
-  bool get isSiteInspection => type == 'site_inspection';
-  bool get isInstallation => type == 'installation';
+  bool get isSiteInspection => _normaliseType(type) == 'site_inspection';
+
+  bool get isInstallation => _normaliseType(type) == 'installation';
+
+  static String _normaliseType(String value) {
+    return value.toLowerCase().replaceAll(RegExp('[\\s-]+'), '_').trim();
+  }
 }

@@ -40,7 +40,9 @@ class AttendanceToday {
 
   factory AttendanceToday.fromJson(Map<String, dynamic> json) =>
       AttendanceToday(
-        id: json['id'],
+        id: json['id'] is int
+            ? json['id'] as int
+            : int.tryParse('${json['id']}'),
         date: json['date'],
         checkInTime: json['check_in_time'],
         checkOutTime: json['check_out_time'],
@@ -69,7 +71,9 @@ class AttendanceRecord {
 
   factory AttendanceRecord.fromJson(Map<String, dynamic> json) =>
       AttendanceRecord(
-        id: json['id'] ?? 0,
+        id: json['id'] is int
+            ? json['id'] as int
+            : int.tryParse('${json['id']}') ?? 0,
         date: json['date'] ?? '',
         checkInTime: json['check_in_time'],
         checkOutTime: json['check_out_time'],
