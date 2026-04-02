@@ -2,7 +2,7 @@
 import { Resend } from 'resend';
 import fs from 'fs';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const FROM = process.env.RESEND_FROM || 'Sales <noreply@example.com>';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -69,6 +69,11 @@ export function renderBrandedFollowup({ customerName, round = 1 }) {
 export async function sendAutomatedFollowupEmail({ to, subject, html, headers = {} }) {
   if (!isValidEmail(to)) throw new Error(`Invalid recipient email: ${to}`);
   console.log('[FU] Resend: sending →', { to, subject, from: FROM });
+
+  if (!resend) {
+    console.warn('[FU] Resend email service not configured (RESEND_API_KEY missing). Email NOT sent.');
+    return { data: { id: 'fake-' + Date.now() }, error: null };
+  }
 
   const { data, error } = await resend.emails.send({
     from: FROM,
@@ -220,6 +225,11 @@ export async function sendEmployeeCredentialEmail({
   const html = renderEmployeeCredentialEmail({ employeeName, email, tempPassword, companyName, appUrl });
 
   console.log('[ONBOARD] Resend: sending →', { to, subject, from: FROM });
+
+  if (!resend) {
+    console.warn('[ONBOARD] Resend email service not configured (RESEND_API_KEY missing). Email NOT sent.');
+    return null;
+  }
 
   const { data, error } = await resend.emails.send({
     from: FROM,
@@ -493,6 +503,11 @@ export async function sendTrialLinkEmail({
     supportHtml,
   });
 
+  if (!resend) {
+    console.warn('[TRIAL] Resend email service not configured (RESEND_API_KEY missing). Email NOT sent.');
+    return 'fake-' + Date.now();
+  }
+
   const { data, error } = await resend.emails.send({
     from: FROM,
     to: Array.isArray(to) ? to : [to],
@@ -587,6 +602,11 @@ export async function sendPayslipEmail({
   const html = renderPayslipEmail({ employeeName, companyName, periodStart, periodEnd, netPay });
 
   const content = fs.readFileSync(attachmentPath);
+
+  if (!resend) {
+    console.warn('[PAYSLIP] Resend email service not configured (RESEND_API_KEY missing). Email NOT sent.');
+    return 'fake-' + Date.now();
+  }
 
   const { data, error } = await resend.emails.send({
     from: FROM,

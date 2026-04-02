@@ -899,9 +899,10 @@ export default function RetailerProjectDetailDetails({
                 </div>
                 <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
                   <label style={labelStyle}>PV panel brand</label>
-                  <SuggestInput
+                  <select
                     value={detailForm.pv_panel_brand || ''}
-                    onChange={(value) => {
+                    onChange={(e) => {
+                      const value = e.target.value;
                       setDetailForm((f) => {
                         if (!f) return f;
                         if ((f.pv_panel_brand || '') === value) {
@@ -920,15 +921,23 @@ export default function RetailerProjectDetailDetails({
                         pvPanelModelsForBrand: '',
                       }));
                     }}
-                    options={cecOptions.pvPanelBrands}
-                    placeholder={cecOptions.loading ? 'Loading approved brands...' : 'Start typing'}
-                  />
+                    className="lead-detail-input"
+                    style={inputStyle}
+                  >
+                    <option value="">Select</option>
+                    {cecOptions.pvPanelBrands.map((brand) => (
+                      <option key={brand} value={brand}>
+                        {brand}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
                   <label style={labelStyle}>PV panel model</label>
-                  <SuggestInput
+                  <select
                     value={detailForm.pv_panel_model || ''}
-                    onChange={(value) => {
+                    onChange={(e) => {
+                      const value = e.target.value;
                       setDetailForm((f) => {
                         if (!f) return f;
                         if ((f.pv_panel_model || '') === value) {
@@ -941,9 +950,17 @@ export default function RetailerProjectDetailDetails({
                         };
                       });
                     }}
-                    options={cecOptions.pvPanelModels}
-                    placeholder={detailForm.pv_panel_brand ? 'Start typing' : 'Select/enter panel brand first'}
-                  />
+                    className="lead-detail-input"
+                    style={inputStyle}
+                    disabled={!detailForm.pv_panel_brand}
+                  >
+                    <option value="">{detailForm.pv_panel_brand ? 'Select' : 'Select panel brand first'}</option>
+                    {cecOptions.pvPanelModels.map((model) => (
+                      <option key={model} value={model}>
+                        {model}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
                   <label style={labelStyle}>Quantity of panel</label>

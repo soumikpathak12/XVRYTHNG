@@ -194,9 +194,9 @@ export default function RetailerProjectCreatePanel({ visible, onClose, onCreate 
         if (cancelled) return;
         setCecOptions((p) => ({
           ...p,
-          pvPanelBrands: pvPanelBrands.length ? pvPanelBrands : p.pvPanelBrands,
-          inverterBrands: inverterBrands.length ? inverterBrands : p.inverterBrands,
-          batteryBrands: batteryBrands.length ? batteryBrands : p.batteryBrands,
+          pvPanelBrands: Array.isArray(pvPanelBrands) ? pvPanelBrands : [],
+          inverterBrands: Array.isArray(inverterBrands) ? inverterBrands : [],
+          batteryBrands: Array.isArray(batteryBrands) ? batteryBrands : [],
           loading: false,
         }));
       } catch {
@@ -701,10 +701,8 @@ export default function RetailerProjectCreatePanel({ visible, onClose, onCreate 
                 </label>
                 <label style={s.field}>
                   <span style={s.label}>Panel Brand</span>
-                  <input
+                  <select
                     style={s.input}
-                    type="text"
-                    list="cec-rpcp-panel-brands"
                     value={pvPanelBrand}
                     onChange={(e) => {
                       const value = e.target.value;
@@ -719,16 +717,21 @@ export default function RetailerProjectCreatePanel({ visible, onClose, onCreate 
                       }
                       setPvPanelBrand(value);
                     }}
-                  />
+                  >
+                    <option value="">Select</option>
+                    {cecOptions.pvPanelBrands.map((v) => (
+                      <option key={v} value={v}>
+                        {v}
+                      </option>
+                    ))}
+                  </select>
                 </label>
               </div>
               <div style={s.grid2}>
                 <label style={s.field}>
                   <span style={s.label}>Panel Model</span>
-                  <input
+                  <select
                     style={s.input}
-                    type="text"
-                    list="cec-rpcp-panel-models"
                     value={pvPanelModel}
                     onChange={(e) => {
                       const value = e.target.value;
@@ -737,7 +740,15 @@ export default function RetailerProjectCreatePanel({ visible, onClose, onCreate 
                       }
                       setPvPanelModel(value);
                     }}
-                  />
+                    disabled={!pvPanelBrand}
+                  >
+                    <option value="">{pvPanelBrand ? 'Select' : 'Select panel brand first'}</option>
+                    {cecOptions.pvPanelModels.map((v) => (
+                      <option key={v} value={v}>
+                        {v}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label style={s.field}>
                   <span style={s.label}>Quantity of Panel</span>
@@ -841,12 +852,6 @@ export default function RetailerProjectCreatePanel({ visible, onClose, onCreate 
             </div>
           )}
 
-          <datalist id="cec-rpcp-panel-brands">
-            {cecOptions.pvPanelBrands.map((v) => <option key={v} value={v} />)}
-          </datalist>
-          <datalist id="cec-rpcp-panel-models">
-            {cecOptions.pvPanelModels.map((v) => <option key={v} value={v} />)}
-          </datalist>
           <datalist id="cec-rpcp-inverter-brands">
             {cecOptions.inverterBrands.map((v) => <option key={v} value={v} />)}
           </datalist>

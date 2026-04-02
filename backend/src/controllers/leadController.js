@@ -354,6 +354,8 @@ export async function updateLead(req, res) {
     const leadId = req.params.id;
     const body = req.body || {};
     const payload = {};
+    const panelBrand = body.pv_panel_brand !== undefined ? trimOrNull(body.pv_panel_brand, 120) : undefined;
+    const panelModel = body.pv_panel_model !== undefined ? trimOrNull(body.pv_panel_model, 120) : undefined;
     if (body.stage !== undefined) payload.stage = body.stage;
     if (body.customer_name !== undefined) payload.customer_name = body.customer_name;
     if (body.suburb !== undefined) payload.suburb = body.suburb;
@@ -438,9 +440,9 @@ export async function updateLead(req, res) {
     if (body.pv_inverter_quantity !== undefined)
       payload.pv_inverter_quantity = body.pv_inverter_quantity;
     if (body.pv_panel_brand !== undefined)
-      payload.pv_panel_brand = trimOrNull(body.pv_panel_brand, 120);
+      payload.pv_panel_brand = panelBrand;
     if (body.pv_panel_model !== undefined)
-      payload.pv_panel_model = trimOrNull(body.pv_panel_model, 120);
+      payload.pv_panel_model = panelModel;
     if (body.pv_panel_quantity !== undefined)
       payload.pv_panel_quantity = body.pv_panel_quantity;
     if (body.pv_panel_module_watts !== undefined)
@@ -459,6 +461,35 @@ export async function updateLead(req, res) {
       payload.battery_brand = trimOrNull(body.battery_brand, 120);
     if (body.battery_model !== undefined)
       payload.battery_model = trimOrNull(body.battery_model, 120);
+
+    if (panelBrand !== undefined && panelBrand) {
+      const { brands } = await getPanelBrandOptions();
+      const approvedBrand = brands.some(
+        (brand) => brand.toLowerCase() === panelBrand.toLowerCase(),
+      );
+      if (!approvedBrand) {
+        return res.status(422).json({
+          success: false,
+          errors: { pv_panel_brand: 'Panel manufacturer is not in the approved CEC list.' },
+        });
+      }
+    }
+
+    if (panelModel !== undefined && panelModel) {
+      const brandForModel = panelBrand ?? payload.pv_panel_brand ?? null;
+      if (brandForModel) {
+        const models = await getPanelModelOptionsByBrand(brandForModel);
+        const approvedModel = (models.models || []).some(
+          (model) => model.toLowerCase() === panelModel.toLowerCase(),
+        );
+        if (!approvedModel) {
+          return res.status(422).json({
+            success: false,
+            errors: { pv_panel_model: 'Panel model is not approved for the selected manufacturer.' },
+          });
+        }
+      }
+    }
 
     if (Object.keys(payload).length === 0) {
       const result = await leadService.getLeadById(leadId);

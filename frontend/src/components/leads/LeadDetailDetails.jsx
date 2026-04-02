@@ -31,6 +31,15 @@ function toBoolOrNull(v) {
   return null;
 }
 
+function resolveApprovedOption(input, options) {
+  const raw = String(input ?? '').trim();
+  if (!raw) return '';
+  const want = raw.toLowerCase();
+  const list = Array.isArray(options) ? options : [];
+  const exact = list.find((o) => String(o).trim().toLowerCase() === want);
+  return exact ? String(exact).trim() : '';
+}
+
 export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
   const email = lead?.email ?? lead?._raw?.email ?? '';
   const phone = lead?.phone ?? lead?._raw?.phone ?? '';
@@ -439,37 +448,38 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
     let cancelled = false;
     async function run() {
       if (!hasPV) return;
-      const brand = (extras.pv_panel_brand || '').trim();
-      if (!brand) {
+      const brandInput = (extras.pv_panel_brand || '').trim();
+      const approvedBrand = resolveApprovedOption(brandInput, cecOptions.pvPanelBrands);
+      if (!approvedBrand) {
         setCecOptions((p) => ({ ...p, pvPanelModels: [], pvPanelModelsForBrand: '' }));
         return;
       }
-      if (cecOptions.pvPanelModelsForBrand && cecOptions.pvPanelModelsForBrand === brand) return;
+      if (cecOptions.pvPanelModelsForBrand && cecOptions.pvPanelModelsForBrand === approvedBrand) return;
       try {
-        const models = await getCecPvPanelModels(brand);
+        const models = await getCecPvPanelModels(approvedBrand);
         if (cancelled) return;
         setCecOptions((p) => ({
           ...p,
           pvPanelModels: Array.isArray(models) ? models : [],
-          pvPanelModelsForBrand: brand,
+          pvPanelModelsForBrand: approvedBrand,
         }));
       } catch {
         if (cancelled) return;
-        setCecOptions((p) => ({ ...p, pvPanelModels: [], pvPanelModelsForBrand: brand }));
+        setCecOptions((p) => ({ ...p, pvPanelModels: [], pvPanelModelsForBrand: approvedBrand }));
       }
     }
     run();
     return () => {
       cancelled = true;
     };
-  }, [hasPV, extras.pv_panel_brand, cecOptions.pvPanelModelsForBrand]);
+  }, [hasPV, extras.pv_panel_brand, cecOptions.pvPanelBrands, cecOptions.pvPanelModelsForBrand]);
 
   // Auto-fill panel module watts from selected panel model when available.
   useEffect(() => {
     let cancelled = false;
     async function run() {
       if (!hasPV) return;
-      const brand = (extras.pv_panel_brand || '').trim();
+      const brand = resolveApprovedOption(extras.pv_panel_brand, cecOptions.pvPanelBrands);
       const model = (extras.pv_panel_model || '').trim();
       if (!brand || !model) return;
       // Do not overwrite existing manual value.
@@ -488,7 +498,7 @@ export default function LeadDetailDetails({ lead, onSubmit, onBack }) {
     return () => {
       cancelled = true;
     };
-  }, [hasPV, extras.pv_panel_brand, extras.pv_panel_model, extras.pv_panel_module_watts]);
+  }, [hasPV, extras.pv_panel_brand, cecOptions.pvPanelBrands, extras.pv_panel_model, extras.pv_panel_module_watts]);
 
   // Auto-calculate PV system size (kW) from panel quantity * panel module watts.
   useEffect(() => {
@@ -1274,8 +1284,8 @@ function SuggestInput({ value, onChange, options = [], placeholder = 'Start typi
   const query = String(value || '').trim().toLowerCase();
   const matches = useMemo(() => {
     const all = Array.isArray(options) ? options : [];
-    if (!query) return all.slice(0, 40);
-    return all.filter((item) => String(item).toLowerCase().includes(query)).slice(0, 40);
+    if (!query) return all;
+    return all.filter((item) => String(item).toLowerCase().includes(query));
   }, [options, query]);
 
   return (
