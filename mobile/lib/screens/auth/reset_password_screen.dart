@@ -1,8 +1,9 @@
- import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../services/auth_service.dart';
+import '../../core/network/api_exceptions.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
-  /// You can pass a token via Navigator arguments.
   const ResetPasswordScreen({super.key, this.initialToken});
   final String? initialToken;
 
@@ -22,7 +23,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   bool _obscure2 = true;
   String? _error;
   String? _success;
-  bool? _tokenValid; // null = unknown, true/false after check
+  bool? _tokenValid;
 
   @override
   void initState() {
@@ -56,8 +57,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     }
   }
 
-  // Match server-side constraints (server enforces length >= 8 and more)
-  // We mirror a basic check here; backend remains source of truth.
   String? _validatePasswordLocal(String? v) {
     final s = (v ?? '').trim();
     if (s.length < 8) return 'Password must be at least 8 characters long';
@@ -74,20 +73,16 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     });
 
     try {
-      await _auth.resetPassword(
-        token: _token.text.trim(),
-        newPassword: _password.text,
-      );
+      await _auth.resetPassword(_token.text.trim(), _password.text);
 
       setState(() {
         _success = 'Password has been reset. You can sign in now.';
       });
 
-      // Redirect back to login after a short delay
       await Future.delayed(const Duration(seconds: 1));
       if (!mounted) return;
-      Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
-    } on AuthException catch (e) {
+      context.go('/login');
+    } on ApiException catch (e) {
       setState(() => _error = e.message);
     } catch (_) {
       setState(() => _error = 'Unable to reset password. Please try again.');
@@ -99,12 +94,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final args = ModalRoute.of(context)?.settings.arguments;
-    if (args is String && args.isNotEmpty && _token.text.isEmpty) {
-      _token.text = args;
-      // If pushed with token after build, validate async
-      WidgetsBinding.instance.addPostFrameCallback((_) => _validateToken());
-    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Reset password')),
@@ -120,10 +109,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   shrinkWrap: true,
                   children: [
                     const SizedBox(height: 12),
-
                     if (_error != null) _Banner.error(_error!),
                     if (_success != null) _Banner.success(_success!),
-
                     TextFormField(
                       controller: _token,
                       decoration: InputDecoration(
@@ -151,16 +138,15 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-
                     const SizedBox(height: 12),
-
                     TextFormField(
                       controller: _password,
                       decoration: InputDecoration(
                         labelText: 'New password',
                         prefixIcon: const Icon(Icons.lock_outline),
                         suffixIcon: IconButton(
-                          onPressed: () => setState(() => _obscure1 = !_obscure1),
+                          onPressed: () =>
+                              setState(() => _obscure1 = !_obscure1),
                           icon: Icon(_obscure1
                               ? Icons.visibility_off_outlined
                               : Icons.visibility_outlined),
@@ -170,14 +156,14 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                       validator: _validatePasswordLocal,
                     ),
                     const SizedBox(height: 12),
-
                     TextFormField(
                       controller: _confirm,
                       decoration: InputDecoration(
                         labelText: 'Confirm password',
                         prefixIcon: const Icon(Icons.lock_outline),
                         suffixIcon: IconButton(
-                          onPressed: () => setState(() => _obscure2 = !_obscure2),
+                          onPressed: () =>
+                              setState(() => _obscure2 = !_obscure2),
                           icon: Icon(_obscure2
                               ? Icons.visibility_off_outlined
                               : Icons.visibility_outlined),
@@ -187,18 +173,21 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                       validator: (v) {
                         final msg = _validatePasswordLocal(v);
                         if (msg != null) return msg;
-                        if (v != _password.text) return 'Passwords do not match';
+                        if (v != _password.text) {
+                          return 'Passwords do not match';
+                        }
                         return null;
                       },
                     ),
                     const SizedBox(height: 18),
-
                     FilledButton(
                       onPressed: _loading ? null : _submit,
                       child: _loading
                           ? const SizedBox(
-                              height: 20, width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                              height: 20,
+                              width: 20,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Text('Reset password'),
                     ),

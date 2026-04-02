@@ -81,7 +81,7 @@ export default function SuperAdminSidebar({
       try {
         const res = await getApprovalsPendingCount();
         if (alive) setPendingCount(res?.pending ?? 0);
-      } catch (_) {}
+      } catch (_) { }
     };
     fetchCount();
     const interval = setInterval(fetchCount, 60000);

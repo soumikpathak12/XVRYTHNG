@@ -1,6 +1,7 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../services/auth_service.dart';
+import '../../core/network/api_exceptions.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -17,7 +18,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   bool _loading = false;
   String? _error;
   String? _success;
-  String? _devToken; // visible only in non-release
 
   @override
   void dispose() {
@@ -32,22 +32,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       _loading = true;
       _error = null;
       _success = null;
-      _devToken = null;
     });
 
     try {
-      final devToken = await _auth.requestPasswordReset(
-        email: _email.text.trim(),
-      );
-
+      await _auth.requestPasswordReset(_email.text.trim());
       setState(() {
         _success =
-            "If an account exists for this email, we’ve sent a reset link.";
-        if (!kReleaseMode) {
-          _devToken = devToken;
-        }
+            "If an account exists for this email, we've sent a reset link.";
       });
-    } on AuthException catch (e) {
+    } on ApiException catch (e) {
       setState(() => _error = e.message);
     } catch (_) {
       setState(() => _error = 'Unable to process request. Please try again.');
@@ -67,15 +60,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
               child: Form(
                 key: _formKey,
                 child: ListView(
                   shrinkWrap: true,
                   children: [
                     const SizedBox(height: 16),
-
-                    /// --- Logo ---
                     Center(
                       child: Container(
                         width: 88,
@@ -98,24 +90,17 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 20),
-
                     Text(
-                      'We’ll email you a link to reset your password.',
+                      'We\'ll email you a link to reset your password.',
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: Colors.grey[700],
                       ),
                     ),
-
                     const SizedBox(height: 20),
-
-                    /// Error or Success banners
                     if (_error != null) _Banner.error(_error!),
                     if (_success != null) _Banner.success(_success!),
-
-                    /// Email Field
                     TextFormField(
                       controller: _email,
                       decoration: const InputDecoration(
@@ -134,10 +119,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         return null;
                       },
                     ),
-
                     const SizedBox(height: 20),
-
-                    /// Send Reset Button
                     SizedBox(
                       height: 54,
                       child: FilledButton(
@@ -160,36 +142,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                               ),
                       ),
                     ),
-
                     const SizedBox(height: 10),
-
-                    /// Back to Login
                     TextButton(
                       onPressed:
-                          _loading ? null : () => Navigator.of(context).pop(),
+                          _loading ? null : () => context.pop(),
                       child: const Text('Back to Sign in'),
                     ),
-
-                    /// Developer token (debug)
-                    if (_devToken != null) ...[
-                      const SizedBox(height: 24),
-                      const Text(
-                        'Developer token (debug):',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      SelectableText(_devToken!),
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.of(context).pushNamed(
-                            '/reset-password',
-                            arguments: _devToken,
-                          );
-                        },
-                        icon: const Icon(Icons.vpn_key_outlined),
-                        label: const Text('Open Reset Password with token'),
-                      ),
-                    ],
                   ],
                 ),
               ),
@@ -228,10 +186,7 @@ class _Banner extends StatelessWidget {
         color: bg,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(
-        message,
-        style: TextStyle(color: fg),
-      ),
+      child: Text(message, style: TextStyle(color: fg)),
     );
   }
 }

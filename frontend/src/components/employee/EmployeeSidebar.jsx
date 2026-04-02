@@ -30,19 +30,21 @@ const EMP_MODULE_NAV = {
   // Module-driven items (segment-specific pipelines)
   leads: { to: '/employee/leads', label: 'Leads Kanban', icon: TrendingUp },
   site_inspection: { to: '/employee/site-inspection', label: 'Site Inspection', icon: UsersRound },
-  on_field:     { to: '/employee/on-field',       label: 'On-Field',         icon: HardHat },
-  installation: { to: '/employee/installation',   label: 'Installation Day', icon: Wrench },
-  messages:   { to: '/employee/messages',   label: 'Messages',       icon: MessageSquare },
-  settings:   { to: '/employee/settings',   label: 'Settings',       icon: Settings },
-  attendance: { to: '/employee/attendance', label: 'Attendance',     icon: ClipboardList },
-  leave:      { to: '/employee/leave',      label: 'Leave',          icon: PalmtreeIcon },
-  expenses:   { to: '/employee/expenses',   label: 'Expenses',       icon: Receipt },
-  referrals:  { to: '/employee/referrals',  label: 'Referrals',      icon: Gift },
-  support:    { to: '/employee/support-tickets', label: 'Support Tickets', icon: MessageCircle },
+  on_field: { to: '/employee/on-field', label: 'On-Field', icon: HardHat },
+  installation: { to: '/employee/installation', label: 'Installation Day', icon: Wrench },
+  messages: { to: '/employee/messages', label: 'Messages', icon: MessageSquare },
+  settings: { to: '/employee/settings', label: 'Settings', icon: Settings },
+  attendance: { to: '/employee/attendance', label: 'Attendance', icon: ClipboardList },
+  leave: { to: '/employee/leave', label: 'Leave', icon: PalmtreeIcon },
+  expenses: { to: '/employee/expenses', label: 'Expenses', icon: Receipt },
+  operations: { to: '/employee/operations', label: 'Operations', icon: Briefcase },
+  projects: { to: '/employee/projects', label: 'Projects', icon: Building2 },
+  referrals: { to: '/employee/referrals', label: 'Referrals', icon: Gift },
+  support: { to: '/employee/support-tickets', label: 'Support Tickets', icon: MessageCircle },
 
   // Approvals and Payroll
-  approvals:  { to: '/employee/approvals', label: 'Approvals', icon: CheckCircle2 },
-  payroll:    { to: '/employee/payroll', label: 'Payroll', icon: Calculator },
+  approvals: { to: '/employee/approvals', label: 'Approvals', icon: CheckCircle2 },
+  payroll: { to: '/employee/payroll', label: 'Payroll', icon: Calculator },
 };
 
 export default function EmployeeSidebar() {
