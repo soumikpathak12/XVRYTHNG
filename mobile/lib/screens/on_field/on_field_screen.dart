@@ -28,17 +28,29 @@ class _OnFieldScreenState extends State<OnFieldScreen> {
   DateTime _focusedDay = DateTime.now();
   DateTime _selectedDay = DateTime.now();
   final _dateFmt = DateFormat('EEEE, dd MMMM yyyy');
+  // Default to daily view
+  bool _isMonthView = false;
   
   AttendanceToday? _attStatus;
   bool _loadingAtt = true;
   bool _actionLoading = false;
   Duration _elapsed = Duration.zero;
   Timer? _liveTimer;
+  bool _initialLoadTriggered = false;
 
   @override
   void initState() {
     super.initState();
-    _loadAll();
+    _loadAttendance();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialLoadTriggered) {
+      _initialLoadTriggered = true;
+      context.read<OnFieldProvider>().loadEventsForMonth(_focusedDay);
+    }
   }
 
   @override
@@ -54,6 +66,15 @@ class _OnFieldScreenState extends State<OnFieldScreen> {
 
   void _loadEvents() {
     context.read<OnFieldProvider>().loadEventsForMonth(_focusedDay);
+  }
+
+  void _setSelectedDay(DateTime day) {
+    final monthChanged = _focusedDay.year != day.year || _focusedDay.month != day.month;
+    setState(() {
+      _selectedDay = day;
+      _focusedDay = day;
+    });
+    if (monthChanged) _loadEvents();
   }
 
   Future<void> _loadAttendance() async {
@@ -84,7 +105,6 @@ class _OnFieldScreenState extends State<OnFieldScreen> {
   Future<void> _handleCheckAction(bool isCheckIn) async {
     setState(() => _actionLoading = true);
     try {
-      // In a real app, we'd get GPS here, just using 0,0 for now as per AttendanceScreen pattern
       if (isCheckIn) {
         final res = await _attendanceService.checkIn(0, 0);
         setState(() => _attStatus = res);
@@ -122,9 +142,13 @@ class _OnFieldScreenState extends State<OnFieldScreen> {
   Widget build(BuildContext context) {
     final shellLeading = ShellScaffoldScope.navigationLeading(context);
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         leading: shellLeading,
-        title: const Text('On-Field'),
+        automaticallyImplyLeading: shellLeading == null,
+        title: const Text('On-Field Dashboard', style: TextStyle(fontWeight: FontWeight.w900)),
+        backgroundColor: AppColors.primary,
+        foregroundColor: AppColors.white,
         actions: ShellScaffoldScope.notificationActions(),
       ),
       body: LoadingOverlay(
@@ -137,31 +161,37 @@ class _OnFieldScreenState extends State<OnFieldScreen> {
               final todayEvents = provider.eventsForDay(today);
               
               return ListView(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 children: [
-                  _buildAttendanceHeader(),
-                  const SizedBox(height: 24),
-                  _buildSectionTitle("Today's Jobs", action: 'View Calendar', onAction: () {
-                    // Quick jump to today in calendar
-                    setState(() {
-                      _selectedDay = today;
-                      _focusedDay = today;
-                    });
-                  }),
+                  const SizedBox(height: 8),
+        _buildAttendanceHeader(),
+        const SizedBox(height: 24),
+        _buildSectionTitle("Current Tasks", action: 'View Calendar', onAction: () {
+          setState(() {
+            _selectedDay = today;
+            _focusedDay = today;
+            _isMonthView = true;
+          });
+        }),
                   const SizedBox(height: 12),
-                  if (provider.loading && provider.events.isEmpty)
-                    const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: AppColors.primary)))
+                  if (!provider.hasEverLoaded || (provider.loading && provider.events.isEmpty))
+                    const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator(color: AppColors.primary)))
                   else if (todayEvents.isEmpty)
                     _buildEmptyJobs()
                   else
                     ...todayEvents.map(_buildTodayJobCard),
                   const SizedBox(height: 32),
-                  _buildSectionTitle('Schedule Calendar'),
-                  const SizedBox(height: 12),
-                  _buildCalendar(provider),
-                  const SizedBox(height: 16),
-                  _buildSelectedDayEvents(provider),
-                  const SizedBox(height: 80),
+        _buildSectionTitle('Schedules & Calendar'),
+        const SizedBox(height: 12),
+        _buildViewToggle(),
+        const SizedBox(height: 12),
+        if (_isMonthView)
+          _buildCalendar(provider)
+        else
+          _buildDayHeader(),
+        const SizedBox(height: 16),
+        _buildSelectedDayEvents(provider),
+                  const SizedBox(height: 100),
                 ],
               );
             },
@@ -171,41 +201,136 @@ class _OnFieldScreenState extends State<OnFieldScreen> {
     );
   }
 
-  Widget _buildAttendanceHeader() {
-    final isCheckedIn = _attStatus?.isCheckedIn ?? false;
+  Widget _buildViewToggle() {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [AppColors.primary, AppColors.primary.withOpacity(0.85)]),
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))],
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border.withOpacity(0.4)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          const Text('Schedule View', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.textPrimary)),
+          ToggleButtons(
+            isSelected: [_isMonthView == false, _isMonthView == true],
+            onPressed: (index) {
+              setState(() {
+                _isMonthView = index == 1;
+              });
+            },
+            constraints: const BoxConstraints(minHeight: 36, minWidth: 72),
+            borderRadius: BorderRadius.circular(12),
+            fillColor: AppColors.primary,
+            selectedColor: Colors.white,
+            color: AppColors.textPrimary,
+            children: const [
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Text('Daily', style: TextStyle(fontWeight: FontWeight.w800)),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Text('Month', style: TextStyle(fontWeight: FontWeight.w800)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDayHeader() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border.withOpacity(0.4)),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: 'Previous day',
+            icon: const Icon(Icons.chevron_left),
+            onPressed: () => _setSelectedDay(_selectedDay.subtract(const Duration(days: 1))),
+          ),
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const Text('ACTIVE STATUS', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1)),
-                Text(isCheckedIn ? 'Checked In' : 'Not Checked In', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
-                if (isCheckedIn)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text('Working: ${_elapsed.inHours}h ${(_elapsed.inMinutes % 60).toString().padLeft(2, '0')}m', style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                  ),
+                Text(_dateFmt.format(_selectedDay), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: AppColors.textPrimary)),
+                const SizedBox(height: 2),
+                Text('${_selectedDay.year}-${_selectedDay.month.toString().padLeft(2, '0')}-${_selectedDay.day.toString().padLeft(2, '0')}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
               ],
             ),
           ),
-          ElevatedButton(
-            onPressed: () => _handleCheckAction(!isCheckedIn),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isCheckedIn ? Colors.orange : Colors.greenAccent[700],
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            ),
-            child: Text(isCheckedIn ? 'Check Out' : 'Check In', style: const TextStyle(fontWeight: FontWeight.bold)),
+          IconButton(
+            tooltip: 'Next day',
+            icon: const Icon(Icons.chevron_right),
+            onPressed: () => _setSelectedDay(_selectedDay.add(const Duration(days: 1))),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAttendanceHeader() {
+    final isCheckedIn = _attStatus?.isCheckedIn ?? false;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.primary,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 8))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('FIELD AGENT STATUS', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+                  const SizedBox(height: 4),
+                  Text(isCheckedIn ? 'Checked In' : 'Not Checked In', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(15)),
+                child: Icon(isCheckedIn ? Icons.login_rounded : Icons.logout_rounded, color: Colors.white, size: 24),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              if (isCheckedIn)
+                Expanded(
+                  child: Row(
+                    children: [
+                      const Icon(Icons.timer_outlined, color: Colors.white70, size: 16),
+                      const SizedBox(width: 6),
+                      Text('${_elapsed.inHours}h ${(_elapsed.inMinutes % 60).toString().padLeft(2, '0')}m active', style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+              ElevatedButton(
+                onPressed: () => _handleCheckAction(!isCheckedIn),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isCheckedIn ? Colors.orange[400] : Colors.white,
+                  foregroundColor: isCheckedIn ? Colors.white : AppColors.primary,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+                child: Text(isCheckedIn ? 'Checkout' : 'Check In Now', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+              ),
+            ],
           ),
         ],
       ),
@@ -216,81 +341,111 @@ class _OnFieldScreenState extends State<OnFieldScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(title.toUpperCase(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.textSecondary, letterSpacing: 0.5)),
+        Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: AppColors.textPrimary, letterSpacing: -0.2)),
         if (action != null)
-          TextButton(onPressed: onAction, child: Text(action, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, decoration: TextDecoration.underline))),
+          InkWell(
+            onTap: onAction,
+            child: Text(action, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.primary, decoration: TextDecoration.underline)),
+          ),
       ],
     );
   }
 
   Widget _buildEmptyJobs() {
     return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-      child: const Center(child: Text('No jobs scheduled for today', style: TextStyle(color: AppColors.textSecondary, fontSize: 14))),
-    );
-  }
-
-  Widget _buildTodayJobCard(OnFieldEvent event) {
-    final isInspection = event.isSiteInspection;
-    final timeStr = DateFormat('hh:mm a').format(event.start);
-    
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: AppColors.border)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.border.withOpacity(0.5))),
+      child: Center(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(color: (isInspection ? Colors.teal : Colors.blue).withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-                  child: Text(isInspection ? 'Site Inspection' : 'Installation', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isInspection ? Colors.teal : Colors.blue)),
-                ),
-                const Spacer(),
-                Text(timeStr, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
-              ],
-            ),
+            Icon(Icons.event_available_outlined, size: 48, color: AppColors.textSecondary.withOpacity(0.2)),
             const SizedBox(height: 12),
-            Text(event.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-            if (event.address != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Row(children: [const Icon(Icons.location_on, size: 14, color: AppColors.primary), const SizedBox(width: 4), Expanded(child: Text(event.address!, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)))]),
-              ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: event.address == null ? null : () => _openDirections(event.address!),
-                    style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25))),
-                    child: const Text('Directions'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () => _onEventTap(event),
-                    style: FilledButton.styleFrom(backgroundColor: AppColors.primary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25))),
-                    child: const Text('Start Job'),
-                  ),
-                ),
-              ],
-            ),
+            const Text('No immediate tasks for today', style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600)),
           ],
         ),
       ),
     );
   }
 
+  Widget _buildTodayJobCard(OnFieldEvent event) {
+    final isInspection = event.isSiteInspection;
+    final timeStr = DateFormat('hh:mm a').format(event.start);
+    final color = isInspection ? Colors.teal : Colors.indigo;
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+        border: Border.all(color: AppColors.border.withOpacity(0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                      child: Text(isInspection ? 'Site Inspection' : 'Installation', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: color, letterSpacing: 0.5)),
+                    ),
+                    const Spacer(),
+                    Text(timeStr, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textSecondary)),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text(event.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.textPrimary, height: 1.2)),
+                if (event.address != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Row(children: [Icon(Icons.map_outlined, size: 14, color: color.withOpacity(0.7)), const SizedBox(width: 6), Expanded(child: Text(event.address!, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500)))]),
+                  ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24))),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextButton.icon(
+                    onPressed: event.address == null ? null : () => _openDirections(event.address!),
+                    icon: const Icon(Icons.directions_outlined, size: 18),
+                    label: const Text('Directions', style: TextStyle(fontWeight: FontWeight.w800)),
+                    style: TextButton.styleFrom(foregroundColor: AppColors.textPrimary, padding: const EdgeInsets.symmetric(vertical: 12)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => _onEventTap(event),
+                    style: FilledButton.styleFrom(backgroundColor: color, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), padding: const EdgeInsets.symmetric(vertical: 12)),
+                    child: const Text('Start Now', style: TextStyle(fontWeight: FontWeight.w900)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCalendar(OnFieldProvider provider) {
     return Container(
-      decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 2))],
+        border: Border.all(color: AppColors.border.withOpacity(0.4)),
+      ),
       child: TableCalendar<OnFieldEvent>(
         firstDay: DateTime.utc(2023, 1, 1),
         lastDay: DateTime.utc(2030, 12, 31),
@@ -299,14 +454,39 @@ class _OnFieldScreenState extends State<OnFieldScreen> {
         selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
         eventLoader: (day) => provider.eventsForDay(day),
         startingDayOfWeek: StartingDayOfWeek.monday,
+        rowHeight: 52,
+        calendarBuilders: CalendarBuilders(
+          markerBuilder: (context, date, events) {
+            if (events.isEmpty) return null;
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: events.take(3).map((e) => Container(
+                margin: const EdgeInsets.symmetric(horizontal: 1),
+                width: 12,
+                height: 3,
+                decoration: BoxDecoration(
+                  color: e.isSiteInspection ? Colors.teal : Colors.indigo,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              )).toList(),
+            );
+          },
+        ),
         calendarStyle: const CalendarStyle(
-          todayDecoration: BoxDecoration(color: Color(0x33146b6b), shape: BoxShape.circle),
+          todayDecoration: BoxDecoration(color: Color(0x22146b6b), shape: BoxShape.circle),
           todayTextStyle: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
           selectedDecoration: BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-          markerDecoration: BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle),
+          markersAutoAligned: false,
+          markerMargin: EdgeInsets.only(top: 36),
+          outsideDaysVisible: false,
         ),
-        headerStyle: const HeaderStyle(formatButtonVisible: true, titleCentered: true),
-        onDaySelected: (selected, focused) => setState(() { _selectedDay = selected; _focusedDay = focused; }),
+        headerStyle: HeaderStyle(
+          formatButtonVisible: true,
+          titleCentered: true,
+          formatButtonDecoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
+          formatButtonTextStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primary),
+        ),
+        onDaySelected: (selected, focused) => _setSelectedDay(selected),
         onFormatChanged: (format) => setState(() => _calendarFormat = format),
         onPageChanged: (focused) { _focusedDay = focused; _loadEvents(); },
       ),
@@ -319,16 +499,30 @@ class _OnFieldScreenState extends State<OnFieldScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 16, bottom: 8),
-          child: Text('Events for ${DateFormat('dd MMM').format(_selectedDay)}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
+        Row(
+          children: [
+            const Icon(Icons.calendar_view_day_outlined, size: 16, color: AppColors.textSecondary),
+            const SizedBox(width: 8),
+            Text('Scheduled for ${DateFormat('dd MMM').format(_selectedDay)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.textSecondary)),
+          ],
         ),
-        ...events.map((e) => ListTile(
-          onTap: () => _onEventTap(e),
-          leading: CircleAvatar(backgroundColor: (e.isSiteInspection ? Colors.teal : Colors.blue).withOpacity(0.1), child: Icon(e.isSiteInspection ? Icons.search : Icons.build, size: 20, color: e.isSiteInspection ? Colors.teal : Colors.blue)),
-          title: Text(e.title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-          subtitle: Text(DateFormat('hh:mm a').format(e.start)),
-          trailing: const Icon(Icons.chevron_right, size: 18),
+        const SizedBox(height: 12),
+        ...events.map((e) => Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border.withOpacity(0.3))),
+          child: ListTile(
+            onTap: () => _onEventTap(e),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            leading: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(color: (e.isSiteInspection ? Colors.teal : Colors.indigo).withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+              child: Icon(e.isSiteInspection ? Icons.search : Icons.build_outlined, size: 18, color: e.isSiteInspection ? Colors.teal : Colors.indigo),
+            ),
+            title: Text(e.title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            subtitle: Text(DateFormat('hh:mm a').format(e.start), style: const TextStyle(fontSize: 12)),
+            trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.textSecondary),
+          ),
         )),
       ],
     );

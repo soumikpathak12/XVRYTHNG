@@ -57,10 +57,15 @@ GoRouter createRouter(AuthProvider authProvider) {
           state.matchedLocation == '/forgot-password' ||
           state.matchedLocation.startsWith('/reset-password');
 
-      if (auth.loading) return null;
+      if (auth.loading) {
+        if (state.matchedLocation == '/') return '/splash';
+        return null;
+      }
+
+      final isSplash = state.matchedLocation == '/splash';
 
       if (!isLoggedIn && !isAuthRoute) return '/login';
-      if (isLoggedIn && isAuthRoute) return auth.getDefaultRoute();
+      if (isLoggedIn && (isAuthRoute || isSplash)) return auth.getDefaultRoute();
       return null;
     },
     routes: [
@@ -68,9 +73,16 @@ GoRouter createRouter(AuthProvider authProvider) {
         path: '/',
         redirect: (context, state) {
           final auth = context.read<AuthProvider>();
+          if (auth.loading) return '/splash';
           if (!auth.isAuthenticated) return '/login';
           return auth.getDefaultRoute();
         },
+      ),
+      GoRoute(
+        path: '/splash',
+        builder: (context, state) => const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        ),
       ),
       GoRoute(
         path: '/login',

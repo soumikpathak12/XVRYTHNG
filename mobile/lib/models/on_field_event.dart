@@ -38,10 +38,10 @@ class OnFieldEvent {
         (normalisedType == 'site_inspection' ? json['id'] : null);
 
     return OnFieldEvent(
-      id: json['id'] ?? 0,
+      id: json['id'] is int ? json['id'] : int.tryParse(json['id']?.toString().replaceAll(RegExp(r'[^0-9]'), '') ?? '') ?? 0,
       title: json['title'] ?? json['customer_name'] ?? '',
       type: normalisedType,
-      start: DateTime.tryParse(json['start'] ?? json['scheduled_date'] ?? '') ??
+      start: DateTime.tryParse(json['start'] ?? json['scheduled_date'] ?? json['site_inspection_date'] ?? '') ??
           DateTime.now(),
       end: json['end'] != null ? DateTime.tryParse(json['end']) : null,
       address: json['address'] ?? json['site_address'],
