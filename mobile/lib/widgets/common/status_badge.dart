@@ -49,7 +49,17 @@ class StatusBadge extends StatelessWidget {
       case 'proposal_sent':
       case 'inspection_booked':
       case 'inspection_completed':
+      case 'installation_in_progress':
+      case 'ces_certificate_applied':
+      case 'grid_connection_initiated':
         return AppColors.info.withOpacity(0.12);
+      case 'installation_completed':
+      case 'ces_certificate_received':
+      case 'grid_connection_completed':
+      case 'system_handover':
+        return AppColors.success.withOpacity(0.12);
+      case 'to_be_rescheduled':
+        return AppColors.warning.withOpacity(0.12);
       case 'rejected':
       case 'closed_lost':
       case 'lost':
@@ -87,7 +97,17 @@ class StatusBadge extends StatelessWidget {
       case 'proposal_sent':
       case 'inspection_booked':
       case 'inspection_completed':
+      case 'installation_in_progress':
+      case 'ces_certificate_applied':
+      case 'grid_connection_initiated':
         return AppColors.info;
+      case 'installation_completed':
+      case 'ces_certificate_received':
+      case 'grid_connection_completed':
+      case 'system_handover':
+        return AppColors.success;
+      case 'to_be_rescheduled':
+        return const Color(0xFFB8860B);
       case 'rejected':
       case 'closed_lost':
       case 'lost':

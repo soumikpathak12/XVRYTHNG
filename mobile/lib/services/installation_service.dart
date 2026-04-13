@@ -25,6 +25,26 @@ class InstallationService {
     }
   }
 
+  Future<List<InstallationJob>> listJobsByProject(int projectId, {int? companyId}) async {
+    try {
+      final response = await _api.get(
+        '/api/installation-jobs',
+        queryParameters: {
+          'project_id': projectId,
+          'limit': 100,
+          if (companyId != null) 'companyId': companyId,
+        },
+      );
+      final data = response.data['data'] ?? response.data;
+      if (data is List) {
+        return data.map((e) => InstallationJob.fromJson(e)).toList();
+      }
+      return [];
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
   Future<Map<String, dynamic>> getJob(int id, {int? companyId}) async {
     try {
       final response = await _api.get(

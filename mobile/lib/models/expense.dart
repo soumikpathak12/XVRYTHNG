@@ -32,7 +32,11 @@ class Expense {
   factory Expense.fromJson(Map<String, dynamic> json) => Expense(
         id: json['id'] ?? 0,
         category: json['category'] ?? '',
-        amount: (json['amount'] ?? 0).toDouble(),
+        amount: json['amount'] != null
+            ? (json['amount'] is num
+                ? (json['amount'] as num).toDouble()
+                : double.tryParse(json['amount'].toString()) ?? 0.0)
+            : 0.0,
         currency: json['currency'] ?? 'AUD',
         expenseDate: json['expense_date'] != null
             ? DateTime.tryParse(json['expense_date'].toString())

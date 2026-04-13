@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:dio/dio.dart';
+import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/config/api_config.dart';
 import '../../providers/projects_provider.dart';
 import '../../services/projects_service.dart';
+import '../../services/installation_service.dart';
+import '../../services/expense_service.dart';
 import '../../models/project.dart';
+import '../../models/expense.dart';
 import 'project_edit_screen.dart';
 import '../../widgets/common/status_badge.dart';
 import '../../widgets/common/empty_state.dart';
 import '../../widgets/common/file_picker_bottom_sheet.dart';
 import '../../widgets/common/shell_scaffold_scope.dart';
+import '../../widgets/common/project_milestone_progress.dart';
 
 class ProjectDetailScreen extends StatefulWidget {
   final int projectId;
@@ -33,7 +39,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 6, vsync: this);
+    _tabController = TabController(length: 7, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ProjectsProvider>().loadProjectDetail(widget.projectId);
       _loadAux();
@@ -141,6 +147,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
             Tab(text: 'Overview'),
             Tab(text: 'Financial'),
             Tab(text: 'Schedule & Assign'),
+            Tab(text: 'Expenses'),
             Tab(text: 'Documents'),
             Tab(text: 'Communication'),
             Tab(text: 'Activity'),
@@ -175,6 +182,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
                 schedule: _schedule,
                 assigneeIds: _assigneeIds,
               ),
+              _ExpensesTab(projectId: widget.projectId),
               _DocumentsTab(
                 projectId: widget.projectId,
                 data: {...data, 'documents': _documents},
@@ -316,6 +324,10 @@ class _OverviewTab extends StatelessWidget {
         children: [
           _buildHeader(context, stage),
           const SizedBox(height: 20),
+          ProjectMilestoneProgress(currentStage: stage),
+          // Summary cards matching web app Overview layout
+          _buildSummaryCards(data),
+          const SizedBox(height: 16),
           _SectionCard(
             title: 'Project Information',
             icon: Icons.inventory_2_outlined,
@@ -398,6 +410,42 @@ class _OverviewTab extends StatelessWidget {
     );
   }
 
+  Widget _buildSummaryCards(Map<String, dynamic> data) {
+    final location = _read(data, const ['lead_suburb', 'suburb', 'address']);
+    final systemSizeRaw = data['lead_system_size_kw'] ?? data['system_size_kw'];
+    final systemSize = systemSizeRaw != null ? '$systemSizeRaw kW' : '—';
+    final costRaw = data['approved_expense_total'];
+    final cost = costRaw != null ? _formatCurrency(costRaw) : '—';
+
+    return Row(
+      children: [
+        Expanded(
+          child: _SummaryStatCard(
+            icon: Icons.location_on_outlined,
+            label: 'Location',
+            value: location,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _SummaryStatCard(
+            icon: Icons.solar_power_outlined,
+            label: 'System Size',
+            value: systemSize,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _SummaryStatCard(
+            icon: Icons.attach_money,
+            label: 'Cost',
+            value: cost,
+          ),
+        ),
+      ],
+    );
+  }
+
   String _read(Map<String, dynamic> m, List<String> keys) {
     for (final k in keys) {
       final v = m[k];
@@ -453,6 +501,427 @@ class _FinancialTab extends StatelessWidget {
   }
 
   String _fmt(double v) => '\$${v.toStringAsFixed(0)}';
+}
+
+// ---------------------------------------------------------------------------
+// Expenses Tab
+// ---------------------------------------------------------------------------
+class _ExpensesTab extends StatefulWidget {
+  final int projectId;
+  const _ExpensesTab({required this.projectId});
+
+  @override
+  State<_ExpensesTab> createState() => _ExpensesTabState();
+}
+
+class _ExpensesTabState extends State<_ExpensesTab>
+    with AutomaticKeepAliveClientMixin {
+  final _installationService = InstallationService();
+  final _expenseService = ExpenseService();
+  bool _loading = true;
+  List<Expense> _expenses = [];
+  String? _error;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadExpenses();
+  }
+
+  Future<void> _loadExpenses() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      // 1. Fetch installation jobs linked to this project
+      final projectJobs = await _installationService.listJobsByProject(
+        widget.projectId,
+      );
+
+      // 2. Fetch expenses for each job
+      final allExpenses = <Expense>[];
+      for (final job in projectJobs) {
+        try {
+          final jobExpenses = await _expenseService.getJobExpenses(job.id);
+          allExpenses.addAll(jobExpenses);
+        } catch (_) {
+          // Skip jobs that fail
+        }
+      }
+
+      // Also try fetching the current user's own expenses for this project
+      // via the /my endpoint, in case there are expenses not linked to a job
+      try {
+        final myExpenses = await _expenseService.getMyExpenses();
+        // Add any expenses not already in the list
+        final existingIds = allExpenses.map((e) => e.id).toSet();
+        for (final exp in myExpenses) {
+          if (!existingIds.contains(exp.id)) {
+            // Only include expenses matching this project by name
+            final pName = exp.projectName ?? '';
+            if (pName.toLowerCase().contains('installation job') ||
+                exp.projectId == widget.projectId) {
+              allExpenses.add(exp);
+              existingIds.add(exp.id);
+            }
+          }
+        }
+      } catch (_) {}
+
+      // Sort by date descending
+      allExpenses.sort((a, b) {
+        final da = a.createdAt ?? DateTime(2000);
+        final db = b.createdAt ?? DateTime(2000);
+        return db.compareTo(da);
+      });
+
+      if (!mounted) return;
+      setState(() {
+        _expenses = allExpenses;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    if (_loading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
+    }
+    if (_error != null) {
+      return EmptyState(
+        icon: Icons.error_outline,
+        title: 'Failed to load expenses',
+        subtitle: _error,
+        actionLabel: 'Retry',
+        onAction: _loadExpenses,
+      );
+    }
+    if (_expenses.isEmpty) {
+      return const EmptyState(
+        icon: Icons.receipt_long_outlined,
+        title: 'No expenses yet',
+        subtitle:
+            'Expense claims linked to this project\'s installation jobs will appear here.',
+      );
+    }
+
+    final currencyFmt =
+        NumberFormat.currency(symbol: '\$', decimalDigits: 2);
+    final approvedTotal = _expenses
+        .where((e) => e.status == 'approved')
+        .fold<double>(0, (sum, e) => sum + e.amount);
+    final pendingTotal = _expenses
+        .where((e) => e.status == 'pending')
+        .fold<double>(0, (sum, e) => sum + e.amount);
+
+    return RefreshIndicator(
+      color: AppColors.primary,
+      onRefresh: _loadExpenses,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // Summary row
+          Row(
+            children: [
+              Expanded(
+                child: _ExpenseSummaryCard(
+                  label: 'Approved',
+                  value: currencyFmt.format(approvedTotal),
+                  color: AppColors.success,
+                  icon: Icons.check_circle_outline,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _ExpenseSummaryCard(
+                  label: 'Pending',
+                  value: currencyFmt.format(pendingTotal),
+                  color: AppColors.warning,
+                  icon: Icons.hourglass_empty_rounded,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _ExpenseSummaryCard(
+                  label: 'Total Claims',
+                  value: '${_expenses.length}',
+                  color: AppColors.primary,
+                  icon: Icons.receipt_long_outlined,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Expense Claims',
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ..._expenses.map((expense) {
+            final desc = expense.description?.trim().isNotEmpty == true
+                ? expense.description!
+                : (Expense.categoryLabels[expense.category] ??
+                    expense.category);
+            final isApproved = expense.status == 'approved';
+            final isPending = expense.status == 'pending';
+            final isRejected = expense.status == 'rejected';
+            final receiptUrl = expense.receiptPath == null
+                ? null
+                : expense.receiptPath!.startsWith('http')
+                    ? expense.receiptPath!
+                    : '${ApiConfig.baseUrl}${expense.receiptPath}';
+            final isImage = receiptUrl != null &&
+                (receiptUrl.toLowerCase().contains('.png') ||
+                    receiptUrl.toLowerCase().contains('.jpg') ||
+                    receiptUrl.toLowerCase().contains('.jpeg') ||
+                    receiptUrl.toLowerCase().contains('.gif') ||
+                    receiptUrl.toLowerCase().contains('.webp') ||
+                    receiptUrl.contains('/uploads/'));
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: isRejected
+                      ? AppColors.danger.withOpacity(0.3)
+                      : AppColors.border.withOpacity(0.6),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      if (receiptUrl != null)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            color: AppColors.surface,
+                            child: isImage
+                                ? Image.network(
+                                    receiptUrl,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) =>
+                                        const Icon(
+                                      Icons.broken_image_outlined,
+                                      color: AppColors.disabled,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.picture_as_pdf_outlined,
+                                    color: AppColors.textSecondary,
+                                  ),
+                          ),
+                        )
+                      else
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color:
+                                AppColors.primary.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.receipt_outlined,
+                            size: 20,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              desc,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              [
+                                if (expense.employeeName != null)
+                                  expense.employeeName!,
+                                if (expense.expenseDate != null)
+                                  DateFormat('dd MMM yyyy')
+                                      .format(expense.expenseDate!),
+                              ].join(' · '),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            currencyFmt.format(expense.amount),
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: isApproved
+                                  ? AppColors.success
+                                  : isRejected
+                                      ? AppColors.danger
+                                      : AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          StatusBadge.fromStatus(expense.status),
+                        ],
+                      ),
+                    ],
+                  ),
+                  if (isPending)
+                    Container(
+                      margin: const EdgeInsets.only(top: 10),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: AppColors.warning.withOpacity(0.2),
+                        ),
+                      ),
+                      child: const Text(
+                        'Awaiting manager approval. Full details and receipt visible after approval.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  if (isRejected &&
+                      expense.reviewerNote != null &&
+                      expense.reviewerNote!.isNotEmpty)
+                    Container(
+                      margin: const EdgeInsets.only(top: 10),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.danger.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: AppColors.danger.withOpacity(0.2),
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.info_outline,
+                            size: 16,
+                            color: AppColors.danger,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              expense.reviewerNote!,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            );
+          }),
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExpenseSummaryCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+  final IconData icon;
+
+  const _ExpenseSummaryCard({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ScheduleAssignTab extends StatelessWidget {
@@ -950,6 +1419,66 @@ class _DetailRow extends StatelessWidget {
                 color: AppColors.textPrimary,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Compact stat card used in the Overview summary row (Location, System Size, Cost).
+/// Mirrors the web app's `lead-detail-card` design.
+class _SummaryStatCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _SummaryStatCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: AppColors.primary),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

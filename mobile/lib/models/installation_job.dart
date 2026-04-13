@@ -10,6 +10,8 @@ class InstallationJob {
   final String? systemType;
   final int teamCount;
   final List<String> teamNames;
+  final int? projectId;
+  final int? retailerProjectId;
   final Map<String, dynamic>? raw;
 
   InstallationJob({
@@ -24,6 +26,8 @@ class InstallationJob {
     this.systemType,
     this.teamCount = 0,
     this.teamNames = const [],
+    this.projectId,
+    this.retailerProjectId,
     this.raw,
   });
 
@@ -61,6 +65,12 @@ class InstallationJob {
       systemType: json['system_type'],
       teamCount: parseInt(json['team_count']),
       teamNames: teams,
+      projectId: json['project_id'] != null
+          ? int.tryParse(json['project_id'].toString())
+          : null,
+      retailerProjectId: json['retailer_project_id'] != null
+          ? int.tryParse(json['retailer_project_id'].toString())
+          : null,
       raw: json,
     );
   }
