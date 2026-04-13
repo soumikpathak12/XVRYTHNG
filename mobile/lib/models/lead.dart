@@ -1,3 +1,5 @@
+import '../core/utils/json_parsing.dart';
+
 class Lead {
   final int id;
   final String customerName;
@@ -38,14 +40,14 @@ class Lead {
   });
 
   factory Lead.fromJson(Map<String, dynamic> json) => Lead(
-        id: json['id'] ?? 0,
+        id: parseJsonInt(json['id']),
         customerName: json['customer_name'] ?? json['customerName'] ?? '',
-        email: json['email'],
-        phone: json['phone'],
-        suburb: json['suburb'],
-        address: json['address'],
+        email: json['email']?.toString(),
+        phone: json['phone']?.toString(),
+        suburb: json['suburb']?.toString(),
+        address: json['address']?.toString(),
         systemSize: json['system_size'] ?? json['systemSize'],
-        value: (json['value'] ?? json['pipeline_value'])?.toDouble(),
+        value: parseJsonDouble(json['value'] ?? json['pipeline_value'] ?? json['value_amount']),
         source: json['source'],
         stage: json['stage'] ?? 'new',
         lastActivity: json['last_activity'] ?? json['lastActivity'],

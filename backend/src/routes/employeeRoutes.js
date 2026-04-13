@@ -67,6 +67,7 @@ router.delete('/leave/:id/cancel', leaveController.cancelRequest);
 // Expenses
 router.post('/expenses', receiptUpload.single('receipt'), expenseController.submitExpense);
 router.get('/expenses/my', expenseController.myExpenses);
+router.get('/expenses/job/:jobId', expenseController.jobExpenses);
 router.get('/expenses/pending', expenseController.pendingExpenses);
 router.patch('/expenses/:id/review', expenseController.reviewExpense);
 router.delete('/expenses/:id/cancel', expenseController.cancelExpense);

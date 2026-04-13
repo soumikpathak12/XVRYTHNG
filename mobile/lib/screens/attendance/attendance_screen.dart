@@ -20,6 +20,7 @@ class AttendanceScreen extends StatefulWidget {
 
 class _AttendanceScreenState extends State<AttendanceScreen>
     with SingleTickerProviderStateMixin {
+  static const Duration _auOffset = Duration(hours: 10);
   final _service = AttendanceService();
 
   AttendanceToday? _today;
@@ -542,9 +543,22 @@ class _AttendanceScreenState extends State<AttendanceScreen>
 
   String _fmtTime(String? raw) {
     if (raw == null) return '--:--';
-    final dt = _parseTime(raw);
+    final dt = _parseTimeForDisplay(raw);
     if (dt == null) return raw;
     return DateFormat.jm().format(dt);
+  }
+
+  DateTime? _parseTimeForDisplay(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return null;
+
+    final parsed = _parseTime(trimmed);
+    if (parsed == null) return null;
+
+    // If the API timestamp contains zone info (Z / +/-hh:mm), normalize it to AU.
+    final hasZoneInfo = RegExp(r'(Z|[+-]\d{2}:?\d{2})$').hasMatch(trimmed);
+    if (!hasZoneInfo) return parsed;
+    return parsed.toUtc().add(_auOffset);
   }
 
   String _fmtDate(String? raw) {

@@ -77,12 +77,13 @@ class InstallationService {
     }
   }
 
-  Future<void> uploadPhoto(int jobId, FormData formData, {int? companyId}) async {
+  Future<Map<String, dynamic>> uploadPhoto(int jobId, FormData formData, {int? companyId}) async {
     try {
       if (companyId != null) {
         formData.fields.add(MapEntry('companyId', companyId.toString()));
       }
-      await _api.upload('/api/installation-jobs/$jobId/photos', formData);
+      final response = await _api.upload('/api/installation-jobs/$jobId/photos', formData);
+      return Map<String, dynamic>.from(response.data['data'] ?? response.data ?? {});
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }

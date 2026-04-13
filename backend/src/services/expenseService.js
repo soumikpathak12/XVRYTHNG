@@ -53,6 +53,23 @@ export async function getMyExpenses(companyId, employeeId, options = {}) {
   return rows;
 }
 
+/* ─── All expenses for a specific installation job (not scoped to a single employee) ─── */
+export async function getJobExpenses(companyId, installationJobId) {
+  const label = installationJobProjectLabel(installationJobId);
+  if (!label) return [];
+  const [rows] = await db.query(
+    `SELECT ec.*,
+            CONCAT(e.first_name, ' ', e.last_name) AS employee_name,
+            e.employee_code
+     FROM expense_claims ec
+     LEFT JOIN employees e ON e.id = ec.employee_id
+     WHERE ec.company_id = ? AND ec.project_name = ?
+     ORDER BY ec.created_at DESC`,
+    [companyId, label]
+  );
+  return rows;
+}
+
 /* ─── Manager / Admin: pending ─── */
 export async function getPendingExpenses(companyId) {
   const [rows] = companyId

@@ -65,25 +65,27 @@ class Project {
 
   static const List<String> stages = [
     'new',
-    'design',
-    'permitting',
-    'approved',
     'scheduled',
-    'in_progress',
-    'inspection',
-    'completed',
-    'cancelled',
+    'to_be_rescheduled',
+    'installation_in_progress',
+    'installation_completed',
+    'ces_certificate_applied',
+    'ces_certificate_received',
+    'grid_connection_initiated',
+    'grid_connection_completed',
+    'system_handover',
   ];
 
   static const Map<String, String> stageLabels = {
     'new': 'New',
-    'design': 'Design',
-    'permitting': 'Permitting',
-    'approved': 'Approved',
     'scheduled': 'Scheduled',
-    'in_progress': 'In Progress',
-    'inspection': 'Inspection',
-    'completed': 'Completed',
-    'cancelled': 'Cancelled',
+    'to_be_rescheduled': 'To Be Rescheduled',
+    'installation_in_progress': 'Installation In-Progress',
+    'installation_completed': 'Installation Completed',
+    'ces_certificate_applied': 'CES Certificate Applied',
+    'ces_certificate_received': 'CES Certificate Received',
+    'grid_connection_initiated': 'GRID Connection Initiated',
+    'grid_connection_completed': 'GRID Connection Completed',
+    'system_handover': 'System Handover',
   };
 }

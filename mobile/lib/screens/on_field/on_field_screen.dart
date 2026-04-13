@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
@@ -102,14 +103,48 @@ class _OnFieldScreenState extends State<OnFieldScreen> {
     }
   }
 
+  Future<Position> _getPosition() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      throw Exception('Location services are disabled. Please enable GPS.');
+    }
+
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        throw Exception('Location permission denied.');
+      }
+    }
+    if (permission == LocationPermission.deniedForever) {
+      throw Exception(
+        'Location permission is permanently denied. Please enable it in app settings.',
+      );
+    }
+
+    return Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        timeLimit: Duration(seconds: 25),
+      ),
+    );
+  }
+
   Future<void> _handleCheckAction(bool isCheckIn) async {
     setState(() => _actionLoading = true);
     try {
+      final pos = await _getPosition();
       if (isCheckIn) {
-        final res = await _attendanceService.checkIn(0, 0);
+        final res = await _attendanceService.checkIn(
+          pos.latitude,
+          pos.longitude,
+        );
         setState(() => _attStatus = res);
       } else {
-        final res = await _attendanceService.checkOut(0, 0);
+        final res = await _attendanceService.checkOut(
+          pos.latitude,
+          pos.longitude,
+        );
         setState(() => _attStatus = res);
       }
       _startLiveTimer();
@@ -440,55 +475,121 @@ class _OnFieldScreenState extends State<OnFieldScreen> {
 
   Widget _buildCalendar(OnFieldProvider provider) {
     return Container(
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 2))],
         border: Border.all(color: AppColors.border.withOpacity(0.4)),
       ),
-      child: TableCalendar<OnFieldEvent>(
-        firstDay: DateTime.utc(2023, 1, 1),
-        lastDay: DateTime.utc(2030, 12, 31),
-        focusedDay: _focusedDay,
-        calendarFormat: _calendarFormat,
-        selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-        eventLoader: (day) => provider.eventsForDay(day),
-        startingDayOfWeek: StartingDayOfWeek.monday,
-        rowHeight: 52,
-        calendarBuilders: CalendarBuilders(
-          markerBuilder: (context, date, events) {
-            if (events.isEmpty) return null;
-            return Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: events.take(3).map((e) => Container(
-                margin: const EdgeInsets.symmetric(horizontal: 1),
-                width: 12,
-                height: 3,
-                decoration: BoxDecoration(
-                  color: e.isSiteInspection ? Colors.teal : Colors.indigo,
-                  borderRadius: BorderRadius.circular(2),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _calendarFormatButton(
+                  label: 'Month',
+                  selected: _calendarFormat == CalendarFormat.month,
+                  onTap: () => setState(() => _calendarFormat = CalendarFormat.month),
                 ),
-              )).toList(),
-            );
-          },
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _calendarFormatButton(
+                  label: '2 Weeks',
+                  selected: _calendarFormat == CalendarFormat.twoWeeks,
+                  onTap: () => setState(() => _calendarFormat = CalendarFormat.twoWeeks),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _calendarFormatButton(
+                  label: 'Week',
+                  selected: _calendarFormat == CalendarFormat.week,
+                  onTap: () => setState(() => _calendarFormat = CalendarFormat.week),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          TableCalendar<OnFieldEvent>(
+            firstDay: DateTime.utc(2023, 1, 1),
+            lastDay: DateTime.utc(2030, 12, 31),
+            focusedDay: _focusedDay,
+            calendarFormat: _calendarFormat,
+            availableCalendarFormats: const {
+              CalendarFormat.month: 'Month',
+              CalendarFormat.twoWeeks: '2 Weeks',
+              CalendarFormat.week: 'Week',
+            },
+            selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+            eventLoader: (day) => provider.eventsForDay(day),
+            startingDayOfWeek: StartingDayOfWeek.monday,
+            rowHeight: 52,
+            calendarBuilders: CalendarBuilders(
+              markerBuilder: (context, date, events) {
+                if (events.isEmpty) return null;
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: events.take(3).map((e) => Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 1),
+                    width: 12,
+                    height: 3,
+                    decoration: BoxDecoration(
+                      color: e.isSiteInspection ? Colors.teal : Colors.indigo,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  )).toList(),
+                );
+              },
+            ),
+            calendarStyle: const CalendarStyle(
+              todayDecoration: BoxDecoration(color: Color(0x22146b6b), shape: BoxShape.circle),
+              todayTextStyle: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+              selectedDecoration: BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
+              markersAutoAligned: false,
+              markerMargin: EdgeInsets.only(top: 36),
+              outsideDaysVisible: false,
+            ),
+            headerStyle: HeaderStyle(
+              formatButtonVisible: false,
+              titleCentered: true,
+              formatButtonDecoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
+              formatButtonTextStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primary),
+            ),
+            onDaySelected: (selected, focused) => _setSelectedDay(selected),
+            onFormatChanged: (format) => setState(() => _calendarFormat = format),
+            onPageChanged: (focused) { _focusedDay = focused; _loadEvents(); },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _calendarFormatButton({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary : AppColors.surface,
+          borderRadius: BorderRadius.circular(10),
         ),
-        calendarStyle: const CalendarStyle(
-          todayDecoration: BoxDecoration(color: Color(0x22146b6b), shape: BoxShape.circle),
-          todayTextStyle: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
-          selectedDecoration: BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-          markersAutoAligned: false,
-          markerMargin: EdgeInsets.only(top: 36),
-          outsideDaysVisible: false,
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : AppColors.textPrimary,
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
+          ),
         ),
-        headerStyle: HeaderStyle(
-          formatButtonVisible: true,
-          titleCentered: true,
-          formatButtonDecoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
-          formatButtonTextStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primary),
-        ),
-        onDaySelected: (selected, focused) => _setSelectedDay(selected),
-        onFormatChanged: (format) => setState(() => _calendarFormat = format),
-        onPageChanged: (focused) { _focusedDay = focused; _loadEvents(); },
       ),
     );
   }

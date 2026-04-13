@@ -80,8 +80,7 @@ class _AppWithRouterState extends State<_AppWithRouter> {
       title: 'XVRYTHNG',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system,
+      themeMode: ThemeMode.light,
       routerConfig: router,
     );
   }

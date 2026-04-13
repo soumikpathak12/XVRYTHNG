@@ -64,8 +64,8 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
       if (siResp != null) {
         _inspectionId = siResp['id'];
         _status = siResp['status'] ?? 'draft';
-        final rawForm = siResp['form'] ?? siResp;
-        _formData = Map<String, dynamic>.from(rawForm);
+        _formData = _normalizedFormPayload(siResp);
+        _mergeLeadDefaults(_formData);
       } else {
         _formData = {
           'inspected_at': DateTime.now().toIso8601String(),
@@ -73,6 +73,7 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
           'customer_name': _lead?.customerName ?? '',
           'jobDetails.inspectionCompany': 'xTechs Renewables Pty Ltd',
         };
+        _mergeLeadDefaults(_formData);
       }
     } catch (e) {
       _error = e.toString();
@@ -111,10 +112,114 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
 
   String _resolveUrl(dynamic rawUrl) {
     if (rawUrl == null || rawUrl.toString().isEmpty) return '';
-    final url = rawUrl.toString();
+    final url = rawUrl.toString().trim().replaceAll('\\', '/');
     if (url.startsWith('http')) return url;
-    final normalized = url.startsWith('/') ? url : '/$url';
+    final cleaned = url.replaceFirst(RegExp(r'^\.?/'), '/');
+    final normalized = cleaned.startsWith('/') ? cleaned : '/$cleaned';
     return '${ApiConfig.baseUrl}$normalized';
+  }
+
+  String? _normalizeInspectorName(dynamic raw) {
+    final v = raw?.toString().trim() ?? '';
+    if (v.isEmpty) return null;
+    const allowed = ['Ashley Bronson', 'Liam Jackman', 'Clarke Dean'];
+    for (final item in allowed) {
+      if (item.toLowerCase() == v.toLowerCase()) return item;
+    }
+    return null;
+  }
+
+  String? _normalizeRoofType(dynamic raw) {
+    final v = raw?.toString().trim().toLowerCase() ?? '';
+    if (v.isEmpty) return null;
+    if (v.contains('klip')) return 'Tin Kliplock';
+    if (v.contains('colorbond') || v.contains('colourbond')) return 'Tin Colorbond';
+    if (v.contains('shilling')) return 'Tile Shillings';
+    if (v.contains('terracotta')) return 'Tile Terracotta';
+    if (v.contains('concrete') && v.contains('tile')) return 'Tile Concrete';
+    if (v.contains('tile')) return 'Tile Concrete';
+    return null;
+  }
+
+  String? _normalizeMeterPhase(dynamic raw) {
+    final v = raw?.toString().trim().toLowerCase() ?? '';
+    if (v.isEmpty) return null;
+    if (v == '1' || v == 'single' || v == 'one') return 'Single';
+    if (v == '2' || v == 'double' || v == 'two') return 'Double';
+    if (v == '3' || v == 'three' || v == 'triple') return 'Three';
+    return null;
+  }
+
+  String? _normalizeHouseStorey(dynamic raw) {
+    final v = raw?.toString().trim().toLowerCase() ?? '';
+    if (v.isEmpty) return null;
+    if (v == '1' || v == 'single' || v == 'one' || v == 'one storey' || v == 'one-story') return 'Single';
+    if (v == '2' || v == 'double' || v == 'two' || v == 'two storey' || v == 'two-story') return 'Double';
+    if (v == '3' || v == 'triple' || v == 'three' || v == 'multi' || v == 'triple storey') return 'Triple';
+    return null;
+  }
+
+  bool _isEmptyVal(dynamic v) => v == null || v.toString().trim().isEmpty;
+
+  void _mergeLeadDefaults(Map<String, dynamic> form) {
+    final raw = _lead?.raw ?? <String, dynamic>{};
+    final inspector = _normalizeInspectorName(raw['inspector_name']);
+    final roof = _normalizeRoofType(raw['roof_type']);
+    final meter = _normalizeMeterPhase(raw['meter_phase']);
+    final storey = _normalizeHouseStorey(raw['house_storey']);
+
+    if (_isEmptyVal(form['inspector_name']) && inspector != null) form['inspector_name'] = inspector;
+    if (_isEmptyVal(form['roof_type']) && roof != null) form['roof_type'] = roof;
+    if (_isEmptyVal(form['meter_phase']) && meter != null) form['meter_phase'] = meter;
+    if (_isEmptyVal(form['house_storey']) && storey != null) form['house_storey'] = storey;
+  }
+
+  Map<String, dynamic> _normalizedFormPayload(Map<String, dynamic> siResp) {
+    final rawForm = siResp['form'];
+    final form = rawForm is Map<String, dynamic>
+        ? Map<String, dynamic>.from(rawForm)
+        : rawForm is Map
+            ? Map<String, dynamic>.from(rawForm)
+            : <String, dynamic>{};
+
+    const topLevelKeys = [
+      'inspected_at',
+      'inspector_name',
+      'customer_name',
+      'roof_type',
+      'roof_pitch_deg',
+      'house_storey',
+      'meter_phase',
+      'inverter_location',
+      'msb_condition',
+      'shading',
+      'signature_url',
+      'customer_notes',
+    ];
+
+    for (final key in topLevelKeys) {
+      final val = siResp[key];
+      if (val != null && (form[key] == null || form[key].toString().trim().isEmpty)) {
+        form[key] = val;
+      }
+    }
+
+    return form;
+  }
+
+  String _extractPhotoUrl(dynamic photoData) {
+    if (photoData == null) return '';
+    if (photoData is String) return _resolveUrl(photoData);
+    if (photoData is Map) {
+      final raw = photoData['storage_url'] ??
+          photoData['storageUrl'] ??
+          photoData['url'] ??
+          photoData['file_url'] ??
+          photoData['fileUrl'] ??
+          photoData['path'];
+      return _resolveUrl(raw);
+    }
+    return '';
   }
 
   Future<void> _pickFile(String fieldKey) async {
@@ -131,8 +236,9 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
       });
       final uploaded = await _siService.uploadFile(widget.leadId, formData);
       _setValue(fieldKey, {
-        'storage_url': uploaded['storage_url'] ?? uploaded['storageUrl'],
-        'filename': result.name,
+        ...uploaded,
+        'storage_url': uploaded['storage_url'] ?? uploaded['storageUrl'] ?? uploaded['file_url'] ?? uploaded['fileUrl'] ?? uploaded['url'],
+        'filename': uploaded['filename'] ?? result.name,
       });
     } catch (e) {
       if (mounted) {
@@ -470,7 +576,7 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
 
   Widget _buildPhotoField(InspectionField field) {
     final photoData = _getValue(field.key);
-    final url = photoData is Map ? _resolveUrl(photoData['storage_url'] ?? photoData['storageUrl']) : '';
+    final url = _extractPhotoUrl(photoData);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),

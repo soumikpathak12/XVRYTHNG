@@ -4,6 +4,8 @@ import 'package:dio/dio.dart';
 import '../../core/theme/app_colors.dart';
 import '../../providers/projects_provider.dart';
 import '../../services/projects_service.dart';
+import '../../models/project.dart';
+import 'project_edit_screen.dart';
 import '../../widgets/common/status_badge.dart';
 import '../../widgets/common/empty_state.dart';
 import '../../widgets/common/file_picker_bottom_sheet.dart';
@@ -26,6 +28,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
   List<int> _assigneeIds = const [];
   List<Map<String, dynamic>> _notes = const [];
   List<Map<String, dynamic>> _documents = const [];
+  bool _isStageUpdating = false;
 
   @override
   void initState() {
@@ -48,7 +51,85 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Project Details'),
-        actions: ShellScaffoldScope.notificationActions(),
+        actions: [
+          Consumer<ProjectsProvider>(
+            builder: (context, provider, _) {
+              final data = _resolveData(provider);
+              final stage = (data['stage'] ?? 'new').toString();
+              return PopupMenuButton<String>(
+                tooltip: 'Change status',
+                initialValue: stage,
+                enabled: !_isStageUpdating,
+                onSelected: (next) async {
+                  if (next == stage) return;
+                  try {
+                    final allow = await _canMoveToStage(data, stage, next);
+                    if (!allow) return;
+                    setState(() => _isStageUpdating = true);
+                    await context
+                        .read<ProjectsProvider>()
+                        .updateProjectStage(widget.projectId, next);
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Project status updated'),
+                        backgroundColor: AppColors.success,
+                      ),
+                    );
+                  } catch (e) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to update status: $e')),
+                    );
+                  } finally {
+                    if (mounted) setState(() => _isStageUpdating = false);
+                  }
+                },
+                itemBuilder: (_) => Project.stages
+                    .map(
+                      (s) => PopupMenuItem(
+                        value: s,
+                        child: Text(Project.stageLabels[s] ?? s),
+                      ),
+                    )
+                    .toList(),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Row(
+                    children: [
+                      StatusBadge.fromStatus(stage),
+                      const SizedBox(width: 6),
+                      const Icon(Icons.arrow_drop_down),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            tooltip: 'Edit',
+            icon: const Icon(Icons.edit_outlined),
+            onPressed: () async {
+              final provider = context.read<ProjectsProvider>();
+              final data = _resolveData(provider);
+              final ok = await Navigator.of(context).push<bool>(
+                MaterialPageRoute(
+                  builder: (_) => ProjectEditScreen(
+                    projectId: widget.projectId,
+                    initialData: data,
+                  ),
+                ),
+              );
+              if (ok == true && context.mounted) {
+                await context
+                    .read<ProjectsProvider>()
+                    .loadProjectDetail(widget.projectId);
+                await _loadAux();
+              }
+            },
+          ),
+          ...ShellScaffoldScope.notificationActions(),
+        ],
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppColors.white,
@@ -68,7 +149,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
       ),
       body: Consumer<ProjectsProvider>(
         builder: (context, provider, _) {
-          if (provider.loading && provider.projectDetail == null) {
+          if (provider.detailLoading && provider.projectDetail == null) {
             return const Center(
               child: CircularProgressIndicator(color: AppColors.primary),
             );
@@ -143,6 +224,70 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
         _documents = docs;
       });
     } catch (_) {}
+  }
+
+  Future<bool> _canMoveToStage(
+    Map<String, dynamic> data,
+    String currentStage,
+    String nextStage,
+  ) async {
+    final order = Project.stages;
+    final from = order.indexOf(currentStage);
+    final to = order.indexOf(nextStage);
+    final isForwardMove = from != -1 && to != -1 && to > from;
+
+    if (isForwardMove) {
+      final preApprovalRef = (data['lead_pre_approval_reference_no'] ??
+              data['pre_approval_reference_no'] ??
+              '')
+          .toString()
+          .trim();
+      final solarVic = data['lead_solar_vic_eligibility'] ??
+          data['solar_vic_eligibility'];
+      final hasSolarVic = solarVic != null && solarVic.toString().isNotEmpty;
+
+      if (preApprovalRef.isEmpty || !hasSolarVic) {
+        if (!mounted) return false;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Pre-approval reference number and Solar Vic eligibility are required before moving to the next stage.'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+        return false;
+      }
+    }
+
+    final gridIdx = order.indexOf('grid_connection_initiated');
+    if (from != -1 && to != -1 && gridIdx != -1 && to > gridIdx) {
+      final postInstallRef =
+          (data['post_install_reference_no'] ?? '').toString().trim();
+      if (postInstallRef.isEmpty) {
+        if (!mounted) return false;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Post-install reference number is required before moving past GRID Connection Initiated.'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+        return false;
+      }
+      final docs = await _service.getProjectDocuments(widget.projectId);
+      if (docs.isEmpty) {
+        if (!mounted) return false;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Upload at least one project document before moving past GRID Connection Initiated.'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+        return false;
+      }
+    }
+    return true;
   }
 }
 

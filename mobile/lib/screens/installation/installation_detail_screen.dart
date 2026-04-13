@@ -1,14 +1,20 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/config/api_config.dart';
+import '../../models/expense.dart';
 import '../../models/installation_job.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/installation_provider.dart';
+import '../../services/expense_service.dart';
 import '../../services/installation_service.dart';
 import '../../widgets/common/file_picker_bottom_sheet.dart';
 import '../../widgets/common/loading_overlay.dart';
@@ -26,8 +32,16 @@ class InstallationDetailScreen extends StatefulWidget {
 
 class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
   final InstallationService _service = InstallationService();
+  final ExpenseService _expenseService = ExpenseService();
   bool _actionLoading = false;
+  bool _loadingExpenses = false;
+  bool _isSigning = false;
   int? _companyId;
+  List<Expense> _jobExpenses = [];
+  final TextEditingController _signoffCustomerCtrl = TextEditingController();
+  final TextEditingController _signoffNotesCtrl = TextEditingController();
+  final GlobalKey _signatureBoundaryKey = GlobalKey();
+  List<Offset?> _signaturePoints = [];
 
   @override
   void initState() {
@@ -37,7 +51,15 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
       context
           .read<InstallationProvider>()
           .loadJobDetail(widget.jobId, companyId: _companyId);
+      _refreshJobExpenses();
     });
+  }
+
+  @override
+  void dispose() {
+    _signoffCustomerCtrl.dispose();
+    _signoffNotesCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _updateStatus(String newStatus) async {
@@ -133,36 +155,36 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
   }
 
   Future<void> _submitSignoff() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Complete Installation'),
-        content: const Text(
-          'Are you sure you want to sign off this installation? '
-          'This action cannot be undone.',
+    final customerName = _signoffCustomerCtrl.text.trim();
+    if (customerName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Customer name is required for signoff'),
+          backgroundColor: AppColors.danger,
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.primary,
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Confirm'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
+      );
+      return;
+    }
+    if (_signaturePoints.whereType<Offset>().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please provide signature before signoff'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      return;
+    }
 
     setState(() => _actionLoading = true);
     try {
+      final signatureUrl = await _uploadSignoffSignature();
+      if (signatureUrl == null || signatureUrl.isEmpty) {
+        throw Exception('Failed to upload signature');
+      }
       await _service.submitSignoff(widget.jobId, {
-        'signed_at': DateTime.now().toIso8601String(),
+        'customer_name': customerName,
+        'signature_url': signatureUrl,
+        'notes': _signoffNotesCtrl.text.trim(),
       }, companyId: _companyId);
       if (mounted) {
         await context
@@ -186,6 +208,263 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
       }
     } finally {
       if (mounted) setState(() => _actionLoading = false);
+    }
+  }
+
+  Future<String?> _uploadSignoffSignature() async {
+    final boundary = _signatureBoundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+    if (boundary == null) return null;
+    final image = await boundary.toImage(pixelRatio: 3);
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    if (byteData == null) return null;
+    final bytes = byteData.buffer.asUint8List();
+
+    final formData = FormData.fromMap({
+      'section': 'signoff',
+      'photo': MultipartFile.fromBytes(
+        bytes,
+        filename: 'signoff-${widget.jobId}-${DateTime.now().millisecondsSinceEpoch}.png',
+      ),
+    });
+    final uploaded = await _service.uploadPhoto(widget.jobId, formData, companyId: _companyId);
+    return (uploaded['storage_url'] ?? uploaded['storageUrl'])?.toString();
+  }
+
+  Future<void> _showAddExpenseSheet() async {
+    final amountCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    final allowedCategories = const ['travel', 'materials', 'equipment', 'other'];
+    var category = allowedCategories.first;
+    var expenseDate = DateTime.now();
+    File? receiptFile;
+    String? receiptMimeType;
+    String? receiptName;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 16,
+          ),
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Add Job Expense',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: category,
+                  decoration: const InputDecoration(
+                    labelText: 'Category',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: allowedCategories
+                      .map((c) => DropdownMenuItem(
+                            value: c,
+                            child: Text(c[0].toUpperCase() + c.substring(1)),
+                          ))
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) setSheetState(() => category = v);
+                  },
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: amountCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Amount',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'Amount is required';
+                    final parsed = double.tryParse(v.trim());
+                    if (parsed == null || parsed <= 0) return 'Enter valid amount';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: descCtrl,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Description',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Description is required' : null,
+                ),
+                const SizedBox(height: 10),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.calendar_today_outlined),
+                  title: const Text('Expense Date'),
+                  subtitle: Text(DateFormat('dd MMM yyyy').format(expenseDate)),
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: sheetContext,
+                      initialDate: expenseDate,
+                      firstDate: DateTime.now().subtract(const Duration(days: 90)),
+                      lastDate: DateTime.now(),
+                    );
+                    if (picked != null) setSheetState(() => expenseDate = picked);
+                  },
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    receiptFile == null ? Icons.upload_file_outlined : Icons.check_circle_outline,
+                    color: receiptFile == null ? AppColors.textSecondary : AppColors.success,
+                  ),
+                  title: Text(receiptName ?? 'Upload Receipt'),
+                  subtitle: const Text('Required: image or PDF'),
+                  onTap: () async {
+                    final result = await showFilePickerSheet(sheetContext);
+                    if (result != null) {
+                      setSheetState(() {
+                        receiptFile = result.file;
+                        receiptMimeType = result.mimeType;
+                        receiptName = result.name;
+                      });
+                    }
+                  },
+                ),
+                if (receiptFile != null) ...[
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: SizedBox(
+                      height: 120,
+                      width: double.infinity,
+                      child: (receiptMimeType ?? '').startsWith('image/')
+                          ? Image.file(
+                              receiptFile!,
+                              fit: BoxFit.cover,
+                            )
+                          : Container(
+                              color: AppColors.surface,
+                              child: const Center(
+                                child: Icon(
+                                  Icons.picture_as_pdf_outlined,
+                                  size: 36,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () async {
+                      if (!formKey.currentState!.validate()) return;
+                      if (receiptFile == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Receipt is required'),
+                            backgroundColor: AppColors.danger,
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.of(sheetContext).pop();
+                      await _submitJobExpense(
+                        category: category,
+                        amount: amountCtrl.text.trim(),
+                        description: descCtrl.text.trim(),
+                        expenseDate: expenseDate,
+                        receiptFile: receiptFile!,
+                        receiptName: receiptName ?? 'receipt',
+                      );
+                    },
+                    child: const Text('Submit Expense'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submitJobExpense({
+    required String category,
+    required String amount,
+    required String description,
+    required DateTime expenseDate,
+    required File receiptFile,
+    required String receiptName,
+  }) async {
+    setState(() => _actionLoading = true);
+    try {
+      final formData = FormData.fromMap({
+        'category': category,
+        'amount': double.parse(amount),
+        'expenseDate': DateFormat('yyyy-MM-dd').format(expenseDate),
+        'description': description,
+        'installationJobId': widget.jobId.toString(),
+        'receipt': await MultipartFile.fromFile(
+          receiptFile.path,
+          filename: receiptName,
+        ),
+      });
+      await _expenseService.submitExpense(formData);
+      if (mounted) {
+        await context
+            .read<InstallationProvider>()
+            .loadJobDetail(widget.jobId, companyId: _companyId);
+        await _refreshJobExpenses();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Expense added successfully'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to add expense: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _actionLoading = false);
+    }
+  }
+
+  Future<void> _refreshJobExpenses() async {
+    setState(() => _loadingExpenses = true);
+    try {
+      final expenses = await _expenseService.getJobExpenses(
+        widget.jobId,
+        companyId: _companyId,
+      );
+      if (!mounted) return;
+      setState(() => _jobExpenses = expenses);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _jobExpenses = []);
+    } finally {
+      if (mounted) setState(() => _loadingExpenses = false);
     }
   }
 
@@ -242,10 +521,16 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                     : RefreshIndicator(
                         color: AppColors.primary,
                         onRefresh: () =>
-                            provider.loadJobDetail(widget.jobId,
-                                companyId: _companyId),
+                            Future.wait([
+                              provider.loadJobDetail(widget.jobId,
+                                  companyId: _companyId),
+                              _refreshJobExpenses(),
+                            ]),
                         child: ListView(
                           padding: const EdgeInsets.all(16),
+                          physics: _isSigning
+                              ? const NeverScrollableScrollPhysics()
+                              : const AlwaysScrollableScrollPhysics(),
                           children: [
                             _buildHeader(detail),
                             const SizedBox(height: 16),
@@ -635,17 +920,24 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
   }
 
   Widget _buildExpenses(Map<String, dynamic> detail) {
-    final rawExpenses = detail['expenses'] as List? ?? [];
-    final expenses = rawExpenses
-        .map((e) => e is Map<String, dynamic> ? e : <String, dynamic>{})
-        .toList();
-
     final currencyFmt = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
 
     return _SectionCard(
       title: 'Expenses & Receipts',
       icon: Icons.receipt_long_outlined,
-      child: expenses.isEmpty
+      trailing: IconButton(
+        icon: const Icon(Icons.add_circle_outline, color: AppColors.primary),
+        onPressed: _showAddExpenseSheet,
+        tooltip: 'Add expense',
+      ),
+      child: _loadingExpenses
+          ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              ),
+            )
+          : _jobExpenses.isEmpty
           ? const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
               child: Text(
@@ -657,36 +949,95 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
               ),
             )
           : Column(
-              children: expenses.map((expense) {
-                final desc =
-                    expense['description'] ?? expense['name'] ?? 'Expense';
-                final amount = (expense['amount'] ?? 0).toDouble();
+              children: _jobExpenses.map((expense) {
+                final desc = expense.description?.trim().isNotEmpty == true
+                    ? expense.description!
+                    : 'Expense';
+                final isPending = expense.status == 'pending';
+                final isApproved = expense.status == 'approved';
+                final isImage = (expense.receiptPath ?? '')
+                        .toLowerCase()
+                        .contains(RegExp(r'\.(png|jpe?g|gif|webp)$')) ||
+                    (expense.receiptPath ?? '').contains('/uploads/');
+                final receiptUrl = expense.receiptPath == null
+                    ? null
+                    : expense.receiptPath!.startsWith('http')
+                        ? expense.receiptPath!
+                        : '${ApiConfig.baseUrl}${expense.receiptPath}';
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: AppColors.warning.withOpacity(0.12),
+                      if (receiptUrl != null)
+                        ClipRRect(
                           borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(Icons.receipt_outlined,
-                            size: 18, color: Color(0xFFB8860B)),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          desc.toString(),
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textPrimary,
+                          child: Container(
+                            width: 46,
+                            height: 46,
+                            color: AppColors.surface,
+                            child: isImage
+                                ? Image.network(
+                                    receiptUrl,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => const Icon(
+                                      Icons.broken_image_outlined,
+                                      color: AppColors.disabled,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.picture_as_pdf_outlined,
+                                    color: AppColors.textSecondary,
+                                  ),
                           ),
                         ),
+                      if (receiptUrl == null)
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: AppColors.warning.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.receipt_outlined,
+                              size: 18, color: Color(0xFFB8860B)),
+                        ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              desc,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              isApproved
+                                  ? (expense.expenseDate != null
+                                      ? DateFormat('dd MMM yyyy')
+                                          .format(expense.expenseDate!)
+                                      : 'Approved expense')
+                                  : isPending
+                                      ? 'Pending approval'
+                                      : expense.status[0].toUpperCase() +
+                                          expense.status.substring(1),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 8),
+                      StatusBadge.fromStatus(expense.status),
+                      const SizedBox(width: 8),
                       Text(
-                        currencyFmt.format(amount),
+                        currencyFmt.format(expense.amount),
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -759,36 +1110,98 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
             )
           : Column(
               children: [
+                TextField(
+                  controller: _signoffCustomerCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Customer Name *',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
                 Container(
                   width: double.infinity,
-                  height: 160,
+                  height: 190,
                   decoration: BoxDecoration(
                     color: AppColors.surface,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: AppColors.border),
                   ),
-                  child: const Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  child: Column(
                     children: [
-                      Icon(Icons.draw_outlined,
-                          size: 36, color: AppColors.disabled),
-                      SizedBox(height: 8),
-                      Text(
-                        'Signature area',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 14,
+                      Expanded(
+                        child: RepaintBoundary(
+                          key: _signatureBoundaryKey,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onPanDown: (details) {
+                              setState(() {
+                                _isSigning = true;
+                                _signaturePoints.add(details.localPosition);
+                              });
+                            },
+                            onPanStart: (details) {
+                              setState(() {
+                                _isSigning = true;
+                                _signaturePoints.add(details.localPosition);
+                              });
+                            },
+                            onPanUpdate: (details) {
+                              setState(() => _signaturePoints.add(details.localPosition));
+                            },
+                            onPanEnd: (_) {
+                              setState(() {
+                                _isSigning = false;
+                                _signaturePoints.add(null);
+                              });
+                            },
+                            onPanCancel: () {
+                              setState(() {
+                                _isSigning = false;
+                                _signaturePoints.add(null);
+                              });
+                            },
+                            child: CustomPaint(
+                              painter: _SignaturePainter(_signaturePoints),
+                              child: Container(
+                                color: Colors.transparent,
+                                width: double.infinity,
+                                height: double.infinity,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Complete the job to enable signoff',
-                        style: TextStyle(
-                          color: AppColors.disabled,
-                          fontSize: 12,
+                      const Divider(height: 1),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        child: Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Draw signature above',
+                                style: TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () => setState(() => _signaturePoints = []),
+                              child: const Text('Clear'),
+                            ),
+                          ],
                         ),
                       ),
                     ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _signoffNotesCtrl,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Notes (optional)',
+                    border: OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -1102,5 +1515,31 @@ class _DetailChip extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+class _SignaturePainter extends CustomPainter {
+  final List<Offset?> points;
+  const _SignaturePainter(this.points);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = AppColors.textPrimary
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 2.2;
+
+    for (int i = 0; i < points.length - 1; i++) {
+      final p1 = points[i];
+      final p2 = points[i + 1];
+      if (p1 != null && p2 != null) {
+        canvas.drawLine(p1, p2, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SignaturePainter oldDelegate) {
+    return oldDelegate.points != points;
   }
 }

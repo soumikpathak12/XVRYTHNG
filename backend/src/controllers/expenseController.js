@@ -100,6 +100,22 @@ export async function myExpenses(req, res) {
   }
 }
 
+// GET /api/employees/expenses/job/:jobId — all expenses for a specific installation job
+export async function jobExpenses(req, res) {
+  try {
+    const companyId = resolveCompanyId(req);
+    if (!companyId) return res.status(400).json({ success: false, message: 'Missing company context' });
+    const jobId = Number(req.params.jobId);
+    if (!Number.isFinite(jobId) || jobId <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid job ID' });
+    }
+    const data = await expenseService.getJobExpenses(companyId, jobId);
+    return res.status(200).json({ success: true, data });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+}
+
 // GET /api/employees/expenses/pending
 export async function pendingExpenses(req, res) {
   try {

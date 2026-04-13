@@ -23,6 +23,37 @@ class OnFieldProvider extends ChangeNotifier {
   String _dateKey(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
+  String _eventDedupeKey(OnFieldEvent e) {
+    final startMinute = DateTime(
+      e.start.year,
+      e.start.month,
+      e.start.day,
+      e.start.hour,
+      e.start.minute,
+    ).toIso8601String();
+
+    if (e.isSiteInspection) {
+      final leadKey = e.leadId ?? e.id;
+      return 'site_inspection|$leadKey|$startMinute';
+    }
+
+    if (e.isInstallation) {
+      final jobKey = e.jobId ?? e.projectId ?? e.id;
+      return 'installation|$jobKey|$startMinute';
+    }
+
+    return '${e.type}|${e.id}|$startMinute';
+  }
+
+  int _eventQuality(OnFieldEvent e) {
+    var score = 0;
+    if (e.address != null && e.address!.trim().isNotEmpty) score += 2;
+    if (e.leadId != null || e.jobId != null || e.projectId != null) score += 2;
+    if (e.title.trim().isNotEmpty) score += 1;
+    if (e.title.toLowerCase().startsWith('inspection:')) score += 1;
+    return score;
+  }
+
   /// Get events for a specific day using the robust string-key cached map.
   List<OnFieldEvent> eventsForDay(DateTime day) {
     return _eventsByDayCache[_dateKey(day)] ?? [];
@@ -37,10 +68,14 @@ class OnFieldProvider extends ChangeNotifier {
     try {
       final newEvents = await _service.getAllEvents(from: from, to: to);
       
-      // Merge by unique cache key (Type + ID) to prevent duplicates
+      // Merge by stable event fingerprint (entity + start minute).
+      // This removes duplicate rows coming from both calendar endpoints.
       for (final e in newEvents) {
-        final key = '${e.type}_${e.id}';
-        _eventsCache[key] = e;
+        final key = _eventDedupeKey(e);
+        final existing = _eventsCache[key];
+        if (existing == null || _eventQuality(e) >= _eventQuality(existing)) {
+          _eventsCache[key] = e;
+        }
       }
       
       _eventsList = _eventsCache.values.toList()

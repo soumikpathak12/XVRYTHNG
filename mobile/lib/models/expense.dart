@@ -11,6 +11,7 @@ class Expense {
   final String status;
   final String? reviewerNote;
   final DateTime? createdAt;
+  final String? employeeName;
 
   Expense({
     required this.id,
@@ -25,6 +26,7 @@ class Expense {
     this.status = 'pending',
     this.reviewerNote,
     this.createdAt,
+    this.employeeName,
   });
 
   factory Expense.fromJson(Map<String, dynamic> json) => Expense(
@@ -44,6 +46,7 @@ class Expense {
         createdAt: json['created_at'] != null
             ? DateTime.tryParse(json['created_at'].toString())
             : null,
+        employeeName: json['employee_name'],
       );
 
   static const List<String> categories = [

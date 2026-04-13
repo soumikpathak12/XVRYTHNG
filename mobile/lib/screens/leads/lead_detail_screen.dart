@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -23,11 +24,31 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
   late TabController _tabCtrl;
   final _noteCtrl = TextEditingController();
 
+  String get _routePrefix {
+    final loc = GoRouterState.of(context).matchedLocation;
+    if (loc.startsWith('/admin')) return '/admin';
+    if (loc.startsWith('/dashboard')) return '/dashboard';
+    if (loc.startsWith('/employee')) return '/employee';
+    return '/admin';
+  }
+
+  void _handleBack() {
+    final router = GoRouter.of(context);
+    if (router.canPop()) {
+      context.pop();
+      return;
+    }
+    context.go('$_routePrefix/leads');
+  }
+
   @override
   void initState() {
     super.initState();
     _tabCtrl = TabController(length: 4, vsync: this);
-    context.read<LeadsProvider>().loadLeadDetail(widget.leadId);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<LeadsProvider>().loadLeadDetail(widget.leadId);
+    });
   }
 
   @override
@@ -42,7 +63,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
     if (detail == null) return null;
     final raw = detail['lead'];
     if (raw is Lead) return raw;
-    if (raw is Map<String, dynamic>) return Lead.fromJson(raw);
+    if (raw is Map) return Lead.fromJson(Map<String, dynamic>.from(raw));
     return null;
   }
 
@@ -53,8 +74,10 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
     if (list is List) {
       return list.map((e) {
         if (e is ActivityItem) return e;
-        if (e is Map<String, dynamic>) return ActivityItem.fromJson(e);
-        return ActivityItem(id: 0, type: '', description: e.toString());
+        if (e is Map) {
+          return ActivityItem.fromJson(Map<String, dynamic>.from(e));
+        }
+        return ActivityItem(id: '', type: '', description: e.toString());
       }).toList();
     }
     return [];
@@ -113,7 +136,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
   Widget build(BuildContext context) {
     return Consumer<LeadsProvider>(
       builder: (context, provider, _) {
-        if (provider.loading && provider.leadDetail == null) {
+        if (provider.detailLoading && provider.leadDetail == null) {
           return Scaffold(
             appBar: AppBar(title: const Text('Lead Detail')),
             body: const Center(
@@ -145,6 +168,13 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
               SliverAppBar(
                 pinned: true,
                 expandedHeight: 200,
+                automaticallyImplyLeading: true,
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back, color: AppColors.white),
+                  onPressed: _handleBack,
+                  tooltip: 'Back',
+                ),
+                iconTheme: const IconThemeData(color: AppColors.white),
                 flexibleSpace: FlexibleSpaceBar(
                   background: _LeadHeader(
                     lead: lead,
@@ -337,53 +367,60 @@ class _StagePickerSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final maxHeight = MediaQuery.of(context).size.height * 0.75;
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Change Stage',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 16),
-            ...Lead.stages.map((stage) {
-              final isSelected = stage == currentStage;
-              return ListTile(
-                title: Text(
-                  Lead.stageLabels[stage] ?? stage,
-                  style: TextStyle(
-                    fontWeight:
-                        isSelected ? FontWeight.w600 : FontWeight.normal,
-                    color: isSelected
-                        ? AppColors.primary
-                        : AppColors.textPrimary,
-                  ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+          child: Column(
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                trailing: isSelected
-                    ? const Icon(Icons.check_circle,
-                        color: AppColors.primary)
-                    : null,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-                onTap: () => Navigator.pop(context, stage),
-              );
-            }),
-          ],
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Change Stage',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: ListView(
+                  children: Lead.stages.map((stage) {
+                    final isSelected = stage == currentStage;
+                    return ListTile(
+                      title: Text(
+                        Lead.stageLabels[stage] ?? stage,
+                        style: TextStyle(
+                          fontWeight:
+                              isSelected ? FontWeight.w600 : FontWeight.normal,
+                          color: isSelected
+                              ? AppColors.primary
+                              : AppColors.textPrimary,
+                        ),
+                      ),
+                      trailing: isSelected
+                          ? const Icon(Icons.check_circle,
+                              color: AppColors.primary)
+                          : null,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      onTap: () => Navigator.pop(context, stage),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -589,7 +626,10 @@ class _TimelineItem extends StatelessWidget {
       case 'stage_changed':
         return Icons.swap_horiz_rounded;
       case 'note_added':
+      case 'note':
         return Icons.sticky_note_2_rounded;
+      case 'log':
+        return Icons.history_rounded;
       case 'call':
         return Icons.phone_rounded;
       case 'email':
@@ -608,7 +648,10 @@ class _TimelineItem extends StatelessWidget {
       case 'stage_changed':
         return AppColors.info;
       case 'note_added':
+      case 'note':
         return AppColors.warning;
+      case 'log':
+        return AppColors.primary;
       default:
         return AppColors.primary;
     }

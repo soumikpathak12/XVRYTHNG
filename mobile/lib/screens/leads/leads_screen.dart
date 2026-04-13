@@ -29,7 +29,10 @@ class _LeadsScreenState extends State<LeadsScreen> {
   @override
   void initState() {
     super.initState();
-    context.read<LeadsProvider>().loadLeads();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<LeadsProvider>().loadLeads();
+    });
   }
 
   @override
@@ -190,7 +193,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
           Expanded(
             child: Consumer<LeadsProvider>(
               builder: (context, provider, _) {
-                if (provider.loading && provider.leads.isEmpty) {
+                if (provider.listLoading && provider.leads.isEmpty) {
                   return const Center(
                     child:
                         CircularProgressIndicator(color: AppColors.primary),

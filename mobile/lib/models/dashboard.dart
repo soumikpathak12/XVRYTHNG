@@ -1,3 +1,5 @@
+import '../core/utils/json_parsing.dart';
+
 class DashboardMetrics {
   final MetricValue totalLeads;
   final MetricValue leadsContacted;
@@ -34,8 +36,8 @@ class MetricValue {
   MetricValue({this.value = 0, this.delta = 0});
 
   factory MetricValue.fromJson(Map<String, dynamic> json) => MetricValue(
-        value: (json['value'] ?? 0).toDouble(),
-        delta: (json['delta'] ?? 0).toDouble(),
+        value: parseJsonDouble(json['value']) ?? 0,
+        delta: parseJsonDouble(json['delta']) ?? 0,
       );
 }
 
@@ -55,8 +57,8 @@ class PipelineStage {
   factory PipelineStage.fromJson(Map<String, dynamic> json) => PipelineStage(
         stage: json['stage'] ?? '',
         label: json['label'] ?? '',
-        value: (json['value'] ?? 0).toDouble(),
-        count: json['count'] ?? 0,
+        value: parseJsonDouble(json['value']) ?? 0,
+        count: parseJsonInt(json['count']),
       );
 }
 
@@ -68,12 +70,13 @@ class LeadBySource {
 
   factory LeadBySource.fromJson(Map<String, dynamic> json) => LeadBySource(
         source: json['source'] ?? 'Unknown',
-        count: json['count'] ?? 0,
+        count: parseJsonInt(json['count']),
       );
 }
 
 class ActivityItem {
-  final int id;
+  /// API may return numeric ids or string keys like `note-12`, `log-34`.
+  final String id;
   final String type;
   final String description;
   final String? userName;
@@ -87,11 +90,25 @@ class ActivityItem {
     this.createdAt,
   });
 
+  static String _descriptionFromJson(Map<String, dynamic> json) {
+    final direct = json['description']?.toString();
+    if (direct != null && direct.trim().isNotEmpty) return direct.trim();
+    final title = json['title']?.toString().trim();
+    final body = json['body']?.toString().trim();
+    if (title != null &&
+        title.isNotEmpty &&
+        body != null &&
+        body.isNotEmpty) {
+      return '$title\n\n$body';
+    }
+    return title ?? body ?? '';
+  }
+
   factory ActivityItem.fromJson(Map<String, dynamic> json) => ActivityItem(
-        id: json['id'] ?? 0,
-        type: json['type'] ?? '',
-        description: json['description'] ?? '',
-        userName: json['user_name'],
+        id: json['id']?.toString() ?? '',
+        type: json['type']?.toString() ?? '',
+        description: _descriptionFromJson(json),
+        userName: json['user_name']?.toString(),
         createdAt: json['created_at'] != null
             ? DateTime.tryParse(json['created_at'].toString())
             : null,

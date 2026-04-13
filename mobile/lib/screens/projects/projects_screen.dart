@@ -78,7 +78,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           Expanded(
             child: Consumer<ProjectsProvider>(
               builder: (context, provider, _) {
-                if (provider.loading && provider.projects.isEmpty) {
+                if (provider.listLoading && provider.projects.isEmpty) {
                   return const Center(
                     child: CircularProgressIndicator(color: AppColors.primary),
                   );

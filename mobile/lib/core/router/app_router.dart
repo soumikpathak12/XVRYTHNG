@@ -471,6 +471,12 @@ GoRouter createRouter(AuthProvider authProvider) {
             builder: (context, state) => const ProjectsScreen(),
           ),
           GoRoute(
+            path: '/employee/projects/:id',
+            builder: (context, state) => ProjectDetailScreen(
+              projectId: int.parse(state.pathParameters['id']!),
+            ),
+          ),
+          GoRoute(
             path: '/employee/settings',
             builder: (context, state) => const ProfileScreen(),
           ),

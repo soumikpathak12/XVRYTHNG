@@ -113,7 +113,7 @@ class _RetailerProjectsScreenState extends State<RetailerProjectsScreen> {
           Expanded(
             child: Consumer<ProjectsProvider>(
               builder: (context, provider, _) {
-                if (provider.loading && provider.retailerProjects.isEmpty) {
+                if (provider.retailerListLoading && provider.retailerProjects.isEmpty) {
                   return const Center(
                     child: CircularProgressIndicator(color: AppColors.primary),
                   );

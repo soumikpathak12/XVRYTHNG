@@ -6,9 +6,33 @@ import '../models/expense.dart';
 class ExpenseService {
   final _api = ApiClient();
 
-  Future<List<Expense>> getMyExpenses() async {
+  Future<List<Expense>> getMyExpenses({int? installationJobId, int? companyId}) async {
     try {
-      final response = await _api.get('/api/employees/expenses');
+      final response = await _api.get(
+        '/api/employees/expenses/my',
+        queryParameters: {
+          if (installationJobId != null) 'installationJobId': installationJobId,
+          if (companyId != null) 'companyId': companyId,
+        },
+      );
+      final data = response.data['data'] ?? response.data;
+      if (data is List) {
+        return data.map((e) => Expense.fromJson(e)).toList();
+      }
+      return [];
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<List<Expense>> getJobExpenses(int jobId, {int? companyId}) async {
+    try {
+      final response = await _api.get(
+        '/api/employees/expenses/job/$jobId',
+        queryParameters: {
+          if (companyId != null) 'companyId': companyId,
+        },
+      );
       final data = response.data['data'] ?? response.data;
       if (data is List) {
         return data.map((e) => Expense.fromJson(e)).toList();

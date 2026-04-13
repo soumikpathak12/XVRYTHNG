@@ -7,14 +7,16 @@ class LeadsProvider extends ChangeNotifier {
 
   List<Lead> _leads = [];
   Map<String, dynamic>? _leadDetail;
-  bool _loading = false;
+  bool _listLoading = false;
+  bool _detailLoading = false;
   String? _error;
   String _searchQuery = '';
   String? _stageFilter;
 
   List<Lead> get leads => _leads;
   Map<String, dynamic>? get leadDetail => _leadDetail;
-  bool get loading => _loading;
+  bool get listLoading => _listLoading;
+  bool get detailLoading => _detailLoading;
   String? get error => _error;
   String get searchQuery => _searchQuery;
   String? get stageFilter => _stageFilter;
@@ -28,7 +30,7 @@ class LeadsProvider extends ChangeNotifier {
   }
 
   Future<void> loadLeads({String? search}) async {
-    _loading = true;
+    _listLoading = true;
     _error = null;
     if (search != null) _searchQuery = search;
     notifyListeners();
@@ -40,7 +42,7 @@ class LeadsProvider extends ChangeNotifier {
     } catch (e) {
       _error = e.toString();
     } finally {
-      _loading = false;
+      _listLoading = false;
       notifyListeners();
     }
   }
@@ -52,7 +54,7 @@ class LeadsProvider extends ChangeNotifier {
   }
 
   Future<void> loadLeadDetail(int id) async {
-    _loading = true;
+    _detailLoading = true;
     _error = null;
     notifyListeners();
     try {
@@ -60,7 +62,7 @@ class LeadsProvider extends ChangeNotifier {
     } catch (e) {
       _error = e.toString();
     } finally {
-      _loading = false;
+      _detailLoading = false;
       notifyListeners();
     }
   }
