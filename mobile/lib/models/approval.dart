@@ -59,6 +59,30 @@ class Approval {
     this.reqCheckOut,
   });
 
+  static double? _asDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) {
+      final trimmed = value.trim();
+      if (trimmed.isEmpty) return null;
+      return double.tryParse(trimmed);
+    }
+    return double.tryParse(value.toString());
+  }
+
+  static int? _asInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is double) return value.round();
+    if (value is String) {
+      final trimmed = value.trim();
+      if (trimmed.isEmpty) return null;
+      return int.tryParse(trimmed);
+    }
+    return int.tryParse(value.toString());
+  }
+
   factory Approval.fromJson(Map<String, dynamic> json) => Approval(
         id: json['id'] ?? 0,
         type: json['_type'] ?? json['type'] ?? 'leave',
@@ -77,10 +101,10 @@ class Approval {
         endDate: json['end_date'] != null
             ? DateTime.tryParse(json['end_date'].toString())
             : null,
-        daysCount: json['days_count'],
+        daysCount: _asInt(json['days_count']),
         reason: json['reason'],
         category: json['category'],
-        amount: json['amount']?.toDouble(),
+        amount: _asDouble(json['amount']),
         currency: json['currency'],
         expenseDate: json['expense_date'] != null
             ? DateTime.tryParse(json['expense_date'].toString())
@@ -90,7 +114,7 @@ class Approval {
         projectName: json['project_name'],
         origCheckIn: json['orig_check_in'],
         origCheckOut: json['orig_check_out'],
-        origHours: json['orig_hours']?.toDouble(),
+        origHours: _asDouble(json['orig_hours']),
         reqCheckIn: json['req_check_in'],
         reqCheckOut: json['req_check_out'],
       );
