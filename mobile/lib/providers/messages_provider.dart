@@ -54,6 +54,17 @@ class MessagesProvider extends ChangeNotifier {
       _messages = list.reversed.toList();
       _hasMore = result['hasMore'] as bool;
       await _service.markAsRead(id, companyId: companyId);
+      // List endpoint omits current user from `participants`; load full roster for groups.
+      Conversation? convMeta;
+      for (final c in _conversations) {
+        if (c.id == id) {
+          convMeta = c;
+          break;
+        }
+      }
+      if (convMeta?.type == 'group') {
+        await _refreshConversationParticipants(id, companyId: companyId);
+      }
     } catch (_) {}
     _loading = false;
     notifyListeners();
@@ -108,6 +119,48 @@ class MessagesProvider extends ChangeNotifier {
     } catch (e) {
       rethrow;
     }
+  }
+
+  /// Add users to a group chat (same API as web `addGroupParticipants`).
+  Future<void> addGroupMembers(
+    int conversationId,
+    List<int> userIds, {
+    int? companyId,
+  }) async {
+    if (userIds.isEmpty) return;
+    await _service.addGroupParticipants(
+      conversationId,
+      userIds,
+      companyId: companyId,
+    );
+    await loadConversations(companyId: companyId);
+    await _refreshConversationParticipants(conversationId,
+        companyId: companyId);
+  }
+
+  /// Merge full participant list from GET /api/chats/:id (list endpoint omits self).
+  Future<void> _refreshConversationParticipants(
+    int conversationId, {
+    int? companyId,
+  }) async {
+    try {
+      final fresh =
+          await _service.getConversation(conversationId, companyId: companyId);
+      final idx = _conversations.indexWhere((c) => c.id == conversationId);
+      if (idx < 0) return;
+      final prev = _conversations[idx];
+      _conversations = List.from(_conversations);
+      _conversations[idx] = Conversation(
+        id: fresh.id,
+        name: fresh.name ?? prev.name,
+        type: fresh.type,
+        lastMessage: prev.lastMessage,
+        unreadCount: prev.unreadCount,
+        updatedAt: prev.updatedAt,
+        participants: fresh.participants,
+      );
+      notifyListeners();
+    } catch (_) {}
   }
 
   void startPolling({int? companyId, Duration interval = const Duration(seconds: 30)}) {

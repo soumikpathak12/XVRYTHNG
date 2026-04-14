@@ -19,17 +19,58 @@ class ShellScaffoldScope extends InheritedWidget {
 
   /// Drawer menu when this is a shell "root" route; `null` when [GoRouter]
   /// can pop (detail pages get the default back affordance).
-  static Widget? navigationLeading(BuildContext context) {
-    if (GoRouter.of(context).canPop()) {
+  ///
+  /// When [showDrawerWithBack] is true, shows both back and menu if the
+  /// route can pop (e.g. Leave under Attendance in the drawer) so the drawer
+  /// stays reachable.
+  static Widget? navigationLeading(
+    BuildContext context, {
+    bool showDrawerWithBack = false,
+  }) {
+    final scope = _maybeOf(context);
+    final canPop = GoRouter.of(context).canPop();
+
+    if (showDrawerWithBack && scope != null && canPop) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back_rounded),
+            tooltip: 'Back',
+            onPressed: () => GoRouter.of(context).pop(),
+          ),
+          IconButton(
+            icon: const Icon(Icons.menu_rounded),
+            tooltip: 'Menu',
+            onPressed: () => scope.scaffoldKey.currentState?.openDrawer(),
+          ),
+        ],
+      );
+    }
+
+    if (canPop) {
       return null;
     }
-    final scope = _maybeOf(context);
     if (scope == null) return null;
     return IconButton(
       icon: const Icon(Icons.menu_rounded),
       tooltip: 'Menu',
       onPressed: () => scope.scaffoldKey.currentState?.openDrawer(),
     );
+  }
+
+  /// Use with [navigationLeading] when `showDrawerWithBack` is true and the
+  /// route can pop (two icons in the leading slot).
+  static double? navigationLeadingWidth(
+    BuildContext context, {
+    bool showDrawerWithBack = false,
+  }) {
+    final scope = _maybeOf(context);
+    if (scope == null) return null;
+    if (showDrawerWithBack && GoRouter.of(context).canPop()) {
+      return 112;
+    }
+    return null;
   }
 
   @override

@@ -8,7 +8,7 @@ class LeaveService {
 
   Future<List<LeaveRequest>> getMyLeaves() async {
     try {
-      final response = await _api.get('/api/employees/leave');
+      final response = await _api.get('/api/employees/leave/my-requests');
       final data = response.data['data'] ?? response.data;
       if (data is List) {
         return data.map((e) => LeaveRequest.fromJson(e)).toList();
@@ -21,7 +21,16 @@ class LeaveService {
 
   Future<void> applyLeave(Map<String, dynamic> data) async {
     try {
-      await _api.post('/api/employees/leave', data: data);
+      final leaveType = data['leaveType'] ?? data['leave_type'];
+      final startDate = data['startDate'] ?? data['start_date'];
+      final endDate = data['endDate'] ?? data['end_date'];
+      final reason = data['reason'];
+      await _api.post('/api/employees/leave/request', data: {
+        'leaveType': leaveType,
+        'startDate': startDate,
+        'endDate': endDate,
+        'reason': reason,
+      });
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }
@@ -78,11 +87,7 @@ class LeaveService {
 
   /// POST /api/employees/leave/request — submit leave request
   Future<void> submitLeaveRequest(Map<String, dynamic> data) async {
-    try {
-      await _api.post('/api/employees/leave/request', data: data);
-    } on DioException catch (e) {
-      throw ApiException.fromDioError(e);
-    }
+    await applyLeave(data);
   }
 
   /// PATCH /api/employees/leave/:id/review — approve or reject

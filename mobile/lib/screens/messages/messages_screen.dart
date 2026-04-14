@@ -79,7 +79,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
           Expanded(child: _ConversationList(onTap: _openConversation)),
         ],
       ),
-      floatingActionButton: _NewConversationFab(),
+      floatingActionButton: _NewConversationFab(
+        onConversationOpened: _openConversation,
+      ),
     );
   }
 
@@ -133,7 +135,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
           ),
         ],
       ),
-      floatingActionButton: _NewConversationFab(),
+      floatingActionButton: _NewConversationFab(
+        onConversationOpened: _openConversation,
+      ),
     );
   }
 
@@ -500,7 +504,7 @@ class _ChatViewState extends State<_ChatView> {
 
         return Column(
           children: [
-            _buildChatHeader(conv, currentUserId),
+            _buildChatHeader(context, conv, currentUserId),
             const Divider(height: 1, color: AppColors.divider),
             Expanded(
               child: provider.loading && provider.messages.isEmpty
@@ -571,15 +575,17 @@ class _ChatViewState extends State<_ChatView> {
     );
   }
 
-  Widget _buildChatHeader(Conversation? conv, int currentUserId) {
+  Widget _buildChatHeader(
+ BuildContext context, Conversation? conv, int currentUserId) {
     final title = conv?.getDisplayName(currentUserId) ?? 'Chat';
     final participantCount = conv?.participants.length ?? 0;
+    final isGroup = conv?.type == 'group';
 
     return Container(
       padding: EdgeInsets.fromLTRB(
         widget.onBack != null ? 4 : 16,
         8,
-        16,
+        8,
         8,
       ),
       color: AppColors.white,
@@ -621,7 +627,39 @@ class _ChatViewState extends State<_ChatView> {
                 ],
               ),
             ),
+            if (isGroup && conv != null)
+              IconButton.filledTonal(
+                onPressed: () =>
+                    _openAddGroupMembers(context, conv.id, currentUserId),
+                tooltip: 'Add people',
+                icon: const Icon(Icons.person_add_alt_rounded, size: 20),
+                color: AppColors.primary,
+              ),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _openAddGroupMembers(
+      BuildContext context, int conversationId, int currentUserId) {
+    final auth = context.read<AuthProvider>();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.55,
+        minChildSize: 0.35,
+        maxChildSize: 0.92,
+        expand: false,
+        builder: (sheetCtx, scrollController) => _AddGroupMembersSheet(
+          conversationId: conversationId,
+          currentUserId: currentUserId,
+          companyId: auth.user?.companyId,
+          scrollController: scrollController,
         ),
       ),
     );
@@ -943,6 +981,12 @@ class _DateSeparator extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _NewConversationFab extends StatelessWidget {
+  final ValueChanged<int> onConversationOpened;
+
+  const _NewConversationFab({
+    required this.onConversationOpened,
+  });
+
   @override
   Widget build(BuildContext context) {
     return FloatingActionButton(
@@ -967,6 +1011,33 @@ class _NewConversationFab extends StatelessWidget {
       builder: (ctx) => _NewConversationSheet(
         users: msgProvider.users,
         currentUserId: auth.user?.id ?? 0,
+        onCreateGroup: () async {
+          Navigator.pop(ctx);
+          await showModalBottomSheet<void>(
+            context: context,
+            isScrollControlled: true,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            builder: (_) => _CreateGroupSheet(
+              users: msgProvider.users,
+              currentUserId: auth.user?.id ?? 0,
+              onCreate: (name, userIds) async {
+                final conv = await msgProvider.createConversation(
+                  type: 'group',
+                  name: name.trim().isEmpty ? 'Group Chat' : name.trim(),
+                  userIds: userIds,
+                  companyId: auth.user?.companyId,
+                );
+                await msgProvider.loadConversations(
+                    companyId: auth.user?.companyId);
+                if (context.mounted) {
+                  onConversationOpened(conv.id);
+                }
+              },
+            ),
+          );
+        },
         onSelect: (user) async {
           Navigator.pop(ctx);
           try {
@@ -977,8 +1048,7 @@ class _NewConversationFab extends StatelessWidget {
             );
             await msgProvider.loadConversations(
                 companyId: auth.user?.companyId);
-            msgProvider.openConversation(conv.id,
-                companyId: auth.user?.companyId);
+            onConversationOpened(conv.id);
           } catch (e) {
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -999,15 +1069,393 @@ class _NewConversationSheet extends StatefulWidget {
   final List<Participant> users;
   final int currentUserId;
   final ValueChanged<Participant> onSelect;
+  final Future<void> Function() onCreateGroup;
 
   const _NewConversationSheet({
     required this.users,
     required this.currentUserId,
     required this.onSelect,
+    required this.onCreateGroup,
   });
 
   @override
   State<_NewConversationSheet> createState() => _NewConversationSheetState();
+}
+
+class _AddGroupMembersSheet extends StatefulWidget {
+  final int conversationId;
+  final int currentUserId;
+  final int? companyId;
+  final ScrollController scrollController;
+
+  const _AddGroupMembersSheet({
+    required this.conversationId,
+    required this.currentUserId,
+    required this.companyId,
+    required this.scrollController,
+  });
+
+  @override
+  State<_AddGroupMembersSheet> createState() => _AddGroupMembersSheetState();
+}
+
+class _AddGroupMembersSheetState extends State<_AddGroupMembersSheet> {
+  String _filter = '';
+  int? _addingId;
+
+  Set<int> _memberUserIds(Conversation? conv) {
+    final s = <int>{widget.currentUserId};
+    if (conv != null) {
+      for (final p in conv.participants) {
+        s.add(p.userId);
+      }
+    }
+    return s;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<MessagesProvider>(
+      builder: (context, provider, _) {
+        Conversation? conv;
+        for (final c in provider.conversations) {
+          if (c.id == widget.conversationId) {
+            conv = c;
+            break;
+          }
+        }
+        final memberIds = _memberUserIds(conv);
+        final q = _filter.trim().toLowerCase();
+        final candidates = provider.users.where((u) {
+          if (memberIds.contains(u.userId)) return false;
+          if (q.isEmpty) return true;
+          return u.name.toLowerCase().contains(q) ||
+              (u.email?.toLowerCase().contains(q) ?? false) ||
+              (u.role?.toLowerCase().contains(q) ?? false);
+        }).toList();
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 8),
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Add people',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Tap Add next to a teammate to include them in this group '
+                  '(same as the web app).',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey[700],
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  decoration: InputDecoration(
+                    hintText: 'Search people…',
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    filled: true,
+                    fillColor: AppColors.surface,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                  ),
+                  onChanged: (v) => setState(() => _filter = v),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: candidates.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'Everyone is already in this group',
+                            style: TextStyle(color: AppColors.textSecondary),
+                            textAlign: TextAlign.center,
+                          ),
+                        )
+                      : ListView.builder(
+                          controller: widget.scrollController,
+                          itemCount: candidates.length,
+                          itemBuilder: (context, index) {
+                            final user = candidates[index];
+                            final busy = _addingId == user.userId;
+                            return ListTile(
+                              leading: _Avatar(name: user.name, size: 40),
+                              title: Text(
+                                user.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              subtitle: user.email != null
+                                  ? Text(
+                                      user.email!,
+                                      style: const TextStyle(fontSize: 13),
+                                    )
+                                  : null,
+                              trailing: busy
+                                  ? const SizedBox(
+                                      width: 28,
+                                      height: 28,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: AppColors.primary,
+                                      ),
+                                    )
+                                  : TextButton(
+                                      onPressed: () async {
+                                        setState(() => _addingId = user.userId);
+                                        try {
+                                          await provider.addGroupMembers(
+                                            widget.conversationId,
+                                            [user.userId],
+                                            companyId: widget.companyId,
+                                          );
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                    '${user.name} added'),
+                                                backgroundColor:
+                                                    AppColors.primary,
+                                              ),
+                                            );
+                                          }
+                                        } catch (e) {
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                    'Could not add: $e'),
+                                                backgroundColor:
+                                                    AppColors.danger,
+                                              ),
+                                            );
+                                          }
+                                        } finally {
+                                          if (mounted) {
+                                            setState(() => _addingId = null);
+                                          }
+                                        }
+                                      },
+                                      child: const Text('Add'),
+                                    ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+
+
+class _CreateGroupSheet extends StatefulWidget {
+  final List<Participant> users;
+  final int currentUserId;
+  final Future<void> Function(String name, List<int> userIds) onCreate;
+
+  const _CreateGroupSheet({
+    required this.users,
+    required this.currentUserId,
+    required this.onCreate,
+  });
+
+  @override
+  State<_CreateGroupSheet> createState() => _CreateGroupSheetState();
+}
+
+class _CreateGroupSheetState extends State<_CreateGroupSheet> {
+  final _nameCtrl = TextEditingController();
+  String _filter = '';
+  final Set<int> _selected = <int>{};
+  bool _creating = false;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final q = _filter.trim().toLowerCase();
+    final candidates = widget.users
+        .where((u) => u.userId != widget.currentUserId)
+        .where((u) {
+          if (q.isEmpty) return true;
+          return u.name.toLowerCase().contains(q) ||
+              (u.email?.toLowerCase().contains(q) ?? false);
+        })
+        .toList();
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.78,
+      minChildSize: 0.45,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (context, scrollController) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Column(
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Create Group Chat',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _nameCtrl,
+                decoration: InputDecoration(
+                  hintText: 'Group name',
+                  prefixIcon: const Icon(Icons.group_rounded),
+                  filled: true,
+                  fillColor: AppColors.surface,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                decoration: InputDecoration(
+                  hintText: 'Search people...',
+                  prefixIcon: const Icon(Icons.search),
+                  filled: true,
+                  fillColor: AppColors.surface,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+                onChanged: (v) => setState(() => _filter = v),
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Selected: ${_selected.length}',
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemCount: candidates.length,
+                  itemBuilder: (context, index) {
+                    final u = candidates[index];
+                    final checked = _selected.contains(u.userId);
+                    return CheckboxListTile(
+                      value: checked,
+                      onChanged: (_) {
+                        setState(() {
+                          if (checked) {
+                            _selected.remove(u.userId);
+                          } else {
+                            _selected.add(u.userId);
+                          }
+                        });
+                      },
+                      title: Text(u.name),
+                      subtitle: u.email != null ? Text(u.email!) : null,
+                      controlAffinity: ListTileControlAffinity.leading,
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _creating || _selected.isEmpty
+                      ? null
+                      : () async {
+                          setState(() => _creating = true);
+                          try {
+                            await widget.onCreate(
+                              _nameCtrl.text,
+                              _selected.toList(),
+                            );
+                            if (context.mounted) Navigator.pop(context);
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Failed to create group: $e'),
+                                  backgroundColor: AppColors.danger,
+                                ),
+                              );
+                            }
+                          } finally {
+                            if (mounted) setState(() => _creating = false);
+                          }
+                        },
+                  child: _creating
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.white,
+                          ),
+                        )
+                      : const Text('Create Group'),
+                ),
+              ),
+              SizedBox(height: 12 + MediaQuery.of(context).padding.bottom),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _NewConversationSheetState extends State<_NewConversationSheet> {
@@ -1049,6 +1497,15 @@ class _NewConversationSheetState extends State<_NewConversationSheet> {
                       ),
                 ),
                 const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => widget.onCreateGroup(),
+                    icon: const Icon(Icons.group_add_rounded),
+                    label: const Text('Create Group'),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 TextField(
                   autofocus: true,
                   decoration: InputDecoration(

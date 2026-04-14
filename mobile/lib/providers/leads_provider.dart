@@ -12,6 +12,7 @@ class LeadsProvider extends ChangeNotifier {
   String? _error;
   String _searchQuery = '';
   String? _stageFilter;
+  String? _salesSegmentFilter;
 
   List<Lead> get leads => _leads;
   Map<String, dynamic>? get leadDetail => _leadDetail;
@@ -20,6 +21,7 @@ class LeadsProvider extends ChangeNotifier {
   String? get error => _error;
   String get searchQuery => _searchQuery;
   String? get stageFilter => _stageFilter;
+  String? get salesSegmentFilter => _salesSegmentFilter;
 
   Map<String, List<Lead>> get leadsByStage {
     final map = <String, List<Lead>>{};
@@ -38,6 +40,7 @@ class LeadsProvider extends ChangeNotifier {
       _leads = await _service.getLeads(
         search: _searchQuery.isEmpty ? null : _searchQuery,
         stage: _stageFilter,
+        salesSegment: _salesSegmentFilter,
       );
     } catch (e) {
       _error = e.toString();
@@ -50,6 +53,13 @@ class LeadsProvider extends ChangeNotifier {
   /// Clears stage filter when [stage] is null (e.g. "All" chip).
   Future<void> setStageFilter(String? stage) async {
     _stageFilter = stage;
+    await loadLeads();
+  }
+
+  /// Clears sales segment filter when [segment] is null.
+  Future<void> setSalesSegmentFilter(String? segment) async {
+    _salesSegmentFilter =
+        (segment == 'b2c' || segment == 'b2b') ? segment : null;
     await loadLeads();
   }
 

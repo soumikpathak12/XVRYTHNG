@@ -1,3 +1,18 @@
+int _intFromJson(dynamic value, [int fallback = 0]) {
+  if (value == null) return fallback;
+  if (value is int) return value;
+  if (value is double) return value.round();
+  if (value is num) return value.round();
+  if (value is String) {
+    final t = value.trim();
+    if (t.isEmpty) return fallback;
+    final d = double.tryParse(t);
+    if (d != null) return d.round();
+    return int.tryParse(t) ?? fallback;
+  }
+  return fallback;
+}
+
 class LeaveRequest {
   final int id;
   final String leaveType;
@@ -22,13 +37,13 @@ class LeaveRequest {
   });
 
   factory LeaveRequest.fromJson(Map<String, dynamic> json) => LeaveRequest(
-        id: json['id'] ?? 0,
+        id: _intFromJson(json['id'], 0),
         leaveType: json['leave_type'] ?? 'annual',
         startDate: DateTime.parse(
             json['start_date'] ?? DateTime.now().toIso8601String()),
         endDate: DateTime.parse(
             json['end_date'] ?? DateTime.now().toIso8601String()),
-        daysCount: json['days_count'] ?? 1,
+        daysCount: _intFromJson(json['days_count'], 1),
         reason: json['reason'],
         status: json['status'] ?? 'pending',
         reviewerNote: json['reviewer_note'],

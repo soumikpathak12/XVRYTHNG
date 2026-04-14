@@ -6,11 +6,19 @@ import '../models/lead.dart';
 class LeadsService {
   final _api = ApiClient();
 
-  Future<List<Lead>> getLeads({String? search, String? stage}) async {
+  Future<List<Lead>> getLeads({
+    String? search,
+    String? stage,
+    String? salesSegment,
+  }) async {
     try {
       final params = <String, dynamic>{};
       if (search != null && search.isNotEmpty) params['search'] = search;
       if (stage != null && stage.isNotEmpty) params['stage'] = stage;
+      if (salesSegment != null &&
+          (salesSegment == 'b2c' || salesSegment == 'b2b')) {
+        params['sales_segment'] = salesSegment;
+      }
       final response =
           await _api.get('/api/leads', queryParameters: params);
       final data = response.data['data'] ?? response.data;

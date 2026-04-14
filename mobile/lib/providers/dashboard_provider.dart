@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:intl/intl.dart';
 import '../models/dashboard.dart';
 import '../services/dashboard_service.dart';
 
@@ -11,7 +12,12 @@ class DashboardProvider extends ChangeNotifier {
   List<ActivityItem> _activities = [];
   bool _loading = false;
   String? _error;
-  String _range = '30d';
+  /// Matches web + API: `week` | `month` | `quarter` | `custom`
+  String _range = 'month';
+  String? _customFrom;
+  String? _customTo;
+
+  static final _chipDateFmt = DateFormat('d MMM');
 
   DashboardMetrics? get metrics => _metrics;
   List<PipelineStage> get pipelineStages => _pipelineStages;
@@ -20,14 +26,71 @@ class DashboardProvider extends ChangeNotifier {
   bool get loading => _loading;
   String? get error => _error;
   String get range => _range;
+  String? get customFrom => _customFrom;
+  String? get customTo => _customTo;
 
-  Future<void> loadDashboard({String? range}) async {
+  /// Short label for the app bar chip (aligned with web preset names).
+  String get rangeLabel {
+    switch (_range) {
+      case 'week':
+        return 'This Week';
+      case 'quarter':
+        return 'This Quarter';
+      case 'custom':
+        if (_customFrom != null && _customTo != null) {
+          final a = DateTime.tryParse(_customFrom!);
+          final b = DateTime.tryParse(_customTo!);
+          if (a != null && b != null) {
+            return '${_chipDateFmt.format(a)} – ${_chipDateFmt.format(b)}';
+          }
+        }
+        return 'Custom';
+      case 'month':
+      default:
+        return 'This Month';
+    }
+  }
+
+  static String _isoDate(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  void _primeCustomDefaults() {
+    final now = DateTime.now();
+    final from = now.subtract(const Duration(days: 28));
+    _customFrom = _isoDate(from);
+    _customTo = _isoDate(now);
+  }
+
+  Future<void> loadDashboard({
+    String? range,
+    String? customFrom,
+    String? customTo,
+  }) async {
     _loading = true;
     _error = null;
-    if (range != null) _range = range;
+    if (range != null) {
+      _range = range;
+      if (range != 'custom') {
+        _customFrom = null;
+        _customTo = null;
+      }
+    }
+    if (customFrom != null) _customFrom = customFrom;
+    if (customTo != null) _customTo = customTo;
+
+    if (_range == 'custom') {
+      if (_customFrom == null || _customTo == null) {
+        _primeCustomDefaults();
+      }
+    }
+
     notifyListeners();
     try {
-      final result = await _service.getSalesDashboard(range: _range);
+      final result = await _service.getSalesDashboard(
+        range: _range,
+        from: _range == 'custom' ? _customFrom : null,
+        to: _range == 'custom' ? _customTo : null,
+      );
       _metrics = result['metrics'] as DashboardMetrics;
       _pipelineStages = result['pipelineByStage'] as List<PipelineStage>;
       _leadsBySource = result['leadsBySource'] as List<LeadBySource>;

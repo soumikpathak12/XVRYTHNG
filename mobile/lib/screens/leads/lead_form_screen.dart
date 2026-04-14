@@ -28,6 +28,7 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
   String _source = '';
   String _stage = Lead.stages.first;
   String _salesSegment = '';
+  bool _salesSegmentLocked = false;
   String _inspectionDateLabel = '';
   DateTime? _inspectionDateTime;
   String _inspectorId = '';
@@ -35,6 +36,7 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
   bool _saving = false;
   bool _loadingInspectors = true;
   String? _error;
+  bool _initializedFromRoute = false;
 
   static const _sources = [
     'Website',
@@ -52,6 +54,18 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
   void initState() {
     super.initState();
     _loadInspectors();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initializedFromRoute) return;
+    _initializedFromRoute = true;
+    final segment = GoRouterState.of(context).uri.queryParameters['segment'];
+    if (segment == 'b2c' || segment == 'b2b') {
+      _salesSegment = segment!;
+      _salesSegmentLocked = true;
+    }
   }
 
   Future<void> _loadInspectors() async {
@@ -142,7 +156,11 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
     return Scaffold(
       backgroundColor: AppColors.surface,
       appBar: AppBar(
-        title: const Text('New Lead'),
+        title: Text(_salesSegment == 'b2c'
+            ? 'New Lead - Residential'
+            : _salesSegment == 'b2b'
+                ? 'New Lead - Commercial'
+                : 'New Lead'),
         centerTitle: false,
       ),
       body: LoadingOverlay(
@@ -310,7 +328,9 @@ class _LeadFormScreenState extends State<LeadFormScreen> {
                               child: Text(s['label']!),
                             ))
                         .toList(),
-                    onChanged: (v) => setState(() => _salesSegment = v ?? ''),
+                    onChanged: _salesSegmentLocked
+                        ? null
+                        : (v) => setState(() => _salesSegment = v ?? ''),
                     validator: (v) => (v == null || v.isEmpty)
                         ? 'Select Residential (B2C) or Commercial (B2B)'
                         : null,

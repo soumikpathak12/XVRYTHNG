@@ -31,7 +31,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      context.read<LeadsProvider>().loadLeads();
+      context.read<LeadsProvider>().setSalesSegmentFilter(_routeSalesSegment);
     });
   }
 
@@ -57,8 +57,20 @@ class _LeadsScreenState extends State<LeadsScreen> {
     return '/admin';
   }
 
+  String? get _routeSalesSegment {
+    final segment = GoRouterState.of(context).uri.queryParameters['segment'];
+    if (segment == 'b2c' || segment == 'b2b') return segment;
+    return null;
+  }
+
   void _openLead(int id) => context.go('$_routePrefix/leads/$id');
-  void _addLead() => context.go('$_routePrefix/leads/new');
+  void _addLead() {
+    final seg = context.read<LeadsProvider>().salesSegmentFilter;
+    final route = seg == null
+        ? '$_routePrefix/leads/new'
+        : '$_routePrefix/leads/new?segment=$seg';
+    context.go(route);
+  }
 
   Future<void> _onRefresh() => context.read<LeadsProvider>().loadLeads(
         search: _searchCtrl.text,
@@ -160,6 +172,34 @@ class _LeadsScreenState extends State<LeadsScreen> {
       ),
       body: Column(
         children: [
+          Consumer<LeadsProvider>(
+            builder: (context, provider, _) {
+              return SizedBox(
+                height: 48,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  children: [
+                    _LeadStageChip(
+                      label: 'All Pipelines',
+                      selected: provider.salesSegmentFilter == null,
+                      onTap: () => provider.setSalesSegmentFilter(null),
+                    ),
+                    _LeadStageChip(
+                      label: 'Residential (B2C)',
+                      selected: provider.salesSegmentFilter == 'b2c',
+                      onTap: () => provider.setSalesSegmentFilter('b2c'),
+                    ),
+                    _LeadStageChip(
+                      label: 'Commercial (B2B)',
+                      selected: provider.salesSegmentFilter == 'b2b',
+                      onTap: () => provider.setSalesSegmentFilter('b2b'),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
           _SearchBar(
             controller: _searchCtrl,
             onChanged: _onSearchChanged,

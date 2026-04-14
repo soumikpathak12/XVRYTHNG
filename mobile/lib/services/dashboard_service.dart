@@ -7,14 +7,16 @@ class DashboardService {
   final _api = ApiClient();
 
   Future<Map<String, dynamic>> getSalesDashboard({
-    String range = '30d',
+    String range = 'month',
     String? from,
     String? to,
   }) async {
     try {
       final params = <String, dynamic>{'range': range};
-      if (from != null) params['from'] = from;
-      if (to != null) params['to'] = to;
+      if (range == 'custom') {
+        if (from != null) params['from'] = from;
+        if (to != null) params['to'] = to;
+      }
       final response =
           await _api.get('/api/leads/dashboard', queryParameters: params);
       final data = response.data['data'] ?? response.data;

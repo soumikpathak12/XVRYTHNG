@@ -168,10 +168,18 @@ class _LeaveScreenState extends State<LeaveScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final shellLeading = ShellScaffoldScope.navigationLeading(context);
+    const showDrawerWithBack = true;
+    final shellLeading = ShellScaffoldScope.navigationLeading(
+      context,
+      showDrawerWithBack: showDrawerWithBack,
+    );
     return Scaffold(
       appBar: AppBar(
         leading: shellLeading,
+        leadingWidth: ShellScaffoldScope.navigationLeadingWidth(
+          context,
+          showDrawerWithBack: showDrawerWithBack,
+        ),
         automaticallyImplyLeading: shellLeading == null,
         title: const Text('Leave Management'),
         backgroundColor: AppColors.primary,
@@ -584,13 +592,19 @@ class _LeaveScreenState extends State<LeaveScreen> {
                   controller: _reasonCtrl,
                   maxLines: 3,
                   decoration: const InputDecoration(
-                    labelText: 'Reason',
+                    labelText: 'Reason (required)',
                     alignLabelWithHint: true,
                     prefixIcon: Padding(
                         padding: EdgeInsets.only(bottom: 44),
                         child: Icon(Icons.notes_rounded)),
                     border: OutlineInputBorder(),
                   ),
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) {
+                      return 'Please enter a reason';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 20),
                 SizedBox(

@@ -32,6 +32,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ]);
   }
 
+  void _openRangeSheet(BuildContext context) {
+    final provider = context.read<DashboardProvider>();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: _DashboardRangeSheet(
+          initialRange: provider.range,
+          initialFrom: provider.customFrom,
+          initialTo: provider.customTo,
+          onApplyPreset: (range) {
+            provider.loadDashboard(range: range);
+            Navigator.pop(ctx);
+          },
+          onApplyCustom: (from, to) {
+            provider.loadDashboard(
+              range: 'custom',
+              customFrom: from,
+              customTo: to,
+            );
+            Navigator.pop(ctx);
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final shellLeading = ShellScaffoldScope.navigationLeading(context);
@@ -44,12 +75,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
         centerTitle: false,
         actions: [
           Consumer<DashboardProvider>(
-            builder: (_, p, __) => _RangeChip(
-              selected: p.range,
-              onChanged: (r) => p.loadDashboard(range: r),
+            builder: (_, p, _) => Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: ActionChip(
+                avatar: const Icon(Icons.calendar_month_rounded, size: 18),
+                label: Text(
+                  p.rangeLabel,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+                backgroundColor: AppColors.white,
+                side: const BorderSide(color: AppColors.border),
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                onPressed: () => _openRangeSheet(context),
+              ),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 4),
           ...ShellScaffoldScope.notificationActions(),
         ],
       ),
@@ -106,47 +150,237 @@ class _DashboardScreenState extends State<DashboardScreen> {
 }
 
 // ---------------------------------------------------------------------------
-// Range selector chip
+// Range sheet — week / month / quarter / custom (matches web DashboardPage)
 // ---------------------------------------------------------------------------
-class _RangeChip extends StatelessWidget {
-  final String selected;
-  final ValueChanged<String> onChanged;
 
-  const _RangeChip({required this.selected, required this.onChanged});
+class _DashboardRangeSheet extends StatefulWidget {
+  final String initialRange;
+  final String? initialFrom;
+  final String? initialTo;
+  final void Function(String range) onApplyPreset;
+  final void Function(String from, String to) onApplyCustom;
 
-  static const _options = {
-    '7d': '7 Days',
-    '30d': '30 Days',
-    '90d': '90 Days',
-  };
+  const _DashboardRangeSheet({
+    required this.initialRange,
+    required this.initialFrom,
+    required this.initialTo,
+    required this.onApplyPreset,
+    required this.onApplyCustom,
+  });
+
+  @override
+  State<_DashboardRangeSheet> createState() => _DashboardRangeSheetState();
+}
+
+class _DashboardRangeSheetState extends State<_DashboardRangeSheet> {
+  static const _presets = [
+    ('week', 'This Week'),
+    ('month', 'This Month'),
+    ('quarter', 'This Quarter'),
+  ];
+
+  late String _range;
+  DateTime? _from;
+  DateTime? _to;
+
+  static String _iso(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  static void _primeDefaults(void Function(DateTime from, DateTime to) apply) {
+    final now = DateTime.now();
+    apply(now.subtract(const Duration(days: 28)), now);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _range = widget.initialRange;
+    _from = widget.initialFrom != null
+        ? DateTime.tryParse(widget.initialFrom!)
+        : null;
+    _to =
+        widget.initialTo != null ? DateTime.tryParse(widget.initialTo!) : null;
+    if (_range == 'custom' && (_from == null || _to == null)) {
+      _primeDefaults((a, b) {
+        _from = DateTime(a.year, a.month, a.day);
+        _to = DateTime(b.year, b.month, b.day);
+      });
+    }
+  }
+
+  Future<void> _pickFrom() async {
+    final now = DateTime.now();
+    final last = _to ?? now;
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _from ?? last,
+      firstDate: DateTime(now.year - 5),
+      lastDate: last,
+    );
+    if (picked != null) setState(() => _from = picked);
+  }
+
+  Future<void> _pickTo() async {
+    final now = DateTime.now();
+    final first = _from ?? DateTime(now.year - 5);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _to ?? now,
+      firstDate: first,
+      lastDate: now,
+    );
+    if (picked != null) setState(() => _to = picked);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
-      onSelected: onChanged,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      offset: const Offset(0, 44),
-      itemBuilder: (_) => _options.entries
-          .map((e) => PopupMenuItem(
-                value: e.key,
-                child: Text(
-                  e.value,
-                  style: TextStyle(
-                    fontWeight:
-                        e.key == selected ? FontWeight.w600 : FontWeight.normal,
-                    color: e.key == selected
-                        ? AppColors.primary
-                        : AppColors.textPrimary,
+    final df = DateFormat('d MMM yyyy');
+    final showCustom = _range == 'custom';
+
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Date range',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Same periods as the web dashboard: calendar week, month, quarter, or custom.',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey[700],
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ..._presets.map(
+              (e) => ListTile(
+                title: Text(e.$2),
+                leading: Radio<String>(
+                  value: e.$1,
+                  groupValue: _range,
+                  activeColor: AppColors.primary,
+                  onChanged: (v) {
+                    if (v == null) return;
+                    widget.onApplyPreset(v);
+                  },
+                ),
+                onTap: () => widget.onApplyPreset(e.$1),
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+            ListTile(
+              title: const Text('Custom'),
+              leading: Radio<String>(
+                value: 'custom',
+                groupValue: _range,
+                activeColor: AppColors.primary,
+                onChanged: (v) {
+                  if (v == null) return;
+                  setState(() {
+                    _range = 'custom';
+                    if (_from == null || _to == null) {
+                      _primeDefaults((a, b) {
+                        _from = DateTime(a.year, a.month, a.day);
+                        _to = DateTime(b.year, b.month, b.day);
+                      });
+                    }
+                  });
+                },
+              ),
+              onTap: () {
+                setState(() {
+                  _range = 'custom';
+                  if (_from == null || _to == null) {
+                    _primeDefaults((a, b) {
+                      _from = DateTime(a.year, a.month, a.day);
+                      _to = DateTime(b.year, b.month, b.day);
+                    });
+                  }
+                });
+              },
+              contentPadding: EdgeInsets.zero,
+            ),
+            if (showCustom) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _pickFrom,
+                      icon: const Icon(Icons.event_rounded, size: 18),
+                      label: Text(
+                        _from != null ? df.format(_from!) : 'From date',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Icon(Icons.arrow_forward_rounded,
+                        color: Colors.grey[600], size: 20),
+                  ),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _pickTo,
+                      icon: const Icon(Icons.event_rounded, size: 18),
+                      label: Text(
+                        _to != null ? df.format(_to!) : 'To date',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  minimumSize: const Size.fromHeight(48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-              ))
-          .toList(),
-      child: Chip(
-        avatar: const Icon(Icons.calendar_today, size: 16),
-        label: Text(_options[selected] ?? '30 Days'),
-        backgroundColor: AppColors.white,
-        side: const BorderSide(color: AppColors.border),
-        padding: const EdgeInsets.symmetric(horizontal: 4),
+                onPressed: (_from != null && _to != null)
+                    ? () {
+                        if (_from!.isAfter(_to!)) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Start date must be on or before end date',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        widget.onApplyCustom(_iso(_from!), _iso(_to!));
+                      }
+                    : null,
+                child: const Text('Apply custom range'),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
