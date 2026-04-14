@@ -6,8 +6,10 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../models/dashboard.dart';
+import '../../models/employee.dart';
 import '../../models/lead.dart';
 import '../../providers/leads_provider.dart';
+import '../../services/employees_service.dart';
 import '../../widgets/common/file_picker_bottom_sheet.dart';
 import '../../widgets/common/status_badge.dart';
 
@@ -190,10 +192,12 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
                 ),
                 bottom: TabBar(
                   controller: _tabCtrl,
+                  isScrollable: true,
                   labelColor: AppColors.white,
                   unselectedLabelColor: Colors.white70,
                   indicatorColor: AppColors.white,
                   indicatorWeight: 3,
+                  tabAlignment: TabAlignment.start,
                   tabs: const [
                     Tab(text: 'Overview'),
                     Tab(text: 'Details'),
@@ -207,7 +211,11 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
               controller: _tabCtrl,
               children: [
                 _OverviewTab(lead: lead),
-                _DetailsTab(lead: lead),
+                _DetailsTab(
+                  lead: lead,
+                  onSaved: () =>
+                      context.read<LeadsProvider>().loadLeadDetail(widget.leadId),
+                ),
                 _ActivityTab(
                   activities: _activities,
                   noteController: _noteCtrl,
@@ -483,17 +491,531 @@ class _OverviewTab extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // Details tab
 // ---------------------------------------------------------------------------
-class _DetailsTab extends StatelessWidget {
+class _DetailsTab extends StatefulWidget {
   final Lead lead;
-  const _DetailsTab({required this.lead});
+  final Future<void> Function() onSaved;
+  const _DetailsTab({required this.lead, required this.onSaved});
+
+  @override
+  State<_DetailsTab> createState() => _DetailsTabState();
+}
+
+class _DetailsTabState extends State<_DetailsTab> {
+  static const List<String> _systemTypeOptions = [
+    'PV only',
+    'PV + Battery',
+    'Only Battery',
+    'Only EV Charger',
+    'PV + Battery + EV Charger',
+    'Battery + EV Charger',
+    'PV + EV Chargers',
+  ];
+  static const List<String> _houseStoreyOptions = [
+    'Single',
+    'Double',
+    'Triple',
+    'Other',
+  ];
+  static const List<String> _roofTypeOptions = [
+    'Tin(Colorbond)',
+    'Tin(Kliplock)',
+    'Tile(Concrete)',
+    'Tile(Terracotta)',
+    'Flat',
+    'Other',
+  ];
+  static const List<String> _meterPhaseOptions = ['Single', 'Double', 'Three'];
+  static const List<String> _energyDistributorOptions = [
+    'AusNet',
+    'Powercor',
+    'CitiPower',
+    'United Energy',
+    'Jemena',
+  ];
+
+  bool _editing = false;
+  bool _saving = false;
+
+  late final TextEditingController _preApprovalCtrl;
+  late final TextEditingController _energyRetailerCtrl;
+  late final TextEditingController _nmiCtrl;
+  late final TextEditingController _meterNumberCtrl;
+  String? _systemType;
+  String? _houseStorey;
+  String? _roofType;
+  String? _meterPhase;
+  String? _energyDistributor;
+  String? _inspectorId;
+  bool? _accessSecondStorey;
+  bool? _accessInverter;
+  bool? _solarVicEligibility;
+  List<Employee> _inspectors = const [];
+
+  Lead get lead => widget.lead;
+
+  dynamic _rawValue(String key) {
+    return lead.raw?[key];
+  }
+
+  String? _textValue(List<String> keys) {
+    for (final key in keys) {
+      final value = _rawValue(key);
+      if (value == null) continue;
+      final text = value.toString().trim();
+      if (text.isNotEmpty) return text;
+    }
+    return null;
+  }
+
+  String? _boolLabel(List<String> keys,
+      {String trueLabel = 'Yes', String falseLabel = 'No'}) {
+    final value = _textValue(keys);
+    if (value == null) return null;
+    final normalized = value.toLowerCase();
+    if (normalized == '1' ||
+        normalized == 'true' ||
+        normalized == 'yes' ||
+        normalized == 'y') {
+      return trueLabel;
+    }
+    if (normalized == '0' ||
+        normalized == 'false' ||
+        normalized == 'no' ||
+        normalized == 'n') {
+      return falseLabel;
+    }
+    return null;
+  }
+
+  String? _formattedDateTime(List<String> keys) {
+    final value = _textValue(keys);
+    if (value == null) return null;
+    final parsed = DateTime.tryParse(value);
+    if (parsed == null) return value;
+    return DateFormat('d MMM yyyy, h:mm a').format(parsed);
+  }
+
+  List<Widget> _rows(List<_FieldView> fields) {
+    final rows = <Widget>[];
+    for (final field in fields) {
+      if (field.value == null || field.value!.isEmpty) continue;
+      rows.add(_DetailRow(field.label, field.value!));
+    }
+    return rows;
+  }
+
+  bool? _toBool(String? value) {
+    if (value == null) return null;
+    final normalized = value.toLowerCase();
+    if (normalized == '1' ||
+        normalized == 'true' ||
+        normalized == 'yes' ||
+        normalized == 'y') {
+      return true;
+    }
+    if (normalized == '0' ||
+        normalized == 'false' ||
+        normalized == 'no' ||
+        normalized == 'n') {
+      return false;
+    }
+    return null;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _preApprovalCtrl = TextEditingController();
+    _energyRetailerCtrl = TextEditingController();
+    _nmiCtrl = TextEditingController();
+    _meterNumberCtrl = TextEditingController();
+    _syncFromLead();
+    _loadInspectors();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DetailsTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_editing && !_saving && oldWidget.lead.raw != widget.lead.raw) {
+      _syncFromLead();
+    }
+  }
+
+  @override
+  void dispose() {
+    _preApprovalCtrl.dispose();
+    _energyRetailerCtrl.dispose();
+    _nmiCtrl.dispose();
+    _meterNumberCtrl.dispose();
+    super.dispose();
+  }
+
+  String _safeDisplay(String? value) {
+    if (value == null || value.trim().isEmpty) return '--';
+    return value.trim();
+  }
+
+  String _boolDisplay(bool? value,
+      {String trueLabel = 'Yes', String falseLabel = 'No'}) {
+    if (value == null) return '--';
+    return value ? trueLabel : falseLabel;
+  }
+
+  String? _normalize(String value) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  Future<void> _loadInspectors() async {
+    try {
+      final inspectors = await EmployeesService().listEmployees(status: 'active');
+      if (!mounted) return;
+      setState(() => _inspectors = inspectors);
+    } catch (_) {
+      // Keep details screen functional if inspectors fail to load.
+    }
+  }
+
+  void _syncFromLead() {
+    _systemType = _textValue(['system_type']);
+    _houseStorey = _textValue(['house_storey']);
+    _roofType = _textValue(['roof_type']);
+    _meterPhase = _textValue(['meter_phase']);
+    _preApprovalCtrl.text = _textValue(['pre_approval_reference_no']) ?? '';
+    _energyRetailerCtrl.text = _textValue(['energy_retailer']) ?? '';
+    _energyDistributor = _textValue(['energy_distributor']);
+    _nmiCtrl.text = _textValue(['nmi_number']) ?? '';
+    _meterNumberCtrl.text = _textValue(['meter_number']) ?? '';
+    _inspectorId = _textValue(['inspector_id']);
+    _accessSecondStorey = _toBool(_textValue(['access_to_second_storey']));
+    _accessInverter = _toBool(_textValue(['access_to_inverter']));
+    _solarVicEligibility = _toBool(_textValue(['solar_vic_eligibility']));
+  }
+
+  Future<void> _saveDetails() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      final payload = <String, dynamic>{
+        'system_type': _systemType,
+        'house_storey': _houseStorey,
+        'roof_type': _roofType,
+        'meter_phase': _meterPhase,
+        'inspector_id': (_inspectorId == null || _inspectorId!.isEmpty)
+            ? null
+            : int.tryParse(_inspectorId!),
+        'access_to_second_storey': _accessSecondStorey,
+        'access_to_inverter': _accessInverter,
+        'pre_approval_reference_no': _normalize(_preApprovalCtrl.text),
+        'energy_retailer': _normalize(_energyRetailerCtrl.text),
+        'energy_distributor': _energyDistributor,
+        'solar_vic_eligibility': _solarVicEligibility,
+        'nmi_number': _normalize(_nmiCtrl.text),
+        'meter_number': _normalize(_meterNumberCtrl.text),
+      };
+      await context.read<LeadsProvider>().updateLead(lead.id, payload);
+      await widget.onSaved();
+      if (!mounted) return;
+      setState(() => _editing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lead details updated')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to update details: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Widget _editableField(String label, TextEditingController ctrl) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          TextField(
+            controller: ctrl,
+            decoration: InputDecoration(
+              isDense: true,
+              filled: true,
+              fillColor: AppColors.surface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: AppColors.border.withOpacity(0.5)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: AppColors.border.withOpacity(0.5)),
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dropdownField({
+    required String label,
+    required String? value,
+    required List<String> options,
+    required ValueChanged<String?> onChanged,
+  }) {
+    final normalizedValue =
+        (value != null && value.isNotEmpty) ? value : null;
+    final mergedOptions = [...options];
+    if (normalizedValue != null && !mergedOptions.contains(normalizedValue)) {
+      mergedOptions.insert(0, normalizedValue);
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          DropdownButtonFormField<String>(
+            value: normalizedValue,
+            items: [
+              const DropdownMenuItem<String>(
+                value: null,
+                child: Text('Select'),
+              ),
+              ...mergedOptions.map(
+                (option) => DropdownMenuItem<String>(
+                  value: option,
+                  child: Text(option),
+                ),
+              ),
+            ],
+            onChanged: onChanged,
+            decoration: InputDecoration(
+              isDense: true,
+              filled: true,
+              fillColor: AppColors.surface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: AppColors.border.withOpacity(0.5)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: AppColors.border.withOpacity(0.5)),
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _inspectorDropdown() {
+    final value = (_inspectorId != null && _inspectorId!.isNotEmpty)
+        ? _inspectorId
+        : null;
+    final knownIds = _inspectors.map((e) => e.id.toString()).toSet();
+    final includeCurrentUnknown = value != null && !knownIds.contains(value);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Inspector',
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          DropdownButtonFormField<String>(
+            value: value,
+            items: [
+              const DropdownMenuItem<String>(
+                value: null,
+                child: Text('Select inspector'),
+              ),
+              if (includeCurrentUnknown)
+                DropdownMenuItem<String>(
+                  value: value,
+                  child: Text('Current inspector ($value)'),
+                ),
+              ..._inspectors.map(
+                (e) => DropdownMenuItem<String>(
+                  value: e.id.toString(),
+                  child: Text(e.fullName.trim()),
+                ),
+              ),
+            ],
+            onChanged: (next) => setState(() => _inspectorId = next),
+            decoration: InputDecoration(
+              isDense: true,
+              filled: true,
+              fillColor: AppColors.surface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: AppColors.border.withOpacity(0.5)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: AppColors.border.withOpacity(0.5)),
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _boolDropdown(
+    String label,
+    bool? value,
+    ValueChanged<bool?> onChanged, {
+    String trueLabel = 'Yes',
+    String falseLabel = 'No',
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          DropdownButtonFormField<bool?>(
+            value: value,
+            items: [
+              const DropdownMenuItem<bool?>(value: null, child: Text('Select')),
+              DropdownMenuItem<bool?>(value: true, child: Text(trueLabel)),
+              DropdownMenuItem<bool?>(value: false, child: Text(falseLabel)),
+            ],
+            onChanged: onChanged,
+            decoration: InputDecoration(
+              isDense: true,
+              filled: true,
+              fillColor: AppColors.surface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: AppColors.border.withOpacity(0.5)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: AppColors.border.withOpacity(0.5)),
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final dateFmt = DateFormat('d MMM yyyy, h:mm a');
+    final systemType = _textValue(['system_type']);
+    final houseStorey = _textValue(['house_storey']);
+    final roofType = _textValue(['roof_type']);
+    final meterPhase = _textValue(['meter_phase']);
+    final accessSecondStorey = _boolLabel(['access_to_second_storey']);
+    final accessInverter = _boolLabel(['access_to_inverter']);
+    final preApprovalRef = _textValue(['pre_approval_reference_no']);
+    final energyRetailer = _textValue(['energy_retailer']);
+    final energyDistributor = _textValue(['energy_distributor']);
+    final solarVicEligibility = _boolLabel(
+      ['solar_vic_eligibility'],
+      trueLabel: 'Eligible',
+      falseLabel: 'Not eligible',
+    );
+    final nmiNumber = _textValue(['nmi_number']);
+    final meterNumber = _textValue(['meter_number']);
+    final pvSystemSize = _textValue(['pv_system_size_kw']);
+    final pvInverterSize = _textValue(['pv_inverter_size_kw']);
+    final pvInverterBrand = _textValue(['pv_inverter_brand']);
+    final pvInverterModel = _textValue(['pv_inverter_model']);
+    final pvInverterSeries = _textValue(['pv_inverter_series']);
+    final pvInverterPower = _textValue(['pv_inverter_power_kw']);
+    final pvInverterQty = _textValue(['pv_inverter_quantity']);
+    final pvPanelBrand = _textValue(['pv_panel_brand']);
+    final pvPanelModel = _textValue(['pv_panel_model']);
+    final pvPanelQty = _textValue(['pv_panel_quantity']);
+    final pvPanelWatts = _textValue(['pv_panel_module_watts']);
+    final evBrand = _textValue(['ev_charger_brand']);
+    final evModel = _textValue(['ev_charger_model']);
+    final batterySize = _textValue(['battery_size_kwh']);
+    final batteryBrand = _textValue(['battery_brand']);
+    final batteryModel = _textValue(['battery_model']);
+    final inspectionDate = _formattedDateTime(
+      ['site_inspection_scheduled_at', 'site_inspection_date'],
+    );
+    final inspectorName = _textValue(['inspector_name', 'assigned_to_name']);
+    final salesSegment = _textValue(['sales_segment']);
+    final salesSegmentLabel = salesSegment == 'b2c'
+        ? 'Residential (B2C)'
+        : salesSegment == 'b2b'
+            ? 'Commercial (B2B)'
+            : salesSegment;
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: _editing
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextButton(
+                      onPressed: _saving ? null : () => setState(() => _editing = false),
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: _saving ? null : _saveDetails,
+                      child: _saving
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Save'),
+                    ),
+                  ],
+                )
+              : OutlinedButton.icon(
+                  onPressed: () => setState(() => _editing = true),
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: const Text('Edit details'),
+                ),
+        ),
+        const SizedBox(height: 10),
         _DetailCard(
           title: 'Contact Information',
           children: [
@@ -503,6 +1025,8 @@ class _DetailsTab extends StatelessWidget {
             if (lead.suburb != null) _DetailRow('Suburb', lead.suburb!),
             if (lead.address != null)
               _DetailRow('Address', lead.address!),
+            if (salesSegmentLabel != null)
+              _DetailRow('Sales channel', salesSegmentLabel),
           ],
         ),
         const SizedBox(height: 14),
@@ -520,6 +1044,200 @@ class _DetailsTab extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         _DetailCard(
+          title: 'System Information',
+          children: _editing
+              ? [
+                  _dropdownField(
+                    label: 'System type',
+                    value: _systemType,
+                    options: _systemTypeOptions,
+                    onChanged: (next) => setState(() => _systemType = next),
+                  ),
+                  _inspectorDropdown(),
+                ]
+              : [
+                  _DetailRow('System type', _safeDisplay(systemType)),
+                  _DetailRow('Inspector', _safeDisplay(inspectorName)),
+                ],
+        ),
+        const SizedBox(height: 14),
+        _DetailCard(
+          title: 'Property Information',
+          children: _editing
+              ? [
+                  _dropdownField(
+                    label: 'House storey',
+                    value: _houseStorey,
+                    options: _houseStoreyOptions,
+                    onChanged: (next) => setState(() => _houseStorey = next),
+                  ),
+                  _dropdownField(
+                    label: 'Roof type',
+                    value: _roofType,
+                    options: _roofTypeOptions,
+                    onChanged: (next) => setState(() => _roofType = next),
+                  ),
+                  _dropdownField(
+                    label: 'Meter phase',
+                    value: _meterPhase,
+                    options: _meterPhaseOptions,
+                    onChanged: (next) => setState(() => _meterPhase = next),
+                  ),
+                  _boolDropdown(
+                    'Access to 2nd storey',
+                    _accessSecondStorey,
+                    (value) => setState(() => _accessSecondStorey = value),
+                  ),
+                  _boolDropdown(
+                    'Access to inverter',
+                    _accessInverter,
+                    (value) => setState(() => _accessInverter = value),
+                  ),
+                ]
+              : [
+                  _DetailRow('House storey', _safeDisplay(houseStorey)),
+                  _DetailRow('Roof type', _safeDisplay(roofType)),
+                  _DetailRow('Meter phase', _safeDisplay(meterPhase)),
+                  _DetailRow(
+                    'Access to 2nd storey',
+                    _boolDisplay(_toBool(accessSecondStorey)),
+                  ),
+                  _DetailRow(
+                    'Access to inverter',
+                    _boolDisplay(_toBool(accessInverter)),
+                  ),
+                ],
+        ),
+        const SizedBox(height: 14),
+        _DetailCard(
+          title: 'Utility Information',
+          children: _editing
+              ? [
+                  _editableField('Pre-approval ref no', _preApprovalCtrl),
+                  _editableField('Energy retailer', _energyRetailerCtrl),
+                  _dropdownField(
+                    label: 'Energy distributor',
+                    value: _energyDistributor,
+                    options: _energyDistributorOptions,
+                    onChanged: (next) =>
+                        setState(() => _energyDistributor = next),
+                  ),
+                  _boolDropdown(
+                    'Solar Vic eligibility',
+                    _solarVicEligibility,
+                    (value) => setState(() => _solarVicEligibility = value),
+                    trueLabel: 'Eligible',
+                    falseLabel: 'Not eligible',
+                  ),
+                  _editableField('NMI number', _nmiCtrl),
+                  _editableField('Meter number', _meterNumberCtrl),
+                ]
+              : [
+                  _DetailRow('Pre-approval ref no', _safeDisplay(preApprovalRef)),
+                  _DetailRow('Energy retailer', _safeDisplay(energyRetailer)),
+                  _DetailRow('Energy distributor', _safeDisplay(energyDistributor)),
+                  _DetailRow(
+                    'Solar Vic eligibility',
+                    _boolDisplay(
+                      _toBool(solarVicEligibility),
+                      trueLabel: 'Eligible',
+                      falseLabel: 'Not eligible',
+                    ),
+                  ),
+                  _DetailRow('NMI number', _safeDisplay(nmiNumber)),
+                  _DetailRow('Meter number', _safeDisplay(meterNumber)),
+                ],
+        ),
+        if (_editing) ...[
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton(
+              onPressed: _saving ? null : _saveDetails,
+              child: _saving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Save details'),
+            ),
+          ),
+        ],
+        if (_rows([
+          _FieldView('PV system size (kW)', pvSystemSize),
+          _FieldView('PV inverter size (kW)', pvInverterSize),
+          _FieldView('Inverter brand', pvInverterBrand),
+          _FieldView('Inverter model', pvInverterModel),
+          _FieldView('Inverter series', pvInverterSeries),
+          _FieldView('Inverter power (kW)', pvInverterPower),
+          _FieldView('Number of inverter', pvInverterQty),
+          _FieldView('Panel brand', pvPanelBrand),
+          _FieldView('Panel model', pvPanelModel),
+          _FieldView('Quantity of panel', pvPanelQty),
+          _FieldView('Panel module (W)', pvPanelWatts),
+        ]).isNotEmpty) ...[
+          const SizedBox(height: 14),
+          _DetailCard(
+            title: 'PV System Details',
+            children: _rows([
+              _FieldView('PV system size (kW)', pvSystemSize),
+              _FieldView('PV inverter size (kW)', pvInverterSize),
+              _FieldView('Inverter brand', pvInverterBrand),
+              _FieldView('Inverter model', pvInverterModel),
+              _FieldView('Inverter series', pvInverterSeries),
+              _FieldView('Inverter power (kW)', pvInverterPower),
+              _FieldView('Number of inverter', pvInverterQty),
+              _FieldView('Panel brand', pvPanelBrand),
+              _FieldView('Panel model', pvPanelModel),
+              _FieldView('Quantity of panel', pvPanelQty),
+              _FieldView('Panel module (W)', pvPanelWatts),
+            ]),
+          ),
+        ],
+        if (_rows([
+          _FieldView('EV charger brand', evBrand),
+          _FieldView('EV charger model', evModel),
+        ]).isNotEmpty) ...[
+          const SizedBox(height: 14),
+          _DetailCard(
+            title: 'EV Charger Details',
+            children: _rows([
+              _FieldView('EV charger brand', evBrand),
+              _FieldView('EV charger model', evModel),
+            ]),
+          ),
+        ],
+        if (_rows([
+          _FieldView('Battery size (kWh)', batterySize),
+          _FieldView('Battery brand', batteryBrand),
+          _FieldView('Battery model', batteryModel),
+        ]).isNotEmpty) ...[
+          const SizedBox(height: 14),
+          _DetailCard(
+            title: 'Battery Details',
+            children: _rows([
+              _FieldView('Battery size (kWh)', batterySize),
+              _FieldView('Battery brand', batteryBrand),
+              _FieldView('Battery model', batteryModel),
+            ]),
+          ),
+        ],
+        if (_rows([
+          _FieldView('Date & time', inspectionDate),
+          _FieldView('Inspector', inspectorName),
+        ]).isNotEmpty) ...[
+          const SizedBox(height: 14),
+          _DetailCard(
+            title: 'Inspection Details',
+            children: _rows([
+              _FieldView('Date & time', inspectionDate),
+              _FieldView('Inspector', inspectorName),
+            ]),
+          ),
+        ],
+        const SizedBox(height: 14),
+        _DetailCard(
           title: 'Timestamps',
           children: [
             if (lead.createdAt != null)
@@ -531,6 +1249,12 @@ class _DetailsTab extends StatelessWidget {
       ],
     );
   }
+}
+
+class _FieldView {
+  final String label;
+  final String? value;
+  const _FieldView(this.label, this.value);
 }
 
 // ---------------------------------------------------------------------------
