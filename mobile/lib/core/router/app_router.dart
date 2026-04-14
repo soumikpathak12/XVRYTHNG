@@ -42,6 +42,7 @@ import '../../screens/operations/operational_users_placeholder_screen.dart';
 import '../../screens/leads/import_leads_screen.dart';
 import '../../screens/on_field/site_inspection_form_screen.dart';
 import '../../screens/on_field/site_inspection_leads_screen.dart';
+import '../../screens/notifications/notifications_screen.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -224,6 +225,10 @@ GoRouter createRouter(AuthProvider authProvider) {
             builder: (context, state) => const MessagesScreen(),
           ),
           GoRoute(
+            path: '/admin/notifications',
+            builder: (context, state) => const NotificationsScreen(),
+          ),
+          GoRoute(
             path: '/admin/support-tickets',
             builder: (context, state) => const SupportTicketsScreen(),
           ),
@@ -342,6 +347,10 @@ GoRouter createRouter(AuthProvider authProvider) {
             builder: (context, state) => const MessagesScreen(),
           ),
           GoRoute(
+            path: '/dashboard/notifications',
+            builder: (context, state) => const NotificationsScreen(),
+          ),
+          GoRoute(
             path: '/dashboard/support-tickets',
             builder: (context, state) => const SupportTicketsScreen(),
           ),
@@ -426,6 +435,10 @@ GoRouter createRouter(AuthProvider authProvider) {
           GoRoute(
             path: '/employee/messages',
             builder: (context, state) => const MessagesScreen(),
+          ),
+          GoRoute(
+            path: '/employee/notifications',
+            builder: (context, state) => const NotificationsScreen(),
           ),
           GoRoute(
             path: '/employee/referrals',

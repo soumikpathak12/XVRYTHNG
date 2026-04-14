@@ -84,22 +84,43 @@ class ShellScaffoldScope extends InheritedWidget {
     BuildContext? context,
     VoidCallback? onPressed,
   }) {
-    void defaultTap() {
-      if (context == null) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No new notifications'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-    }
-
     return [
-      IconButton(
-        icon: const Icon(Icons.notifications_outlined),
-        tooltip: 'Notifications',
-        onPressed: onPressed ?? defaultTap,
-      ),
+      _NotificationBellButton(onPressed: onPressed),
     ];
+  }
+}
+
+class _NotificationBellButton extends StatefulWidget {
+  final VoidCallback? onPressed;
+  const _NotificationBellButton({this.onPressed});
+
+  @override
+  State<_NotificationBellButton> createState() => _NotificationBellButtonState();
+}
+
+class _NotificationBellButtonState extends State<_NotificationBellButton> {
+  String _routePrefix(BuildContext ctx) {
+    final loc = GoRouterState.of(ctx).matchedLocation;
+    if (loc.startsWith('/admin')) return '/admin';
+    if (loc.startsWith('/dashboard')) return '/dashboard';
+    if (loc.startsWith('/employee')) return '/employee';
+    return '/admin';
+  }
+
+  Future<void> _openNotifications() async {
+    if (widget.onPressed != null) {
+      widget.onPressed!.call();
+      return;
+    }
+    context.go('${_routePrefix(context)}/notifications');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.notifications_outlined),
+      tooltip: 'Notifications',
+      onPressed: _openNotifications,
+    );
   }
 }

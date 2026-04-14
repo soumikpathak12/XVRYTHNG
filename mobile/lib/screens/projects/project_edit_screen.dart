@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../services/leads_service.dart';
 import '../../services/projects_service.dart';
 import '../../widgets/common/loading_overlay.dart';
 
@@ -23,6 +24,32 @@ class ProjectEditScreen extends StatefulWidget {
 class _ProjectEditScreenState extends State<ProjectEditScreen> {
   final _formKey = GlobalKey<FormState>();
   final _service = ProjectsService();
+  final _leadsService = LeadsService();
+
+  static const List<String> _systemTypes = [
+    'PV only',
+    'PV + Battery',
+    'Only Battery',
+    'Only EV Charger',
+    'PV + Battery + EV Charger',
+    'Battery + EV Charger',
+    'PV + EV Chargers',
+  ];
+  static const List<String> _houseStoreyOptions = [
+    'Single',
+    'Double',
+    'Triple',
+    'Other',
+  ];
+  static const List<String> _roofTypeOptions = [
+    'Tin(Colorbond)',
+    'Tin(Kliplock)',
+    'Tile(Concrete)',
+    'Tile(Terracotta)',
+    'Flat',
+    'Other',
+  ];
+  static const List<String> _meterPhaseOptions = ['Single', 'Double', 'Three'];
 
   final _customerNameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
@@ -31,22 +58,82 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
   final _systemSizeCtrl = TextEditingController();
   final _valueAmountCtrl = TextEditingController();
   final _postInstallRefCtrl = TextEditingController();
+  final _preApprovalRefCtrl = TextEditingController();
+  final _energyRetailerCtrl = TextEditingController();
+  final _energyDistributorCtrl = TextEditingController();
+  final _nmiNumberCtrl = TextEditingController();
+  final _meterNumberCtrl = TextEditingController();
+
+  String _systemType = '';
+  String _houseStorey = '';
+  String _roofType = '';
+  String _meterPhase = '';
+  bool? _accessToSecondStorey;
+  bool? _accessToInverter;
+  bool? _solarVicEligibility;
 
   DateTime? _expectedCompletionDate;
   bool _saving = false;
   String? _error;
+  int? _leadId;
 
   @override
   void initState() {
     super.initState();
     final d = widget.initialData;
-    _customerNameCtrl.text = (d['customer_name'] ?? d['customerName'] ?? '').toString();
-    _emailCtrl.text = (d['email'] ?? '').toString();
-    _phoneCtrl.text = (d['phone'] ?? '').toString();
-    _suburbCtrl.text = (d['suburb'] ?? '').toString();
-    _systemSizeCtrl.text = (d['system_size_kw'] ?? '').toString();
+    String read(List<String> keys) {
+      for (final key in keys) {
+        final value = d[key];
+        if (value == null) continue;
+        final text = value.toString();
+        if (text.trim().isNotEmpty) return text;
+      }
+      return '';
+    }
+
+    bool? parseBool(dynamic value) {
+      if (value == null) return null;
+      final normalized = value.toString().trim().toLowerCase();
+      if (normalized == '1' ||
+          normalized == 'true' ||
+          normalized == 'yes' ||
+          normalized == 'y') {
+        return true;
+      }
+      if (normalized == '0' ||
+          normalized == 'false' ||
+          normalized == 'no' ||
+          normalized == 'n') {
+        return false;
+      }
+      return null;
+    }
+
+    _leadId = int.tryParse(read(['lead_id']));
+    _customerNameCtrl.text = read(['customer_name', 'customerName']);
+    _emailCtrl.text = read(['email', 'lead_email']);
+    _phoneCtrl.text = read(['phone', 'lead_phone']);
+    _suburbCtrl.text = read(['suburb', 'lead_suburb']);
+    _systemSizeCtrl.text = read(['system_size_kw', 'lead_system_size_kw']);
     _valueAmountCtrl.text = (d['value_amount'] ?? d['lead_value_amount'] ?? '').toString();
-    _postInstallRefCtrl.text = (d['post_install_reference_no'] ?? '').toString();
+    _systemType = read(['system_type', 'lead_system_type']);
+    _houseStorey = read(['house_storey', 'lead_house_storey']);
+    _roofType = read(['roof_type', 'lead_roof_type']);
+    _meterPhase = read(['meter_phase', 'lead_meter_phase']);
+    _accessToSecondStorey =
+        parseBool(d['access_to_second_storey'] ?? d['lead_access_to_second_storey']);
+    _accessToInverter =
+        parseBool(d['access_to_inverter'] ?? d['lead_access_to_inverter']);
+    _preApprovalRefCtrl.text =
+        read(['pre_approval_reference_no', 'lead_pre_approval_reference_no']);
+    _energyRetailerCtrl.text = read(['energy_retailer', 'lead_energy_retailer']);
+    _energyDistributorCtrl.text =
+        read(['energy_distributor', 'lead_energy_distributor']);
+    _solarVicEligibility =
+        parseBool(d['solar_vic_eligibility'] ?? d['lead_solar_vic_eligibility']);
+    _nmiNumberCtrl.text = read(['nmi_number', 'lead_nmi_number']);
+    _meterNumberCtrl.text = read(['meter_number', 'lead_meter_number']);
+    _postInstallRefCtrl.text = read(['post_install_reference_no']);
     _expectedCompletionDate = _tryParseDate(d['expected_completion_date']);
   }
 
@@ -67,6 +154,11 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
     _systemSizeCtrl.dispose();
     _valueAmountCtrl.dispose();
     _postInstallRefCtrl.dispose();
+    _preApprovalRefCtrl.dispose();
+    _energyRetailerCtrl.dispose();
+    _energyDistributorCtrl.dispose();
+    _nmiNumberCtrl.dispose();
+    _meterNumberCtrl.dispose();
     super.dispose();
   }
 
@@ -85,6 +177,11 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
   String? _required(String? v) {
     if (v == null || v.trim().isEmpty) return 'Required';
     return null;
+  }
+
+  String? _normalize(String value) {
+    final text = value.trim();
+    return text.isEmpty ? null : text;
   }
 
   Future<void> _save() async {
@@ -115,10 +212,36 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
 
     try {
       await _service.updateProject(widget.projectId, payload);
+      if (_leadId != null) {
+        await _leadsService.updateLead(_leadId!, {
+          'customer_name': _customerNameCtrl.text.trim(),
+          'email': _normalize(_emailCtrl.text),
+          'phone': _normalize(_phoneCtrl.text),
+          'suburb': _normalize(_suburbCtrl.text),
+          'system_size_kw': _systemSizeCtrl.text.trim().isEmpty
+              ? null
+              : double.tryParse(_systemSizeCtrl.text.trim()),
+          'value_amount': _valueAmountCtrl.text.trim().isEmpty
+              ? null
+              : double.tryParse(_valueAmountCtrl.text.trim()),
+          'system_type': _systemType.isEmpty ? null : _systemType,
+          'house_storey': _houseStorey.isEmpty ? null : _houseStorey,
+          'roof_type': _roofType.isEmpty ? null : _roofType,
+          'meter_phase': _meterPhase.isEmpty ? null : _meterPhase,
+          'access_to_second_storey': _accessToSecondStorey,
+          'access_to_inverter': _accessToInverter,
+          'pre_approval_reference_no': _normalize(_preApprovalRefCtrl.text),
+          'energy_retailer': _normalize(_energyRetailerCtrl.text),
+          'energy_distributor': _normalize(_energyDistributorCtrl.text),
+          'solar_vic_eligibility': _solarVicEligibility,
+          'nmi_number': _normalize(_nmiNumberCtrl.text),
+          'meter_number': _normalize(_meterNumberCtrl.text),
+        });
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Project updated'),
+          content: Text('Project updated successfully'),
           backgroundColor: AppColors.success,
         ),
       );
@@ -189,6 +312,7 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
                 const SizedBox(height: 16),
               ],
               _card([
+                const _SectionTitle('Customer Details'),
                 _field(
                   controller: _customerNameCtrl,
                   label: 'Customer Name',
@@ -218,6 +342,15 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
               ]),
               const SizedBox(height: 16),
               _card([
+                const _SectionTitle('System Specifications'),
+                _dropdownField(
+                  label: 'System Type',
+                  icon: Icons.settings_input_component_outlined,
+                  value: _systemType.isEmpty ? null : _systemType,
+                  options: _systemTypes,
+                  onChanged: (v) => setState(() => _systemType = v ?? ''),
+                ),
+                const SizedBox(height: 16),
                 _field(
                   controller: _systemSizeCtrl,
                   label: 'System Size (kW)',
@@ -230,18 +363,101 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
                 const SizedBox(height: 16),
                 _field(
                   controller: _valueAmountCtrl,
-                  label: 'Value Amount',
+                  label: 'Estimated Value (AUD)',
                   icon: Icons.attach_money_outlined,
                   keyboard: const TextInputType.numberWithOptions(decimal: true),
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                   ],
                 ),
+              ]),
+              const SizedBox(height: 16),
+              _card([
+                const _SectionTitle('Property Characteristics'),
+                _dropdownField(
+                  label: 'House Storey',
+                  icon: Icons.layers_outlined,
+                  value: _houseStorey.isEmpty ? null : _houseStorey,
+                  options: _houseStoreyOptions,
+                  onChanged: (v) => setState(() => _houseStorey = v ?? ''),
+                ),
+                const SizedBox(height: 16),
+                _dropdownField(
+                  label: 'Roof Type',
+                  icon: Icons.roofing_outlined,
+                  value: _roofType.isEmpty ? null : _roofType,
+                  options: _roofTypeOptions,
+                  onChanged: (v) => setState(() => _roofType = v ?? ''),
+                ),
+                const SizedBox(height: 16),
+                _dropdownField(
+                  label: 'Meter Phase',
+                  icon: Icons.electric_meter_outlined,
+                  value: _meterPhase.isEmpty ? null : _meterPhase,
+                  options: _meterPhaseOptions,
+                  onChanged: (v) => setState(() => _meterPhase = v ?? ''),
+                ),
+                const SizedBox(height: 16),
+                _boolDropdown(
+                  label: 'Access to 2nd Storey',
+                  icon: Icons.stairs_outlined,
+                  value: _accessToSecondStorey,
+                  onChanged: (v) => setState(() => _accessToSecondStorey = v),
+                ),
+                const SizedBox(height: 16),
+                _boolDropdown(
+                  label: 'Access to Inverter',
+                  icon: Icons.power_outlined,
+                  value: _accessToInverter,
+                  onChanged: (v) => setState(() => _accessToInverter = v),
+                ),
+              ]),
+              const SizedBox(height: 16),
+              _card([
+                const _SectionTitle('Utility Information'),
+                _field(
+                  controller: _preApprovalRefCtrl,
+                  label: 'Pre-approval Reference #',
+                  icon: Icons.confirmation_number_outlined,
+                ),
                 const SizedBox(height: 16),
                 _field(
                   controller: _postInstallRefCtrl,
                   label: 'Post-install Reference #',
                   icon: Icons.confirmation_number_outlined,
+                ),
+                const SizedBox(height: 16),
+                _field(
+                  controller: _energyRetailerCtrl,
+                  label: 'Energy Retailer',
+                  icon: Icons.storefront_outlined,
+                ),
+                const SizedBox(height: 16),
+                _field(
+                  controller: _energyDistributorCtrl,
+                  label: 'Energy Distributor',
+                  icon: Icons.account_tree_outlined,
+                ),
+                const SizedBox(height: 16),
+                _boolDropdown(
+                  label: 'Solar Victoria Eligibility',
+                  icon: Icons.verified_outlined,
+                  value: _solarVicEligibility,
+                  trueLabel: 'Eligible',
+                  falseLabel: 'Not eligible',
+                  onChanged: (v) => setState(() => _solarVicEligibility = v),
+                ),
+                const SizedBox(height: 16),
+                _field(
+                  controller: _nmiNumberCtrl,
+                  label: 'NMI Number',
+                  icon: Icons.numbers_outlined,
+                ),
+                const SizedBox(height: 16),
+                _field(
+                  controller: _meterNumberCtrl,
+                  label: 'Meter Number',
+                  icon: Icons.pin_outlined,
                 ),
                 const SizedBox(height: 8),
                 ListTile(
@@ -294,6 +510,85 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
         filled: true,
         fillColor: AppColors.surface,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  Widget _dropdownField({
+    required String label,
+    required IconData icon,
+    required String? value,
+    required List<String> options,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return DropdownButtonFormField<String>(
+      value: value,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon),
+        filled: true,
+        fillColor: AppColors.surface,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      items: [
+        const DropdownMenuItem<String>(
+          value: null,
+          child: Text('Select'),
+        ),
+        ...options.map(
+          (option) => DropdownMenuItem<String>(
+            value: option,
+            child: Text(option),
+          ),
+        ),
+      ],
+      onChanged: onChanged,
+    );
+  }
+
+  Widget _boolDropdown({
+    required String label,
+    required IconData icon,
+    required bool? value,
+    required ValueChanged<bool?> onChanged,
+    String trueLabel = 'Yes',
+    String falseLabel = 'No',
+  }) {
+    return DropdownButtonFormField<bool?>(
+      value: value,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon),
+        filled: true,
+        fillColor: AppColors.surface,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      items: [
+        const DropdownMenuItem<bool?>(value: null, child: Text('Select')),
+        DropdownMenuItem<bool?>(value: true, child: Text(trueLabel)),
+        DropdownMenuItem<bool?>(value: false, child: Text(falseLabel)),
+      ],
+      onChanged: onChanged,
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  final String text;
+  const _SectionTitle(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          color: AppColors.textSecondary,
+          letterSpacing: 0.3,
+        ),
       ),
     );
   }
