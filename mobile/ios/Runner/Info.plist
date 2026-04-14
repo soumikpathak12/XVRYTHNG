@@ -57,5 +57,7 @@
 	<string>Photos let you attach images to leads, jobs, expenses, and support requests.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>The camera lets you take photos to attach to leads, jobs, expenses, and support requests.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>
