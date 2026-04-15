@@ -24,6 +24,8 @@ export async function getOnFieldCalendar(companyId, employeeId, fromDate, toDate
   const endDt = `${endNextStr} 23:59:59`;
 
   const events = [];
+  /** @type {Set<string>} `projectId|YYYY-MM-DD` days already covered by an installation job row */
+  const coveredProjectInstallDays = new Set();
 
   // 1) Site inspections: lead_site_inspections where inspector_id = employeeId, scheduled_at in range (or fallback to lead.site_inspection_date)
   const [inspections] = await db.execute(
@@ -65,18 +67,39 @@ export async function getOnFieldCalendar(companyId, employeeId, fromDate, toDate
     });
   }
 
-  // 2) Installation jobs: jobs where this employee is assignee, scheduled_date in range
+  // 2) Installation jobs: same assignment rules as installationService.listJobs —
+  //    direct job assignees, or project_assignees / retailer_project_assignees on linked projects.
+  const empId = Number(employeeId);
   const [jobs] = await db.execute(
     `SELECT
-            ij.id, ij.customer_name, ij.address, ij.suburb,
+            ij.id, ij.project_id, ij.retailer_project_id,
+            ij.customer_name, ij.address, ij.suburb,
             DATE_FORMAT(ij.scheduled_date, '%Y-%m-%d') AS scheduled_date_only,
             TIME_FORMAT(ij.scheduled_time, '%H:%i:%s') AS scheduled_time_only,
             ij.status, ij.system_type
      FROM installation_jobs ij
-     INNER JOIN installation_job_assignees ija ON ija.job_id = ij.id AND ija.employee_id = ?
-     WHERE ij.company_id = ? AND ij.scheduled_date >= ? AND ij.scheduled_date <= ?
+     WHERE ij.company_id = ?
+       AND ij.scheduled_date >= ? AND ij.scheduled_date <= ?
+       AND (
+         EXISTS (
+           SELECT 1 FROM installation_job_assignees ija2
+           WHERE ija2.job_id = ij.id AND ija2.company_id = ij.company_id AND ija2.employee_id = ?
+         )
+         OR (
+           ij.project_id IS NOT NULL AND EXISTS (
+             SELECT 1 FROM project_assignees pa
+             WHERE pa.project_id = ij.project_id AND pa.company_id = ij.company_id AND pa.employee_id = ?
+           )
+         )
+         OR (
+           ij.retailer_project_id IS NOT NULL AND EXISTS (
+             SELECT 1 FROM retailer_project_assignees rpa
+             WHERE rpa.project_id = ij.retailer_project_id AND rpa.company_id = ij.company_id AND rpa.employee_id = ?
+           )
+         )
+       )
      ORDER BY ij.scheduled_date ASC, ij.scheduled_time ASC`,
-    [Number(employeeId), Number(companyId), fromDate, toDate]
+    [Number(companyId), fromDate, toDate, empId, empId, empId]
   );
 
   for (const row of jobs) {
@@ -84,6 +107,9 @@ export async function getOnFieldCalendar(companyId, employeeId, fromDate, toDate
     const timeStr = row.scheduled_time_only ? String(row.scheduled_time_only).slice(0, 8) : '09:00:00';
     const start = dateStr ? `${dateStr}T${timeStr}` : null;
     if (!start) continue;
+    if (row.project_id != null && dateStr) {
+      coveredProjectInstallDays.add(`${Number(row.project_id)}|${dateStr}`);
+    }
     const address = [row.address, row.suburb].filter(Boolean).join(', ') || undefined;
     events.push({
       id: `installation-${row.id}`,
@@ -91,10 +117,62 @@ export async function getOnFieldCalendar(companyId, employeeId, fromDate, toDate
       title: row.customer_name ? `Install: ${row.customer_name}` : `Installation #${row.id}`,
       start,
       job_id: row.id,
+      project_id: row.project_id != null ? Number(row.project_id) : null,
+      retailer_project_id: row.retailer_project_id != null ? Number(row.retailer_project_id) : null,
       customer_name: row.customer_name || null,
       address: address || undefined,
       status: row.status || null,
       system_type: row.system_type || null,
+    });
+  }
+
+  // 3) Project schedule + assignees when no installation_jobs row exists for that project/day.
+  //    saveScheduleAndAssignees only syncs jobs for certain stages; stages like `new` with a date
+  //    left assignees in project_assignees without a job — still show on the on-field calendar.
+  const [scheduleInstallRows] = await db.execute(
+    `SELECT DISTINCT
+            ps.project_id,
+            DATE_FORMAT(ps.scheduled_at, '%Y-%m-%dT%H:%i:%s') AS start_local,
+            ps.status AS schedule_status,
+            COALESCE(p.customer_name, l.customer_name) AS customer_name,
+            COALESCE(p.suburb, l.suburb) AS suburb
+       FROM project_schedules ps
+       INNER JOIN project_assignees pa
+         ON pa.project_id = ps.project_id AND pa.company_id = ps.company_id AND pa.employee_id = ?
+       INNER JOIN projects p ON p.id = ps.project_id
+       INNER JOIN leads l ON l.id = p.lead_id
+      WHERE ps.company_id = ?
+        AND ps.scheduled_at IS NOT NULL
+        AND ps.scheduled_at >= ? AND ps.scheduled_at <= ?
+        AND ps.status IN (
+          'new', 'scheduled', 'to_be_rescheduled',
+          'installation_in_progress', 'installation_completed'
+        )
+      ORDER BY ps.scheduled_at ASC`,
+    [empId, Number(companyId), startDt, endDt]
+  );
+
+  for (const row of scheduleInstallRows) {
+    const start = row.start_local ? String(row.start_local) : null;
+    if (!start) continue;
+    const dateStr = start.slice(0, 10);
+    const pid = Number(row.project_id);
+    const dayKey = `${pid}|${dateStr}`;
+    if (coveredProjectInstallDays.has(dayKey)) continue;
+    coveredProjectInstallDays.add(dayKey);
+    const address = [row.suburb].filter(Boolean).join(', ') || undefined;
+    events.push({
+      id: `installation-project-${pid}-${dateStr}`,
+      type: 'installation',
+      title: row.customer_name ? `Install: ${row.customer_name}` : `Project #${pid}`,
+      start,
+      job_id: null,
+      project_id: pid,
+      retailer_project_id: null,
+      customer_name: row.customer_name || null,
+      address: address || undefined,
+      status: row.schedule_status || null,
+      system_type: null,
     });
   }
 

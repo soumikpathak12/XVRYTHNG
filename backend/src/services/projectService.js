@@ -568,7 +568,11 @@ export async function saveScheduleAndAssignees(companyId, projectId, payload = {
     // - scheduled                 -> installation_jobs.status = 'scheduled'
     // - installation_in_progress  -> installation_jobs.status = 'in_progress'
     // - installation_completed    -> installation_jobs.status = 'completed'
+    // Include `new` / `to_be_rescheduled`: UI often keeps stage at "new" while setting an
+    // installation date; without these, installation_jobs never syncs and on-field calendar stays empty.
     const projectStageToJobStatus = {
+      new: 'scheduled',
+      to_be_rescheduled: 'scheduled',
       scheduled: 'scheduled',
       installation_in_progress: 'in_progress',
       installation_completed: 'completed',

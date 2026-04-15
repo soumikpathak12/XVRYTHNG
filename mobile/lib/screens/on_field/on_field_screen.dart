@@ -163,6 +163,9 @@ class _OnFieldScreenState extends State<OnFieldScreen> {
     } else if (event.type == 'installation' && event.jobId != null) {
       final base = loc.contains('/admin') ? '/admin/installation' : loc.contains('/dashboard') ? '/dashboard/installation' : '/employee/installation';
       context.push('$base/${event.jobId}');
+    } else if (event.type == 'installation' && event.projectId != null) {
+      final base = loc.contains('/admin') ? '/admin/projects' : loc.contains('/dashboard') ? '/dashboard/projects' : '/employee/projects';
+      context.push('$base/${event.projectId}');
     }
   }
 
