@@ -19,8 +19,7 @@ class LeadsService {
           (salesSegment == 'b2c' || salesSegment == 'b2b')) {
         params['sales_segment'] = salesSegment;
       }
-      final response =
-          await _api.get('/api/leads', queryParameters: params);
+      final response = await _api.get('/api/leads', queryParameters: params);
       final data = response.data['data'] ?? response.data;
       if (data is List) {
         return data.map((e) => Lead.fromJson(e)).toList();
@@ -81,14 +80,31 @@ class LeadsService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getCalendarLeads(
-      {String? from, String? to}) async {
+  Future<List<Map<String, dynamic>>> getLeadDocuments(int id) async {
+    try {
+      final response = await _api.get('/api/leads/$id/documents');
+      final data = response.data['data'] ?? response.data;
+      if (data is List) {
+        return data.map((e) => Map<String, dynamic>.from(e)).toList();
+      }
+      return [];
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getCalendarLeads({
+    String? from,
+    String? to,
+  }) async {
     try {
       final params = <String, dynamic>{};
       if (from != null) params['from'] = from;
       if (to != null) params['to'] = to;
-      final response =
-          await _api.get('/api/calendar/leads', queryParameters: params);
+      final response = await _api.get(
+        '/api/calendar/leads',
+        queryParameters: params,
+      );
       final data = response.data['data'] ?? response.data;
       if (data is List) {
         return data.map((e) => Map<String, dynamic>.from(e)).toList();
@@ -126,8 +142,7 @@ class LeadsService {
   }
 
   /// PATCH /api/leads/:id/schedule — schedule site inspection
-  Future<void> scheduleInspection(
-      int leadId, Map<String, dynamic> data) async {
+  Future<void> scheduleInspection(int leadId, Map<String, dynamic> data) async {
     try {
       await _api.patch('/api/leads/$leadId/schedule', data: data);
     } on DioException catch (e) {

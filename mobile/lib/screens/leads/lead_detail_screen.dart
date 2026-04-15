@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/config/api_config.dart';
 import '../../models/dashboard.dart';
 import '../../models/employee.dart';
 import '../../models/lead.dart';
@@ -267,10 +269,11 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
   List<Map<String, dynamic>> get _documents {
     final detail = context.read<LeadsProvider>().leadDetail;
     if (detail == null) return [];
-    final list = detail['documents'];
+    final list = detail['documents'] ?? detail['data']?['documents'];
     if (list is List) {
       return list
-          .map((e) => e is Map<String, dynamic> ? e : <String, dynamic>{})
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
           .toList();
     }
     return [];
@@ -310,9 +313,38 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
   Future<void> _uploadDocument() async {
     final result = await showFilePickerSheet(context);
     if (result == null || !mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Uploading ${result.name}...')));
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      SnackBar(content: Text('Uploading ${result.name}...')),
+    );
+
+    try {
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(
+          result.file.path,
+          filename: result.name,
+          contentType: result.mimeType == null
+              ? null
+              : DioMediaType.parse(result.mimeType!),
+        ),
+      });
+
+      await context.read<LeadsProvider>().uploadLeadDocument(
+        widget.leadId,
+        formData,
+      );
+
+      if (!mounted) return;
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Document uploaded successfully')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(SnackBar(content: Text('Upload failed: $e')));
+    }
   }
 
   @override
@@ -2236,7 +2268,7 @@ class _DocumentTile extends StatelessWidget {
   const _DocumentTile({required this.doc});
 
   IconData get _icon {
-    final name = (doc['file_name'] ?? doc['name'] ?? '')
+    final name = (doc['file_name'] ?? doc['filename'] ?? doc['name'] ?? '')
         .toString()
         .toLowerCase();
     if (name.endsWith('.pdf')) return Icons.picture_as_pdf_rounded;
@@ -2253,62 +2285,82 @@ class _DocumentTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = doc['file_name'] ?? doc['name'] ?? 'Unknown file';
+    final name =
+        doc['file_name'] ?? doc['filename'] ?? doc['name'] ?? 'Unknown file';
+    final storagePath = (doc['storage_url'] ?? doc['url'] ?? '')
+        .toString()
+        .trim();
+    final openUrl = storagePath.isEmpty
+        ? null
+        : Uri.parse(
+            storagePath.startsWith('http')
+                ? storagePath
+                : '${ApiConfig.baseUrl}$storagePath',
+          );
     final dateFmt = DateFormat('d MMM yyyy');
     final uploadedAt = doc['created_at'] != null
         ? dateFmt.format(DateTime.parse(doc['created_at'].toString()))
         : '';
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.white,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border.withOpacity(0.5)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(_icon, size: 22, color: AppColors.primary),
+        onTap: openUrl == null ? null : () => launchUrl(openUrl),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.border.withOpacity(0.5)),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name.toString(),
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textPrimary,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                if (uploadedAt.isNotEmpty)
-                  Text(
-                    uploadedAt,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textSecondary,
+                child: Icon(_icon, size: 22, color: AppColors.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name.toString(),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textPrimary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-              ],
-            ),
+                    if (uploadedAt.isNotEmpty)
+                      Text(
+                        uploadedAt,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Icon(
+                openUrl == null
+                    ? Icons.insert_drive_file
+                    : Icons.download_rounded,
+                size: 20,
+                color: AppColors.textSecondary,
+              ),
+            ],
           ),
-          const Icon(
-            Icons.download_rounded,
-            size: 20,
-            color: AppColors.textSecondary,
-          ),
-        ],
+        ),
       ),
     );
   }

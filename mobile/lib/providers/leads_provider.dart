@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:dio/dio.dart';
 import '../models/lead.dart';
 import '../services/leads_service.dart';
 
@@ -58,8 +59,9 @@ class LeadsProvider extends ChangeNotifier {
 
   /// Clears sales segment filter when [segment] is null.
   Future<void> setSalesSegmentFilter(String? segment) async {
-    _salesSegmentFilter =
-        (segment == 'b2c' || segment == 'b2b') ? segment : null;
+    _salesSegmentFilter = (segment == 'b2c' || segment == 'b2b')
+        ? segment
+        : null;
     await loadLeads();
   }
 
@@ -68,12 +70,29 @@ class LeadsProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      _leadDetail = await _service.getLead(id);
+      final results = await Future.wait([
+        _service.getLead(id),
+        _service.getLeadDocuments(id),
+      ]);
+      final detail = Map<String, dynamic>.from(
+        results[0] as Map<String, dynamic>,
+      );
+      detail['documents'] = results[1] as List<Map<String, dynamic>>;
+      _leadDetail = detail;
     } catch (e) {
       _error = e.toString();
     } finally {
       _detailLoading = false;
       notifyListeners();
+    }
+  }
+
+  Future<void> uploadLeadDocument(int id, FormData formData) async {
+    try {
+      await _service.uploadLeadDocument(id, formData);
+      await loadLeadDetail(id);
+    } catch (e) {
+      rethrow;
     }
   }
 
