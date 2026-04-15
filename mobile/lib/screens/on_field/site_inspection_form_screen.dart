@@ -44,6 +44,8 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
   final TextEditingController _customerNameCtrl = TextEditingController();
   final TextEditingController _customerNotesCtrl = TextEditingController();
   bool _customerConfirmed = false;
+  bool _isSigning = false;
+  String? _generatedSignature;
 
   @override
   void initState() {
@@ -58,6 +60,17 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
     _customerNameCtrl.dispose();
     _customerNotesCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _exportPdf() async {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Please log in to the web application to export the PDF format exactly.'),
+            backgroundColor: AppColors.info,
+        ),
+      );
+    }
   }
 
   Future<void> _loadData() async {
@@ -467,7 +480,7 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
     _formData['customer_notes'] = customerNotes;
     _formData['customer_confirmed'] = _customerConfirmed;
 
-    final hasDrawnSignature = _signaturePoints.any((p) => p != null);
+    final hasDrawnSignature = _signaturePoints.any((p) => p != null) || _generatedSignature != null;
     final existingSignature = _getValue('signature_url')?.toString().trim() ?? '';
 
     if (hasDrawnSignature) {
@@ -529,13 +542,6 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Site Inspection Form'),
-        actions: [
-          if (!_loading && _error == null)
-            TextButton(
-              onPressed: _submitting ? null : () => _submit(true),
-              child: const Text('Save Draft', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
-            ),
-        ],
       ),
       body: LoadingOverlay(
         isLoading: _submitting,
@@ -569,6 +575,9 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
         Expanded(
           child: PageView.builder(
             controller: _pageController,
+            physics: _isSigning
+                ? const NeverScrollableScrollPhysics()
+                : const PageScrollPhysics(),
             onPageChanged: (idx) => setState(() => _currentStep = idx),
             itemCount: inspectionSections.length,
             itemBuilder: (context, idx) => _buildSectionForm(inspectionSections[idx]),
@@ -660,32 +669,52 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
     final isFirst = _currentStep == 0;
     
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 20),
       decoration: BoxDecoration(
         color: AppColors.white,
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -4))],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, -3))],
       ),
       child: Row(
         children: [
-          if (!isFirst)
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () => _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut),
-                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                child: const Text('Back'),
-              ),
+          // Export PDF icon button
+          IconButton(
+            onPressed: _submitting ? null : _exportPdf,
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+            tooltip: 'Export PDF',
+            style: IconButton.styleFrom(
+              backgroundColor: const Color(0xFFF1F5F9),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-          if (!isFirst) const SizedBox(width: 12),
-          Expanded(
-            child: FilledButton(
-              onPressed: isLast ? () => _submit(false) : () => _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut),
-              style: FilledButton.styleFrom(
-                backgroundColor: isLast ? AppColors.success : AppColors.primary,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: Text(isLast ? 'Submit Inspection' : 'Next Step', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          ),
+          const SizedBox(width: 6),
+          // Save Draft icon button
+          IconButton(
+            onPressed: _submitting ? null : () => _submit(true),
+            icon: const Icon(Icons.save_outlined),
+            tooltip: 'Save Draft',
+            style: IconButton.styleFrom(
+              backgroundColor: const Color(0xFFF1F5F9),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
+          ),
+          const Spacer(),
+          // Back button
+          if (!isFirst) ...[
+            TextButton(
+              onPressed: _submitting ? null : () => _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut),
+              child: const Text('Back'),
+            ),
+            const SizedBox(width: 8),
+          ],
+          // Main action button
+          FilledButton(
+            onPressed: _submitting ? null : (isLast ? () => _submit(false) : () => _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut)),
+            style: FilledButton.styleFrom(
+              backgroundColor: isLast ? AppColors.success : AppColors.primary,
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: Text(isLast ? 'Submit' : 'Next', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
           ),
         ],
       ),
@@ -703,6 +732,9 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
         : section.fields;
     return ListView(
       padding: const EdgeInsets.all(16),
+      physics: _isSigning
+          ? const NeverScrollableScrollPhysics()
+          : const AlwaysScrollableScrollPhysics(),
       children: [
         Text(section.label, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
         const SizedBox(height: 16),
@@ -719,7 +751,7 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
   Widget _buildCustomerSignoffBlock() {
     final existingSignature = _getValue('signature_url')?.toString().trim() ?? '';
     final showExistingImage =
-        existingSignature.isNotEmpty && !_signaturePoints.any((p) => p != null);
+        existingSignature.isNotEmpty && !_signaturePoints.any((p) => p != null) && _generatedSignature == null;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -787,37 +819,48 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
           else
             RepaintBoundary(
               key: _signatureKey,
-              child: GestureDetector(
-                onPanStart: (details) {
-                  final box = _signatureKey.currentContext?.findRenderObject()
-                      as RenderBox?;
-                  if (box == null) return;
+              child: Listener(
+                behavior: HitTestBehavior.opaque,
+                onPointerDown: (event) {
                   setState(() {
-                    _signaturePoints.add(box.globalToLocal(details.globalPosition));
+                    _generatedSignature = null;
+                    _isSigning = true;
+                    _signaturePoints.add(event.localPosition);
                   });
                 },
-                onPanUpdate: (details) {
-                  final box = _signatureKey.currentContext?.findRenderObject()
-                      as RenderBox?;
-                  if (box == null) return;
+                onPointerMove: (event) {
                   setState(() {
-                    _signaturePoints.add(box.globalToLocal(details.globalPosition));
+                    _signaturePoints.add(event.localPosition);
                   });
                 },
-                onPanEnd: (_) => setState(() => _signaturePoints.add(null)),
-                child: Container(
-                  height: 140,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFAFAFA),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: AppColors.border,
-                      style: BorderStyle.solid,
+                onPointerUp: (event) => setState(() {
+                  _isSigning = false;
+                  _signaturePoints.add(null);
+                }),
+                onPointerCancel: (event) => setState(() {
+                  _isSigning = false;
+                  _signaturePoints.add(null);
+                }),
+                child: GestureDetector(
+                  onVerticalDragDown: (_) {},
+                  onVerticalDragUpdate: (_) {},
+                  onHorizontalDragDown: (_) {},
+                  onHorizontalDragUpdate: (_) {},
+                  child: Container(
+                    height: 140,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFAFAFA),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: AppColors.border,
+                        style: BorderStyle.solid,
+                      ),
                     ),
-                  ),
-                  child: CustomPaint(
-                    painter: _SignaturePainter(_signaturePoints),
+                    child: CustomPaint(
+                      painter: _SignaturePainter(_signaturePoints, generatedText: _generatedSignature),
+                      child: const SizedBox.expand(),
+                    ),
                   ),
                 ),
               ),
@@ -825,15 +868,33 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
           const SizedBox(height: 8),
           Wrap(
             spacing: 10,
+            runSpacing: 10,
             children: [
               OutlinedButton(
                 onPressed: () {
                   setState(() {
                     _signaturePoints.clear();
+                    _generatedSignature = null;
                     _formData.remove('signature_url');
                   });
                 },
                 child: const Text('Clear Signature'),
+              ),
+              FilledButton.tonal(
+                onPressed: () {
+                  final name = _customerNameCtrl.text.trim();
+                  if (name.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please enter customer name first')),
+                    );
+                    return;
+                  }
+                  setState(() {
+                    _signaturePoints.clear();
+                    _generatedSignature = name;
+                  });
+                },
+                child: const Text('Generate from name'),
               ),
             ],
           ),
@@ -1118,13 +1179,48 @@ class _NetworkPhotoPreviewState extends State<_NetworkPhotoPreview> {
 
 class _SignaturePainter extends CustomPainter {
   final List<Offset?> points;
-  const _SignaturePainter(this.points);
+  final String? generatedText;
+  const _SignaturePainter(this.points, {this.generatedText});
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (generatedText != null) {
+      final textStyle = const TextStyle(
+        color: Colors.black,
+        fontSize: 32,
+        fontStyle: FontStyle.italic,
+        fontWeight: FontWeight.bold,
+      );
+      final textSpan = TextSpan(text: generatedText, style: textStyle);
+      final textPainter = TextPainter(
+        text: textSpan,
+        textDirection: ui.TextDirection.ltr,
+      );
+      textPainter.layout(minWidth: 0, maxWidth: size.width);
+      final offset = Offset(
+        (size.width - textPainter.width) / 2,
+        (size.height - textPainter.height) / 2,
+      );
+      textPainter.paint(canvas, offset);
+      return;
+    }
+
+    if (points.isEmpty) {
+      final textStyle = const TextStyle(color: Colors.black26, fontSize: 13, fontWeight: FontWeight.normal);
+      final textSpan = TextSpan(text: 'Drag your finger to sign here', style: textStyle);
+      final textPainter = TextPainter(text: textSpan, textDirection: ui.TextDirection.ltr);
+      textPainter.layout();
+      final offset = Offset(
+        (size.width - textPainter.width) / 2,
+        (size.height - textPainter.height) / 2,
+      );
+      textPainter.paint(canvas, offset);
+      return;
+    }
+
     final paint = Paint()
       ..color = Colors.black
-      ..strokeWidth = 2.2
+      ..strokeWidth = 3.0
       ..strokeCap = StrokeCap.round;
     for (int i = 0; i < points.length - 1; i++) {
       final p1 = points[i];
@@ -1136,6 +1232,5 @@ class _SignaturePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _SignaturePainter oldDelegate) =>
-      oldDelegate.points != points;
+  bool shouldRepaint(covariant _SignaturePainter oldDelegate) => true;
 }

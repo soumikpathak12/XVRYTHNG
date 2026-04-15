@@ -42,6 +42,7 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
   final TextEditingController _signoffNotesCtrl = TextEditingController();
   final GlobalKey _signatureBoundaryKey = GlobalKey();
   List<Offset?> _signaturePoints = [];
+  String? _generatedSignature;
 
   @override
   void initState() {
@@ -155,22 +156,18 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
   }
 
   Future<void> _submitSignoff() async {
-    final customerName = _signoffCustomerCtrl.text.trim();
-    if (customerName.isEmpty) {
+    final name = _signoffCustomerCtrl.text.trim();
+    if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Customer name is required for signoff'),
-          backgroundColor: AppColors.danger,
-        ),
+        const SnackBar(content: Text('Customer name is required')),
       );
       return;
     }
-    if (_signaturePoints.whereType<Offset>().isEmpty) {
+
+    final hasSignature = _signaturePoints.any((p) => p != null) || _generatedSignature != null;
+    if (!hasSignature) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please provide signature before signoff'),
-          backgroundColor: AppColors.danger,
-        ),
+        const SnackBar(content: Text('Signature is required')),
       );
       return;
     }
@@ -182,7 +179,7 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
         throw Exception('Failed to upload signature');
       }
       await _service.submitSignoff(widget.jobId, {
-        'customer_name': customerName,
+        'customer_name': name,
         'signature_url': signatureUrl,
         'notes': _signoffNotesCtrl.text.trim(),
       }, companyId: _companyId);
@@ -1131,41 +1128,42 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                       Expanded(
                         child: RepaintBoundary(
                           key: _signatureBoundaryKey,
-                          child: GestureDetector(
+                          child: Listener(
                             behavior: HitTestBehavior.opaque,
-                            onPanDown: (details) {
+                            onPointerDown: (event) {
                               setState(() {
+                                _generatedSignature = null;
                                 _isSigning = true;
-                                _signaturePoints.add(details.localPosition);
+                                _signaturePoints.add(event.localPosition);
                               });
                             },
-                            onPanStart: (details) {
-                              setState(() {
-                                _isSigning = true;
-                                _signaturePoints.add(details.localPosition);
-                              });
+                            onPointerMove: (event) {
+                              setState(() => _signaturePoints.add(event.localPosition));
                             },
-                            onPanUpdate: (details) {
-                              setState(() => _signaturePoints.add(details.localPosition));
-                            },
-                            onPanEnd: (_) {
+                            onPointerUp: (event) {
                               setState(() {
                                 _isSigning = false;
                                 _signaturePoints.add(null);
                               });
                             },
-                            onPanCancel: () {
+                            onPointerCancel: (event) {
                               setState(() {
                                 _isSigning = false;
                                 _signaturePoints.add(null);
                               });
                             },
-                            child: CustomPaint(
-                              painter: _SignaturePainter(_signaturePoints),
-                              child: Container(
-                                color: Colors.transparent,
-                                width: double.infinity,
-                                height: double.infinity,
+                            child: GestureDetector(
+                              onVerticalDragDown: (_) {},
+                              onVerticalDragUpdate: (_) {},
+                              onHorizontalDragDown: (_) {},
+                              onHorizontalDragUpdate: (_) {},
+                              child: CustomPaint(
+                                painter: _SignaturePainter(_signaturePoints, generatedText: _generatedSignature),
+                                child: Container(
+                                  color: Colors.transparent,
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                ),
                               ),
                             ),
                           ),
@@ -1176,18 +1174,29 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         child: Row(
                           children: [
-                            const Expanded(
-                              child: Text(
-                                'Draw signature above',
-                                style: TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
                             TextButton(
-                              onPressed: () => setState(() => _signaturePoints = []),
+                              onPressed: () => setState(() {
+                                _signaturePoints = [];
+                                _generatedSignature = null;
+                              }),
                               child: const Text('Clear'),
+                            ),
+                            const SizedBox(width: 8),
+                            TextButton(
+                              onPressed: () {
+                                final name = _signoffCustomerCtrl.text.trim();
+                                if (name.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Please enter customer name first')),
+                                  );
+                                  return;
+                                }
+                                setState(() {
+                                  _signaturePoints.clear();
+                                  _generatedSignature = name;
+                                });
+                              },
+                              child: const Text('Generate from name'),
                             ),
                           ],
                         ),
@@ -1520,26 +1529,58 @@ class _DetailChip extends StatelessWidget {
 
 class _SignaturePainter extends CustomPainter {
   final List<Offset?> points;
-  const _SignaturePainter(this.points);
+  final String? generatedText;
+
+  _SignaturePainter(this.points, {this.generatedText});
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (generatedText != null) {
+      final textStyle = const TextStyle(
+        color: Colors.black,
+        fontSize: 32,
+        fontStyle: FontStyle.italic,
+        fontWeight: FontWeight.bold,
+      );
+      final textSpan = TextSpan(text: generatedText, style: textStyle);
+      final textPainter = TextPainter(
+        text: textSpan,
+        textDirection: ui.TextDirection.ltr,
+      );
+      textPainter.layout(minWidth: 0, maxWidth: size.width);
+      final offset = Offset(
+        (size.width - textPainter.width) / 2,
+        (size.height - textPainter.height) / 2,
+      );
+      textPainter.paint(canvas, offset);
+      return;
+    }
+
+    if (points.isEmpty) {
+      final textStyle = const TextStyle(color: Colors.black26, fontSize: 13, fontWeight: FontWeight.normal);
+      final textSpan = TextSpan(text: 'Drag your finger to sign here', style: textStyle);
+      final textPainter = TextPainter(text: textSpan, textDirection: ui.TextDirection.ltr);
+      textPainter.layout();
+      final offset = Offset(
+        (size.width - textPainter.width) / 2,
+        (size.height - textPainter.height) / 2,
+      );
+      textPainter.paint(canvas, offset);
+      return;
+    }
+
     final paint = Paint()
-      ..color = AppColors.textPrimary
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = 2.2;
+      ..color = Colors.black
+      ..strokeWidth = 3.0
+      ..strokeCap = StrokeCap.round;
 
     for (int i = 0; i < points.length - 1; i++) {
-      final p1 = points[i];
-      final p2 = points[i + 1];
-      if (p1 != null && p2 != null) {
-        canvas.drawLine(p1, p2, paint);
+      if (points[i] != null && points[i + 1] != null) {
+        canvas.drawLine(points[i]!, points[i + 1]!, paint);
       }
     }
   }
 
   @override
-  bool shouldRepaint(covariant _SignaturePainter oldDelegate) {
-    return oldDelegate.points != points;
-  }
+  bool shouldRepaint(covariant _SignaturePainter oldDelegate) => true;
 }
