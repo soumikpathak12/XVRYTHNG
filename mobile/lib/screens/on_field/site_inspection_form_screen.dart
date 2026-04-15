@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../core/config/api_config.dart';
+import '../../core/network/api_exceptions.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/lead.dart';
 import '../../providers/auth_provider.dart';
@@ -10,7 +11,6 @@ import '../../services/leads_service.dart';
 import '../../services/site_inspection_service.dart';
 import '../../widgets/common/file_picker_bottom_sheet.dart';
 import '../../widgets/common/loading_overlay.dart';
-import '../../widgets/common/status_badge.dart';
 import 'inspection_sections.dart';
 
 class SiteInspectionFormScreen extends StatefulWidget {
@@ -32,7 +32,6 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
   Lead? _lead;
   Map<String, dynamic> _formData = {};
   int? _inspectionId;
-  String _status = 'draft';
 
   late final PageController _pageController;
   int _currentStep = 0;
@@ -63,17 +62,23 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
       final siResp = await _siService.getInspection(widget.leadId);
       if (siResp != null) {
         _inspectionId = siResp['id'];
-        _status = siResp['status'] ?? 'draft';
         _formData = _normalizedFormPayload(siResp);
         _mergeLeadDefaults(_formData);
       } else {
         _formData = {
-          'inspected_at': DateTime.now().toIso8601String(),
-          'inspector_name': context.read<AuthProvider>().user?.name ?? '',
+          'inspected_at': '',
+          'inspector_name': '',
           'customer_name': _lead?.customerName ?? '',
           'jobDetails.inspectionCompany': 'xTechs Renewables Pty Ltd',
         };
         _mergeLeadDefaults(_formData);
+        if (_isEmptyVal(_formData['inspected_at'])) {
+          _formData['inspected_at'] = DateTime.now().toIso8601String();
+        }
+        if (_isEmptyVal(_formData['inspector_name'])) {
+          _formData['inspector_name'] =
+              context.read<AuthProvider>().user?.name ?? '';
+        }
       }
     } catch (e) {
       _error = e.toString();
@@ -122,11 +127,7 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
   String? _normalizeInspectorName(dynamic raw) {
     final v = raw?.toString().trim() ?? '';
     if (v.isEmpty) return null;
-    const allowed = ['Ashley Bronson', 'Liam Jackman', 'Clarke Dean'];
-    for (final item in allowed) {
-      if (item.toLowerCase() == v.toLowerCase()) return item;
-    }
-    return null;
+    return v;
   }
 
   String? _normalizeRoofType(dynamic raw) {
@@ -163,11 +164,23 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
 
   void _mergeLeadDefaults(Map<String, dynamic> form) {
     final raw = _lead?.raw ?? <String, dynamic>{};
-    final inspector = _normalizeInspectorName(raw['inspector_name']);
+    final inspector = _normalizeInspectorName(
+      raw['inspector_name'] ?? raw['assigned_to_name'],
+    );
+    final inspectedAt = raw['site_inspection_date'] ??
+        raw['site_inspection_scheduled_at'] ??
+        raw['scheduled_date'] ??
+        raw['scheduled_at'];
     final roof = _normalizeRoofType(raw['roof_type']);
     final meter = _normalizeMeterPhase(raw['meter_phase']);
     final storey = _normalizeHouseStorey(raw['house_storey']);
 
+    if (_isEmptyVal(form['inspected_at']) &&
+        !_isEmptyVal(inspectedAt) &&
+        DateTime.tryParse(inspectedAt.toString()) != null) {
+      form['inspected_at'] =
+          DateTime.parse(inspectedAt.toString()).toIso8601String();
+    }
     if (_isEmptyVal(form['inspector_name']) && inspector != null) form['inspector_name'] = inspector;
     if (_isEmptyVal(form['roof_type']) && roof != null) form['roof_type'] = roof;
     if (_isEmptyVal(form['meter_phase']) && meter != null) form['meter_phase'] = meter;
@@ -204,6 +217,25 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
       }
     }
 
+    if (_isEmptyVal(form['inspected_at'])) {
+      final candidate = siResp['site_inspection_date'] ??
+          siResp['site_inspection_scheduled_at'] ??
+          siResp['scheduled_date'] ??
+          siResp['scheduled_at'];
+      if (!_isEmptyVal(candidate) &&
+          DateTime.tryParse(candidate.toString()) != null) {
+        form['inspected_at'] =
+            DateTime.parse(candidate.toString()).toIso8601String();
+      }
+    }
+
+    if (_isEmptyVal(form['inspector_name'])) {
+      final candidate = _normalizeInspectorName(
+        siResp['inspector_name'] ?? siResp['assigned_to_name'],
+      );
+      if (candidate != null) form['inspector_name'] = candidate;
+    }
+
     return form;
   }
 
@@ -223,7 +255,13 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
   }
 
   Future<void> _pickFile(String fieldKey) async {
-    final result = await showFilePickerSheet(context, imageOnly: true);
+    final result = await showFilePickerSheet(
+      context,
+      imageOnly: true,
+      imageQuality: 65,
+      maxWidth: 1280,
+      maxHeight: 1280,
+    );
     if (result == null) return;
 
     setState(() => _submitting = true);
@@ -240,6 +278,15 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
         'storage_url': uploaded['storage_url'] ?? uploaded['storageUrl'] ?? uploaded['file_url'] ?? uploaded['fileUrl'] ?? uploaded['url'],
         'filename': uploaded['filename'] ?? result.name,
       });
+    } on ApiException catch (e) {
+      final message = e.statusCode == 413
+          ? 'Image is too large. Please use a smaller image and try again.'
+          : 'Upload failed: ${e.message}';
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), backgroundColor: AppColors.danger),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -498,15 +545,28 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
           ),
         );
       case InspectionFieldType.select:
+        final options = List<String>.from(field.options ?? const <String>[]);
+        final selected = val?.toString();
+        if (selected != null &&
+            selected.trim().isNotEmpty &&
+            !options.contains(selected)) {
+          options.insert(0, selected);
+        }
         return Padding(
           padding: const EdgeInsets.only(bottom: 16),
           child: DropdownButtonFormField<String>(
-            value: field.options!.contains(val?.toString()) ? val.toString() : null,
+            value: selected != null && options.contains(selected)
+                ? selected
+                : null,
             decoration: InputDecoration(
               labelText: field.required ? '${field.label} *' : field.label,
               floatingLabelBehavior: FloatingLabelBehavior.always,
             ),
-            items: field.options!.map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontSize: 13)))).toList(),
+            items: options
+                .map((e) => DropdownMenuItem(
+                    value: e,
+                    child: Text(e, style: const TextStyle(fontSize: 13))))
+                .toList(),
             onChanged: (v) => _setValue(field.key, v),
           ),
         );

@@ -13,19 +13,35 @@ class FilePickerResult {
 }
 
 Future<FilePickerResult?> showFilePickerSheet(BuildContext context,
-    {bool imageOnly = false}) async {
+    {bool imageOnly = false,
+    int imageQuality = 85,
+    double? maxWidth,
+    double? maxHeight}) async {
   return showModalBottomSheet<FilePickerResult>(
     context: context,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder: (ctx) => _FilePickerSheet(imageOnly: imageOnly),
+    builder: (ctx) => _FilePickerSheet(
+      imageOnly: imageOnly,
+      imageQuality: imageQuality,
+      maxWidth: maxWidth,
+      maxHeight: maxHeight,
+    ),
   );
 }
 
 class _FilePickerSheet extends StatelessWidget {
   final bool imageOnly;
-  const _FilePickerSheet({this.imageOnly = false});
+  final int imageQuality;
+  final double? maxWidth;
+  final double? maxHeight;
+  const _FilePickerSheet({
+    this.imageOnly = false,
+    this.imageQuality = 85,
+    this.maxWidth,
+    this.maxHeight,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -84,7 +100,12 @@ class _FilePickerSheet extends StatelessWidget {
 
   Future<void> _pickFromCamera(BuildContext context) async {
     final picker = ImagePicker();
-    final photo = await picker.pickImage(source: ImageSource.camera, imageQuality: 85);
+    final photo = await picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: imageQuality,
+      maxWidth: maxWidth,
+      maxHeight: maxHeight,
+    );
     if (photo != null && context.mounted) {
       Navigator.pop(
         context,
@@ -99,7 +120,12 @@ class _FilePickerSheet extends StatelessWidget {
 
   Future<void> _pickFromGallery(BuildContext context) async {
     final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    final image = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: imageQuality,
+      maxWidth: maxWidth,
+      maxHeight: maxHeight,
+    );
     if (image != null && context.mounted) {
       Navigator.pop(
         context,

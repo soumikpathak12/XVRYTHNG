@@ -781,6 +781,7 @@ class _DetailsTabState extends State<_DetailsTab> {
   String? _meterPhase;
   String? _energyDistributor;
   String? _inspectorId;
+  DateTime? _siteInspectionDateTime;
   bool? _accessSecondStorey;
   bool? _accessInverter;
   bool? _solarVicEligibility;
@@ -1172,6 +1173,10 @@ class _DetailsTabState extends State<_DetailsTab> {
     _nmiCtrl.text = _textValue(['nmi_number']) ?? '';
     _meterNumberCtrl.text = _textValue(['meter_number']) ?? '';
     _inspectorId = _textValue(['inspector_id']);
+    _siteInspectionDateTime = _parseInspectionDateTime([
+      'site_inspection_scheduled_at',
+      'site_inspection_date',
+    ]);
     _accessSecondStorey = _toBool(_textValue(['access_to_second_storey']));
     _accessInverter = _toBool(_textValue(['access_to_inverter']));
     _solarVicEligibility = _toBool(_textValue(['solar_vic_eligibility']));
@@ -1205,6 +1210,9 @@ class _DetailsTabState extends State<_DetailsTab> {
         'inspector_id': (_inspectorId == null || _inspectorId!.isEmpty)
             ? null
             : int.tryParse(_inspectorId!),
+        'site_inspection_date': _siteInspectionDateTime == null
+            ? null
+            : _toMySqlDateTime(_siteInspectionDateTime!),
         'access_to_second_storey': _accessSecondStorey,
         'access_to_inverter': _accessInverter,
         'pre_approval_reference_no': _normalize(_preApprovalCtrl.text),
@@ -1425,6 +1433,126 @@ class _DetailsTabState extends State<_DetailsTab> {
     );
   }
 
+  DateTime? _parseInspectionDateTime(List<String> keys) {
+    for (final key in keys) {
+      final value = _rawValue(key);
+      if (value == null) continue;
+      final text = value.toString().trim();
+      if (text.isEmpty) continue;
+      final parsed = DateTime.tryParse(text);
+      if (parsed != null) return parsed;
+    }
+    return null;
+  }
+
+  String _toMySqlDateTime(DateTime dt) {
+    final yyyy = dt.year.toString().padLeft(4, '0');
+    final mm = dt.month.toString().padLeft(2, '0');
+    final dd = dt.day.toString().padLeft(2, '0');
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final mi = dt.minute.toString().padLeft(2, '0');
+    return '$yyyy-$mm-$dd $hh:$mi:00';
+  }
+
+  Future<void> _pickInspectionDateTime() async {
+    final now = DateTime.now();
+    final pickedDate = await showDatePicker(
+      context: context,
+      firstDate: DateTime(now.year - 2),
+      lastDate: DateTime(now.year + 5),
+      initialDate: _siteInspectionDateTime ?? now,
+    );
+    if (pickedDate == null || !mounted) return;
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_siteInspectionDateTime ?? now),
+    );
+    if (pickedTime == null || !mounted) return;
+    setState(() {
+      _siteInspectionDateTime = DateTime(
+        pickedDate.year,
+        pickedDate.month,
+        pickedDate.day,
+        pickedTime.hour,
+        pickedTime.minute,
+      );
+    });
+  }
+
+  Widget _inspectionDateTimeField() {
+    final label = _siteInspectionDateTime == null
+        ? 'Not scheduled'
+        : DateFormat('d MMM yyyy, h:mm a').format(_siteInspectionDateTime!);
+    final hasValue = _siteInspectionDateTime != null;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Site inspection date',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 6),
+          InkWell(
+            onTap: _pickInspectionDateTime,
+            borderRadius: BorderRadius.circular(10),
+            child: InputDecorator(
+              decoration: InputDecoration(
+                isDense: true,
+                filled: true,
+                fillColor: AppColors.surface,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(
+                    color: AppColors.border.withOpacity(0.5),
+                  ),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(
+                    color: AppColors.border.withOpacity(0.5),
+                  ),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (hasValue)
+                      IconButton(
+                        icon: const Icon(Icons.clear, size: 18),
+                        tooltip: 'Clear date',
+                        onPressed: () =>
+                            setState(() => _siteInspectionDateTime = null),
+                      ),
+                    IconButton(
+                      icon: const Icon(Icons.calendar_month_outlined, size: 20),
+                      tooltip: 'Pick date',
+                      onPressed: _pickInspectionDateTime,
+                    ),
+                  ],
+                ),
+                suffixIconConstraints: const BoxConstraints(minHeight: 24),
+              ),
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: hasValue
+                      ? AppColors.textPrimary
+                      : AppColors.textSecondary,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _boolDropdown(
     String label,
     bool? value,
@@ -1601,6 +1729,7 @@ class _DetailsTabState extends State<_DetailsTab> {
                     },
                   ),
                   _inspectorDropdown(),
+                  _inspectionDateTimeField(),
                   if (_cecLoading)
                     const Padding(
                       padding: EdgeInsets.only(top: 8),
