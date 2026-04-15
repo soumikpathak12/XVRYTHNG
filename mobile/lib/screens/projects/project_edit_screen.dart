@@ -796,6 +796,7 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
     required ValueChanged<String?> onChanged,
   }) {
     return DropdownButtonFormField<String>(
+      isExpanded: true,
       value: value,
       decoration: InputDecoration(
         labelText: label,

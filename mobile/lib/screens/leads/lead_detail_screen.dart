@@ -8,6 +8,7 @@ import '../../core/theme/app_colors.dart';
 import '../../models/dashboard.dart';
 import '../../models/employee.dart';
 import '../../models/lead.dart';
+import '../../services/cec_service.dart';
 import '../../providers/leads_provider.dart';
 import '../../services/employees_service.dart';
 import '../../widgets/common/file_picker_bottom_sheet.dart';
@@ -25,6 +26,23 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabCtrl;
   final _noteCtrl = TextEditingController();
+  final _cecService = CecService();
+
+  bool _cecLoading = false;
+  String? _cecMetaUpdatedAt;
+
+  List<String> _pvPanelBrands = const [];
+  List<String> _pvPanelModels = const [];
+  List<String> _inverterBrands = const [];
+  List<String> _inverterModels = const [];
+  List<String> _inverterSeries = const [];
+  List<String> _batteryBrands = const [];
+  List<String> _batteryModels = const [];
+
+  String? _pvPanelModelsForBrand;
+  String? _inverterModelsForBrand;
+  String? _inverterSeriesForKey;
+  String? _batteryModelsForBrand;
 
   String get _routePrefix {
     final loc = GoRouterState.of(context).matchedLocation;
@@ -51,6 +69,7 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
       if (!mounted) return;
       context.read<LeadsProvider>().loadLeadDetail(widget.leadId);
     });
+    _loadCecOptions();
   }
 
   @override
@@ -58,6 +77,166 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
     _tabCtrl.dispose();
     _noteCtrl.dispose();
     super.dispose();
+  }
+
+  bool get _leadHasPv => RegExp(
+    r'PV',
+    caseSensitive: false,
+  ).hasMatch((_lead?.raw?['system_type'] ?? '').toString());
+
+  bool get _leadHasBattery => RegExp(
+    r'Battery',
+    caseSensitive: false,
+  ).hasMatch((_lead?.raw?['system_type'] ?? '').toString());
+
+  String? _textValue(List<String> keys) {
+    final lead = _lead;
+    final raw = lead?.raw;
+    if (raw == null) return null;
+    for (final key in keys) {
+      final value = raw[key];
+      if (value == null) continue;
+      final text = value.toString().trim();
+      if (text.isNotEmpty) return text;
+    }
+    return null;
+  }
+
+  String? _normalizeOption(String? input, List<String> options) {
+    final value = input?.trim() ?? '';
+    if (value.isEmpty) return null;
+    for (final option in options) {
+      if (option.trim().toLowerCase() == value.toLowerCase()) return option;
+    }
+    return value;
+  }
+
+  Future<void> _loadCecOptions() async {
+    final hasPv = _leadHasPv;
+    final hasBattery = _leadHasBattery;
+    if (!hasPv && !hasBattery) return;
+
+    setState(() => _cecLoading = true);
+    try {
+      await _cecService.syncNow(force: false).catchError((_) {});
+      final meta = await _cecService.getMeta().catchError((_) => null);
+      if (!mounted) return;
+      setState(() => _cecMetaUpdatedAt = meta?['updatedAt']?.toString());
+
+      final results = await Future.wait([
+        hasPv
+            ? _cecService.getPvPanelBrands().catchError((_) => const <String>[])
+            : Future.value(const <String>[]),
+        hasPv
+            ? _cecService.getInverterBrands().catchError(
+                (_) => const <String>[],
+              )
+            : Future.value(const <String>[]),
+        hasBattery
+            ? _cecService.getBatteryBrands().catchError((_) => const <String>[])
+            : Future.value(const <String>[]),
+      ]);
+
+      if (!mounted) return;
+      setState(() {
+        _pvPanelBrands = results[0] as List<String>;
+        _inverterBrands = results[1] as List<String>;
+        _batteryBrands = results[2] as List<String>;
+      });
+
+      await _loadDependentCecOptions();
+    } catch (_) {
+      // Keep screen usable even if CEC sync/fetch fails.
+    } finally {
+      if (mounted) setState(() => _cecLoading = false);
+    }
+  }
+
+  Future<void> _loadDependentCecOptions() async {
+    final hasPv = _leadHasPv;
+    final hasBattery = _leadHasBattery;
+    if (!hasPv && !hasBattery) return;
+
+    final lead = _lead;
+    if (lead == null) return;
+
+    final pvPanelBrand = _textValue(['pv_panel_brand']);
+    final pvPanelModel = _textValue(['pv_panel_model']);
+    final inverterBrand = _textValue(['pv_inverter_brand']);
+    final inverterModel = _textValue(['pv_inverter_model']);
+    final batteryBrand = _textValue(['battery_brand']);
+
+    if (hasPv && pvPanelBrand != null) {
+      final brand = _normalizeOption(pvPanelBrand, _pvPanelBrands);
+      if (brand != null) {
+        final models = await _cecService
+            .getPvPanelModels(brand)
+            .catchError((_) => const <String>[]);
+        if (!mounted) return;
+        setState(() {
+          _pvPanelModelsForBrand = brand;
+          _pvPanelModels = models;
+        });
+        if (pvPanelModel != null) {
+          final model = _normalizeOption(pvPanelModel, models);
+          if (model != null) {
+            final details = await _cecService
+                .getPvPanelDetails(brand, model)
+                .catchError((_) => null);
+            if (details != null && mounted) {
+              final watts = details['module_watts']?.toString().trim();
+              if (watts != null &&
+                  watts.isNotEmpty &&
+                  _textValue(['pv_panel_module_watts']) == null) {
+                setState(() {});
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (hasPv && inverterBrand != null) {
+      final brand = _normalizeOption(inverterBrand, _inverterBrands);
+      if (brand != null) {
+        final models = await _cecService
+            .getInverterModels(brand)
+            .catchError((_) => const <String>[]);
+        if (!mounted) return;
+        setState(() {
+          _inverterModelsForBrand = brand;
+          _inverterModels = models;
+        });
+        if (inverterModel != null) {
+          final model = _normalizeOption(inverterModel, models);
+          if (model != null) {
+            final key = '$brand::$model';
+            final series = await _cecService
+                .getInverterSeries(brand, model)
+                .catchError((_) => const <String>[]);
+            if (!mounted) return;
+            setState(() {
+              _inverterSeriesForKey = key;
+              _inverterSeries = series;
+            });
+          }
+        }
+      }
+    }
+
+    if (hasBattery && batteryBrand != null) {
+      final brand = _normalizeOption(batteryBrand, _batteryBrands);
+      if (brand != null) {
+        final models = await _cecService
+            .getBatteryModels(brand)
+            .catchError((_) => const <String>[]);
+        if (!mounted) return;
+        setState(() {
+          _batteryModelsForBrand = brand;
+          _batteryModels = models;
+        });
+      }
+    }
   }
 
   Lead? get _lead {
@@ -542,6 +721,7 @@ class _DetailsTabState extends State<_DetailsTab> {
 
   bool _editing = false;
   bool _saving = false;
+  bool _cecLoading = false;
 
   late final TextEditingController _preApprovalCtrl;
   late final TextEditingController _energyRetailerCtrl;
@@ -573,6 +753,21 @@ class _DetailsTabState extends State<_DetailsTab> {
   bool? _accessInverter;
   bool? _solarVicEligibility;
   List<Employee> _inspectors = const [];
+  List<String> _pvPanelBrands = const [];
+  List<String> _pvPanelModels = const [];
+  List<String> _inverterBrands = const [];
+  List<String> _inverterModels = const [];
+  List<String> _inverterSeries = const [];
+  List<String> _batteryBrands = const [];
+  List<String> _batteryModels = const [];
+  String? _pvPanelModelsForBrand;
+  String? _inverterModelsForBrand;
+  String? _inverterSeriesForKey;
+  String? _batteryModelsForBrand;
+  String? _cecMetaUpdatedAt;
+  bool _cecRequested = false;
+
+  final CecService _cecService = CecService();
 
   Lead get lead => widget.lead;
 
@@ -673,6 +868,7 @@ class _DetailsTabState extends State<_DetailsTab> {
     _batteryModelCtrl = TextEditingController();
     _syncFromLead();
     _loadInspectors();
+    _ensureCecDataLoaded();
   }
 
   @override
@@ -680,6 +876,7 @@ class _DetailsTabState extends State<_DetailsTab> {
     super.didUpdateWidget(oldWidget);
     if (!_editing && !_saving && oldWidget.lead.raw != widget.lead.raw) {
       _syncFromLead();
+      _ensureCecDataLoaded();
     }
   }
 
@@ -735,6 +932,190 @@ class _DetailsTabState extends State<_DetailsTab> {
   bool get _hasPvFields => _hasSystemTypeToken('pv');
   bool get _hasEvFields => _hasSystemTypeToken('ev');
   bool get _hasBatteryFields => _hasSystemTypeToken('battery');
+
+  String? _currentValue(List<String> keys) => _textValue(keys);
+
+  String? _normalizeOption(String? input, List<String> options) {
+    final value = input?.trim() ?? '';
+    if (value.isEmpty) return null;
+    for (final option in options) {
+      if (option.trim().toLowerCase() == value.toLowerCase()) return option;
+    }
+    return value;
+  }
+
+  String? _dropdownValue(TextEditingController controller) {
+    final value = controller.text.trim();
+    return value.isEmpty ? null : value;
+  }
+
+  Future<void> _ensureCecDataLoaded() async {
+    if (!_hasPvFields && !_hasBatteryFields) return;
+    if (_cecLoading) return;
+
+    setState(() => _cecLoading = true);
+    try {
+      await _cecService.syncNow(force: false).catchError((_) {});
+      final meta = await _cecService.getMeta().catchError((_) => null);
+      if (mounted) {
+        setState(() => _cecMetaUpdatedAt = meta?['updatedAt']?.toString());
+      }
+
+      final results = await Future.wait([
+        _hasPvFields
+            ? _cecService.getPvPanelBrands().catchError((_) => const <String>[])
+            : Future.value(const <String>[]),
+        _hasPvFields
+            ? _cecService.getInverterBrands().catchError(
+                (_) => const <String>[],
+              )
+            : Future.value(const <String>[]),
+        _hasBatteryFields
+            ? _cecService.getBatteryBrands().catchError((_) => const <String>[])
+            : Future.value(const <String>[]),
+      ]);
+
+      if (!mounted) return;
+      setState(() {
+        _pvPanelBrands = results[0] as List<String>;
+        _inverterBrands = results[1] as List<String>;
+        _batteryBrands = results[2] as List<String>;
+      });
+
+      await _loadDependentCecOptions();
+    } catch (_) {
+      // Keep the screen functional if CEC is unavailable.
+    } finally {
+      if (mounted) setState(() => _cecLoading = false);
+    }
+  }
+
+  Future<void> _loadDependentCecOptions() async {
+    if (_hasPvFields) {
+      final panelBrand = _normalizeOption(
+        _pvPanelBrandCtrl.text,
+        _pvPanelBrands,
+      );
+      if (panelBrand != null && panelBrand != _pvPanelModelsForBrand) {
+        final models = await _cecService
+            .getPvPanelModels(panelBrand)
+            .catchError((_) => const <String>[]);
+        if (!mounted) return;
+        setState(() {
+          _pvPanelModelsForBrand = panelBrand;
+          _pvPanelModels = models;
+        });
+      }
+
+      final panelModel = _normalizeOption(
+        _pvPanelModelCtrl.text,
+        _pvPanelModels,
+      );
+      if (panelBrand != null &&
+          panelModel != null &&
+          _pvPanelModuleWattsCtrl.text.trim().isEmpty) {
+        final details = await _cecService
+            .getPvPanelDetails(panelBrand, panelModel)
+            .catchError((_) => null);
+        if (!mounted) return;
+        final watts = details?['module_watts']?.toString().trim();
+        if (watts != null && watts.isNotEmpty) {
+          _pvPanelModuleWattsCtrl.text = watts;
+        }
+      }
+
+      final inverterBrand = _normalizeOption(
+        _pvInverterBrandCtrl.text,
+        _inverterBrands,
+      );
+      if (inverterBrand != null && inverterBrand != _inverterModelsForBrand) {
+        final models = await _cecService
+            .getInverterModels(inverterBrand)
+            .catchError((_) => const <String>[]);
+        if (!mounted) return;
+        setState(() {
+          _inverterModelsForBrand = inverterBrand;
+          _inverterModels = models;
+          _inverterSeries = const [];
+          _inverterSeriesForKey = null;
+        });
+      }
+
+      final model = _normalizeOption(
+        _pvInverterModelCtrl.text,
+        _inverterModels,
+      );
+      if (inverterBrand != null && model != null) {
+        final key = '$inverterBrand::$model';
+        if (key != _inverterSeriesForKey) {
+          final series = await _cecService
+              .getInverterSeries(inverterBrand, model)
+              .catchError((_) => const <String>[]);
+          if (!mounted) return;
+          setState(() {
+            _inverterSeriesForKey = key;
+            _inverterSeries = series;
+          });
+          if (_pvInverterSeriesCtrl.text.trim().isEmpty && series.isNotEmpty) {
+            _pvInverterSeriesCtrl.text = series.first;
+          }
+          if (_pvInverterPowerCtrl.text.trim().isEmpty) {
+            final details = await _cecService
+                .getInverterDetails(inverterBrand, model)
+                .catchError((_) => null);
+            if (!mounted) return;
+            final power = details?['power_kw']?.toString().trim();
+            if (power != null && power.isNotEmpty) {
+              _pvInverterPowerCtrl.text = power;
+            }
+          }
+        }
+      }
+    }
+
+    if (_hasBatteryFields) {
+      final batteryBrand = _normalizeOption(
+        _batteryBrandCtrl.text,
+        _batteryBrands,
+      );
+      if (batteryBrand != null && batteryBrand != _batteryModelsForBrand) {
+        final models = await _cecService
+            .getBatteryModels(batteryBrand)
+            .catchError((_) => const <String>[]);
+        if (!mounted) return;
+        setState(() {
+          _batteryModelsForBrand = batteryBrand;
+          _batteryModels = models;
+        });
+      }
+    }
+
+    final panelQty = double.tryParse(_pvPanelQuantityCtrl.text.trim());
+    final panelWatts = double.tryParse(_pvPanelModuleWattsCtrl.text.trim());
+    if (panelQty != null &&
+        panelWatts != null &&
+        panelQty > 0 &&
+        panelWatts > 0) {
+      final computedKw = (panelQty * panelWatts) / 1000;
+      _pvSystemSizeCtrl.text = computedKw
+          .toStringAsFixed(3)
+          .replaceFirst(RegExp(r'0+$'), '')
+          .replaceFirst(RegExp(r'\.$'), '');
+    }
+
+    final inverterPower = double.tryParse(_pvInverterPowerCtrl.text.trim());
+    final inverterQty = double.tryParse(_pvInverterQuantityCtrl.text.trim());
+    if (inverterPower != null &&
+        inverterQty != null &&
+        inverterPower > 0 &&
+        inverterQty > 0) {
+      final computedKw = inverterPower * inverterQty;
+      _pvInverterSizeCtrl.text = computedKw
+          .toStringAsFixed(3)
+          .replaceFirst(RegExp(r'0+$'), '')
+          .replaceFirst(RegExp(r'\.$'), '');
+    }
+  }
 
   Future<void> _loadInspectors() async {
     try {
@@ -907,6 +1288,7 @@ class _DetailsTabState extends State<_DetailsTab> {
           ),
           const SizedBox(height: 6),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             value: normalizedValue,
             items: [
               const DropdownMenuItem<String>(
@@ -1181,9 +1563,17 @@ class _DetailsTabState extends State<_DetailsTab> {
                     label: 'System type',
                     value: _systemType,
                     options: _systemTypeOptions,
-                    onChanged: (next) => setState(() => _systemType = next),
+                    onChanged: (next) {
+                      setState(() => _systemType = next);
+                      _ensureCecDataLoaded();
+                    },
                   ),
                   _inspectorDropdown(),
+                  if (_cecLoading)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: LinearProgressIndicator(minHeight: 2),
+                    ),
                 ]
               : [
                   _DetailRow('System type', _safeDisplay(systemType)),
@@ -1209,9 +1599,48 @@ class _DetailsTabState extends State<_DetailsTab> {
                   decimal: true,
                 ),
               ),
-              _editableField('Inverter brand', _pvInverterBrandCtrl),
-              _editableField('Inverter model', _pvInverterModelCtrl),
-              _editableField('Inverter series', _pvInverterSeriesCtrl),
+              _dropdownField(
+                label: 'Inverter brand',
+                value: _dropdownValue(_pvInverterBrandCtrl),
+                options: _inverterBrands,
+                onChanged: (next) {
+                  setState(() {
+                    _pvInverterBrandCtrl.text = next ?? '';
+                    _pvInverterModelCtrl.clear();
+                    _pvInverterSeriesCtrl.clear();
+                    _pvInverterPowerCtrl.clear();
+                    _pvInverterSizeCtrl.clear();
+                    _inverterModels = const [];
+                    _inverterSeries = const [];
+                    _inverterModelsForBrand = null;
+                    _inverterSeriesForKey = null;
+                  });
+                  _ensureCecDataLoaded();
+                },
+              ),
+              _dropdownField(
+                label: 'Inverter model',
+                value: _dropdownValue(_pvInverterModelCtrl),
+                options: _inverterModels,
+                onChanged: (next) {
+                  setState(() {
+                    _pvInverterModelCtrl.text = next ?? '';
+                    _pvInverterSeriesCtrl.clear();
+                    _pvInverterPowerCtrl.clear();
+                    _pvInverterSizeCtrl.clear();
+                    _inverterSeries = const [];
+                    _inverterSeriesForKey = null;
+                  });
+                  _ensureCecDataLoaded();
+                },
+              ),
+              _dropdownField(
+                label: 'Inverter series',
+                value: _dropdownValue(_pvInverterSeriesCtrl),
+                options: _inverterSeries,
+                onChanged: (next) =>
+                    setState(() => _pvInverterSeriesCtrl.text = next ?? ''),
+              ),
               _editableField(
                 'Inverter power (kW)',
                 _pvInverterPowerCtrl,
@@ -1224,8 +1653,34 @@ class _DetailsTabState extends State<_DetailsTab> {
                 _pvInverterQuantityCtrl,
                 keyboardType: TextInputType.number,
               ),
-              _editableField('Panel brand', _pvPanelBrandCtrl),
-              _editableField('Panel model', _pvPanelModelCtrl),
+              _dropdownField(
+                label: 'Panel brand',
+                value: _dropdownValue(_pvPanelBrandCtrl),
+                options: _pvPanelBrands,
+                onChanged: (next) {
+                  setState(() {
+                    _pvPanelBrandCtrl.text = next ?? '';
+                    _pvPanelModelCtrl.clear();
+                    _pvPanelModuleWattsCtrl.clear();
+                    _pvPanelModels = const [];
+                    _pvPanelModelsForBrand = null;
+                  });
+                  _ensureCecDataLoaded();
+                },
+              ),
+              _dropdownField(
+                label: 'Panel model',
+                value: _dropdownValue(_pvPanelModelCtrl),
+                options: _pvPanelModels,
+                onChanged: (next) {
+                  setState(() {
+                    _pvPanelModelCtrl.text = next ?? '';
+                    _pvPanelModuleWattsCtrl.clear();
+                    _pvSystemSizeCtrl.clear();
+                  });
+                  _ensureCecDataLoaded();
+                },
+              ),
               _editableField(
                 'Quantity of panel',
                 _pvPanelQuantityCtrl,
@@ -1263,8 +1718,27 @@ class _DetailsTabState extends State<_DetailsTab> {
                   decimal: true,
                 ),
               ),
-              _editableField('Battery brand', _batteryBrandCtrl),
-              _editableField('Battery model', _batteryModelCtrl),
+              _dropdownField(
+                label: 'Battery brand',
+                value: _dropdownValue(_batteryBrandCtrl),
+                options: _batteryBrands,
+                onChanged: (next) {
+                  setState(() {
+                    _batteryBrandCtrl.text = next ?? '';
+                    _batteryModelCtrl.clear();
+                    _batteryModels = const [];
+                    _batteryModelsForBrand = null;
+                  });
+                  _ensureCecDataLoaded();
+                },
+              ),
+              _dropdownField(
+                label: 'Battery model',
+                value: _dropdownValue(_batteryModelCtrl),
+                options: _batteryModels,
+                onChanged: (next) =>
+                    setState(() => _batteryModelCtrl.text = next ?? ''),
+              ),
             ],
           ),
         ],

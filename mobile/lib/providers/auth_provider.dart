@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'dart:async';
 import '../models/user.dart';
 import '../services/auth_service.dart';
 import '../core/storage/secure_storage.dart';
@@ -62,25 +63,49 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> login(String email, String password,
-      {bool rememberMe = false}) async {
+  Future<void> login(
+    String email,
+    String password, {
+    bool rememberMe = false,
+  }) async {
     _loading = true;
     _error = null;
     notifyListeners();
     try {
-      final result =
-          await _authService.login(email, password, rememberMe: rememberMe);
+      final result = await _authService.login(
+        email,
+        password,
+        rememberMe: rememberMe,
+      );
       _user = result.user;
       _permissions = result.permissions;
       if (_permissions.isEmpty) {
-        _permissions = await _authService.getPermissions();
+        unawaited(
+          _authService
+              .getPermissions()
+              .then((perms) {
+                _permissions = perms;
+                notifyListeners();
+              })
+              .catchError((_) {}),
+        );
       }
-      try {
-        _sidebarConfig = await _authService.getSidebarConfig();
-      } catch (_) {}
+      unawaited(
+        _authService
+            .getSidebarConfig()
+            .then((sidebar) {
+              _sidebarConfig = sidebar;
+              notifyListeners();
+            })
+            .catchError((_) {}),
+      );
       _error = null;
     } catch (e) {
-      _error = e.toString().replaceAll('ApiException', '').replaceAll(RegExp(r'\(\d+\):?\s*'), '').trim();
+      _error = e
+          .toString()
+          .replaceAll('ApiException', '')
+          .replaceAll(RegExp(r'\(\d+\):?\s*'), '')
+          .trim();
       _user = null;
     } finally {
       _loading = false;
@@ -98,7 +123,9 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> changePassword(
-      String currentPassword, String newPassword) async {
+    String currentPassword,
+    String newPassword,
+  ) async {
     try {
       await _authService.changePassword(currentPassword, newPassword);
     } catch (e) {
