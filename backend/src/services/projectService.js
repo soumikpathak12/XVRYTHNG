@@ -516,7 +516,8 @@ export async function getLatestInspectionForProject(projectId, { leadIdOverride 
 
 
 export async function saveScheduleAndAssignees(companyId, projectId, payload = {}, userId = null) {
-  const { status, date, time, assignees, notes } = payload;
+  const { date, time, assignees, notes } = payload;
+  const status = 'scheduled';
 
   const scheduledAt = date && time ? `${date} ${time}:00` : null;
   const conn = await db.getConnection();
@@ -538,6 +539,14 @@ export async function saveScheduleAndAssignees(companyId, projectId, payload = {
       companyId, projectId, status, scheduledAt, notes ?? null, userId,
       userId
     ]);
+
+    await conn.execute(
+      `UPDATE projects
+          SET stage = 'scheduled',
+              updated_at = NOW()
+        WHERE id = ?`,
+      [Number(projectId)]
+    );
 
     await conn.execute(
       `DELETE FROM project_assignees WHERE project_id = ? AND company_id = ?`,
