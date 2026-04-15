@@ -1,0 +1,28 @@
+
+
+UPDATE project_schedules
+SET status = 'new'
+WHERE status IS NULL OR status = '';
+
+UPDATE project_schedules
+SET status = 'installation_in_progress'
+WHERE status = 'in_progress';
+
+UPDATE project_schedules
+SET status = 'installation_completed'
+WHERE status = 'completed';
+
+ALTER TABLE project_schedules
+MODIFY COLUMN status ENUM(
+  'new',
+  'scheduled',
+  'to_be_rescheduled',
+  'installation_in_progress',
+  'installation_completed',
+  'ces_certificate_applied',
+  'ces_certificate_received',
+  'grid_connection_initiated',
+  'grid_connection_completed',
+  'system_handover'
+) NOT NULL DEFAULT 'new';
+
