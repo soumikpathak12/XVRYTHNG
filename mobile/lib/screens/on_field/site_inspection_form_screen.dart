@@ -1,6 +1,10 @@
 import 'package:dio/dio.dart';
+import 'dart:ui' as ui;
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import '../../core/config/api_config.dart';
 import '../../core/network/api_exceptions.dart';
@@ -35,6 +39,11 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
 
   late final PageController _pageController;
   int _currentStep = 0;
+  final GlobalKey _signatureKey = GlobalKey();
+  final List<Offset?> _signaturePoints = [];
+  final TextEditingController _customerNameCtrl = TextEditingController();
+  final TextEditingController _customerNotesCtrl = TextEditingController();
+  bool _customerConfirmed = false;
 
   @override
   void initState() {
@@ -46,6 +55,8 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
   @override
   void dispose() {
     _pageController.dispose();
+    _customerNameCtrl.dispose();
+    _customerNotesCtrl.dispose();
     super.dispose();
   }
 
@@ -64,6 +75,7 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
         _inspectionId = siResp['id'];
         _formData = _normalizedFormPayload(siResp);
         _mergeLeadDefaults(_formData);
+        _syncSignoffFieldsFromForm();
       } else {
         _formData = {
           'inspected_at': '',
@@ -73,12 +85,13 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
         };
         _mergeLeadDefaults(_formData);
         if (_isEmptyVal(_formData['inspected_at'])) {
-          _formData['inspected_at'] = DateTime.now().toIso8601String();
+          _formData['inspected_at'] = _toSqlDateTime(DateTime.now());
         }
         if (_isEmptyVal(_formData['inspector_name'])) {
           _formData['inspector_name'] =
               context.read<AuthProvider>().user?.name ?? '';
         }
+        _syncSignoffFieldsFromForm();
       }
     } catch (e) {
       _error = e.toString();
@@ -113,6 +126,15 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
     setState(() {
       _formData[key] = val;
     });
+  }
+
+  void _syncSignoffFieldsFromForm() {
+    _customerNameCtrl.text = _getValue('customer_name')?.toString() ?? '';
+    _customerNotesCtrl.text = _getValue('customer_notes')?.toString() ?? '';
+    final confirmedRaw = _getValue('customer_confirmed');
+    final confirmedText = confirmedRaw?.toString().toLowerCase().trim();
+    _customerConfirmed =
+        confirmedText == 'true' || confirmedText == '1' || confirmedText == 'yes';
   }
 
   String _resolveUrl(dynamic rawUrl) {
@@ -162,6 +184,27 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
 
   bool _isEmptyVal(dynamic v) => v == null || v.toString().trim().isEmpty;
 
+  DateTime? _parseDateTimeValue(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is DateTime) return raw.toLocal();
+    final text = raw.toString().trim();
+    if (text.isEmpty) return null;
+    final parsed = DateTime.tryParse(text);
+    if (parsed != null) return parsed.toLocal();
+    return null;
+  }
+
+  String _toSqlDateTime(DateTime dt) {
+    final local = dt.toLocal();
+    final yyyy = local.year.toString().padLeft(4, '0');
+    final mm = local.month.toString().padLeft(2, '0');
+    final dd = local.day.toString().padLeft(2, '0');
+    final hh = local.hour.toString().padLeft(2, '0');
+    final mi = local.minute.toString().padLeft(2, '0');
+    final ss = local.second.toString().padLeft(2, '0');
+    return '$yyyy-$mm-$dd $hh:$mi:$ss';
+  }
+
   void _mergeLeadDefaults(Map<String, dynamic> form) {
     final raw = _lead?.raw ?? <String, dynamic>{};
     final inspector = _normalizeInspectorName(
@@ -174,17 +217,32 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
     final roof = _normalizeRoofType(raw['roof_type']);
     final meter = _normalizeMeterPhase(raw['meter_phase']);
     final storey = _normalizeHouseStorey(raw['house_storey']);
+    final customerName = raw['customer_name']?.toString().trim();
+    final nmi = raw['nmi_number']?.toString().trim();
+    final meterNumber = raw['meter_number']?.toString().trim();
 
     if (_isEmptyVal(form['inspected_at']) &&
         !_isEmptyVal(inspectedAt) &&
-        DateTime.tryParse(inspectedAt.toString()) != null) {
-      form['inspected_at'] =
-          DateTime.parse(inspectedAt.toString()).toIso8601String();
+        _parseDateTimeValue(inspectedAt) != null) {
+      form['inspected_at'] = _toSqlDateTime(_parseDateTimeValue(inspectedAt)!);
     }
     if (_isEmptyVal(form['inspector_name']) && inspector != null) form['inspector_name'] = inspector;
     if (_isEmptyVal(form['roof_type']) && roof != null) form['roof_type'] = roof;
+    if (_isEmptyVal(form['roofProfile.roofMaterial']) && roof != null) {
+      form['roofProfile.roofMaterial'] = roof;
+    }
+    if (_isEmptyVal(form['customer_name']) && !_isEmptyVal(customerName)) {
+      form['customer_name'] = customerName;
+    }
     if (_isEmptyVal(form['meter_phase']) && meter != null) form['meter_phase'] = meter;
     if (_isEmptyVal(form['house_storey']) && storey != null) form['house_storey'] = storey;
+    if (_isEmptyVal(form['switchboard.nmi']) && !_isEmptyVal(nmi)) {
+      form['switchboard.nmi'] = nmi;
+    }
+    if (_isEmptyVal(form['switchboard.meterNumber']) &&
+        !_isEmptyVal(meterNumber)) {
+      form['switchboard.meterNumber'] = meterNumber;
+    }
   }
 
   Map<String, dynamic> _normalizedFormPayload(Map<String, dynamic> siResp) {
@@ -223,9 +281,8 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
           siResp['scheduled_date'] ??
           siResp['scheduled_at'];
       if (!_isEmptyVal(candidate) &&
-          DateTime.tryParse(candidate.toString()) != null) {
-        form['inspected_at'] =
-            DateTime.parse(candidate.toString()).toIso8601String();
+          _parseDateTimeValue(candidate) != null) {
+        form['inspected_at'] = _toSqlDateTime(_parseDateTimeValue(candidate)!);
       }
     }
 
@@ -254,6 +311,56 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
     return '';
   }
 
+  String? _extractLocalPhotoPath(dynamic photoData) {
+    if (photoData is Map) {
+      final local = photoData['local_path'] ?? photoData['localPath'];
+      if (local != null) {
+        final path = local.toString().trim();
+        if (path.isNotEmpty && File(path).existsSync()) return path;
+      }
+    }
+    return null;
+  }
+
+  List<String> _buildPhotoUrlCandidates(String url) {
+    if (url.isEmpty) return const [];
+    final candidates = <String>[];
+    void add(String value) {
+      final trimmed = value.trim();
+      if (trimmed.isNotEmpty && !candidates.contains(trimmed)) {
+        candidates.add(trimmed);
+      }
+    }
+
+    add(url);
+    final encoded = _encodeUrl(url);
+    if (encoded != null) add(encoded);
+
+    if (url.contains('/api/uploads/')) {
+      final noApi = url.replaceFirst('/api/uploads/', '/uploads/');
+      add(noApi);
+      final noApiEncoded = _encodeUrl(noApi);
+      if (noApiEncoded != null) add(noApiEncoded);
+    }
+
+    return candidates;
+  }
+
+  String? _encodeUrl(String input) {
+    try {
+      final uri = Uri.parse(input);
+      final encoded = uri.replace(
+        pathSegments: uri.pathSegments
+            .map(Uri.decodeComponent)
+            .map(Uri.encodeComponent)
+            .toList(),
+      );
+      return encoded.toString();
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _pickFile(String fieldKey) async {
     final result = await showFilePickerSheet(
       context,
@@ -273,11 +380,21 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
         ),
       });
       final uploaded = await _siService.uploadFile(widget.leadId, formData);
-      _setValue(fieldKey, {
-        ...uploaded,
-        'storage_url': uploaded['storage_url'] ?? uploaded['storageUrl'] ?? uploaded['file_url'] ?? uploaded['fileUrl'] ?? uploaded['url'],
-        'filename': uploaded['filename'] ?? result.name,
-      });
+      final storageUrl = uploaded['storage_url'] ??
+          uploaded['storageUrl'] ??
+          uploaded['file_url'] ??
+          uploaded['fileUrl'] ??
+          uploaded['url'];
+      if (fieldKey == 'signature_url') {
+        _setValue(fieldKey, _resolveUrl(storageUrl));
+      } else {
+        _setValue(fieldKey, {
+          ...uploaded,
+          'storage_url': storageUrl,
+          'filename': uploaded['filename'] ?? result.name,
+          'local_path': result.file.path,
+        });
+      }
     } on ApiException catch (e) {
       final message = e.statusCode == 413
           ? 'Image is too large. Please use a smaller image and try again.'
@@ -301,6 +418,7 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
   Future<void> _submit(bool isDraft) async {
     setState(() => _submitting = true);
     try {
+      await _prepareCustomerSignoff(requireComplete: !isDraft);
       final payload = Map<String, dynamic>.from(_formData);
       if (_inspectionId != null) payload['id'] = _inspectionId;
 
@@ -340,6 +458,70 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  Future<void> _prepareCustomerSignoff({required bool requireComplete}) async {
+    final customerName = _customerNameCtrl.text.trim();
+    final customerNotes = _customerNotesCtrl.text.trim();
+    _formData['customer_name'] = customerName;
+    _formData['customer_notes'] = customerNotes;
+    _formData['customer_confirmed'] = _customerConfirmed;
+
+    final hasDrawnSignature = _signaturePoints.any((p) => p != null);
+    final existingSignature = _getValue('signature_url')?.toString().trim() ?? '';
+
+    if (hasDrawnSignature) {
+      final signatureFile = await _exportSignatureToFile();
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(
+          signatureFile.path,
+          filename: 'signature_${DateTime.now().millisecondsSinceEpoch}.png',
+        ),
+        'section': 'signature',
+      });
+      final uploaded = await _siService.uploadFile(widget.leadId, formData);
+      final storageUrl = uploaded['storage_url'] ??
+          uploaded['storageUrl'] ??
+          uploaded['file_url'] ??
+          uploaded['fileUrl'] ??
+          uploaded['url'];
+      _formData['signature_url'] = _resolveUrl(storageUrl);
+      _signaturePoints.clear();
+    }
+
+    final finalSignature = _getValue('signature_url')?.toString().trim() ?? '';
+    if (requireComplete) {
+      if (customerName.isEmpty) {
+        throw Exception('Customer name is required for sign-off.');
+      }
+      if (finalSignature.isEmpty && existingSignature.isEmpty) {
+        throw Exception('Customer signature is required.');
+      }
+      if (!_customerConfirmed) {
+        throw Exception(
+            'Please confirm that the site inspection has been completed.');
+      }
+    }
+  }
+
+  Future<File> _exportSignatureToFile() async {
+    final boundary =
+        _signatureKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+    if (boundary == null) {
+      throw Exception('Unable to capture signature.');
+    }
+    final image = await boundary.toImage(pixelRatio: 3.0);
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    if (byteData == null) {
+      throw Exception('Unable to process signature image.');
+    }
+    final bytes = byteData.buffer.asUint8List();
+    final dir = await getTemporaryDirectory();
+    final file = File(
+      '${dir.path}/signature_${DateTime.now().millisecondsSinceEpoch}.png',
+    );
+    await file.writeAsBytes(bytes, flush: true);
+    return file;
   }
 
   @override
@@ -511,14 +693,178 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
   }
 
   Widget _buildSectionForm(InspectionSection section) {
+    final fields = section.id == 'final'
+        ? section.fields
+            .where((f) =>
+                f.key != 'customer_name' &&
+                f.key != 'signature_url' &&
+                f.key != 'customer_notes')
+            .toList()
+        : section.fields;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         Text(section.label, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
         const SizedBox(height: 16),
-        ...section.fields.map(_buildFieldControl),
+        ...fields.map(_buildFieldControl),
+        if (section.id == 'final') ...[
+          const SizedBox(height: 12),
+          _buildCustomerSignoffBlock(),
+        ],
         const SizedBox(height: 80),
       ],
+    );
+  }
+
+  Widget _buildCustomerSignoffBlock() {
+    final existingSignature = _getValue('signature_url')?.toString().trim() ?? '';
+    final showExistingImage =
+        existingSignature.isNotEmpty && !_signaturePoints.any((p) => p != null);
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Customer sign-off',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: const Text(
+              '"I confirm the site inspection has been completed and I approve all findings."',
+              style: TextStyle(
+                fontSize: 13,
+                fontStyle: FontStyle.italic,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _customerNameCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Customer Name *',
+              floatingLabelBehavior: FloatingLabelBehavior.always,
+            ),
+            onChanged: (v) => _formData['customer_name'] = v,
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Signature *',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          if (showExistingImage)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: AspectRatio(
+                aspectRatio: 16 / 5,
+                child: _NetworkPhotoPreview(urls: _buildPhotoUrlCandidates(existingSignature)),
+              ),
+            )
+          else
+            RepaintBoundary(
+              key: _signatureKey,
+              child: GestureDetector(
+                onPanStart: (details) {
+                  final box = _signatureKey.currentContext?.findRenderObject()
+                      as RenderBox?;
+                  if (box == null) return;
+                  setState(() {
+                    _signaturePoints.add(box.globalToLocal(details.globalPosition));
+                  });
+                },
+                onPanUpdate: (details) {
+                  final box = _signatureKey.currentContext?.findRenderObject()
+                      as RenderBox?;
+                  if (box == null) return;
+                  setState(() {
+                    _signaturePoints.add(box.globalToLocal(details.globalPosition));
+                  });
+                },
+                onPanEnd: (_) => setState(() => _signaturePoints.add(null)),
+                child: Container(
+                  height: 140,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFAFAFA),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: AppColors.border,
+                      style: BorderStyle.solid,
+                    ),
+                  ),
+                  child: CustomPaint(
+                    painter: _SignaturePainter(_signaturePoints),
+                  ),
+                ),
+              ),
+            ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 10,
+            children: [
+              OutlinedButton(
+                onPressed: () {
+                  setState(() {
+                    _signaturePoints.clear();
+                    _formData.remove('signature_url');
+                  });
+                },
+                child: const Text('Clear Signature'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          CheckboxListTile(
+            value: _customerConfirmed,
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            title: const Text(
+              'I confirm the site inspection has been completed and I approve all findings.',
+              style: TextStyle(fontSize: 13),
+            ),
+            onChanged: (v) {
+              setState(() {
+                _customerConfirmed = v ?? false;
+                _formData['customer_confirmed'] = _customerConfirmed;
+              });
+            },
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: _customerNotesCtrl,
+            maxLines: 2,
+            decoration: const InputDecoration(
+              labelText: 'Notes (optional)',
+              floatingLabelBehavior: FloatingLabelBehavior.always,
+            ),
+            onChanged: (v) => _formData['customer_notes'] = v,
+          ),
+        ],
+      ),
     );
   }
 
@@ -581,7 +927,7 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
 
   Widget _buildDateTimeField(InspectionField field) {
     final val = _getValue(field.key);
-    final current = DateTime.tryParse(val?.toString() ?? '') ?? DateTime.now();
+    final current = _parseDateTimeValue(val) ?? DateTime.now();
     final dateStr = DateFormat('dd MMM yyyy').format(current);
     final timeStr = DateFormat('hh:mm a').format(current);
 
@@ -600,7 +946,7 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
                     final picked = await showDatePicker(context: context, initialDate: current, firstDate: DateTime(2020), lastDate: DateTime(2030));
                     if (picked != null) {
                       final next = DateTime(picked.year, picked.month, picked.day, current.hour, current.minute);
-                      _setValue(field.key, next.toIso8601String());
+                      _setValue(field.key, _toSqlDateTime(next));
                     }
                   },
                   child: Container(
@@ -617,7 +963,7 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
                     final picked = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(current));
                     if (picked != null) {
                       final next = DateTime(current.year, current.month, current.day, picked.hour, picked.minute);
-                      _setValue(field.key, next.toIso8601String());
+                      _setValue(field.key, _toSqlDateTime(next));
                     }
                   },
                   child: Container(
@@ -636,7 +982,9 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
 
   Widget _buildPhotoField(InspectionField field) {
     final photoData = _getValue(field.key);
+    final localPath = _extractLocalPhotoPath(photoData);
     final url = _extractPhotoUrl(photoData);
+    final urlCandidates = _buildPhotoUrlCandidates(url);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -652,7 +1000,15 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
                   borderRadius: BorderRadius.circular(12),
                   child: AspectRatio(
                     aspectRatio: 16 / 9,
-                    child: Image.network(url, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image)),
+                    child: localPath != null
+                        ? Image.file(
+                            File(localPath),
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _NetworkPhotoPreview(
+                              urls: urlCandidates,
+                            ),
+                          )
+                        : _NetworkPhotoPreview(urls: urlCandidates),
                   ),
                 ),
                 Positioned(
@@ -724,4 +1080,62 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
       ),
     );
   }
+}
+
+class _NetworkPhotoPreview extends StatefulWidget {
+  final List<String> urls;
+  const _NetworkPhotoPreview({required this.urls});
+
+  @override
+  State<_NetworkPhotoPreview> createState() => _NetworkPhotoPreviewState();
+}
+
+class _NetworkPhotoPreviewState extends State<_NetworkPhotoPreview> {
+  int _index = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.urls.isEmpty || _index >= widget.urls.length) {
+      return const Center(child: Icon(Icons.broken_image));
+    }
+
+    return Image.network(
+      widget.urls[_index],
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) {
+        if (_index < widget.urls.length - 1) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            setState(() => _index += 1);
+          });
+          return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+        }
+        return const Center(child: Icon(Icons.broken_image));
+      },
+    );
+  }
+}
+
+class _SignaturePainter extends CustomPainter {
+  final List<Offset?> points;
+  const _SignaturePainter(this.points);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.black
+      ..strokeWidth = 2.2
+      ..strokeCap = StrokeCap.round;
+    for (int i = 0; i < points.length - 1; i++) {
+      final p1 = points[i];
+      final p2 = points[i + 1];
+      if (p1 != null && p2 != null) {
+        canvas.drawLine(p1, p2, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SignaturePainter oldDelegate) =>
+      oldDelegate.points != points;
 }
