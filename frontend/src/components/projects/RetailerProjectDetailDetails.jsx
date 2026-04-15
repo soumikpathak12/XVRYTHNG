@@ -37,6 +37,7 @@ const SYSTEM_TYPES = [
 const HOUSE_STOREY_OPTS = ['Single', 'Double', 'Triple', 'Other'];
 const ROOF_TYPE_OPTS = ['Tin(Colorbond)', 'Tin(Kliplock)', 'Tile(Concrete)', 'Tile(Terracotta)', 'Flat', 'Other'];
 const METER_PHASE_OPTS = ['Single', 'Double', 'Three'];
+const ENERGY_DISTRIBUTOR_OPTS = ['AusNet', 'Powercor', 'CitiPower', 'United Energy', 'Jemena'];
 
 function seedInHouseForm(p) {
   if (!p) return null;
@@ -1385,7 +1386,18 @@ export default function RetailerProjectDetailDetails({
             </div>
             <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
               <label style={labelStyle}>Energy distributor</label>
-              <input style={inputStyle} value={detailForm.energyDistributor} onChange={(e) => setDetailForm((f) => ({ ...f, energyDistributor: e.target.value }))} />
+              <select
+                style={inputStyle}
+                value={detailForm.energyDistributor}
+                onChange={(e) => setDetailForm((f) => ({ ...f, energyDistributor: e.target.value }))}
+              >
+                <option value="">Select</option>
+                {ENERGY_DISTRIBUTOR_OPTS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="lead-detail-field" style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column' }}>
               <label style={labelStyle}>Solar Victoria eligibility</label>

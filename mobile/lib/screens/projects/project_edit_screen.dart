@@ -50,6 +50,13 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
     'Other',
   ];
   static const List<String> _meterPhaseOptions = ['Single', 'Double', 'Three'];
+  static const List<String> _energyDistributorOptions = [
+    'AusNet',
+    'Powercor',
+    'CitiPower',
+    'United Energy',
+    'Jemena',
+  ];
 
   final _customerNameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
@@ -283,6 +290,12 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
   bool get _hasPvFields => _hasSystemTypeToken('pv');
   bool get _hasEvFields => _hasSystemTypeToken('ev');
   bool get _hasBatteryFields => _hasSystemTypeToken('battery');
+
+  String? get _energyDistributorDropdownValue {
+    final value = _energyDistributorCtrl.text.trim();
+    if (value.isEmpty) return null;
+    return _energyDistributorOptions.contains(value) ? value : null;
+  }
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
@@ -705,10 +718,13 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
                   icon: Icons.storefront_outlined,
                 ),
                 const SizedBox(height: 16),
-                _field(
-                  controller: _energyDistributorCtrl,
+                _dropdownField(
                   label: 'Energy Distributor',
                   icon: Icons.account_tree_outlined,
+                  value: _energyDistributorDropdownValue,
+                  options: _energyDistributorOptions,
+                  onChanged: (v) =>
+                      setState(() => _energyDistributorCtrl.text = v ?? ''),
                 ),
                 const SizedBox(height: 16),
                 _boolDropdown(
