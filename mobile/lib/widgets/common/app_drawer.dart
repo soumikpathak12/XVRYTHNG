@@ -72,8 +72,10 @@ class AppDrawer extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white24,
                     borderRadius: BorderRadius.circular(8),
@@ -92,8 +94,10 @@ class AppDrawer extends StatelessWidget {
               children: items.map((item) {
                 if (item.isDivider) {
                   return Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -118,12 +122,15 @@ class AppDrawer extends StatelessWidget {
 
                 final isActive = currentRoute == item.route;
                 return Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 1,
+                  ),
                   child: ListTile(
                     dense: true,
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                     selected: isActive,
                     selectedTileColor: AppColors.primary.withOpacity(0.08),
                     leading: Icon(
@@ -137,8 +144,9 @@ class AppDrawer extends StatelessWidget {
                       item.label,
                       style: TextStyle(
                         fontSize: 14,
-                        fontWeight:
-                            isActive ? FontWeight.w600 : FontWeight.w500,
+                        fontWeight: isActive
+                            ? FontWeight.w600
+                            : FontWeight.w500,
                         color: isActive
                             ? AppColors.primary
                             : AppColors.textPrimary,
@@ -147,7 +155,9 @@ class AppDrawer extends StatelessWidget {
                     trailing: item.badge != null
                         ? Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 2),
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.danger,
                               borderRadius: BorderRadius.circular(10),
@@ -155,9 +165,10 @@ class AppDrawer extends StatelessWidget {
                             child: Text(
                               '${item.badge}',
                               style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600),
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           )
                         : null,
@@ -178,7 +189,9 @@ class AppDrawer extends StatelessWidget {
             title: const Text(
               'Logout',
               style: TextStyle(
-                  color: AppColors.danger, fontWeight: FontWeight.w500),
+                color: AppColors.danger,
+                fontWeight: FontWeight.w500,
+              ),
             ),
             onTap: () async {
               Navigator.pop(context);
@@ -192,9 +205,15 @@ class AppDrawer extends StatelessWidget {
   }
 
   String _getInitials(String name) {
-    final parts = name.trim().split(' ');
-    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    if (parts.isNotEmpty && parts[0].isNotEmpty) {
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    }
+    if (parts.isNotEmpty) {
       return parts[0][0].toUpperCase();
     }
     return '?';
@@ -204,9 +223,7 @@ class AppDrawer extends StatelessWidget {
     return role
         .replaceAll('_', ' ')
         .split(' ')
-        .map((w) => w.isEmpty
-            ? ''
-            : '${w[0].toUpperCase()}${w.substring(1)}')
+        .map((w) => w.isEmpty ? '' : '${w[0].toUpperCase()}${w.substring(1)}')
         .join(' ');
   }
 }
@@ -227,8 +244,8 @@ class DrawerItem {
   });
 
   const DrawerItem.divider({this.label = ''})
-      : icon = Icons.circle,
-        route = null,
-        badge = null,
-        isDivider = true;
+    : icon = Icons.circle,
+      route = null,
+      badge = null,
+      isDivider = true;
 }

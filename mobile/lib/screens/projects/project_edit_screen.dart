@@ -63,6 +63,22 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
   final _energyDistributorCtrl = TextEditingController();
   final _nmiNumberCtrl = TextEditingController();
   final _meterNumberCtrl = TextEditingController();
+  final _pvSystemSizeCtrl = TextEditingController();
+  final _pvInverterSizeCtrl = TextEditingController();
+  final _pvInverterBrandCtrl = TextEditingController();
+  final _pvInverterModelCtrl = TextEditingController();
+  final _pvInverterSeriesCtrl = TextEditingController();
+  final _pvInverterPowerCtrl = TextEditingController();
+  final _pvInverterQuantityCtrl = TextEditingController();
+  final _pvPanelBrandCtrl = TextEditingController();
+  final _pvPanelModelCtrl = TextEditingController();
+  final _pvPanelQuantityCtrl = TextEditingController();
+  final _pvPanelModuleWattsCtrl = TextEditingController();
+  final _evChargerBrandCtrl = TextEditingController();
+  final _evChargerModelCtrl = TextEditingController();
+  final _batterySizeCtrl = TextEditingController();
+  final _batteryBrandCtrl = TextEditingController();
+  final _batteryModelCtrl = TextEditingController();
 
   String _systemType = '';
   String _houseStorey = '';
@@ -115,24 +131,84 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
     _phoneCtrl.text = read(['phone', 'lead_phone']);
     _suburbCtrl.text = read(['suburb', 'lead_suburb']);
     _systemSizeCtrl.text = read(['system_size_kw', 'lead_system_size_kw']);
-    _valueAmountCtrl.text = (d['value_amount'] ?? d['lead_value_amount'] ?? '').toString();
+    _valueAmountCtrl.text = (d['value_amount'] ?? d['lead_value_amount'] ?? '')
+        .toString();
     _systemType = read(['system_type', 'lead_system_type']);
     _houseStorey = read(['house_storey', 'lead_house_storey']);
     _roofType = read(['roof_type', 'lead_roof_type']);
     _meterPhase = read(['meter_phase', 'lead_meter_phase']);
-    _accessToSecondStorey =
-        parseBool(d['access_to_second_storey'] ?? d['lead_access_to_second_storey']);
-    _accessToInverter =
-        parseBool(d['access_to_inverter'] ?? d['lead_access_to_inverter']);
-    _preApprovalRefCtrl.text =
-        read(['pre_approval_reference_no', 'lead_pre_approval_reference_no']);
-    _energyRetailerCtrl.text = read(['energy_retailer', 'lead_energy_retailer']);
-    _energyDistributorCtrl.text =
-        read(['energy_distributor', 'lead_energy_distributor']);
-    _solarVicEligibility =
-        parseBool(d['solar_vic_eligibility'] ?? d['lead_solar_vic_eligibility']);
+    _accessToSecondStorey = parseBool(
+      d['access_to_second_storey'] ?? d['lead_access_to_second_storey'],
+    );
+    _accessToInverter = parseBool(
+      d['access_to_inverter'] ?? d['lead_access_to_inverter'],
+    );
+    _preApprovalRefCtrl.text = read([
+      'pre_approval_reference_no',
+      'lead_pre_approval_reference_no',
+    ]);
+    _energyRetailerCtrl.text = read([
+      'energy_retailer',
+      'lead_energy_retailer',
+    ]);
+    _energyDistributorCtrl.text = read([
+      'energy_distributor',
+      'lead_energy_distributor',
+    ]);
+    _solarVicEligibility = parseBool(
+      d['solar_vic_eligibility'] ?? d['lead_solar_vic_eligibility'],
+    );
     _nmiNumberCtrl.text = read(['nmi_number', 'lead_nmi_number']);
     _meterNumberCtrl.text = read(['meter_number', 'lead_meter_number']);
+    _pvSystemSizeCtrl.text = read([
+      'pv_system_size_kw',
+      'lead_pv_system_size_kw',
+    ]);
+    _pvInverterSizeCtrl.text = read([
+      'pv_inverter_size_kw',
+      'lead_pv_inverter_size_kw',
+    ]);
+    _pvInverterBrandCtrl.text = read([
+      'pv_inverter_brand',
+      'lead_pv_inverter_brand',
+    ]);
+    _pvInverterModelCtrl.text = read([
+      'pv_inverter_model',
+      'lead_pv_inverter_model',
+    ]);
+    _pvInverterSeriesCtrl.text = read([
+      'pv_inverter_series',
+      'lead_pv_inverter_series',
+    ]);
+    _pvInverterPowerCtrl.text = read([
+      'pv_inverter_power_kw',
+      'lead_pv_inverter_power_kw',
+    ]);
+    _pvInverterQuantityCtrl.text = read([
+      'pv_inverter_quantity',
+      'lead_pv_inverter_quantity',
+    ]);
+    _pvPanelBrandCtrl.text = read(['pv_panel_brand', 'lead_pv_panel_brand']);
+    _pvPanelModelCtrl.text = read(['pv_panel_model', 'lead_pv_panel_model']);
+    _pvPanelQuantityCtrl.text = read([
+      'pv_panel_quantity',
+      'lead_pv_panel_quantity',
+    ]);
+    _pvPanelModuleWattsCtrl.text = read([
+      'pv_panel_module_watts',
+      'lead_pv_panel_module_watts',
+    ]);
+    _evChargerBrandCtrl.text = read([
+      'ev_charger_brand',
+      'lead_ev_charger_brand',
+    ]);
+    _evChargerModelCtrl.text = read([
+      'ev_charger_model',
+      'lead_ev_charger_model',
+    ]);
+    _batterySizeCtrl.text = read(['battery_size_kwh', 'lead_battery_size_kwh']);
+    _batteryBrandCtrl.text = read(['battery_brand', 'lead_battery_brand']);
+    _batteryModelCtrl.text = read(['battery_model', 'lead_battery_model']);
     _postInstallRefCtrl.text = read(['post_install_reference_no']);
     _expectedCompletionDate = _tryParseDate(d['expected_completion_date']);
   }
@@ -159,6 +235,22 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
     _energyDistributorCtrl.dispose();
     _nmiNumberCtrl.dispose();
     _meterNumberCtrl.dispose();
+    _pvSystemSizeCtrl.dispose();
+    _pvInverterSizeCtrl.dispose();
+    _pvInverterBrandCtrl.dispose();
+    _pvInverterModelCtrl.dispose();
+    _pvInverterSeriesCtrl.dispose();
+    _pvInverterPowerCtrl.dispose();
+    _pvInverterQuantityCtrl.dispose();
+    _pvPanelBrandCtrl.dispose();
+    _pvPanelModelCtrl.dispose();
+    _pvPanelQuantityCtrl.dispose();
+    _pvPanelModuleWattsCtrl.dispose();
+    _evChargerBrandCtrl.dispose();
+    _evChargerModelCtrl.dispose();
+    _batterySizeCtrl.dispose();
+    _batteryBrandCtrl.dispose();
+    _batteryModelCtrl.dispose();
     super.dispose();
   }
 
@@ -184,6 +276,14 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
     return text.isEmpty ? null : text;
   }
 
+  bool _hasSystemTypeToken(String token) {
+    return _systemType.toLowerCase().contains(token.toLowerCase());
+  }
+
+  bool get _hasPvFields => _hasSystemTypeToken('pv');
+  bool get _hasEvFields => _hasSystemTypeToken('ev');
+  bool get _hasBatteryFields => _hasSystemTypeToken('battery');
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() {
@@ -195,7 +295,9 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
       'customer_name': _customerNameCtrl.text.trim(),
       'email': _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
       'phone': _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
-      'suburb': _suburbCtrl.text.trim().isEmpty ? null : _suburbCtrl.text.trim(),
+      'suburb': _suburbCtrl.text.trim().isEmpty
+          ? null
+          : _suburbCtrl.text.trim(),
       'system_size_kw': _systemSizeCtrl.text.trim().isEmpty
           ? null
           : double.tryParse(_systemSizeCtrl.text.trim()),
@@ -236,6 +338,22 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
           'solar_vic_eligibility': _solarVicEligibility,
           'nmi_number': _normalize(_nmiNumberCtrl.text),
           'meter_number': _normalize(_meterNumberCtrl.text),
+          'pv_system_size_kw': _normalize(_pvSystemSizeCtrl.text),
+          'pv_inverter_size_kw': _normalize(_pvInverterSizeCtrl.text),
+          'pv_inverter_brand': _normalize(_pvInverterBrandCtrl.text),
+          'pv_inverter_model': _normalize(_pvInverterModelCtrl.text),
+          'pv_inverter_series': _normalize(_pvInverterSeriesCtrl.text),
+          'pv_inverter_power_kw': _normalize(_pvInverterPowerCtrl.text),
+          'pv_inverter_quantity': _normalize(_pvInverterQuantityCtrl.text),
+          'pv_panel_brand': _normalize(_pvPanelBrandCtrl.text),
+          'pv_panel_model': _normalize(_pvPanelModelCtrl.text),
+          'pv_panel_quantity': _normalize(_pvPanelQuantityCtrl.text),
+          'pv_panel_module_watts': _normalize(_pvPanelModuleWattsCtrl.text),
+          'ev_charger_brand': _normalize(_evChargerBrandCtrl.text),
+          'ev_charger_model': _normalize(_evChargerModelCtrl.text),
+          'battery_size_kwh': _normalize(_batterySizeCtrl.text),
+          'battery_brand': _normalize(_batteryBrandCtrl.text),
+          'battery_model': _normalize(_batteryModelCtrl.text),
         });
       }
       if (!mounted) return;
@@ -296,14 +414,19 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.error_outline,
-                          color: AppColors.danger, size: 20),
+                      const Icon(
+                        Icons.error_outline,
+                        color: AppColors.danger,
+                        size: 20,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           _error!,
                           style: const TextStyle(
-                              fontSize: 13, color: AppColors.danger),
+                            fontSize: 13,
+                            color: AppColors.danger,
+                          ),
                         ),
                       ),
                     ],
@@ -355,7 +478,9 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
                   controller: _systemSizeCtrl,
                   label: 'System Size (kW)',
                   icon: Icons.solar_power_outlined,
-                  keyboard: const TextInputType.numberWithOptions(decimal: true),
+                  keyboard: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                   ],
@@ -365,12 +490,159 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
                   controller: _valueAmountCtrl,
                   label: 'Estimated Value (AUD)',
                   icon: Icons.attach_money_outlined,
-                  keyboard: const TextInputType.numberWithOptions(decimal: true),
+                  keyboard: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                   ],
                 ),
               ]),
+              if (_hasPvFields) ...[
+                const SizedBox(height: 16),
+                _card([
+                  const _SectionTitle('PV System Details'),
+                  _field(
+                    controller: _pvSystemSizeCtrl,
+                    label: 'PV System Size (kW)',
+                    icon: Icons.solar_power_outlined,
+                    keyboard: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _field(
+                    controller: _pvInverterSizeCtrl,
+                    label: 'PV Inverter Size (kW)',
+                    icon: Icons.flash_on_outlined,
+                    keyboard: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _field(
+                    controller: _pvInverterBrandCtrl,
+                    label: 'Inverter Brand',
+                    icon: Icons.branding_watermark_outlined,
+                  ),
+                  const SizedBox(height: 16),
+                  _field(
+                    controller: _pvInverterModelCtrl,
+                    label: 'Inverter Model',
+                    icon: Icons.memory_outlined,
+                  ),
+                  const SizedBox(height: 16),
+                  _field(
+                    controller: _pvInverterSeriesCtrl,
+                    label: 'Inverter Series',
+                    icon: Icons.view_timeline_outlined,
+                  ),
+                  const SizedBox(height: 16),
+                  _field(
+                    controller: _pvInverterPowerCtrl,
+                    label: 'Inverter Power (kW)',
+                    icon: Icons.bolt_outlined,
+                    keyboard: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _field(
+                    controller: _pvInverterQuantityCtrl,
+                    label: 'Number of Inverter',
+                    icon: Icons.numbers_outlined,
+                    keyboard: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  ),
+                  const SizedBox(height: 16),
+                  _field(
+                    controller: _pvPanelBrandCtrl,
+                    label: 'Panel Brand',
+                    icon: Icons.grid_view_outlined,
+                  ),
+                  const SizedBox(height: 16),
+                  _field(
+                    controller: _pvPanelModelCtrl,
+                    label: 'Panel Model',
+                    icon: Icons.widgets_outlined,
+                  ),
+                  const SizedBox(height: 16),
+                  _field(
+                    controller: _pvPanelQuantityCtrl,
+                    label: 'Quantity of Panel',
+                    icon: Icons.pin_outlined,
+                    keyboard: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  ),
+                  const SizedBox(height: 16),
+                  _field(
+                    controller: _pvPanelModuleWattsCtrl,
+                    label: 'Panel Module (Watts)',
+                    icon: Icons.electric_bolt_outlined,
+                    keyboard: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                    ],
+                  ),
+                ]),
+              ],
+              if (_hasEvFields) ...[
+                const SizedBox(height: 16),
+                _card([
+                  const _SectionTitle('EV Charger Details'),
+                  _field(
+                    controller: _evChargerBrandCtrl,
+                    label: 'EV Charger Brand',
+                    icon: Icons.ev_station_outlined,
+                  ),
+                  const SizedBox(height: 16),
+                  _field(
+                    controller: _evChargerModelCtrl,
+                    label: 'EV Charger Model',
+                    icon: Icons.electric_car_outlined,
+                  ),
+                ]),
+              ],
+              if (_hasBatteryFields) ...[
+                const SizedBox(height: 16),
+                _card([
+                  const _SectionTitle('Battery Details'),
+                  _field(
+                    controller: _batterySizeCtrl,
+                    label: 'Battery Size (kWh)',
+                    icon: Icons.battery_charging_full_outlined,
+                    keyboard: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _field(
+                    controller: _batteryBrandCtrl,
+                    label: 'Battery Brand',
+                    icon: Icons.battery_std_outlined,
+                  ),
+                  const SizedBox(height: 16),
+                  _field(
+                    controller: _batteryModelCtrl,
+                    label: 'Battery Model',
+                    icon: Icons.battery_unknown_outlined,
+                  ),
+                ]),
+              ],
               const SizedBox(height: 16),
               _card([
                 const _SectionTitle('Property Characteristics'),
@@ -466,7 +738,9 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
                   subtitle: Text(
                     _expectedCompletionDate == null
                         ? 'Not set'
-                        : DateFormat('d MMM yyyy').format(_expectedCompletionDate!),
+                        : DateFormat(
+                            'd MMM yyyy',
+                          ).format(_expectedCompletionDate!),
                   ),
                   trailing: const Icon(Icons.calendar_month_outlined),
                   onTap: _pickExpectedCompletionDate,
@@ -531,15 +805,10 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
       items: [
-        const DropdownMenuItem<String>(
-          value: null,
-          child: Text('Select'),
-        ),
+        const DropdownMenuItem<String>(value: null, child: Text('Select')),
         ...options.map(
-          (option) => DropdownMenuItem<String>(
-            value: option,
-            child: Text(option),
-          ),
+          (option) =>
+              DropdownMenuItem<String>(value: option, child: Text(option)),
         ),
       ],
       onChanged: onChanged,
@@ -593,4 +862,3 @@ class _SectionTitle extends StatelessWidget {
     );
   }
 }
-

@@ -90,7 +90,9 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
     if (detail == null) return [];
     final list = detail['documents'];
     if (list is List) {
-      return list.map((e) => e is Map<String, dynamic> ? e : <String, dynamic>{}).toList();
+      return list
+          .map((e) => e is Map<String, dynamic> ? e : <String, dynamic>{})
+          .toList();
     }
     return [];
   }
@@ -109,9 +111,9 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
       await context.read<LeadsProvider>().loadLeadDetail(widget.leadId);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update stage: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to update stage: $e')));
       }
     }
   }
@@ -129,9 +131,9 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
   Future<void> _uploadDocument() async {
     final result = await showFilePickerSheet(context);
     if (result == null || !mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Uploading ${result.name}...')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Uploading ${result.name}...')));
   }
 
   @override
@@ -180,9 +182,12 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
                 flexibleSpace: FlexibleSpaceBar(
                   background: _LeadHeader(
                     lead: lead,
-                    onCall: lead.phone != null ? () => _call(lead.phone!) : null,
-                    onEmail:
-                        lead.email != null ? () => _email(lead.email!) : null,
+                    onCall: lead.phone != null
+                        ? () => _call(lead.phone!)
+                        : null,
+                    onEmail: lead.email != null
+                        ? () => _email(lead.email!)
+                        : null,
                     onChangeStage: () => _changeStage(lead),
                   ),
                 ),
@@ -213,8 +218,9 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
                 _OverviewTab(lead: lead),
                 _DetailsTab(
                   lead: lead,
-                  onSaved: () =>
-                      context.read<LeadsProvider>().loadLeadDetail(widget.leadId),
+                  onSaved: () => context.read<LeadsProvider>().loadLeadDetail(
+                    widget.leadId,
+                  ),
                 ),
                 _ActivityTab(
                   activities: _activities,
@@ -222,15 +228,12 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
                   onAddNote: () {
                     if (_noteCtrl.text.trim().isEmpty) return;
                     _noteCtrl.clear();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Note added')),
-                    );
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(const SnackBar(content: Text('Note added')));
                   },
                 ),
-                _DocumentsTab(
-                  documents: _documents,
-                  onUpload: _uploadDocument,
-                ),
+                _DocumentsTab(documents: _documents, onUpload: _uploadDocument),
               ],
             ),
           ),
@@ -269,7 +272,11 @@ class _LeadHeader extends StatelessWidget {
         ),
       ),
       padding: EdgeInsets.fromLTRB(
-          20, MediaQuery.of(context).padding.top + 56, 20, 60),
+        20,
+        MediaQuery.of(context).padding.top + 56,
+        20,
+        60,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.end,
@@ -329,11 +336,7 @@ class _HeaderAction extends StatelessWidget {
   final String label;
   final VoidCallback? onTap;
 
-  const _HeaderAction({
-    required this.icon,
-    required this.label,
-    this.onTap,
-  });
+  const _HeaderAction({required this.icon, required this.label, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -409,19 +412,23 @@ class _StagePickerSheet extends StatelessWidget {
                       title: Text(
                         Lead.stageLabels[stage] ?? stage,
                         style: TextStyle(
-                          fontWeight:
-                              isSelected ? FontWeight.w600 : FontWeight.normal,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.normal,
                           color: isSelected
                               ? AppColors.primary
                               : AppColors.textPrimary,
                         ),
                       ),
                       trailing: isSelected
-                          ? const Icon(Icons.check_circle,
-                              color: AppColors.primary)
+                          ? const Icon(
+                              Icons.check_circle,
+                              color: AppColors.primary,
+                            )
                           : null,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                       onTap: () => Navigator.pop(context, stage),
                     );
                   }).toList(),
@@ -454,14 +461,12 @@ class _OverviewTab extends StatelessWidget {
           title: 'Summary',
           children: [
             _DetailRow('Customer', lead.customerName),
-            _DetailRow(
-                'Stage', Lead.stageLabels[lead.stage] ?? lead.stage),
+            _DetailRow('Stage', Lead.stageLabels[lead.stage] ?? lead.stage),
             if (lead.value != null)
               _DetailRow('Value', currFmt.format(lead.value!)),
             if (lead.systemSize != null)
               _DetailRow('System Size', lead.systemSize!),
-            if (lead.source != null)
-              _DetailRow('Source', lead.source!),
+            if (lead.source != null) _DetailRow('Source', lead.source!),
             if (lead.assignedToName != null)
               _DetailRow('Assigned To', lead.assignedToName!),
             if (lead.createdAt != null)
@@ -478,7 +483,9 @@ class _OverviewTab extends StatelessWidget {
                 child: Text(
                   lead.notes!,
                   style: const TextStyle(
-                      fontSize: 14, color: AppColors.textSecondary),
+                    fontSize: 14,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
             ],
@@ -540,6 +547,22 @@ class _DetailsTabState extends State<_DetailsTab> {
   late final TextEditingController _energyRetailerCtrl;
   late final TextEditingController _nmiCtrl;
   late final TextEditingController _meterNumberCtrl;
+  late final TextEditingController _pvSystemSizeCtrl;
+  late final TextEditingController _pvInverterSizeCtrl;
+  late final TextEditingController _pvInverterBrandCtrl;
+  late final TextEditingController _pvInverterModelCtrl;
+  late final TextEditingController _pvInverterSeriesCtrl;
+  late final TextEditingController _pvInverterPowerCtrl;
+  late final TextEditingController _pvInverterQuantityCtrl;
+  late final TextEditingController _pvPanelBrandCtrl;
+  late final TextEditingController _pvPanelModelCtrl;
+  late final TextEditingController _pvPanelQuantityCtrl;
+  late final TextEditingController _pvPanelModuleWattsCtrl;
+  late final TextEditingController _evChargerBrandCtrl;
+  late final TextEditingController _evChargerModelCtrl;
+  late final TextEditingController _batterySizeCtrl;
+  late final TextEditingController _batteryBrandCtrl;
+  late final TextEditingController _batteryModelCtrl;
   String? _systemType;
   String? _houseStorey;
   String? _roofType;
@@ -567,8 +590,11 @@ class _DetailsTabState extends State<_DetailsTab> {
     return null;
   }
 
-  String? _boolLabel(List<String> keys,
-      {String trueLabel = 'Yes', String falseLabel = 'No'}) {
+  String? _boolLabel(
+    List<String> keys, {
+    String trueLabel = 'Yes',
+    String falseLabel = 'No',
+  }) {
     final value = _textValue(keys);
     if (value == null) return null;
     final normalized = value.toLowerCase();
@@ -629,6 +655,22 @@ class _DetailsTabState extends State<_DetailsTab> {
     _energyRetailerCtrl = TextEditingController();
     _nmiCtrl = TextEditingController();
     _meterNumberCtrl = TextEditingController();
+    _pvSystemSizeCtrl = TextEditingController();
+    _pvInverterSizeCtrl = TextEditingController();
+    _pvInverterBrandCtrl = TextEditingController();
+    _pvInverterModelCtrl = TextEditingController();
+    _pvInverterSeriesCtrl = TextEditingController();
+    _pvInverterPowerCtrl = TextEditingController();
+    _pvInverterQuantityCtrl = TextEditingController();
+    _pvPanelBrandCtrl = TextEditingController();
+    _pvPanelModelCtrl = TextEditingController();
+    _pvPanelQuantityCtrl = TextEditingController();
+    _pvPanelModuleWattsCtrl = TextEditingController();
+    _evChargerBrandCtrl = TextEditingController();
+    _evChargerModelCtrl = TextEditingController();
+    _batterySizeCtrl = TextEditingController();
+    _batteryBrandCtrl = TextEditingController();
+    _batteryModelCtrl = TextEditingController();
     _syncFromLead();
     _loadInspectors();
   }
@@ -647,6 +689,22 @@ class _DetailsTabState extends State<_DetailsTab> {
     _energyRetailerCtrl.dispose();
     _nmiCtrl.dispose();
     _meterNumberCtrl.dispose();
+    _pvSystemSizeCtrl.dispose();
+    _pvInverterSizeCtrl.dispose();
+    _pvInverterBrandCtrl.dispose();
+    _pvInverterModelCtrl.dispose();
+    _pvInverterSeriesCtrl.dispose();
+    _pvInverterPowerCtrl.dispose();
+    _pvInverterQuantityCtrl.dispose();
+    _pvPanelBrandCtrl.dispose();
+    _pvPanelModelCtrl.dispose();
+    _pvPanelQuantityCtrl.dispose();
+    _pvPanelModuleWattsCtrl.dispose();
+    _evChargerBrandCtrl.dispose();
+    _evChargerModelCtrl.dispose();
+    _batterySizeCtrl.dispose();
+    _batteryBrandCtrl.dispose();
+    _batteryModelCtrl.dispose();
     super.dispose();
   }
 
@@ -655,8 +713,11 @@ class _DetailsTabState extends State<_DetailsTab> {
     return value.trim();
   }
 
-  String _boolDisplay(bool? value,
-      {String trueLabel = 'Yes', String falseLabel = 'No'}) {
+  String _boolDisplay(
+    bool? value, {
+    String trueLabel = 'Yes',
+    String falseLabel = 'No',
+  }) {
     if (value == null) return '--';
     return value ? trueLabel : falseLabel;
   }
@@ -666,9 +727,20 @@ class _DetailsTabState extends State<_DetailsTab> {
     return trimmed.isEmpty ? null : trimmed;
   }
 
+  bool _hasSystemTypeToken(String token) {
+    final systemType = (_systemType ?? '').toLowerCase();
+    return systemType.contains(token.toLowerCase());
+  }
+
+  bool get _hasPvFields => _hasSystemTypeToken('pv');
+  bool get _hasEvFields => _hasSystemTypeToken('ev');
+  bool get _hasBatteryFields => _hasSystemTypeToken('battery');
+
   Future<void> _loadInspectors() async {
     try {
-      final inspectors = await EmployeesService().listEmployees(status: 'active');
+      final inspectors = await EmployeesService().listEmployees(
+        status: 'active',
+      );
       if (!mounted) return;
       setState(() => _inspectors = inspectors);
     } catch (_) {
@@ -690,6 +762,22 @@ class _DetailsTabState extends State<_DetailsTab> {
     _accessSecondStorey = _toBool(_textValue(['access_to_second_storey']));
     _accessInverter = _toBool(_textValue(['access_to_inverter']));
     _solarVicEligibility = _toBool(_textValue(['solar_vic_eligibility']));
+    _pvSystemSizeCtrl.text = _textValue(['pv_system_size_kw']) ?? '';
+    _pvInverterSizeCtrl.text = _textValue(['pv_inverter_size_kw']) ?? '';
+    _pvInverterBrandCtrl.text = _textValue(['pv_inverter_brand']) ?? '';
+    _pvInverterModelCtrl.text = _textValue(['pv_inverter_model']) ?? '';
+    _pvInverterSeriesCtrl.text = _textValue(['pv_inverter_series']) ?? '';
+    _pvInverterPowerCtrl.text = _textValue(['pv_inverter_power_kw']) ?? '';
+    _pvInverterQuantityCtrl.text = _textValue(['pv_inverter_quantity']) ?? '';
+    _pvPanelBrandCtrl.text = _textValue(['pv_panel_brand']) ?? '';
+    _pvPanelModelCtrl.text = _textValue(['pv_panel_model']) ?? '';
+    _pvPanelQuantityCtrl.text = _textValue(['pv_panel_quantity']) ?? '';
+    _pvPanelModuleWattsCtrl.text = _textValue(['pv_panel_module_watts']) ?? '';
+    _evChargerBrandCtrl.text = _textValue(['ev_charger_brand']) ?? '';
+    _evChargerModelCtrl.text = _textValue(['ev_charger_model']) ?? '';
+    _batterySizeCtrl.text = _textValue(['battery_size_kwh']) ?? '';
+    _batteryBrandCtrl.text = _textValue(['battery_brand']) ?? '';
+    _batteryModelCtrl.text = _textValue(['battery_model']) ?? '';
   }
 
   Future<void> _saveDetails() async {
@@ -712,25 +800,45 @@ class _DetailsTabState extends State<_DetailsTab> {
         'solar_vic_eligibility': _solarVicEligibility,
         'nmi_number': _normalize(_nmiCtrl.text),
         'meter_number': _normalize(_meterNumberCtrl.text),
+        'pv_system_size_kw': _normalize(_pvSystemSizeCtrl.text),
+        'pv_inverter_size_kw': _normalize(_pvInverterSizeCtrl.text),
+        'pv_inverter_brand': _normalize(_pvInverterBrandCtrl.text),
+        'pv_inverter_model': _normalize(_pvInverterModelCtrl.text),
+        'pv_inverter_series': _normalize(_pvInverterSeriesCtrl.text),
+        'pv_inverter_power_kw': _normalize(_pvInverterPowerCtrl.text),
+        'pv_inverter_quantity': _normalize(_pvInverterQuantityCtrl.text),
+        'pv_panel_brand': _normalize(_pvPanelBrandCtrl.text),
+        'pv_panel_model': _normalize(_pvPanelModelCtrl.text),
+        'pv_panel_quantity': _normalize(_pvPanelQuantityCtrl.text),
+        'pv_panel_module_watts': _normalize(_pvPanelModuleWattsCtrl.text),
+        'ev_charger_brand': _normalize(_evChargerBrandCtrl.text),
+        'ev_charger_model': _normalize(_evChargerModelCtrl.text),
+        'battery_size_kwh': _normalize(_batterySizeCtrl.text),
+        'battery_brand': _normalize(_batteryBrandCtrl.text),
+        'battery_model': _normalize(_batteryModelCtrl.text),
       };
       await context.read<LeadsProvider>().updateLead(lead.id, payload);
       await widget.onSaved();
       if (!mounted) return;
       setState(() => _editing = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lead details updated')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Lead details updated')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update details: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to update details: $e')));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
 
-  Widget _editableField(String label, TextEditingController ctrl) {
+  Widget _editableField(
+    String label,
+    TextEditingController ctrl, {
+    TextInputType? keyboardType,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Column(
@@ -746,20 +854,27 @@ class _DetailsTabState extends State<_DetailsTab> {
           const SizedBox(height: 6),
           TextField(
             controller: ctrl,
+            keyboardType: keyboardType,
             decoration: InputDecoration(
               isDense: true,
               filled: true,
               fillColor: AppColors.surface,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: AppColors.border.withOpacity(0.5)),
+                borderSide: BorderSide(
+                  color: AppColors.border.withOpacity(0.5),
+                ),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: AppColors.border.withOpacity(0.5)),
+                borderSide: BorderSide(
+                  color: AppColors.border.withOpacity(0.5),
+                ),
               ),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
             ),
           ),
         ],
@@ -773,8 +888,7 @@ class _DetailsTabState extends State<_DetailsTab> {
     required List<String> options,
     required ValueChanged<String?> onChanged,
   }) {
-    final normalizedValue =
-        (value != null && value.isNotEmpty) ? value : null;
+    final normalizedValue = (value != null && value.isNotEmpty) ? value : null;
     final mergedOptions = [...options];
     if (normalizedValue != null && !mergedOptions.contains(normalizedValue)) {
       mergedOptions.insert(0, normalizedValue);
@@ -813,14 +927,20 @@ class _DetailsTabState extends State<_DetailsTab> {
               fillColor: AppColors.surface,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: AppColors.border.withOpacity(0.5)),
+                borderSide: BorderSide(
+                  color: AppColors.border.withOpacity(0.5),
+                ),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: AppColors.border.withOpacity(0.5)),
+                borderSide: BorderSide(
+                  color: AppColors.border.withOpacity(0.5),
+                ),
               ),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 6,
+              ),
             ),
           ),
         ],
@@ -841,10 +961,7 @@ class _DetailsTabState extends State<_DetailsTab> {
         children: [
           const Text(
             'Inspector',
-            style: TextStyle(
-              fontSize: 12,
-              color: AppColors.textSecondary,
-            ),
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 6),
           DropdownButtonFormField<String>(
@@ -873,14 +990,20 @@ class _DetailsTabState extends State<_DetailsTab> {
               fillColor: AppColors.surface,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: AppColors.border.withOpacity(0.5)),
+                borderSide: BorderSide(
+                  color: AppColors.border.withOpacity(0.5),
+                ),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: AppColors.border.withOpacity(0.5)),
+                borderSide: BorderSide(
+                  color: AppColors.border.withOpacity(0.5),
+                ),
               ),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 6,
+              ),
             ),
           ),
         ],
@@ -922,14 +1045,20 @@ class _DetailsTabState extends State<_DetailsTab> {
               fillColor: AppColors.surface,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: AppColors.border.withOpacity(0.5)),
+                borderSide: BorderSide(
+                  color: AppColors.border.withOpacity(0.5),
+                ),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: AppColors.border.withOpacity(0.5)),
+                borderSide: BorderSide(
+                  color: AppColors.border.withOpacity(0.5),
+                ),
               ),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 6,
+              ),
             ),
           ),
         ],
@@ -972,16 +1101,17 @@ class _DetailsTabState extends State<_DetailsTab> {
     final batterySize = _textValue(['battery_size_kwh']);
     final batteryBrand = _textValue(['battery_brand']);
     final batteryModel = _textValue(['battery_model']);
-    final inspectionDate = _formattedDateTime(
-      ['site_inspection_scheduled_at', 'site_inspection_date'],
-    );
+    final inspectionDate = _formattedDateTime([
+      'site_inspection_scheduled_at',
+      'site_inspection_date',
+    ]);
     final inspectorName = _textValue(['inspector_name', 'assigned_to_name']);
     final salesSegment = _textValue(['sales_segment']);
     final salesSegmentLabel = salesSegment == 'b2c'
         ? 'Residential (B2C)'
         : salesSegment == 'b2b'
-            ? 'Commercial (B2B)'
-            : salesSegment;
+        ? 'Commercial (B2B)'
+        : salesSegment;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -993,7 +1123,9 @@ class _DetailsTabState extends State<_DetailsTab> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     TextButton(
-                      onPressed: _saving ? null : () => setState(() => _editing = false),
+                      onPressed: _saving
+                          ? null
+                          : () => setState(() => _editing = false),
                       child: const Text('Cancel'),
                     ),
                     const SizedBox(width: 8),
@@ -1023,8 +1155,7 @@ class _DetailsTabState extends State<_DetailsTab> {
             if (lead.email != null) _DetailRow('Email', lead.email!),
             if (lead.phone != null) _DetailRow('Phone', lead.phone!),
             if (lead.suburb != null) _DetailRow('Suburb', lead.suburb!),
-            if (lead.address != null)
-              _DetailRow('Address', lead.address!),
+            if (lead.address != null) _DetailRow('Address', lead.address!),
             if (salesSegmentLabel != null)
               _DetailRow('Sales channel', salesSegmentLabel),
           ],
@@ -1036,8 +1167,7 @@ class _DetailsTabState extends State<_DetailsTab> {
             if (lead.systemSize != null)
               _DetailRow('System Size', lead.systemSize!),
             if (lead.source != null) _DetailRow('Source', lead.source!),
-            _DetailRow(
-                'Stage', Lead.stageLabels[lead.stage] ?? lead.stage),
+            _DetailRow('Stage', Lead.stageLabels[lead.stage] ?? lead.stage),
             if (lead.lastActivity != null)
               _DetailRow('Last Activity', lead.lastActivity!),
           ],
@@ -1060,6 +1190,84 @@ class _DetailsTabState extends State<_DetailsTab> {
                   _DetailRow('Inspector', _safeDisplay(inspectorName)),
                 ],
         ),
+        if (_editing && _hasPvFields) ...[
+          const SizedBox(height: 14),
+          _DetailCard(
+            title: 'PV System Details',
+            children: [
+              _editableField(
+                'System size (kW)',
+                _pvSystemSizeCtrl,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+              ),
+              _editableField(
+                'Inverter size (kW)',
+                _pvInverterSizeCtrl,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+              ),
+              _editableField('Inverter brand', _pvInverterBrandCtrl),
+              _editableField('Inverter model', _pvInverterModelCtrl),
+              _editableField('Inverter series', _pvInverterSeriesCtrl),
+              _editableField(
+                'Inverter power (kW)',
+                _pvInverterPowerCtrl,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+              ),
+              _editableField(
+                'Number of inverter',
+                _pvInverterQuantityCtrl,
+                keyboardType: TextInputType.number,
+              ),
+              _editableField('Panel brand', _pvPanelBrandCtrl),
+              _editableField('Panel model', _pvPanelModelCtrl),
+              _editableField(
+                'Quantity of panel',
+                _pvPanelQuantityCtrl,
+                keyboardType: TextInputType.number,
+              ),
+              _editableField(
+                'Panel module (W)',
+                _pvPanelModuleWattsCtrl,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+              ),
+            ],
+          ),
+        ],
+        if (_editing && _hasEvFields) ...[
+          const SizedBox(height: 14),
+          _DetailCard(
+            title: 'EV Charger Details',
+            children: [
+              _editableField('EV charger brand', _evChargerBrandCtrl),
+              _editableField('EV charger model', _evChargerModelCtrl),
+            ],
+          ),
+        ],
+        if (_editing && _hasBatteryFields) ...[
+          const SizedBox(height: 14),
+          _DetailCard(
+            title: 'Battery Details',
+            children: [
+              _editableField(
+                'Battery size (kWh)',
+                _batterySizeCtrl,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+              ),
+              _editableField('Battery brand', _batteryBrandCtrl),
+              _editableField('Battery model', _batteryModelCtrl),
+            ],
+          ),
+        ],
         const SizedBox(height: 14),
         _DetailCard(
           title: 'Property Information',
@@ -1133,9 +1341,15 @@ class _DetailsTabState extends State<_DetailsTab> {
                   _editableField('Meter number', _meterNumberCtrl),
                 ]
               : [
-                  _DetailRow('Pre-approval ref no', _safeDisplay(preApprovalRef)),
+                  _DetailRow(
+                    'Pre-approval ref no',
+                    _safeDisplay(preApprovalRef),
+                  ),
                   _DetailRow('Energy retailer', _safeDisplay(energyRetailer)),
-                  _DetailRow('Energy distributor', _safeDisplay(energyDistributor)),
+                  _DetailRow(
+                    'Energy distributor',
+                    _safeDisplay(energyDistributor),
+                  ),
                   _DetailRow(
                     'Solar Vic eligibility',
                     _boolDisplay(
@@ -1286,8 +1500,10 @@ class _ActivityTab extends StatelessWidget {
               : ListView.builder(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                   itemCount: activities.length,
-                  itemBuilder: (_, i) =>
-                      _TimelineItem(activity: activities[i], isLast: i == activities.length - 1),
+                  itemBuilder: (_, i) => _TimelineItem(
+                    activity: activities[i],
+                    isLast: i == activities.length - 1,
+                  ),
                 ),
         ),
         Container(
@@ -1307,12 +1523,15 @@ class _ActivityTab extends StatelessWidget {
                     controller: noteController,
                     decoration: InputDecoration(
                       hintText: 'Add a note...',
-                      hintStyle:
-                          const TextStyle(color: AppColors.textSecondary),
+                      hintStyle: const TextStyle(
+                        color: AppColors.textSecondary,
+                      ),
                       filled: true,
                       fillColor: AppColors.surface,
                       contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(24),
                         borderSide: BorderSide.none,
@@ -1435,7 +1654,9 @@ class _TimelineItem extends StatelessWidget {
                         Text(
                           activity.userName!,
                           style: const TextStyle(
-                              fontSize: 11, color: AppColors.textSecondary),
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                         const SizedBox(width: 6),
                         Container(
@@ -1452,7 +1673,9 @@ class _TimelineItem extends StatelessWidget {
                         Text(
                           timeFmt.format(activity.createdAt!),
                           style: const TextStyle(
-                              fontSize: 11, color: AppColors.textSecondary),
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                     ],
                   ),
@@ -1506,8 +1729,11 @@ class _DocumentsTab extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.folder_open_rounded,
-                          size: 48, color: AppColors.disabled),
+                      Icon(
+                        Icons.folder_open_rounded,
+                        size: 48,
+                        color: AppColors.disabled,
+                      ),
                       SizedBox(height: 8),
                       Text(
                         'No documents yet',
@@ -1517,8 +1743,10 @@ class _DocumentsTab extends StatelessWidget {
                   ),
                 )
               : ListView.separated(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 4,
+                  ),
                   itemCount: documents.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemBuilder: (_, i) => _DocumentTile(doc: documents[i]),
@@ -1534,9 +1762,13 @@ class _DocumentTile extends StatelessWidget {
   const _DocumentTile({required this.doc});
 
   IconData get _icon {
-    final name = (doc['file_name'] ?? doc['name'] ?? '').toString().toLowerCase();
+    final name = (doc['file_name'] ?? doc['name'] ?? '')
+        .toString()
+        .toLowerCase();
     if (name.endsWith('.pdf')) return Icons.picture_as_pdf_rounded;
-    if (name.endsWith('.jpg') || name.endsWith('.png') || name.endsWith('.jpeg')) {
+    if (name.endsWith('.jpg') ||
+        name.endsWith('.png') ||
+        name.endsWith('.jpeg')) {
       return Icons.image_rounded;
     }
     if (name.endsWith('.doc') || name.endsWith('.docx')) {
@@ -1590,13 +1822,18 @@ class _DocumentTile extends StatelessWidget {
                   Text(
                     uploadedAt,
                     style: const TextStyle(
-                        fontSize: 11, color: AppColors.textSecondary),
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
               ],
             ),
           ),
-          const Icon(Icons.download_rounded,
-              size: 20, color: AppColors.textSecondary),
+          const Icon(
+            Icons.download_rounded,
+            size: 20,
+            color: AppColors.textSecondary,
+          ),
         ],
       ),
     );

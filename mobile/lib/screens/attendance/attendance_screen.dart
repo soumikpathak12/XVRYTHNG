@@ -90,14 +90,31 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   }
 
   DateTime? _parseTime(String raw) {
+    final trimmed = raw.trim();
+    final hasDate = trimmed.contains('-') && trimmed.contains(':');
+    final hasZoneInfo = RegExp(r'(Z|[+-]\d{2}:?\d{2})$').hasMatch(trimmed);
+
     try {
-      return DateTime.parse(raw);
+      final parsed = DateTime.parse(trimmed);
+      if (hasDate) {
+        // Attendance API stores timestamps in UTC. Normalize to AU time for
+        // consistent display and elapsed-hour calculations.
+        if (hasZoneInfo) return parsed.toUtc().add(_auOffset);
+        return parsed.add(_auOffset);
+      }
+      return parsed;
     } catch (_) {
       try {
-        final parts = raw.split(':');
+        final parts = trimmed.split(':');
         final now = DateTime.now();
-        return DateTime(now.year, now.month, now.day, int.parse(parts[0]),
-            int.parse(parts[1]), parts.length > 2 ? int.parse(parts[2]) : 0);
+        return DateTime(
+          now.year,
+          now.month,
+          now.day,
+          int.parse(parts[0]),
+          int.parse(parts[1]),
+          parts.length > 2 ? int.parse(parts[2]) : 0,
+        );
       } catch (_) {
         return null;
       }
@@ -119,7 +136,8 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     }
     if (permission == LocationPermission.deniedForever) {
       throw Exception(
-          'Location permissions are permanently denied. Please enable them in App Settings.');
+        'Location permissions are permanently denied. Please enable them in App Settings.',
+      );
     }
 
     try {
@@ -133,7 +151,8 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     } catch (e) {
       if (e is TimeoutException) {
         throw Exception(
-            'Location request timed out. Please ensure you are in an open area with good GPS signal.');
+          'Location request timed out. Please ensure you are in an open area with good GPS signal.',
+        );
       }
       throw Exception('Could not determine location: $e');
     }
@@ -149,16 +168,18 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('Checked in successfully'),
-              backgroundColor: AppColors.success),
+            content: Text('Checked in successfully'),
+            backgroundColor: AppColors.success,
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Check-in failed: $e'),
-              backgroundColor: AppColors.danger),
+            content: Text('Check-in failed: $e'),
+            backgroundColor: AppColors.danger,
+          ),
         );
       }
     } finally {
@@ -179,8 +200,9 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('Checked out successfully'),
-              backgroundColor: AppColors.success),
+            content: Text('Checked out successfully'),
+            backgroundColor: AppColors.success,
+          ),
         );
       }
       _loadAll();
@@ -188,8 +210,9 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Check-out failed: $e'),
-              backgroundColor: AppColors.danger),
+            content: Text('Check-out failed: $e'),
+            backgroundColor: AppColors.danger,
+          ),
         );
       }
     } finally {
@@ -234,7 +257,13 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     final iso = DateTime.tryParse(timeRaw);
     if (iso != null) {
       return DateTime(
-          day.year, day.month, day.day, iso.hour, iso.minute, iso.second);
+        day.year,
+        day.month,
+        day.day,
+        iso.hour,
+        iso.minute,
+        iso.second,
+      );
     }
     final parts = timeRaw.split(':');
     if (parts.length >= 2) {
@@ -260,9 +289,9 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content:
-                Text('Check-out must be after check-in.'),
-            backgroundColor: AppColors.danger),
+            content: Text('Check-out must be after check-in.'),
+            backgroundColor: AppColors.danger,
+          ),
         );
       }
       return;
@@ -280,8 +309,9 @@ class _AttendanceScreenState extends State<AttendanceScreen>
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('Edit request submitted'),
-              backgroundColor: AppColors.success),
+            content: Text('Edit request submitted'),
+            backgroundColor: AppColors.success,
+          ),
         );
       }
       _loadAll();
@@ -289,8 +319,9 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Failed: $e'),
-              backgroundColor: AppColors.danger),
+            content: Text('Failed: $e'),
+            backgroundColor: AppColors.danger,
+          ),
         );
       }
     } finally {
@@ -302,10 +333,10 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     _editReasonCtrl.clear();
     var draftIn =
         _combinedDateTimeForRecord(record, record.checkInTime) ??
-            _recordDayFromString(record.date);
+        _recordDayFromString(record.date);
     var draftOut =
         _combinedDateTimeForRecord(record, record.checkOutTime) ??
-            draftIn.add(const Duration(hours: 1));
+        draftIn.add(const Duration(hours: 1));
 
     showModalBottomSheet(
       context: context,
@@ -342,9 +373,10 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                       const Text(
                         'Request attendance edit',
                         style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary),
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                       const SizedBox(height: 12),
                       Container(
@@ -360,17 +392,19 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                             Text(
                               'Original — ${_fmtDate(record.date)}',
                               style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                  color: AppColors.textPrimary),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                                color: AppColors.textPrimary,
+                              ),
                             ),
                             const SizedBox(height: 8),
                             Text(
                               'Check in: ${_fmtTime(record.checkInTime)} · Check out: ${_fmtTime(record.checkOutTime)} · '
                               '${record.hoursWorked != null ? '${record.hoursWorked!.toStringAsFixed(2)} h' : '—'}',
                               style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textSecondary),
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
                             ),
                           ],
                         ),
@@ -378,54 +412,82 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                       const SizedBox(height: 16),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('Corrected check-in',
-                            style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14)),
+                        title: const Text(
+                          'Corrected check-in',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
                         subtitle: Text(
                           DateFormat('dd MMM yyyy, hh:mm a').format(draftIn),
                           style: const TextStyle(
-                              fontSize: 13, color: AppColors.primary),
+                            fontSize: 13,
+                            color: AppColors.primary,
+                          ),
                         ),
-                        trailing:
-                            const Icon(Icons.schedule, color: AppColors.primary),
+                        trailing: const Icon(
+                          Icons.schedule,
+                          color: AppColors.primary,
+                        ),
                         onTap: () async {
                           final t = await showTimePicker(
                             context: ctx,
-                            initialTime:
-                                TimeOfDay(hour: draftIn.hour, minute: draftIn.minute),
+                            initialTime: TimeOfDay(
+                              hour: draftIn.hour,
+                              minute: draftIn.minute,
+                            ),
                           );
                           if (t != null) {
                             final day = _recordDayFromString(record.date);
                             draftIn = DateTime(
-                                day.year, day.month, day.day, t.hour, t.minute);
+                              day.year,
+                              day.month,
+                              day.day,
+                              t.hour,
+                              t.minute,
+                            );
                             setModalState(() {});
                           }
                         },
                       ),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('Corrected check-out',
-                            style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14)),
+                        title: const Text(
+                          'Corrected check-out',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
                         subtitle: Text(
                           DateFormat('dd MMM yyyy, hh:mm a').format(draftOut),
                           style: const TextStyle(
-                              fontSize: 13, color: AppColors.primary),
+                            fontSize: 13,
+                            color: AppColors.primary,
+                          ),
                         ),
-                        trailing:
-                            const Icon(Icons.schedule, color: AppColors.primary),
+                        trailing: const Icon(
+                          Icons.schedule,
+                          color: AppColors.primary,
+                        ),
                         onTap: () async {
                           final t = await showTimePicker(
                             context: ctx,
                             initialTime: TimeOfDay(
-                                hour: draftOut.hour, minute: draftOut.minute),
+                              hour: draftOut.hour,
+                              minute: draftOut.minute,
+                            ),
                           );
                           if (t != null) {
                             final day = _recordDayFromString(record.date);
                             draftOut = DateTime(
-                                day.year, day.month, day.day, t.hour, t.minute);
+                              day.year,
+                              day.month,
+                              day.day,
+                              t.hour,
+                              t.minute,
+                            );
                             setModalState(() {});
                           }
                         },
@@ -467,10 +529,10 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                               onPressed: _actionLoading
                                   ? null
                                   : () => _submitEditRequestForRecord(
-                                        record,
-                                        draftIn,
-                                        draftOut,
-                                      ),
+                                      record,
+                                      draftIn,
+                                      draftOut,
+                                    ),
                               child: const Text('Submit request'),
                             ),
                           ),
@@ -488,8 +550,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   }
 
   void _showPickRecordForEditDialog() {
-    final eligible =
-        _history.where(_shortShiftNeedsEditRecord).toList();
+    final eligible = _history.where(_shortShiftNeedsEditRecord).toList();
     if (eligible.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -551,14 +612,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   DateTime? _parseTimeForDisplay(String raw) {
     final trimmed = raw.trim();
     if (trimmed.isEmpty) return null;
-
-    final parsed = _parseTime(trimmed);
-    if (parsed == null) return null;
-
-    // If the API timestamp contains zone info (Z / +/-hh:mm), normalize it to AU.
-    final hasZoneInfo = RegExp(r'(Z|[+-]\d{2}:?\d{2})$').hasMatch(trimmed);
-    if (!hasZoneInfo) return parsed;
-    return parsed.toUtc().add(_auOffset);
+    return _parseTime(trimmed);
   }
 
   String _fmtDate(String? raw) {
@@ -598,17 +652,18 @@ class _AttendanceScreenState extends State<AttendanceScreen>
         message: 'Please wait...',
         child: _loading
             ? const Center(
-                child: CircularProgressIndicator(color: AppColors.primary))
+                child: CircularProgressIndicator(color: AppColors.primary),
+              )
             : _error != null
-                ? _buildError()
-                : TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildTodayTab(),
-                      _buildHistoryTab(),
-                      _buildEditRequestsTab(),
-                    ],
-                  ),
+            ? _buildError()
+            : TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildTodayTab(),
+                  _buildHistoryTab(),
+                  _buildEditRequestsTab(),
+                ],
+              ),
       ),
     );
   }
@@ -677,8 +732,11 @@ class _AttendanceScreenState extends State<AttendanceScreen>
           children: [
             const Row(
               children: [
-                Icon(Icons.edit_calendar_outlined,
-                    size: 20, color: Color(0xFF92400E)),
+                Icon(
+                  Icons.edit_calendar_outlined,
+                  size: 20,
+                  color: Color(0xFF92400E),
+                ),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -694,7 +752,9 @@ class _AttendanceScreenState extends State<AttendanceScreen>
             ),
             const SizedBox(height: 10),
             OutlinedButton.icon(
-              onPressed: _actionLoading ? null : () => _openEditRequestSheet(rec),
+              onPressed: _actionLoading
+                  ? null
+                  : () => _openEditRequestSheet(rec),
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(0xFF92400E),
                 side: const BorderSide(color: Color(0xFFFDE68A)),
@@ -822,9 +882,13 @@ class _AttendanceScreenState extends State<AttendanceScreen>
             ),
           ),
           const SizedBox(height: 2),
-          Text(label,
-              style:
-                  const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
+          ),
         ],
       ),
     );
@@ -847,8 +911,9 @@ class _AttendanceScreenState extends State<AttendanceScreen>
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
           foregroundColor: AppColors.white,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           elevation: 3,
         ),
         onPressed: _actionLoading
@@ -873,8 +938,11 @@ class _AttendanceScreenState extends State<AttendanceScreen>
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         child: Row(
           children: [
-            const Icon(Icons.check_circle_rounded,
-                color: AppColors.success, size: 28),
+            const Icon(
+              Icons.check_circle_rounded,
+              color: AppColors.success,
+              size: 28,
+            ),
             const SizedBox(width: 14),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -891,7 +959,9 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                 Text(
                   '${hours.toStringAsFixed(1)} hours worked',
                   style: const TextStyle(
-                      fontSize: 13, color: AppColors.textSecondary),
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ],
             ),
@@ -944,8 +1014,11 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                     color: AppColors.primary.withOpacity(0.08),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.calendar_today_rounded,
-                      color: AppColors.primary, size: 20),
+                  child: const Icon(
+                    Icons.calendar_today_rounded,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -955,22 +1028,27 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                       Text(
                         _fmtDate(r.date),
                         style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                            color: AppColors.textPrimary),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         '${_fmtTime(r.checkInTime)} – ${_fmtTime(r.checkOutTime)}',
                         style: const TextStyle(
-                            fontSize: 13, color: AppColors.textSecondary),
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ],
                   ),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: needsEdit
                         ? const Color(0xFFFFF9C4)
@@ -1038,14 +1116,18 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                     foregroundColor: AppColors.primary,
                     side: const BorderSide(color: AppColors.primary),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  onPressed:
-                      _actionLoading ? null : _showPickRecordForEditDialog,
+                  onPressed: _actionLoading
+                      ? null
+                      : _showPickRecordForEditDialog,
                   icon: const Icon(Icons.playlist_add_check_rounded, size: 20),
-                  label: const Text('Choose day to request edit',
-                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  label: const Text(
+                    'Choose day to request edit',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
             ],
@@ -1087,7 +1169,9 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                 Text(
                   _fmtDate(er.attendanceDate),
                   style: const TextStyle(
-                      fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
                 const Spacer(),
                 StatusBadge.fromStatus(er.status),
@@ -1096,14 +1180,21 @@ class _AttendanceScreenState extends State<AttendanceScreen>
             const SizedBox(height: 10),
             Row(
               children: [
-                _editTimePill('Original',
-                    '${_fmtTime(er.origCheckIn)} – ${_fmtTime(er.origCheckOut)}'),
+                _editTimePill(
+                  'Original',
+                  '${_fmtTime(er.origCheckIn)} – ${_fmtTime(er.origCheckOut)}',
+                ),
                 const SizedBox(width: 8),
-                const Icon(Icons.arrow_forward_rounded,
-                    size: 16, color: AppColors.textSecondary),
+                const Icon(
+                  Icons.arrow_forward_rounded,
+                  size: 16,
+                  color: AppColors.textSecondary,
+                ),
                 const SizedBox(width: 8),
-                _editTimePill('Requested',
-                    '${_fmtTime(er.reqCheckIn)} – ${_fmtTime(er.reqCheckOut)}'),
+                _editTimePill(
+                  'Requested',
+                  '${_fmtTime(er.reqCheckIn)} – ${_fmtTime(er.reqCheckOut)}',
+                ),
               ],
             ),
             if (er.reason != null && er.reason!.isNotEmpty) ...[
@@ -1111,7 +1202,9 @@ class _AttendanceScreenState extends State<AttendanceScreen>
               Text(
                 er.reason!,
                 style: const TextStyle(
-                    fontSize: 13, color: AppColors.textSecondary),
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -1119,16 +1212,17 @@ class _AttendanceScreenState extends State<AttendanceScreen>
             if (er.reviewerNote != null && er.reviewerNote!.isNotEmpty) ...[
               const SizedBox(height: 8),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.info.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   'Reviewer: ${er.reviewerNote}',
-                  style: const TextStyle(
-                      fontSize: 12, color: AppColors.info),
+                  style: const TextStyle(fontSize: 12, color: AppColors.info),
                 ),
               ),
             ],
@@ -1143,15 +1237,22 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 11, color: AppColors.textSecondary)),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppColors.textSecondary,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(value,
-              style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary)),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
         ],
       ),
     );
