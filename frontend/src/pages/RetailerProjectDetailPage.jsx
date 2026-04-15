@@ -199,6 +199,11 @@ export default function RetailerProjectDetailPage() {
     try {
       await saveRetailerProjectSchedule(projectId, schedulePayload);
 
+      if (Array.isArray(schedulePayload?.assignees)) {
+        await saveRetailerProjectAssignees(projectId, schedulePayload.assignees);
+        setAssignees(schedulePayload.assignees);
+      }
+
       // If a stage was also updated along with schedule:
       if (schedulePayload.nextStage && schedulePayload.nextStage !== project?.stage) {
         await updateRetailerProjectStage(projectId, schedulePayload.nextStage);
@@ -208,16 +213,6 @@ export default function RetailerProjectDetailPage() {
       loadData(); // Refreshes everything
     } catch (err) {
       setError(err.message || 'Failed to save schedule');
-    }
-  };
-
-  const handleSaveAssignees = async (assigneeIds) => {
-    try {
-      await saveRetailerProjectAssignees(projectId, assigneeIds);
-      showToast('Assignees saved successfully');
-      setAssignees(assigneeIds);
-    } catch (err) {
-      setError(err.message || 'Failed to update assignees');
     }
   };
 

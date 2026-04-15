@@ -315,11 +315,9 @@ export default function RetailerProjectDetailDetails({
   }, []);
 
   const [scheduleSaveStatus, setScheduleSaveStatus] = useState(null); // { ok:boolean, msg:string } | null
-  const [assigneesSaveStatus, setAssigneesSaveStatus] = useState(null); // { ok:boolean, msg:string } | null
   const clearInlineStatusSoon = useCallback((which) => {
     window.setTimeout(() => {
       if (which === 'schedule') setScheduleSaveStatus(null);
-      if (which === 'assignees') setAssigneesSaveStatus(null);
     }, 2500);
   }, []);
 
@@ -434,7 +432,12 @@ export default function RetailerProjectDetailDetails({
           />
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: '12px', marginBottom: '32px' }}>
+        <h3 style={{ margin: '0 0 16px 0', color: '#0d9488', fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' }}>
+          Assigned Personnel
+        </h3>
+        <AssigneePicker users={users} value={assigneeIds} onChange={setAssigneeIds} />
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px', marginTop: '20px' }}>
           <button 
             type="button" 
             className="lead-detail-btn primary"
@@ -445,7 +448,7 @@ export default function RetailerProjectDetailDetails({
                   date,
                   time: hideJobType || jobType === 'site_inspection' ? time : null,
                   notes,
-                  assignees: assigneeIds, // persist assignees together with schedule
+                  assignees: assigneeIds,
                   nextStage: status,
                 });
                 showToast('Saved successfully.');
@@ -458,7 +461,7 @@ export default function RetailerProjectDetailDetails({
               }
             }}
           >
-            Save Schedule Updates
+            Save
           </button>
           {scheduleSaveStatus ? (
             <span
@@ -475,48 +478,6 @@ export default function RetailerProjectDetailDetails({
               }}
             >
               {scheduleSaveStatus.msg}
-            </span>
-          ) : null}
-        </div>
-
-        <h3 style={{ margin: '0 0 16px 0', color: '#0d9488', fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' }}>
-          Assigned Personnel
-        </h3>
-        <AssigneePicker users={users} value={assigneeIds} onChange={setAssigneeIds} />
-        <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: '12px' }}>
-          <button 
-            type="button" 
-            className="lead-detail-btn primary"
-            onClick={async () => {
-              try {
-                await onSaveAssignees?.(assigneeIds);
-                showToast('Saved successfully.');
-                setAssigneesSaveStatus({ ok: true, msg: 'Saved.' });
-                clearInlineStatusSoon('assignees');
-              } catch (err) {
-                showToast(err?.message || 'Save failed.', { isError: true });
-                setAssigneesSaveStatus({ ok: false, msg: err?.message || 'Save failed.' });
-                clearInlineStatusSoon('assignees');
-              }
-            }}
-          >
-            Save Assignees
-          </button>
-          {assigneesSaveStatus ? (
-            <span
-              role="status"
-              aria-live="polite"
-              style={{
-                fontSize: '0.9rem',
-                fontWeight: 700,
-                color: assigneesSaveStatus.ok ? '#0f766e' : '#b91c1c',
-                background: assigneesSaveStatus.ok ? '#ecfdf5' : '#fef2f2',
-                border: `1px solid ${assigneesSaveStatus.ok ? '#99f6e4' : '#fecaca'}`,
-                padding: '6px 10px',
-                borderRadius: '999px',
-              }}
-            >
-              {assigneesSaveStatus.msg}
             </span>
           ) : null}
         </div>
