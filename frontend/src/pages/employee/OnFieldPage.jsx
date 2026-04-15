@@ -33,6 +33,11 @@ export default function OnFieldPage() {
   const [tab, setTab] = useState('calendar');
   const [viewMode, setViewMode] = useState('day'); // prefer daily, then week, then month
   const [showCalendar, setShowCalendar] = useState(false); // only show when user taps "View Calendar"
+  /** When set, OnFieldCalendar focuses this YYYY-MM-DD (e.g. after "View N more") */
+  const [calendarFocusDayKey, setCalendarFocusDayKey] = useState(null);
+  const clearCalendarFocusDay = useCallback(() => {
+    setCalendarFocusDayKey(null);
+  }, []);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -305,6 +310,8 @@ export default function OnFieldPage() {
                 navigate(`/employee/leads/${ev.lead_id}/site-inspection`);
               } else if (!isInspection && ev.job_id) {
                 navigate(`/employee/installation/${ev.job_id}`);
+              } else if (!isInspection && ev.project_id) {
+                navigate(`/employee/projects/${ev.project_id}`);
               }
             };
 
@@ -444,11 +451,19 @@ export default function OnFieldPage() {
               <OnFieldCalendar
                 events={events}
                 viewMode={viewMode}
+                focusDayKey={calendarFocusDayKey}
+                onFocusDayConsumed={clearCalendarFocusDay}
+                onViewMoreDay={(dayKey) => {
+                  setCalendarFocusDayKey(dayKey);
+                  setViewMode('day');
+                }}
                 onEventClick={(ev) => {
                   if (ev.type === 'site_inspection' && ev.lead_id) {
                     navigate(`/employee/leads/${ev.lead_id}/site-inspection`);
                   } else if (ev.type === 'installation' && ev.job_id) {
                     navigate(`/employee/installation/${ev.job_id}`);
+                  } else if (ev.type === 'installation' && ev.project_id) {
+                    navigate(`/employee/projects/${ev.project_id}`);
                   }
                 }}
               />
@@ -529,6 +544,8 @@ export default function OnFieldPage() {
                           navigate(`/employee/leads/${ev.lead_id}/site-inspection`);
                         } else if (ev.type === 'installation' && ev.job_id) {
                           navigate(`/employee/installation/${ev.job_id}`);
+                        } else if (ev.type === 'installation' && ev.project_id) {
+                          navigate(`/employee/projects/${ev.project_id}`);
                         }
                       }}
                       style={{

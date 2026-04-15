@@ -2,7 +2,7 @@
  * On-Field Calendar: month/week/day views, colour-coded by job type (site_inspection vs installation).
  * Click entry opens inspection or installation form.
  */
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 
@@ -102,16 +102,31 @@ function getEventTimeLabel(ev) {
   return format(d, 'HH:mm');
 }
 
+/** Month/week cells: show at most this many chips; remainder behind "View N more". */
+const MAX_GRID_EVENTS = 2;
+
 export default function OnFieldCalendar({
   events = [],
   viewMode = 'month',
   weekStartsOn = 1,
   onEventClick,
+  /** When set (e.g. after "View more"), scroll/focus this YYYY-MM-DD in day view */
+  focusDayKey = null,
+  onFocusDayConsumed,
+  /** User clicked "View N more" — parent should switch to day view and set focusDayKey */
+  onViewMoreDay,
 }) {
   const navigate = useNavigate();
   const todayKey = toKeyInTz(new Date(), TZ) || safeTodayKey();
   const [viewFocusKey, setViewFocusKey] = useState(todayKey);
   const viewMonthKey = keyStartOfMonth(viewFocusKey);
+
+  useEffect(() => {
+    if (focusDayKey && /^\d{4}-\d{2}-\d{2}$/.test(focusDayKey)) {
+      setViewFocusKey(focusDayKey);
+      onFocusDayConsumed?.();
+    }
+  }, [focusDayKey, onFocusDayConsumed]);
 
   const byDay = useMemo(() => {
     const map = new Map();
@@ -226,6 +241,8 @@ export default function OnFieldCalendar({
         navigate(`/employee/leads/${ev.lead_id}/site-inspection`);
       } else if (ev.type === 'installation' && ev.job_id) {
         navigate(`/employee/installation/${ev.job_id}`);
+      } else if (ev.type === 'installation' && ev.project_id) {
+        navigate(`/employee/projects/${ev.project_id}`);
       }
     },
     [navigate, onEventClick]
@@ -244,8 +261,9 @@ export default function OnFieldCalendar({
         .ofc-weekbar { display:grid; grid-template-columns:repeat(7,1fr); border:1px solid #E5E7EB; border-radius:10px 10px 0 0; overflow:hidden; }
         .ofc-weekday { padding:10px 8px; font-size:11px; font-weight:800; color:#6B7280; text-transform:uppercase; border-right:1px solid #E5E7EB; }
         .ofc-weekday:last-child { border-right:none; }
-        .ofc-grid { display:grid; grid-template-columns:repeat(7,1fr); grid-auto-rows:minmax(110px, auto); border:1px solid #E5E7EB; border-radius:0 0 10px 10px; overflow:hidden; }
-        .ofc-cell { position:relative; background:#fff; border-right:1px solid #E5E7EB; border-bottom:1px solid #E5E7EB; padding:8px; display:flex; flex-direction:column; gap:6px; }
+        .ofc-grid { display:grid; grid-template-columns:repeat(7,1fr); grid-auto-rows:minmax(110px, auto); border:1px solid #E5E7EB; border-radius:0 0 10px 10px; overflow:hidden; align-items: stretch; }
+        .ofc-cell { position:relative; background:#fff; border-right:1px solid #E5E7EB; border-bottom:1px solid #E5E7EB; padding:8px; display:flex; flex-direction:column; gap:4px; min-height: 0; }
+        .ofc-cellBody { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
         .ofc-cell:nth-child(7n) { border-right:none; }
         .ofc-dateNum { font-weight:800; color:#0f1a2b; font-size:12px; }
         .ofc-outside .ofc-dateNum { color:#9CA3AF; }
@@ -256,6 +274,21 @@ export default function OnFieldCalendar({
         .ofc-chipTitle { font-weight:700; color:#0f1a2b; font-size:12px; line-height:1.2; }
         .ofc-chipSub { color:#6B7280; font-size:11px; }
         .ofc-more { font-size:12px; color:#374151; padding-left:2px; }
+        .ofc-viewMoreBtn {
+          margin-top: 2px;
+          padding: 4px 6px;
+          font-size: 11px;
+          font-weight: 700;
+          color: #2563EB;
+          background: #F0F9FF;
+          border: 1px solid #BFDBFE;
+          border-radius: 6px;
+          cursor: pointer;
+          text-align: center;
+          width: 100%;
+          line-height: 1.2;
+        }
+        .ofc-viewMoreBtn:hover { background: #E0F2FE; }
 
         /* ---- Day timeline ---- */
         .ofc-dayWrap { border:1px solid #E5E7EB; border-radius: 12px; overflow: hidden; }
@@ -390,6 +423,8 @@ export default function OnFieldCalendar({
             {days.map((d, idx) => {
               const items = byDay.get(d.key) || [];
               const isToday = d.key === todayKey;
+              const preview = items.slice(0, MAX_GRID_EVENTS);
+              const moreCount = items.length - preview.length;
 
               return (
                 <div
@@ -397,36 +432,54 @@ export default function OnFieldCalendar({
                   className={`ofc-cell ${isToday ? 'ofc-today' : ''} ${d.outside ? 'ofc-outside' : ''}`}
                 >
                   <div className="ofc-dateNum">{d.date.getDate()}</div>
-                  {items.map((ev, i) => {
-                    const colors = JOB_TYPE_COLORS[ev.type] || JOB_TYPE_COLORS.site_inspection;
-                    return (
-                      <div
-                        key={ev.id || i}
-                        className="ofc-chip"
-                        style={{
-                          background: colors.bg,
-                          borderColor: colors.border,
-                        }}
-                        onClick={() => handleEventClick(ev)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ')
-                            handleEventClick(ev);
-                        }}
-                        role="button"
-                        tabIndex={0}
-                        title={ev.title}
-                      >
-                        <span className="ofc-dot" style={{ background: colors.dot }} aria-hidden />
-                        <div>
-                          <div className="ofc-chipTitle">{ev.title}</div>
-                          <div className="ofc-chipSub">
-                            {getEventTimeLabel(ev)}
-                            {ev.address ? ` · ${ev.address}` : ''}
+                  <div className="ofc-cellBody">
+                    {preview.map((ev, i) => {
+                      const colors = JOB_TYPE_COLORS[ev.type] || JOB_TYPE_COLORS.site_inspection;
+                      return (
+                        <div
+                          key={ev.id || i}
+                          className="ofc-chip"
+                          style={{
+                            background: colors.bg,
+                            borderColor: colors.border,
+                          }}
+                          onClick={() => handleEventClick(ev)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ')
+                              handleEventClick(ev);
+                          }}
+                          role="button"
+                          tabIndex={0}
+                          title={ev.title}
+                        >
+                          <span className="ofc-dot" style={{ background: colors.dot }} aria-hidden />
+                          <div>
+                            <div className="ofc-chipTitle">{ev.title}</div>
+                            <div className="ofc-chipSub">
+                              {getEventTimeLabel(ev)}
+                              {ev.address ? ` · ${ev.address}` : ''}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                    {moreCount > 0 && (
+                      <button
+                        type="button"
+                        className="ofc-viewMoreBtn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onViewMoreDay) {
+                            onViewMoreDay(d.key);
+                          } else {
+                            setViewFocusKey(d.key);
+                          }
+                        }}
+                      >
+                        View {moreCount} more
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
