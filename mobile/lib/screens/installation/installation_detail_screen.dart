@@ -1118,6 +1118,7 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                 Container(
                   width: double.infinity,
                   height: 190,
+                  clipBehavior: Clip.hardEdge,
                   decoration: BoxDecoration(
                     color: AppColors.surface,
                     borderRadius: BorderRadius.circular(12),

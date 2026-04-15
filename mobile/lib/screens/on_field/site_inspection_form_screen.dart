@@ -849,6 +849,7 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
                   child: Container(
                     height: 140,
                     width: double.infinity,
+                    clipBehavior: Clip.hardEdge,
                     decoration: BoxDecoration(
                       color: const Color(0xFFFAFAFA),
                       borderRadius: BorderRadius.circular(10),
