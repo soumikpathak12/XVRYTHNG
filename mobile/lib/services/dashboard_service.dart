@@ -12,13 +12,26 @@ class DashboardService {
     String? to,
   }) async {
     try {
-      final params = <String, dynamic>{'range': range};
+      final params = <String, dynamic>{
+        'range': range,
+        // Force fresh metrics when users switch range presets on mobile.
+        '_': DateTime.now().millisecondsSinceEpoch.toString(),
+      };
       if (range == 'custom') {
         if (from != null) params['from'] = from;
         if (to != null) params['to'] = to;
       }
-      final response =
-          await _api.get('/api/leads/dashboard', queryParameters: params);
+      final response = await _api.dio.get(
+        '/api/leads/dashboard',
+        queryParameters: params,
+        options: Options(
+          headers: const {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+          },
+        ),
+      );
       final data = response.data['data'] ?? response.data;
       return {
         'metrics': DashboardMetrics.fromJson(data['metrics'] ?? {}),

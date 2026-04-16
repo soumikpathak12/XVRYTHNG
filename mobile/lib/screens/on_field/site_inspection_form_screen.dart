@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'dart:convert';
 import 'dart:ui' as ui;
 import 'dart:io';
 import 'dart:typed_data';
@@ -8,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/config/api_config.dart';
 import '../../core/network/api_exceptions.dart';
 import '../../core/theme/app_colors.dart';
@@ -48,15 +50,26 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
   final List<Offset?> _signaturePoints = [];
   final TextEditingController _customerNameCtrl = TextEditingController();
   final TextEditingController _customerNotesCtrl = TextEditingController();
+  final TextEditingController _otherInspectionSearchCtrl =
+      TextEditingController();
   bool _customerConfirmed = false;
   bool _isSigning = false;
   String? _generatedSignature;
+  bool _otherInspectionsOpen = false;
+  bool _otherInspectionsLoading = false;
+  String? _otherInspectionsError;
+  bool _showAllDraftInspections = false;
+  bool _showAllSubmittedInspections = false;
+  String _otherInspectionsFilter = 'all';
+  List<_InspectionListItem> _draftInspections = const [];
+  List<_InspectionListItem> _submittedInspections = const [];
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController();
     _loadData();
+    _loadOtherInspections(showLoading: true);
   }
 
   @override
@@ -64,6 +77,7 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
     _pageController.dispose();
     _customerNameCtrl.dispose();
     _customerNotesCtrl.dispose();
+    _otherInspectionSearchCtrl.dispose();
     super.dispose();
   }
 
@@ -75,11 +89,12 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
 
       final doc = pw.Document();
       final lead = _lead;
-      final inspectedAt = _parseDateTimeValue(_getValue('inspected_at')) ??
-          DateTime.now();
+      final inspectedAt =
+          _parseDateTimeValue(_getValue('inspected_at')) ?? DateTime.now();
 
-      String clean(dynamic v) =>
-          (v == null || v.toString().trim().isEmpty) ? '-' : v.toString().trim();
+      String clean(dynamic v) => (v == null || v.toString().trim().isEmpty)
+          ? '-'
+          : v.toString().trim();
 
       doc.addPage(
         pw.MultiPage(
@@ -128,7 +143,9 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
                       pw.Padding(
                         padding: const pw.EdgeInsets.all(6),
                         child: pw.Text(
-                          clean(lead?.customerName ?? _getValue('customer_name')),
+                          clean(
+                            lead?.customerName ?? _getValue('customer_name'),
+                          ),
                         ),
                       ),
                     ],
@@ -169,7 +186,9 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
                       pw.Padding(
                         padding: const pw.EdgeInsets.all(6),
                         child: pw.Text(
-                          DateFormat('dd MMM yyyy, hh:mm a').format(inspectedAt),
+                          DateFormat(
+                            'dd MMM yyyy, hh:mm a',
+                          ).format(inspectedAt),
                         ),
                       ),
                     ],
@@ -258,9 +277,11 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
                       pw.Padding(
                         padding: const pw.EdgeInsets.all(6),
                         child: pw.Text(
-                          clean(_customerNotesCtrl.text.isNotEmpty
-                              ? _customerNotesCtrl.text
-                              : _getValue('customer_notes')),
+                          clean(
+                            _customerNotesCtrl.text.isNotEmpty
+                                ? _customerNotesCtrl.text
+                                : _getValue('customer_notes'),
+                          ),
                         ),
                       ),
                     ],
@@ -286,9 +307,15 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
       final file = File('${dir.path}/$filename');
       await file.writeAsBytes(bytes, flush: true);
 
+      final box = context.findRenderObject() as RenderBox?;
+      final shareOrigin = box != null
+          ? box.localToGlobal(Offset.zero) & box.size
+          : Rect.fromLTWH(0, 0, 1, 1);
+
       await Share.shareXFiles(
         [XFile(file.path, mimeType: 'application/pdf', name: filename)],
         subject: 'Site inspection PDF',
+        sharePositionOrigin: shareOrigin,
       );
     } catch (e) {
       if (mounted) {
@@ -340,6 +367,318 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _loadOtherInspections({bool showLoading = false}) async {
+    if (showLoading && mounted) {
+      setState(() {
+        _otherInspectionsLoading = true;
+        _otherInspectionsError = null;
+      });
+    }
+
+    try {
+      final leads = await _leadService.getLeads(limit: 30);
+      final candidates = leads
+          .where((lead) => lead.id != widget.leadId)
+          .toList();
+
+      final results = await Future.wait(
+        candidates.map((lead) async {
+          try {
+            final inspection = await _siService.getInspection(lead.id);
+            if (inspection == null) return null;
+            final status = (inspection['status'] ?? '')
+                .toString()
+                .trim()
+                .toLowerCase();
+            if (status != 'draft' && status != 'submitted') return null;
+            return _InspectionListItem(
+              lead: lead,
+              inspection: inspection,
+              status: status,
+            );
+          } catch (_) {
+            return null;
+          }
+        }),
+      );
+
+      final items = results.whereType<_InspectionListItem>().toList()
+        ..sort(
+          (a, b) => _inspectionSortDate(b).compareTo(_inspectionSortDate(a)),
+        );
+      final drafts = items.where((e) => e.status == 'draft').toList();
+      final submitted = items.where((e) => e.status == 'submitted').toList();
+
+      if (!mounted) return;
+      setState(() {
+        _draftInspections = drafts;
+        _submittedInspections = submitted;
+        _otherInspectionsError = null;
+        _showAllDraftInspections = false;
+        _showAllSubmittedInspections = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _otherInspectionsError = e.toString().replaceAll('Exception: ', '');
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _otherInspectionsLoading = false);
+      }
+    }
+  }
+
+  DateTime _inspectionSortDate(_InspectionListItem item) {
+    final inspection = item.inspection;
+    final leadRaw = item.lead.raw ?? const <String, dynamic>{};
+    return _parseDateTimeValue(
+          inspection['updated_at'] ??
+              inspection['submitted_at'] ??
+              inspection['inspected_at'] ??
+              inspection['created_at'] ??
+              leadRaw['site_inspection_scheduled_at'] ??
+              leadRaw['site_inspection_date'],
+        ) ??
+        DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  List<_InspectionListItem> _filteredInspections(
+    List<_InspectionListItem> src,
+  ) {
+    return _filterInspectionsByQuery(
+      src,
+      _otherInspectionSearchCtrl.text.trim().toLowerCase(),
+    );
+  }
+
+  List<_InspectionListItem> _filterInspectionsByQuery(
+    List<_InspectionListItem> src,
+    String query,
+  ) {
+    if (query.isEmpty) {
+      return src;
+    }
+
+    return src.where((item) {
+      final lead = item.lead;
+      final leadId = lead.id.toString();
+      final customer = lead.customerName.toLowerCase();
+      final suburb = (lead.suburb ?? '').toLowerCase();
+      final address = (lead.address ?? '').toLowerCase();
+      return customer.contains(query) ||
+          suburb.contains(query) ||
+          address.contains(query) ||
+          leadId.contains(query);
+    }).toList();
+  }
+
+  void _openOtherInspection(int leadId) {
+    final loc = GoRouterState.of(context).matchedLocation;
+    final base = loc.contains('/admin')
+        ? '/admin/leads'
+        : (loc.contains('/dashboard') ? '/dashboard/leads' : '/employee/leads');
+    context.pushReplacement('$base/$leadId/site-inspection');
+  }
+
+  Future<void> _openOtherInspectionsFullListSheet() async {
+    if (_draftInspections.isEmpty && _submittedInspections.isEmpty) {
+      return;
+    }
+
+    var localFilter = _otherInspectionsFilter;
+    final searchCtrl = TextEditingController(
+      text: _otherInspectionSearchCtrl.text,
+    );
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: AppColors.white,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final query = searchCtrl.text.trim().toLowerCase();
+            final draft = _filterInspectionsByQuery(_draftInspections, query);
+            final submitted = _filterInspectionsByQuery(
+              _submittedInspections,
+              query,
+            );
+            final showDraft = localFilter == 'all' || localFilter == 'draft';
+            final showSubmitted =
+                localFilter == 'all' || localFilter == 'submitted';
+            final visibleCount =
+                (showDraft ? draft.length : 0) +
+                (showSubmitted ? submitted.length : 0);
+
+            return SafeArea(
+              child: FractionallySizedBox(
+                heightFactor: 0.92,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'All Other Inspections',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          TextFormField(
+                            controller: searchCtrl,
+                            onChanged: (_) => setSheetState(() {}),
+                            decoration: InputDecoration(
+                              isDense: true,
+                              hintText:
+                                  'Search by customer, suburb, address or lead id',
+                              prefixIcon: const Icon(
+                                Icons.search_rounded,
+                                size: 18,
+                              ),
+                              suffixIcon: searchCtrl.text.isEmpty
+                                  ? null
+                                  : IconButton(
+                                      onPressed: () {
+                                        searchCtrl.clear();
+                                        setSheetState(() {});
+                                      },
+                                      icon: const Icon(Icons.close_rounded),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 10,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                _buildOtherInspectionFilterChip(
+                                  label: 'All',
+                                  count: draft.length + submitted.length,
+                                  active: localFilter == 'all',
+                                  onTap: () =>
+                                      setSheetState(() => localFilter = 'all'),
+                                ),
+                                const SizedBox(width: 6),
+                                _buildOtherInspectionFilterChip(
+                                  label: 'Draft',
+                                  count: draft.length,
+                                  active: localFilter == 'draft',
+                                  onTap: () => setSheetState(
+                                    () => localFilter = 'draft',
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                _buildOtherInspectionFilterChip(
+                                  label: 'Submitted',
+                                  count: submitted.length,
+                                  active: localFilter == 'submitted',
+                                  onTap: () => setSheetState(
+                                    () => localFilter = 'submitted',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '$visibleCount result${visibleCount == 1 ? '' : 's'}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+                        children: [
+                          if (showDraft)
+                            _buildOtherInspectionGroup(
+                              title: 'Draft Documents',
+                              emptyLabel: 'No saved drafts',
+                              statusColor: const Color(0xFF92400E),
+                              statusBg: const Color(0xFFFFFBEB),
+                              statusLabel: 'DRAFT',
+                              items: draft,
+                              showAll: true,
+                              onToggleShowAll: () {},
+                              onItemTap: (item) {
+                                Navigator.of(sheetContext).pop();
+                                _openOtherInspection(item.lead.id);
+                              },
+                            ),
+                          if (showDraft && showSubmitted)
+                            const SizedBox(height: 10),
+                          if (showSubmitted)
+                            _buildOtherInspectionGroup(
+                              title: 'Submitted Documents',
+                              emptyLabel: 'No submitted documents',
+                              statusColor: const Color(0xFF065F46),
+                              statusBg: const Color(0xFFECFDF5),
+                              statusLabel: 'SUBMITTED',
+                              items: submitted,
+                              showAll: true,
+                              onToggleShowAll: () {},
+                              onItemTap: (item) {
+                                Navigator.of(sheetContext).pop();
+                                _openOtherInspection(item.lead.id);
+                              },
+                            ),
+                          if (visibleCount == 0)
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: AppColors.border),
+                              ),
+                              child: const Text(
+                                'No matching inspections. Try a different keyword.',
+                                style: TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (mounted) {
+      setState(() {
+        _otherInspectionSearchCtrl.text = searchCtrl.text;
+        _otherInspectionsFilter = localFilter;
+      });
+    }
+    searchCtrl.dispose();
   }
 
   /// Resolve value from dotted path or flat key
@@ -480,6 +819,74 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
     return null;
   }
 
+  Map<String, dynamic>? _parseLeadMarketingPayload(Map<String, dynamic> raw) {
+    final payload = raw['marketing_payload_json'];
+    if (payload == null) {
+      return null;
+    }
+
+    if (payload is Map<String, dynamic>) {
+      return payload;
+    }
+    if (payload is Map) {
+      return Map<String, dynamic>.from(payload);
+    }
+
+    final text = payload.toString().trim();
+    if (text.isEmpty) {
+      return null;
+    }
+    try {
+      final decoded = jsonDecode(text);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+      if (decoded is Map) {
+        return Map<String, dynamic>.from(decoded);
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _fuzzySqValue(Map<String, dynamic>? sq, List<String> patterns) {
+    if (sq == null || sq.isEmpty) {
+      return '';
+    }
+
+    for (final pattern in patterns) {
+      final key = pattern.toLowerCase();
+      final exact = sq.keys.whereType<String>().firstWhere(
+        (k) => k.toLowerCase() == key,
+        orElse: () => '',
+      );
+      if (exact.isNotEmpty) {
+        final value = sq[exact]?.toString().trim() ?? '';
+        if (value.isNotEmpty) {
+          return value;
+        }
+      }
+    }
+
+    String clean(String s) =>
+        s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    for (final pattern in patterns) {
+      final cp = clean(pattern);
+      for (final entry in sq.entries) {
+        final key = clean(entry.key.toString());
+        if (key == cp || key.contains(cp)) {
+          final value = entry.value?.toString().trim() ?? '';
+          if (value.isNotEmpty) {
+            return value;
+          }
+        }
+      }
+    }
+
+    return '';
+  }
+
   String? _normalizeMeterPhase(dynamic raw) {
     final v = raw?.toString().trim().toLowerCase() ?? '';
     if (v.isEmpty) return null;
@@ -538,6 +945,7 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
 
   void _mergeLeadDefaults(Map<String, dynamic> form) {
     final raw = _lead?.raw ?? <String, dynamic>{};
+    final sq = _parseLeadMarketingPayload(raw);
     final inspector = _normalizeInspectorName(
       raw['inspector_name'] ?? raw['assigned_to_name'],
     );
@@ -546,12 +954,28 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
         raw['site_inspection_scheduled_at'] ??
         raw['scheduled_date'] ??
         raw['scheduled_at'];
-    final roof = _normalizeRoofType(raw['roof_type']);
+    final roof = _normalizeRoofType(
+      raw['roof_type'] ?? (sq?['mappedRoofType']?.toString().trim()),
+    );
     final meter = _normalizeMeterPhase(raw['meter_phase']);
-    final storey = _normalizeHouseStorey(raw['house_storey']);
+    final storey = _normalizeHouseStorey(
+      raw['house_storey'] ??
+          _fuzzySqValue(sq, const [
+            'stories',
+            'storeys',
+            'house_storey',
+            'housestorey',
+            'storiescount',
+            'floors',
+          ]),
+    );
     final customerName = raw['customer_name']?.toString().trim();
     final nmi = raw['nmi_number']?.toString().trim();
     final meterNumber = raw['meter_number']?.toString().trim();
+    final meterNumberAlt = raw['meterNumber']?.toString().trim();
+    final meterNumberLead = raw['lead_meter_number']?.toString().trim();
+    final nmiAlt = raw['nmiNumber']?.toString().trim();
+    final nmiLead = raw['lead_nmi_number']?.toString().trim();
 
     if (_isEmptyVal(form['inspected_at']) &&
         !_isEmptyVal(inspectedAt) &&
@@ -574,10 +998,23 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
       form['house_storey'] = storey;
     if (_isEmptyVal(form['switchboard.nmi']) && !_isEmptyVal(nmi)) {
       form['switchboard.nmi'] = nmi;
+    } else if (_isEmptyVal(form['switchboard.nmi']) && !_isEmptyVal(nmiAlt)) {
+      form['switchboard.nmi'] = nmiAlt;
+    } else if (_isEmptyVal(form['switchboard.nmi']) && !_isEmptyVal(nmiLead)) {
+      form['switchboard.nmi'] = nmiLead;
     }
     if (_isEmptyVal(form['switchboard.meterNumber']) &&
         !_isEmptyVal(meterNumber)) {
       form['switchboard.meterNumber'] = meterNumber;
+    } else if (_isEmptyVal(form['switchboard.meterNumber']) &&
+        !_isEmptyVal(meterNumberAlt)) {
+      form['switchboard.meterNumber'] = meterNumberAlt;
+    } else if (_isEmptyVal(form['switchboard.meterNumber']) &&
+        !_isEmptyVal(meterNumberLead)) {
+      form['switchboard.meterNumber'] = meterNumberLead;
+    }
+    if (_isEmptyVal(form['jobDetails.inspectionCompany'])) {
+      form['jobDetails.inspectionCompany'] = 'xTechs Renewables Pty Ltd';
     }
   }
 
@@ -635,9 +1072,7 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
 
   Map<String, dynamic> _buildInspectionPayload() {
     final form = Map<String, dynamic>.from(_formData);
-    final payload = <String, dynamic>{
-      'form_data_json': form,
-    };
+    final payload = <String, dynamic>{'form_data_json': form};
 
     const topLevelKeys = [
       'inspected_at',
@@ -967,6 +1402,7 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
       children: [
         _buildStepRail(),
         _buildProgressIndicator(),
+        _buildOtherInspectionsPanel(),
         Expanded(
           child: PageView.builder(
             controller: _pageController,
@@ -1096,6 +1532,501 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildOtherInspectionsPanel() {
+    final totalDraft = _draftInspections.length;
+    final totalSubmitted = _submittedInspections.length;
+    final filteredDraft = _filteredInspections(_draftInspections);
+    final filteredSubmitted = _filteredInspections(_submittedInspections);
+    final hasAnyItems = totalDraft > 0 || totalSubmitted > 0;
+    final showDraft =
+        _otherInspectionsFilter == 'all' || _otherInspectionsFilter == 'draft';
+    final showSubmitted =
+        _otherInspectionsFilter == 'all' ||
+        _otherInspectionsFilter == 'submitted';
+    final visibleCount =
+        (showDraft ? filteredDraft.length : 0) +
+        (showSubmitted ? filteredSubmitted.length : 0);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 2, 16, 8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () => setState(
+                () => _otherInspectionsOpen = !_otherInspectionsOpen,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEEF2FF),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.folder_copy_outlined,
+                        size: 18,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Other Inspections',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '$totalDraft draft · $totalSubmitted submitted',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: _otherInspectionsLoading
+                          ? null
+                          : () => _loadOtherInspections(showLoading: true),
+                      icon: const Icon(Icons.refresh_rounded),
+                      visualDensity: VisualDensity.compact,
+                      tooltip: 'Refresh list',
+                    ),
+                    AnimatedRotation(
+                      turns: _otherInspectionsOpen ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 180),
+                      child: const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            AnimatedCrossFade(
+              duration: const Duration(milliseconds: 180),
+              firstChild: const SizedBox.shrink(),
+              secondChild: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                child: _otherInspectionsLoading
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.primary,
+                            strokeWidth: 2.5,
+                          ),
+                        ),
+                      )
+                    : _otherInspectionsError != null
+                    ? Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF4F4),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFFECACA)),
+                        ),
+                        child: Text(
+                          _otherInspectionsError!,
+                          style: const TextStyle(
+                            color: AppColors.danger,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      )
+                    : !hasAnyItems
+                    ? Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: const Text(
+                          'No other draft or submitted inspections found.',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      )
+                    : ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 250),
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              TextFormField(
+                                controller: _otherInspectionSearchCtrl,
+                                onChanged: (_) => setState(() {}),
+                                decoration: InputDecoration(
+                                  isDense: true,
+                                  hintText:
+                                      'Search by customer, suburb, address or lead id',
+                                  prefixIcon: const Icon(
+                                    Icons.search_rounded,
+                                    size: 18,
+                                  ),
+                                  suffixIcon:
+                                      _otherInspectionSearchCtrl.text.isEmpty
+                                      ? null
+                                      : IconButton(
+                                          onPressed: () {
+                                            _otherInspectionSearchCtrl.clear();
+                                            setState(() {});
+                                          },
+                                          icon: const Icon(Icons.close_rounded),
+                                          visualDensity: VisualDensity.compact,
+                                        ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 10,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: [
+                                    _buildOtherInspectionFilterChip(
+                                      label: 'All',
+                                      count:
+                                          filteredDraft.length +
+                                          filteredSubmitted.length,
+                                      active: _otherInspectionsFilter == 'all',
+                                      onTap: () => setState(
+                                        () => _otherInspectionsFilter = 'all',
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    _buildOtherInspectionFilterChip(
+                                      label: 'Draft',
+                                      count: filteredDraft.length,
+                                      active:
+                                          _otherInspectionsFilter == 'draft',
+                                      onTap: () => setState(
+                                        () => _otherInspectionsFilter = 'draft',
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    _buildOtherInspectionFilterChip(
+                                      label: 'Submitted',
+                                      count: filteredSubmitted.length,
+                                      active:
+                                          _otherInspectionsFilter ==
+                                          'submitted',
+                                      onTap: () => setState(
+                                        () => _otherInspectionsFilter =
+                                            'submitted',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      '$visibleCount result${visibleCount == 1 ? '' : 's'}',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ),
+                                  TextButton.icon(
+                                    onPressed:
+                                        _openOtherInspectionsFullListSheet,
+                                    style: TextButton.styleFrom(
+                                      visualDensity: VisualDensity.compact,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
+                                    ),
+                                    icon: const Icon(
+                                      Icons.view_list_rounded,
+                                      size: 16,
+                                    ),
+                                    label: const Text(
+                                      'Full list',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              if (showDraft)
+                                _buildOtherInspectionGroup(
+                                  title: 'Draft Documents',
+                                  emptyLabel: 'No saved drafts',
+                                  statusColor: const Color(0xFF92400E),
+                                  statusBg: const Color(0xFFFFFBEB),
+                                  statusLabel: 'DRAFT',
+                                  items: filteredDraft,
+                                  showAll: _showAllDraftInspections,
+                                  onToggleShowAll: () => setState(
+                                    () => _showAllDraftInspections =
+                                        !_showAllDraftInspections,
+                                  ),
+                                ),
+                              if (showDraft && showSubmitted)
+                                const SizedBox(height: 10),
+                              if (showSubmitted)
+                                _buildOtherInspectionGroup(
+                                  title: 'Submitted Documents',
+                                  emptyLabel: 'No submitted documents',
+                                  statusColor: const Color(0xFF065F46),
+                                  statusBg: const Color(0xFFECFDF5),
+                                  statusLabel: 'SUBMITTED',
+                                  items: filteredSubmitted,
+                                  showAll: _showAllSubmittedInspections,
+                                  onToggleShowAll: () => setState(
+                                    () => _showAllSubmittedInspections =
+                                        !_showAllSubmittedInspections,
+                                  ),
+                                ),
+                              if (visibleCount == 0)
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(12),
+                                  margin: const EdgeInsets.only(top: 4),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surface,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: AppColors.border),
+                                  ),
+                                  child: const Text(
+                                    'No matching inspections. Try a different keyword.',
+                                    style: TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+              ),
+              crossFadeState: _otherInspectionsOpen
+                  ? CrossFadeState.showSecond
+                  : CrossFadeState.showFirst,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOtherInspectionFilterChip({
+    required String label,
+    required int count,
+    required bool active,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: active ? const Color(0xFFEEF2FF) : AppColors.surface,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: active ? AppColors.primary : AppColors.border,
+          ),
+        ),
+        child: Text(
+          '$label $count',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: active ? AppColors.primary : AppColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOtherInspectionGroup({
+    required String title,
+    required String emptyLabel,
+    required String statusLabel,
+    required Color statusColor,
+    required Color statusBg,
+    required List<_InspectionListItem> items,
+    required bool showAll,
+    required VoidCallback onToggleShowAll,
+    void Function(_InspectionListItem item)? onItemTap,
+  }) {
+    final maxCompactItems = 4;
+    final visibleItems = showAll ? items : items.take(maxCompactItems).toList();
+    final hiddenCount = (items.length - visibleItems.length).clamp(0, 9999);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (items.isEmpty)
+          Text(
+            emptyLabel,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
+          )
+        else
+          ...visibleItems.map(
+            (item) => _buildOtherInspectionTile(
+              item: item,
+              statusLabel: statusLabel,
+              statusColor: statusColor,
+              statusBg: statusBg,
+              onTapOverride: onItemTap != null ? () => onItemTap(item) : null,
+            ),
+          ),
+        if (items.length > maxCompactItems)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: onToggleShowAll,
+              icon: Icon(
+                showAll ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                size: 16,
+              ),
+              label: Text(
+                showAll ? 'Show less' : 'Show $hiddenCount more',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildOtherInspectionTile({
+    required _InspectionListItem item,
+    required String statusLabel,
+    required Color statusColor,
+    required Color statusBg,
+    VoidCallback? onTapOverride,
+  }) {
+    final when = _inspectionSortDate(item);
+    final scheduled = when.millisecondsSinceEpoch > 0
+        ? DateFormat('dd MMM, hh:mm a').format(when)
+        : null;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: ListTile(
+        dense: true,
+        visualDensity: const VisualDensity(vertical: -2),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+        onTap: onTapOverride ?? () => _openOtherInspection(item.lead.id),
+        title: Text(
+          item.lead.customerName.isNotEmpty ? item.lead.customerName : '—',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        subtitle: Text(
+          '${item.lead.suburb ?? 'Unknown suburb'}${scheduled != null ? ' • $scheduled' : ''}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 11,
+            color: AppColors.textSecondary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: statusBg,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                statusLabel,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  color: statusColor,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            const Icon(
+              Icons.open_in_new_rounded,
+              size: 14,
+              color: AppColors.textSecondary,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1713,6 +2644,18 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
       ),
     );
   }
+}
+
+class _InspectionListItem {
+  final Lead lead;
+  final Map<String, dynamic> inspection;
+  final String status;
+
+  const _InspectionListItem({
+    required this.lead,
+    required this.inspection,
+    required this.status,
+  });
 }
 
 class _NetworkPhotoPreview extends StatefulWidget {
