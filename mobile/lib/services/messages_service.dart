@@ -9,6 +9,54 @@ class MessagesService {
 
   String _basename(String path) => path.split(RegExp(r'[\\/]')).last;
 
+  String _extensionFromName(String name) {
+    final base = name.split(RegExp(r'[\\/]')).last;
+    final dot = base.lastIndexOf('.');
+    if (dot <= 0 || dot == base.length - 1) return '';
+    return base.substring(dot).toLowerCase();
+  }
+
+  String _extensionFromMimeType(String? mimeType) {
+    final m = (mimeType ?? '').toLowerCase().trim();
+    if (m == 'application/pdf') return '.pdf';
+    if (m == 'image/jpeg' || m == 'image/jpg') return '.jpg';
+    if (m == 'image/png') return '.png';
+    if (m == 'image/gif') return '.gif';
+    if (m == 'image/webp') return '.webp';
+    if (m == 'image/bmp') return '.bmp';
+    if (m == 'image/heic') return '.heic';
+    if (m == 'image/heif') return '.heif';
+    return '';
+  }
+
+  String _filenameWithBestExtension({
+    required File file,
+    required String? name,
+    required String? mimeType,
+  }) {
+    final pickedName = (name ?? _basename(file.path)).trim();
+    final nameExt = _extensionFromName(pickedName);
+    final pathExt = _extensionFromName(_basename(file.path));
+
+    // If the picker name has no extension but the actual file path does, use the file path name.
+    if (nameExt.isEmpty && pathExt.isNotEmpty) {
+      return _basename(file.path);
+    }
+
+    // If still no extension, try mapping from MIME type.
+    if (nameExt.isEmpty) {
+      final mimeExt = _extensionFromMimeType(mimeType);
+      if (mimeExt.isNotEmpty) {
+        final stem = pickedName.endsWith(mimeExt) ? pickedName : pickedName;
+        // Remove any trailing dots (rare) then append extension.
+        final cleanedStem = stem.trim().replaceAll(RegExp(r'\.+$'), '');
+        return '$cleanedStem$mimeExt';
+      }
+    }
+
+    return pickedName;
+  }
+
   Future<List<Participant>> getCompanyUsers(int? companyId) async {
     try {
       final path = companyId != null
@@ -117,10 +165,15 @@ class MessagesService {
     int? companyId,
   }) async {
     try {
+      final finalFilename = _filenameWithBestExtension(
+        file: file,
+        name: name,
+        mimeType: mimeType,
+      );
       final uploadForm = FormData.fromMap({
         'attachment': await MultipartFile.fromFile(
           file.path,
-          filename: name ?? _basename(file.path),
+          filename: finalFilename,
         ),
       });
       final uploaded = await uploadAttachment(
