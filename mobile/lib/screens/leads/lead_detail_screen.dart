@@ -1370,6 +1370,122 @@ class _DetailsTabState extends State<_DetailsTab> {
     );
   }
 
+  Widget _searchableDropdownField({
+    required String label,
+    required TextEditingController controller,
+    required List<String> options,
+    required ValueChanged<String?> onSelected,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          RawAutocomplete<String>(
+            initialValue: TextEditingValue(text: controller.text),
+            optionsBuilder: (textEditingValue) {
+              final query = textEditingValue.text.trim().toLowerCase();
+              if (options.isEmpty) return const Iterable<String>.empty();
+              if (query.isEmpty) return options.take(30);
+              return options
+                  .where((option) => option.toLowerCase().contains(query))
+                  .take(30);
+            },
+            displayStringForOption: (option) => option,
+            onSelected: (selection) {
+              controller
+                ..text = selection
+                ..selection = TextSelection.collapsed(offset: selection.length);
+              onSelected(selection);
+            },
+            fieldViewBuilder:
+                (context, textEditingController, focusNode, onFieldSubmitted) {
+              if (textEditingController.text != controller.text) {
+                textEditingController.value = TextEditingValue(
+                  text: controller.text,
+                  selection: TextSelection.collapsed(
+                    offset: controller.text.length,
+                  ),
+                );
+              }
+              return TextFormField(
+                controller: textEditingController,
+                focusNode: focusNode,
+                onFieldSubmitted: (_) => onFieldSubmitted(),
+                onChanged: (value) {
+                  controller
+                    ..text = value
+                    ..selection = TextSelection.collapsed(offset: value.length);
+                },
+                decoration: InputDecoration(
+                  isDense: true,
+                  filled: true,
+                  fillColor: AppColors.surface,
+                  suffixIcon: const Icon(Icons.search, size: 18),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(
+                      color: AppColors.border.withOpacity(0.5),
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(
+                      color: AppColors.border.withOpacity(0.5),
+                    ),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                ),
+              );
+            },
+            optionsViewBuilder: (context, onOptionSelected, filteredOptions) {
+              final list = filteredOptions.toList(growable: false);
+              if (list.isEmpty) return const SizedBox.shrink();
+              return Align(
+                alignment: Alignment.topLeft,
+                child: Material(
+                  elevation: 8,
+                  borderRadius: BorderRadius.circular(10),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 260),
+                    child: SizedBox(
+                      width: MediaQuery.of(context).size.width - 80,
+                      child: ListView.separated(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        shrinkWrap: true,
+                        itemCount: list.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final option = list[index];
+                          return ListTile(
+                            dense: true,
+                            title: Text(option, style: const TextStyle(fontSize: 14)),
+                            onTap: () => onOptionSelected(option),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _inspectorDropdown() {
     final value = (_inspectorId != null && _inspectorId!.isNotEmpty)
         ? _inspectorId
@@ -1760,11 +1876,11 @@ class _DetailsTabState extends State<_DetailsTab> {
                   decimal: true,
                 ),
               ),
-              _dropdownField(
+              _searchableDropdownField(
                 label: 'Inverter brand',
-                value: _dropdownValue(_pvInverterBrandCtrl),
+                controller: _pvInverterBrandCtrl,
                 options: _inverterBrands,
-                onChanged: (next) {
+                onSelected: (next) {
                   setState(() {
                     _pvInverterBrandCtrl.text = next ?? '';
                     _pvInverterModelCtrl.clear();
@@ -1779,11 +1895,11 @@ class _DetailsTabState extends State<_DetailsTab> {
                   _ensureCecDataLoaded();
                 },
               ),
-              _dropdownField(
+              _searchableDropdownField(
                 label: 'Inverter model',
-                value: _dropdownValue(_pvInverterModelCtrl),
+                controller: _pvInverterModelCtrl,
                 options: _inverterModels,
-                onChanged: (next) {
+                onSelected: (next) {
                   setState(() {
                     _pvInverterModelCtrl.text = next ?? '';
                     _pvInverterSeriesCtrl.clear();
@@ -1795,11 +1911,11 @@ class _DetailsTabState extends State<_DetailsTab> {
                   _ensureCecDataLoaded();
                 },
               ),
-              _dropdownField(
+              _searchableDropdownField(
                 label: 'Inverter series',
-                value: _dropdownValue(_pvInverterSeriesCtrl),
+                controller: _pvInverterSeriesCtrl,
                 options: _inverterSeries,
-                onChanged: (next) =>
+                onSelected: (next) =>
                     setState(() => _pvInverterSeriesCtrl.text = next ?? ''),
               ),
               _editableField(
@@ -1814,11 +1930,11 @@ class _DetailsTabState extends State<_DetailsTab> {
                 _pvInverterQuantityCtrl,
                 keyboardType: TextInputType.number,
               ),
-              _dropdownField(
+              _searchableDropdownField(
                 label: 'Panel brand',
-                value: _dropdownValue(_pvPanelBrandCtrl),
+                controller: _pvPanelBrandCtrl,
                 options: _pvPanelBrands,
-                onChanged: (next) {
+                onSelected: (next) {
                   setState(() {
                     _pvPanelBrandCtrl.text = next ?? '';
                     _pvPanelModelCtrl.clear();
@@ -1829,11 +1945,11 @@ class _DetailsTabState extends State<_DetailsTab> {
                   _ensureCecDataLoaded();
                 },
               ),
-              _dropdownField(
+              _searchableDropdownField(
                 label: 'Panel model',
-                value: _dropdownValue(_pvPanelModelCtrl),
+                controller: _pvPanelModelCtrl,
                 options: _pvPanelModels,
-                onChanged: (next) {
+                onSelected: (next) {
                   setState(() {
                     _pvPanelModelCtrl.text = next ?? '';
                     _pvPanelModuleWattsCtrl.clear();
@@ -1879,11 +1995,11 @@ class _DetailsTabState extends State<_DetailsTab> {
                   decimal: true,
                 ),
               ),
-              _dropdownField(
+              _searchableDropdownField(
                 label: 'Battery brand',
-                value: _dropdownValue(_batteryBrandCtrl),
+                controller: _batteryBrandCtrl,
                 options: _batteryBrands,
-                onChanged: (next) {
+                onSelected: (next) {
                   setState(() {
                     _batteryBrandCtrl.text = next ?? '';
                     _batteryModelCtrl.clear();
@@ -1893,11 +2009,11 @@ class _DetailsTabState extends State<_DetailsTab> {
                   _ensureCecDataLoaded();
                 },
               ),
-              _dropdownField(
+              _searchableDropdownField(
                 label: 'Battery model',
-                value: _dropdownValue(_batteryModelCtrl),
+                controller: _batteryModelCtrl,
                 options: _batteryModels,
-                onChanged: (next) =>
+                onSelected: (next) =>
                     setState(() => _batteryModelCtrl.text = next ?? ''),
               ),
             ],

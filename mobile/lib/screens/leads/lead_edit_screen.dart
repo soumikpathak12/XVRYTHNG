@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/lead.dart';
 import '../../providers/leads_provider.dart';
+import '../../services/cec_service.dart';
 import '../../widgets/common/loading_overlay.dart';
 
 /// Edit an existing lead — pre-populated form.
@@ -58,6 +59,10 @@ class _LeadEditScreenState extends State<LeadEditScreen> {
 
   late String _source;
   late String _stage;
+  final _cecService = CecService();
+  bool _cecLoading = false;
+  List<String> _inverterBrands = const [];
+  List<String> _batteryBrands = const [];
   bool _saving = false;
   String? _error;
 
@@ -163,6 +168,26 @@ class _LeadEditScreenState extends State<LeadEditScreen> {
         TextEditingController(text: _getString(r, ['battery_brand']));
     _batteryModelCtrl =
         TextEditingController(text: _getString(r, ['battery_model']));
+
+    _loadCecOptions();
+  }
+
+  Future<void> _loadCecOptions() async {
+    setState(() => _cecLoading = true);
+    try {
+      await _cecService.syncNow(force: false).catchError((_) {});
+      final results = await Future.wait([
+        _cecService.getInverterBrands().catchError((_) => const <String>[]),
+        _cecService.getBatteryBrands().catchError((_) => const <String>[]),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _inverterBrands = results[0];
+        _batteryBrands = results[1];
+      });
+    } finally {
+      if (mounted) setState(() => _cecLoading = false);
+    }
   }
 
   @override
@@ -513,6 +538,11 @@ class _LeadEditScreenState extends State<LeadEditScreen> {
               _SectionHeader(title: 'System Information'),
               const SizedBox(height: 12),
               _FormCard(children: [
+                if (_cecLoading)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: LinearProgressIndicator(minHeight: 2),
+                  ),
                 TextFormField(
                   controller: _pvSystemSizeKwCtrl,
                   decoration: _inputDecoration(
@@ -527,10 +557,11 @@ class _LeadEditScreenState extends State<LeadEditScreen> {
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 ),
                 const SizedBox(height: 16),
-                TextFormField(
+                _buildSearchableCecField(
                   controller: _pvInverterBrandCtrl,
-                  decoration: _inputDecoration(
-                      label: 'Inverter Brand', icon: Icons.branding_watermark_outlined),
+                  label: 'Inverter Brand',
+                  icon: Icons.branding_watermark_outlined,
+                  options: _inverterBrands,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
@@ -577,10 +608,11 @@ class _LeadEditScreenState extends State<LeadEditScreen> {
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 ),
                 const SizedBox(height: 16),
-                TextFormField(
+                _buildSearchableCecField(
                   controller: _batteryBrandCtrl,
-                  decoration: _inputDecoration(
-                      label: 'Battery Brand', icon: Icons.battery_std_outlined),
+                  label: 'Battery Brand',
+                  icon: Icons.battery_std_outlined,
+                  options: _batteryBrands,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
@@ -657,6 +689,83 @@ class _LeadEditScreenState extends State<LeadEditScreen> {
       ),
       contentPadding:
           const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    );
+  }
+
+  Widget _buildSearchableCecField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    required List<String> options,
+  }) {
+    return RawAutocomplete<String>(
+      initialValue: TextEditingValue(text: controller.text),
+      optionsBuilder: (textEditingValue) {
+        final query = textEditingValue.text.trim().toLowerCase();
+        if (options.isEmpty) return const Iterable<String>.empty();
+        if (query.isEmpty) return options.take(25);
+        return options
+            .where((item) => item.toLowerCase().contains(query))
+            .take(25);
+      },
+      displayStringForOption: (option) => option,
+      onSelected: (selection) {
+        controller
+          ..text = selection
+          ..selection = TextSelection.collapsed(offset: selection.length);
+      },
+      fieldViewBuilder: (context, textEditingController, focusNode, onSubmit) {
+        if (textEditingController.text != controller.text) {
+          textEditingController.value = TextEditingValue(
+            text: controller.text,
+            selection: TextSelection.collapsed(offset: controller.text.length),
+          );
+        }
+        return TextFormField(
+          controller: textEditingController,
+          focusNode: focusNode,
+          onFieldSubmitted: (_) => onSubmit(),
+          onChanged: (value) {
+            controller
+              ..text = value
+              ..selection = TextSelection.collapsed(offset: value.length);
+          },
+          decoration: _inputDecoration(label: label, icon: icon).copyWith(
+            suffixIcon: const Icon(Icons.search, size: 18),
+            helperText: options.isEmpty
+                ? 'No CEC options loaded, you can type manually'
+                : 'Type to search CEC options',
+          ),
+        );
+      },
+      optionsViewBuilder: (context, onSelected, iterableOptions) {
+        final filtered = iterableOptions.toList(growable: false);
+        if (filtered.isEmpty) return const SizedBox.shrink();
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            elevation: 6,
+            borderRadius: BorderRadius.circular(10),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220, maxWidth: 520),
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                shrinkWrap: true,
+                itemBuilder: (context, index) {
+                  final option = filtered[index];
+                  return ListTile(
+                    dense: true,
+                    title: Text(option, style: const TextStyle(fontSize: 14)),
+                    onTap: () => onSelected(option),
+                  );
+                },
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemCount: filtered.length,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

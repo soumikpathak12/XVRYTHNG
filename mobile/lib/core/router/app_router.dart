@@ -243,6 +243,10 @@ GoRouter createRouter(AuthProvider authProvider) {
             builder: (context, state) => const OnFieldScreen(),
           ),
           GoRoute(
+            path: '/admin/job-scheduling',
+            builder: (context, state) => const OnFieldScreen(),
+          ),
+          GoRoute(
             path: '/admin/settings',
             builder: (context, state) => const SettingsScreen(),
           ),
@@ -355,6 +359,12 @@ GoRouter createRouter(AuthProvider authProvider) {
             builder: (context, state) => const SupportTicketsScreen(),
           ),
           GoRoute(
+            path: '/dashboard/support-tickets/:id',
+            builder: (context, state) => SupportTicketDetailScreen(
+              ticketId: int.parse(state.pathParameters['id']!),
+            ),
+          ),
+          GoRoute(
             path: '/dashboard/settings',
             builder: (context, state) => const SettingsScreen(),
           ),
@@ -447,6 +457,12 @@ GoRouter createRouter(AuthProvider authProvider) {
           GoRoute(
             path: '/employee/support-tickets',
             builder: (context, state) => const SupportTicketsScreen(),
+          ),
+          GoRoute(
+            path: '/employee/support-tickets/:id',
+            builder: (context, state) => SupportTicketDetailScreen(
+              ticketId: int.parse(state.pathParameters['id']!),
+            ),
           ),
           GoRoute(
             path: '/employee/approvals',

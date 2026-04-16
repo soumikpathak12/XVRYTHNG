@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../services/cec_service.dart';
 import '../../services/leads_service.dart';
 import '../../services/projects_service.dart';
 import '../../widgets/common/loading_overlay.dart';
@@ -25,6 +26,7 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
   final _formKey = GlobalKey<FormState>();
   final _service = ProjectsService();
   final _leadsService = LeadsService();
+  final _cecService = CecService();
 
   static const List<String> _systemTypes = [
     'PV only',
@@ -97,8 +99,22 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
 
   DateTime? _expectedCompletionDate;
   bool _saving = false;
+  bool _cecLoading = false;
   String? _error;
   int? _leadId;
+
+  List<String> _inverterBrands = const [];
+  List<String> _inverterModels = const [];
+  List<String> _inverterSeries = const [];
+  List<String> _pvPanelBrands = const [];
+  List<String> _pvPanelModels = const [];
+  List<String> _batteryBrands = const [];
+  List<String> _batteryModels = const [];
+
+  String? _inverterModelsForBrand;
+  String? _inverterSeriesForKey;
+  String? _pvPanelModelsForBrand;
+  String? _batteryModelsForBrand;
 
   @override
   void initState() {
@@ -218,6 +234,108 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
     _batteryModelCtrl.text = read(['battery_model', 'lead_battery_model']);
     _postInstallRefCtrl.text = read(['post_install_reference_no']);
     _expectedCompletionDate = _tryParseDate(d['expected_completion_date']);
+
+    _ensureCecDataLoaded();
+  }
+
+  String? _normalizeOption(String? input, List<String> options) {
+    final value = input?.trim() ?? '';
+    if (value.isEmpty) return null;
+    for (final option in options) {
+      if (option.trim().toLowerCase() == value.toLowerCase()) return option;
+    }
+    return value;
+  }
+
+  Future<void> _ensureCecDataLoaded() async {
+    if (!_hasPvFields && !_hasBatteryFields) return;
+    if (_cecLoading) return;
+
+    setState(() => _cecLoading = true);
+    try {
+      await _cecService.syncNow(force: false).catchError((_) {});
+      final results = await Future.wait([
+        _hasPvFields
+            ? _cecService.getPvPanelBrands().catchError((_) => const <String>[])
+            : Future.value(const <String>[]),
+        _hasPvFields
+            ? _cecService.getInverterBrands().catchError((_) => const <String>[])
+            : Future.value(const <String>[]),
+        _hasBatteryFields
+            ? _cecService.getBatteryBrands().catchError((_) => const <String>[])
+            : Future.value(const <String>[]),
+      ]);
+
+      if (!mounted) return;
+      setState(() {
+        _pvPanelBrands = results[0];
+        _inverterBrands = results[1];
+        _batteryBrands = results[2];
+      });
+
+      await _loadDependentCecOptions();
+    } finally {
+      if (mounted) setState(() => _cecLoading = false);
+    }
+  }
+
+  Future<void> _loadDependentCecOptions() async {
+    if (_hasPvFields) {
+      final inverterBrand = _normalizeOption(_pvInverterBrandCtrl.text, _inverterBrands);
+      if (inverterBrand != null && inverterBrand != _inverterModelsForBrand) {
+        final models = await _cecService
+            .getInverterModels(inverterBrand)
+            .catchError((_) => const <String>[]);
+        if (!mounted) return;
+        setState(() {
+          _inverterModelsForBrand = inverterBrand;
+          _inverterModels = models;
+          _inverterSeries = const [];
+          _inverterSeriesForKey = null;
+        });
+      }
+
+      final inverterModel = _normalizeOption(_pvInverterModelCtrl.text, _inverterModels);
+      if (inverterBrand != null && inverterModel != null) {
+        final key = '$inverterBrand::$inverterModel';
+        if (key != _inverterSeriesForKey) {
+          final series = await _cecService
+              .getInverterSeries(inverterBrand, inverterModel)
+              .catchError((_) => const <String>[]);
+          if (!mounted) return;
+          setState(() {
+            _inverterSeriesForKey = key;
+            _inverterSeries = series;
+          });
+        }
+      }
+
+      final panelBrand = _normalizeOption(_pvPanelBrandCtrl.text, _pvPanelBrands);
+      if (panelBrand != null && panelBrand != _pvPanelModelsForBrand) {
+        final models = await _cecService
+            .getPvPanelModels(panelBrand)
+            .catchError((_) => const <String>[]);
+        if (!mounted) return;
+        setState(() {
+          _pvPanelModelsForBrand = panelBrand;
+          _pvPanelModels = models;
+        });
+      }
+    }
+
+    if (_hasBatteryFields) {
+      final batteryBrand = _normalizeOption(_batteryBrandCtrl.text, _batteryBrands);
+      if (batteryBrand != null && batteryBrand != _batteryModelsForBrand) {
+        final models = await _cecService
+            .getBatteryModels(batteryBrand)
+            .catchError((_) => const <String>[]);
+        if (!mounted) return;
+        setState(() {
+          _batteryModelsForBrand = batteryBrand;
+          _batteryModels = models;
+        });
+      }
+    }
   }
 
   DateTime? _tryParseDate(dynamic v) {
@@ -484,7 +602,23 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
                   icon: Icons.settings_input_component_outlined,
                   value: _systemType.isEmpty ? null : _systemType,
                   options: _systemTypes,
-                  onChanged: (v) => setState(() => _systemType = v ?? ''),
+                  onChanged: (v) {
+                    setState(() {
+                      _systemType = v ?? '';
+                      _inverterBrands = const [];
+                      _inverterModels = const [];
+                      _inverterSeries = const [];
+                      _pvPanelBrands = const [];
+                      _pvPanelModels = const [];
+                      _batteryBrands = const [];
+                      _batteryModels = const [];
+                      _inverterModelsForBrand = null;
+                      _inverterSeriesForKey = null;
+                      _pvPanelModelsForBrand = null;
+                      _batteryModelsForBrand = null;
+                    });
+                    _ensureCecDataLoaded();
+                  },
                 ),
                 const SizedBox(height: 16),
                 _field(
@@ -515,6 +649,11 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
                 const SizedBox(height: 16),
                 _card([
                   const _SectionTitle('PV System Details'),
+                  if (_cecLoading)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 12),
+                      child: LinearProgressIndicator(minHeight: 2),
+                    ),
                   _field(
                     controller: _pvSystemSizeCtrl,
                     label: 'PV System Size (kW)',
@@ -539,22 +678,48 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  _field(
+                  _searchableDropdownField(
                     controller: _pvInverterBrandCtrl,
                     label: 'Inverter Brand',
                     icon: Icons.branding_watermark_outlined,
+                    options: _inverterBrands,
+                    onSelected: (next) {
+                      setState(() {
+                        _pvInverterBrandCtrl.text = next ?? '';
+                        _pvInverterModelCtrl.clear();
+                        _pvInverterSeriesCtrl.clear();
+                        _inverterModels = const [];
+                        _inverterSeries = const [];
+                        _inverterModelsForBrand = null;
+                        _inverterSeriesForKey = null;
+                      });
+                      _ensureCecDataLoaded();
+                    },
                   ),
                   const SizedBox(height: 16),
-                  _field(
+                  _searchableDropdownField(
                     controller: _pvInverterModelCtrl,
                     label: 'Inverter Model',
                     icon: Icons.memory_outlined,
+                    options: _inverterModels,
+                    onSelected: (next) {
+                      setState(() {
+                        _pvInverterModelCtrl.text = next ?? '';
+                        _pvInverterSeriesCtrl.clear();
+                        _inverterSeries = const [];
+                        _inverterSeriesForKey = null;
+                      });
+                      _ensureCecDataLoaded();
+                    },
                   ),
                   const SizedBox(height: 16),
-                  _field(
+                  _searchableDropdownField(
                     controller: _pvInverterSeriesCtrl,
                     label: 'Inverter Series',
                     icon: Icons.view_timeline_outlined,
+                    options: _inverterSeries,
+                    onSelected: (next) =>
+                        setState(() => _pvInverterSeriesCtrl.text = next ?? ''),
                   ),
                   const SizedBox(height: 16),
                   _field(
@@ -577,16 +742,29 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   ),
                   const SizedBox(height: 16),
-                  _field(
+                  _searchableDropdownField(
                     controller: _pvPanelBrandCtrl,
                     label: 'Panel Brand',
                     icon: Icons.grid_view_outlined,
+                    options: _pvPanelBrands,
+                    onSelected: (next) {
+                      setState(() {
+                        _pvPanelBrandCtrl.text = next ?? '';
+                        _pvPanelModelCtrl.clear();
+                        _pvPanelModels = const [];
+                        _pvPanelModelsForBrand = null;
+                      });
+                      _ensureCecDataLoaded();
+                    },
                   ),
                   const SizedBox(height: 16),
-                  _field(
+                  _searchableDropdownField(
                     controller: _pvPanelModelCtrl,
                     label: 'Panel Model',
                     icon: Icons.widgets_outlined,
+                    options: _pvPanelModels,
+                    onSelected: (next) =>
+                        setState(() => _pvPanelModelCtrl.text = next ?? ''),
                   ),
                   const SizedBox(height: 16),
                   _field(
@@ -631,6 +809,11 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
                 const SizedBox(height: 16),
                 _card([
                   const _SectionTitle('Battery Details'),
+                  if (_cecLoading)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 12),
+                      child: LinearProgressIndicator(minHeight: 2),
+                    ),
                   _field(
                     controller: _batterySizeCtrl,
                     label: 'Battery Size (kWh)',
@@ -643,16 +826,29 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  _field(
+                  _searchableDropdownField(
                     controller: _batteryBrandCtrl,
                     label: 'Battery Brand',
                     icon: Icons.battery_std_outlined,
+                    options: _batteryBrands,
+                    onSelected: (next) {
+                      setState(() {
+                        _batteryBrandCtrl.text = next ?? '';
+                        _batteryModelCtrl.clear();
+                        _batteryModels = const [];
+                        _batteryModelsForBrand = null;
+                      });
+                      _ensureCecDataLoaded();
+                    },
                   ),
                   const SizedBox(height: 16),
-                  _field(
+                  _searchableDropdownField(
                     controller: _batteryModelCtrl,
                     label: 'Battery Model',
                     icon: Icons.battery_unknown_outlined,
+                    options: _batteryModels,
+                    onSelected: (next) =>
+                        setState(() => _batteryModelCtrl.text = next ?? ''),
                   ),
                 ]),
               ],
@@ -801,6 +997,90 @@ class _ProjectEditScreenState extends State<ProjectEditScreen> {
         fillColor: AppColors.surface,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
+    );
+  }
+
+  Widget _searchableDropdownField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    required List<String> options,
+    required ValueChanged<String?> onSelected,
+  }) {
+    return RawAutocomplete<String>(
+      initialValue: TextEditingValue(text: controller.text),
+      optionsBuilder: (textEditingValue) {
+        final query = textEditingValue.text.trim().toLowerCase();
+        if (options.isEmpty) return const Iterable<String>.empty();
+        if (query.isEmpty) return options.take(25);
+        return options
+            .where((item) => item.toLowerCase().contains(query))
+            .take(25);
+      },
+      displayStringForOption: (option) => option,
+      onSelected: (selection) {
+        controller
+          ..text = selection
+          ..selection = TextSelection.collapsed(offset: selection.length);
+        onSelected(selection);
+      },
+      fieldViewBuilder: (context, textEditingController, focusNode, onSubmit) {
+        if (textEditingController.text != controller.text) {
+          textEditingController.value = TextEditingValue(
+            text: controller.text,
+            selection: TextSelection.collapsed(offset: controller.text.length),
+          );
+        }
+        return TextFormField(
+          controller: textEditingController,
+          focusNode: focusNode,
+          onFieldSubmitted: (_) => onSubmit(),
+          onChanged: (value) {
+            controller
+              ..text = value
+              ..selection = TextSelection.collapsed(offset: value.length);
+          },
+          decoration: InputDecoration(
+            labelText: label,
+            prefixIcon: Icon(icon),
+            suffixIcon: const Icon(Icons.search, size: 18),
+            filled: true,
+            fillColor: AppColors.surface,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      },
+      optionsViewBuilder: (context, onOptionSelected, filteredOptions) {
+        final list = filteredOptions.toList(growable: false);
+        if (list.isEmpty) return const SizedBox.shrink();
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            elevation: 8,
+            borderRadius: BorderRadius.circular(10),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 260),
+              child: SizedBox(
+                width: MediaQuery.of(context).size.width - 80,
+                child: ListView.separated(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  shrinkWrap: true,
+                  itemCount: list.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final option = list[index];
+                    return ListTile(
+                      dense: true,
+                      title: Text(option, style: const TextStyle(fontSize: 14)),
+                      onTap: () => onOptionSelected(option),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

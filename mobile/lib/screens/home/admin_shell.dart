@@ -62,7 +62,7 @@ class _AdminShellState extends State<AdminShell> {
         const DrawerItem(
           label: 'Job Scheduling',
           icon: Icons.event_note_outlined,
-          route: '/admin/on-field',
+          route: '/admin/job-scheduling',
         ),
         const DrawerItem(
           label: 'Job Management',

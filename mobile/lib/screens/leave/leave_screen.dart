@@ -310,6 +310,12 @@ class _LeaveScreenState extends State<LeaveScreen> {
               style: const TextStyle(
                   fontSize: 11, color: AppColors.textSecondary),
             ),
+            const SizedBox(height: 2),
+            Text(
+              'used ${bal.used.toStringAsFixed(0)}',
+              style: const TextStyle(
+                  fontSize: 11, color: AppColors.textSecondary),
+            ),
             const SizedBox(height: 6),
             Text(
               label,
