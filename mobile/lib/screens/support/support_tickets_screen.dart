@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../models/support_ticket.dart';
+import '../../providers/auth_provider.dart';
 import '../../services/support_service.dart';
 import '../../widgets/common/empty_state.dart';
 import '../../widgets/common/shell_scaffold_scope.dart';
@@ -319,6 +321,13 @@ class _SupportTicketsScreenState extends State<SupportTicketsScreen> {
   }
 
   Widget _buildTicketCard(SupportTicket t) {
+    final user = context.read<AuthProvider>().user;
+    final detailPath = (user?.isSuperAdmin == true)
+        ? '/admin/support-tickets/${t.id}'
+        : (user?.isCompanyAdmin == true || user?.isManager == true)
+            ? '/dashboard/support-tickets/${t.id}'
+            : '/employee/support-tickets/${t.id}';
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -326,7 +335,7 @@ class _SupportTicketsScreenState extends State<SupportTicketsScreen> {
       color: AppColors.surface,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () => context.push('/support/${t.id}'),
+        onTap: () => context.push(detailPath),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(

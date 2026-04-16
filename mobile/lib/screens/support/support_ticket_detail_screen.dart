@@ -232,22 +232,48 @@ class _SupportTicketDetailScreenState extends State<SupportTicketDetailScreen> {
           const SizedBox(height: 14),
           Row(
             children: [
-              _DetailChip(
-                  icon: Icons.person_outline,
-                  label: t.createdByName ?? 'Unknown'),
-              const SizedBox(width: 16),
-              if (t.priority != null)
-                _DetailChip(
-                    icon: Icons.flag_outlined, label: t.priority!),
-              const Spacer(),
-              if (t.createdAt != null)
-                Text(
-                  _dateFmt.format(t.createdAt!),
-                  style: const TextStyle(
-                      fontSize: 12, color: AppColors.textSecondary),
+              Expanded(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.person_outline,
+                      size: 15,
+                      color: AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        t.createdByName ?? 'Unknown',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
+              ),
+              if (t.priority != null) ...[
+                const SizedBox(width: 12),
+                _DetailChip(icon: Icons.flag_outlined, label: t.priority!),
+              ],
             ],
           ),
+          if (t.createdAt != null) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                _dateFmt.format(t.createdAt!),
+                style:
+                    const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+            ),
+          ],
           if (t.category != null) ...[
             const SizedBox(height: 8),
             _DetailChip(icon: Icons.label_outline, label: t.category!),
@@ -260,7 +286,7 @@ class _SupportTicketDetailScreenState extends State<SupportTicketDetailScreen> {
   Widget _buildReplyBubble(TicketReply reply) {
     final isStaff = reply.isStaff;
     return Align(
-      alignment: isStaff ? Alignment.centerLeft : Alignment.centerRight,
+      alignment: isStaff ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         constraints:
@@ -273,8 +299,8 @@ class _SupportTicketDetailScreenState extends State<SupportTicketDetailScreen> {
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(14),
             topRight: const Radius.circular(14),
-            bottomLeft: Radius.circular(isStaff ? 2 : 14),
-            bottomRight: Radius.circular(isStaff ? 14 : 2),
+            bottomLeft: Radius.circular(isStaff ? 14 : 2),
+            bottomRight: Radius.circular(isStaff ? 2 : 14),
           ),
         ),
         child: Column(
