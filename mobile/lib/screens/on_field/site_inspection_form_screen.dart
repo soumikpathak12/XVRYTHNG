@@ -7,6 +7,7 @@ import 'package:flutter/rendering.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../core/config/api_config.dart';
 import '../../core/network/api_exceptions.dart';
 import '../../core/theme/app_colors.dart';
@@ -19,7 +20,6 @@ import '../../widgets/common/loading_overlay.dart';
 import 'inspection_sections.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
-import 'package:printing/printing.dart';
 
 class SiteInspectionFormScreen extends StatefulWidget {
   final int leadId;
@@ -281,9 +281,14 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
       );
 
       final Uint8List bytes = await doc.save();
-      await Printing.sharePdf(
-        bytes: bytes,
-        filename: 'site-inspection-${widget.leadId}.pdf',
+      final dir = await getTemporaryDirectory();
+      final filename = 'site-inspection-${widget.leadId}.pdf';
+      final file = File('${dir.path}/$filename');
+      await file.writeAsBytes(bytes, flush: true);
+
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'application/pdf', name: filename)],
+        subject: 'Site inspection PDF',
       );
     } catch (e) {
       if (mounted) {
@@ -450,6 +455,9 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
     if (url.startsWith('http')) return url;
     final cleaned = url.replaceFirst(RegExp(r'^\.?/'), '/');
     final normalized = cleaned.startsWith('/') ? cleaned : '/$cleaned';
+    if (normalized.startsWith('/uploads/')) {
+      return '${ApiConfig.baseUrl}/api$normalized';
+    }
     return '${ApiConfig.baseUrl}$normalized';
   }
 
@@ -625,6 +633,38 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
     return form;
   }
 
+  Map<String, dynamic> _buildInspectionPayload() {
+    final form = Map<String, dynamic>.from(_formData);
+    final payload = <String, dynamic>{
+      'form_data_json': form,
+    };
+
+    const topLevelKeys = [
+      'inspected_at',
+      'inspector_name',
+      'customer_name',
+      'roof_type',
+      'roof_pitch_deg',
+      'house_storey',
+      'meter_phase',
+      'inverter_location',
+      'msb_condition',
+      'shading',
+      'signature_url',
+      'customer_notes',
+      'template_key',
+      'template_version',
+    ];
+
+    for (final key in topLevelKeys) {
+      if (form.containsKey(key)) {
+        payload[key] = form[key];
+      }
+    }
+
+    return payload;
+  }
+
   String _extractPhotoUrl(dynamic photoData) {
     if (photoData == null) return '';
     if (photoData is String) return _resolveUrl(photoData);
@@ -665,6 +705,13 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
     add(url);
     final encoded = _encodeUrl(url);
     if (encoded != null) add(encoded);
+
+    if (url.contains('/uploads/') && !url.contains('/api/uploads/')) {
+      final withApi = url.replaceFirst('/uploads/', '/api/uploads/');
+      add(withApi);
+      final withApiEncoded = _encodeUrl(withApi);
+      if (withApiEncoded != null) add(withApiEncoded);
+    }
 
     if (url.contains('/api/uploads/')) {
       final noApi = url.replaceFirst('/api/uploads/', '/uploads/');
@@ -753,7 +800,7 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
     setState(() => _submitting = true);
     try {
       await _prepareCustomerSignoff(requireComplete: !isDraft);
-      final payload = Map<String, dynamic>.from(_formData);
+      final payload = _buildInspectionPayload();
       if (_inspectionId != null) payload['id'] = _inspectionId;
 
       if (isDraft) {

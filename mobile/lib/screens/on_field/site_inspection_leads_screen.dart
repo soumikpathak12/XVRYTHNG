@@ -113,6 +113,14 @@ class _SiteInspectionLeadsScreenState extends State<SiteInspectionLeadsScreen> {
             if (_statusFilter == 'submitted') return s == 'submitted';
             return true;
           }).toList();
+          final filteredOverviewInspections = inspections.where((e) {
+            final s = (e.status ?? '').toLowerCase();
+            if (_statusFilter == 'draft') return s == 'draft';
+            if (_statusFilter == 'submitted') return s == 'submitted';
+            return true;
+          }).toList()
+            ..sort((a, b) => b.start.compareTo(a.start));
+          final showingOverviewList = _statusFilter != 'all';
 
           return ListView(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -132,10 +140,10 @@ class _SiteInspectionLeadsScreenState extends State<SiteInspectionLeadsScreen> {
               const SizedBox(height: 20),
               _buildViewToggle(),
               const SizedBox(height: 16),
-              if (_viewMode == 'month' || _viewMode == 'week') ...[
+              if (!showingOverviewList && (_viewMode == 'month' || _viewMode == 'week')) ...[
                 _buildCalendar(provider, inspections),
                 const SizedBox(height: 24),
-              ] else ...[
+              ] else if (!showingOverviewList) ...[
 
                 _buildDayHeader(),
                 const SizedBox(height: 16),
@@ -147,7 +155,11 @@ class _SiteInspectionLeadsScreenState extends State<SiteInspectionLeadsScreen> {
                    const Icon(Icons.list_alt_rounded, size: 16, color: AppColors.textSecondary),
                    const SizedBox(width: 8),
                    Text(
-                     'Scheduled for ${DateFormat('dd MMM').format(_selectedDay)}',
+                     showingOverviewList
+                         ? (_statusFilter == 'draft'
+                             ? 'All saved drafts'
+                             : 'All completed inspections')
+                         : 'Scheduled for ${DateFormat('dd MMM').format(_selectedDay)}',
                      style: const TextStyle(
                        fontWeight: FontWeight.w800,
                        fontSize: 13,
@@ -157,8 +169,16 @@ class _SiteInspectionLeadsScreenState extends State<SiteInspectionLeadsScreen> {
                 ],
               ),
               const SizedBox(height: 12),
-              if (filteredDayInspections.isEmpty)
+              if (showingOverviewList && filteredOverviewInspections.isEmpty)
+                _buildEmptyState(
+                  message: _statusFilter == 'draft'
+                      ? 'No saved drafts yet'
+                      : 'No completed inspections yet',
+                )
+              else if (!showingOverviewList && filteredDayInspections.isEmpty)
                 _buildEmptyState()
+              else if (showingOverviewList)
+                ...filteredOverviewInspections.map(_buildInspectionCard)
               else
                 ...filteredDayInspections.map(_buildInspectionCard),
               const SizedBox(height: 100),
@@ -692,7 +712,7 @@ class _SiteInspectionLeadsScreenState extends State<SiteInspectionLeadsScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState({String message = 'No inspections on this date'}) {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border.withOpacity(0.3))),
@@ -702,7 +722,7 @@ class _SiteInspectionLeadsScreenState extends State<SiteInspectionLeadsScreen> {
           children: [
             Icon(Icons.assignment_turned_in_outlined, size: 40, color: AppColors.textSecondary.withOpacity(0.2)),
             const SizedBox(height: 12),
-            Text('No inspections on this date', style: TextStyle(color: AppColors.textSecondary.withOpacity(0.6), fontWeight: FontWeight.w600, fontSize: 13)),
+            Text(message, style: TextStyle(color: AppColors.textSecondary.withOpacity(0.6), fontWeight: FontWeight.w600, fontSize: 13)),
           ],
         ),
       ),
