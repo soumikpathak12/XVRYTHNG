@@ -1,3 +1,5 @@
+import '../core/config/api_config.dart';
+
 class User {
   final int id;
   final String name;
@@ -19,6 +21,20 @@ class User {
     this.needsPasswordChange = false,
   });
 
+  static String? _normalizeAvatarUrl(dynamic rawUrl) {
+    if (rawUrl == null) return null;
+    final value = rawUrl.toString().trim();
+    if (value.isEmpty) return null;
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      return value;
+    }
+    final normalized = value.startsWith('/') ? value : '/$value';
+    if (normalized.startsWith('/uploads/')) {
+      return '${ApiConfig.baseUrl}/api$normalized';
+    }
+    return '${ApiConfig.baseUrl}$normalized';
+  }
+
   factory User.fromJson(Map<String, dynamic> json) => User(
         id: json['id'] ?? 0,
         name: json['name'] ?? '',
@@ -26,7 +42,9 @@ class User {
         role: json['role'] ?? '',
         companyId: json['companyId'] ?? json['company_id'],
         companyName: json['companyName'] ?? json['company_name'],
-        avatarUrl: json['avatarUrl'] ?? json['avatar_url'],
+        avatarUrl: _normalizeAvatarUrl(
+          json['avatarUrl'] ?? json['avatar_url'] ?? json['image_url'],
+        ),
         needsPasswordChange: json['needsPasswordChange'] == true,
       );
 
