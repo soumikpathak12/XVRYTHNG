@@ -8,6 +8,14 @@ function notFound(msg = 'Installation job not found') {
   const e = new Error(msg); e.statusCode = 404; return e;
 }
 
+const ALLOWED_PHOTO_SECTIONS = new Set(['before', 'during', 'after', 'general']);
+
+function normalizePhotoSection(rawSection) {
+  const value = String(rawSection ?? 'general').trim().toLowerCase();
+  if (value === 'signoff') return 'general';
+  return ALLOWED_PHOTO_SECTIONS.has(value) ? value : 'general';
+}
+
 // Map installation status → project stage (T-233 sync)
 const STATUS_TO_PROJECT_STAGE = {
   in_progress: 'installation_in_progress',
@@ -477,13 +485,15 @@ export async function addPhoto(companyId, jobId, {
 
   const takenAtNormalized = normalizeMySqlDateTime(taken_at);
 
+  const normalizedSection = normalizePhotoSection(section);
+
   const [result] = await db.execute(
     `INSERT INTO installation_photos
        (job_id, company_id, section, storage_url, filename, mime_type, size_bytes,
         caption, lat, lng, taken_at, device_info, uploaded_by)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
-      Number(jobId), Number(companyId), section, storage_url, filename,
+      Number(jobId), Number(companyId), normalizedSection, storage_url, filename,
       mime_type ?? null, size_bytes ?? null, caption ?? null,
       lat ?? null, lng ?? null, takenAtNormalized, device_info ?? null, uploadedBy ?? null,
     ]

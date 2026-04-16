@@ -30,12 +30,20 @@ const __filename   = fileURLToPath(import.meta.url);
 const __dirname    = path.dirname(__filename);
 const uploadsRoot  = path.join(__dirname, '..', '..', 'uploads');
 
+const ALLOWED_PHOTO_SECTIONS = new Set(['before', 'during', 'after', 'general']);
+
+function normalizePhotoSection(rawSection) {
+  const value = String(rawSection ?? 'general').trim().toLowerCase();
+  if (value === 'signoff') return 'general';
+  return ALLOWED_PHOTO_SECTIONS.has(value) ? value : 'general';
+}
+
 // Multer – store photos at uploads/installation-jobs/:jobId/:section/
 const storage = multer.diskStorage({
   destination(req, file, cb) {
     try {
       const jobId   = String(req.params.id    ?? 'unknown').trim();
-      const section = String(req.body?.section ?? 'general').trim();
+      const section = normalizePhotoSection(req.body?.section);
       const dir = path.join(uploadsRoot, 'installation-jobs', jobId, section);
       fs.mkdirSync(dir, { recursive: true });
       cb(null, dir);

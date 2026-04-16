@@ -23,6 +23,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
   String _searchQuery = '';
   bool _showChat = false;
 
+  bool get _showSearchDropdown => _searchQuery.isNotEmpty;
+
   @override
   void initState() {
     super.initState();
@@ -76,6 +78,20 @@ class _MessagesScreenState extends State<MessagesScreen> {
     setState(() => _showChat = false);
   }
 
+  Future<void> _clearSearch() async {
+    _searchController.clear();
+    setState(() => _searchQuery = '');
+    final auth = context.read<AuthProvider>();
+    await context
+        .read<MessagesProvider>()
+        .loadConversations(companyId: auth.user?.companyId);
+  }
+
+  Future<void> _selectSearchResult(Conversation conversation) async {
+    await _clearSearch();
+    _openConversationMatch(conversation);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isTablet) {
@@ -96,7 +112,13 @@ class _MessagesScreenState extends State<MessagesScreen> {
       body: Column(
         children: [
           _buildSearchBar(),
-          Expanded(child: _ConversationList(onTap: _openConversationMatch)),
+          if (_showSearchDropdown)
+            _SearchDropdown(
+              query: _searchQuery,
+              onSelect: _selectSearchResult,
+            )
+          else
+            Expanded(child: _ConversationList(onTap: _openConversationMatch)),
         ],
       ),
       floatingActionButton: _NewConversationFab(
@@ -121,8 +143,15 @@ class _MessagesScreenState extends State<MessagesScreen> {
             child: Column(
               children: [
                 _buildSearchBar(),
-                Expanded(
-                    child: _ConversationList(onTap: _openConversationMatch)),
+                if (_showSearchDropdown)
+                  _SearchDropdown(
+                    query: _searchQuery,
+                    onSelect: _selectSearchResult,
+                  )
+                else
+                  Expanded(
+                    child: _ConversationList(onTap: _openConversationMatch),
+                  ),
               ],
             ),
           ),
@@ -177,13 +206,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
               suffixIcon: _searchQuery.isNotEmpty
                   ? IconButton(
                       icon: const Icon(Icons.clear, size: 20),
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() => _searchQuery = '');
-                        final auth = context.read<AuthProvider>();
-                        provider.loadConversations(
-                            companyId: auth.user?.companyId);
-                      },
+                      onPressed: _clearSearch,
                     )
                   : null,
               filled: true,
@@ -215,6 +238,128 @@ class _MessagesScreenState extends State<MessagesScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+class _SearchDropdown extends StatelessWidget {
+  final String query;
+  final ValueChanged<Conversation> onSelect;
+
+  const _SearchDropdown({
+    required this.query,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    return Expanded(
+      child: Consumer<MessagesProvider>(
+        builder: (context, provider, _) {
+          if (provider.loading) {
+            return const Center(
+              child: CircularProgressIndicator(color: AppColors.primary),
+            );
+          }
+
+          if (provider.conversations.isEmpty) {
+            return Center(
+              child: Text(
+                'No results for "$query"',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            );
+          }
+
+          return Align(
+            alignment: Alignment.topCenter,
+            child: Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              constraints: const BoxConstraints(maxHeight: 320),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.divider),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 14,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                itemCount: provider.conversations.length,
+                separatorBuilder: (_, __) => const Divider(
+                  height: 1,
+                  indent: 64,
+                  color: AppColors.divider,
+                ),
+                itemBuilder: (context, index) {
+                  final conv = provider.conversations[index];
+                  final displayName = conv.getDisplayName(auth.user?.id ?? 0);
+                  final last = conv.lastMessage;
+                  final preview = last?.body?.trim().isNotEmpty == true
+                      ? last!.body!.trim()
+                      : 'Conversation';
+                  final isMsgMatch = last?.isSearchMatch == true;
+
+                  return ListTile(
+                    dense: true,
+                    leading: CircleAvatar(
+                      radius: 18,
+                      backgroundColor: AppColors.primary.withOpacity(0.15),
+                      child: Text(
+                        displayName.isNotEmpty
+                            ? displayName[0].toUpperCase()
+                            : '?',
+                        style: const TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    title: Text(
+                      displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    subtitle: Text(
+                      isMsgMatch ? 'Message: $preview' : preview,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isMsgMatch
+                            ? AppColors.primary
+                            : AppColors.textSecondary,
+                        fontWeight:
+                            isMsgMatch ? FontWeight.w600 : FontWeight.w400,
+                      ),
+                    ),
+                    trailing: const Icon(
+                      Icons.north_east_rounded,
+                      size: 18,
+                      color: AppColors.textSecondary,
+                    ),
+                    onTap: () => onSelect(conv),
+                  );
+                },
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }

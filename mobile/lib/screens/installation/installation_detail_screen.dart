@@ -245,7 +245,7 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
     final bytes = byteData.buffer.asUint8List();
 
     final formData = FormData.fromMap({
-      'section': 'signoff',
+      'section': 'general',
       'photo': MultipartFile.fromBytes(
         bytes,
         filename:

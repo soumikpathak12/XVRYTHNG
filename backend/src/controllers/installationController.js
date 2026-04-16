@@ -46,6 +46,14 @@ function toAbsoluteUploadUrl(req, storageUrl) {
   return host ? `${protocol}://${host}${normalizedPath}` : normalizedPath;
 }
 
+const ALLOWED_PHOTO_SECTIONS = new Set(['before', 'during', 'after', 'general']);
+
+function normalizePhotoSection(rawSection) {
+  const value = String(rawSection ?? 'general').trim().toLowerCase();
+  if (value === 'signoff') return 'general';
+  return ALLOWED_PHOTO_SECTIONS.has(value) ? value : 'general';
+}
+
 // GET /api/installation-jobs
 export async function listJobs(req, res) {
   try {
@@ -281,7 +289,8 @@ export async function uploadPhoto(req, res) {
     if (!companyId) return;
     if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
 
-    const { section = 'general', caption, lat, lng, taken_at, device_info } = req.body ?? {};
+    const { caption, lat, lng, taken_at, device_info } = req.body ?? {};
+    const section = normalizePhotoSection(req.body?.section);
     const jobId   = req.params.id;
 
     // Build storage URL (served statically)
