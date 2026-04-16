@@ -93,10 +93,11 @@ class _ApprovalsScreenState extends State<ApprovalsScreen>
   Future<void> _handleDecision(Approval item, String action) async {
     final comment = await _showCommentDialog(action);
     if (comment == null) return;
+    final reviewAction = action == 'approve' ? 'approved' : 'rejected';
 
     setState(() => _actionLoading = true);
     try {
-      await _service.decide(item.type, item.id, action, comment);
+      await _service.decide(item.type, item.id, reviewAction, comment);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

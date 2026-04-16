@@ -1,4 +1,7 @@
+import 'package:android_intent_plus/android_intent.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -306,8 +309,91 @@ class _LeadDetailScreenState extends State<LeadDetailScreen>
   }
 
   Future<void> _email(String email) async {
-    final uri = Uri(scheme: 'mailto', path: email);
-    if (await canLaunchUrl(uri)) await launchUrl(uri);
+    final gmailUri = Uri.parse('googlegmail://co?to=${Uri.encodeComponent(email)}');
+    final mailtoUri = Uri(
+      scheme: 'mailto',
+      path: email,
+    );
+
+    if (!mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.mail_outline),
+                title: const Text('Open default mail app'),
+                subtitle: const Text('Uses Mail, Outlook, or the default email app'),
+                onTap: () async {
+                  Navigator.of(sheetContext).pop();
+                  await launchUrl(mailtoUri, mode: LaunchMode.externalApplication);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.email_outlined),
+                title: const Text('Open Gmail'),
+                subtitle: const Text('If Gmail is installed on this device'),
+                onTap: () async {
+                  Navigator.of(sheetContext).pop();
+                  if (defaultTargetPlatform == TargetPlatform.android) {
+                    try {
+                      final intent = AndroidIntent(
+                        action: 'android.intent.action.SENDTO',
+                        data: 'mailto:${Uri.encodeComponent(email)}',
+                        package: 'com.google.android.gm',
+                      );
+                      await intent.launch();
+                      return;
+                    } catch (_) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Gmail is not installed on this emulator. Please install Gmail or use the default mail app.'),
+                          ),
+                        );
+                      }
+                      return;
+                    }
+                  }
+
+                  final opened = await launchUrl(
+                    gmailUri,
+                    mode: LaunchMode.externalApplication,
+                  );
+                  if (!opened && mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Gmail is not installed. Opening default mail app instead.'),
+                      ),
+                    );
+                    await launchUrl(mailtoUri, mode: LaunchMode.externalApplication);
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.copy_rounded),
+                title: const Text('Copy email address'),
+                subtitle: Text(email),
+                onTap: () async {
+                  Navigator.of(sheetContext).pop();
+                  await Clipboard.setData(ClipboardData(text: email));
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Email address copied')),
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _uploadDocument() async {

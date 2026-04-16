@@ -59,5 +59,9 @@
 	<string>The camera lets you take photos to attach to leads, jobs, expenses, and support requests.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>googlegmail</string>
+	</array>
 </dict>
 </plist>

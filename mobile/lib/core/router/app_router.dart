@@ -279,6 +279,10 @@ GoRouter createRouter(AuthProvider authProvider) {
             builder: (context, state) => const LeadsScreen(),
           ),
           GoRoute(
+            path: '/dashboard/leads/new',
+            builder: (context, state) => const LeadFormScreen(),
+          ),
+          GoRoute(
             path: '/dashboard/leads/:id',
             builder: (context, state) => LeadDetailScreen(
               leadId: int.parse(state.pathParameters['id']!),
@@ -380,10 +384,6 @@ GoRouter createRouter(AuthProvider authProvider) {
             path: '/dashboard/on-field',
             builder: (context, state) => const OnFieldScreen(),
           ),
-          GoRoute(
-            path: '/dashboard/leads/new',
-            builder: (context, state) => const LeadFormScreen(),
-          ),
         ],
       ),
 
@@ -399,6 +399,10 @@ GoRouter createRouter(AuthProvider authProvider) {
           GoRoute(
             path: '/employee/leads',
             builder: (context, state) => const LeadsScreen(),
+          ),
+          GoRoute(
+            path: '/employee/leads/new',
+            builder: (context, state) => const LeadFormScreen(),
           ),
           GoRoute(
             path: '/employee/site-inspection',
