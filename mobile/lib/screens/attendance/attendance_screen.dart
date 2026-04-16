@@ -158,6 +158,32 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     }
   }
 
+  Future<void> _showLocationSettingsPrompt() async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Enable Location Access'),
+        content: const Text(
+          'Location permission has been permanently denied for this app. Please enable it in app settings to continue.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await Geolocator.openAppSettings();
+            },
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _handleCheckIn() async {
     setState(() => _actionLoading = true);
     try {
@@ -174,10 +200,13 @@ class _AttendanceScreenState extends State<AttendanceScreen>
         );
       }
     } catch (e) {
-      if (mounted) {
+      final message = e.toString().replaceFirst('Exception: ', '');
+      if (message.contains('permanently denied')) {
+        await _showLocationSettingsPrompt();
+      } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Check-in failed: $e'),
+            content: Text('Check-in failed: $message'),
             backgroundColor: AppColors.danger,
           ),
         );
@@ -207,10 +236,13 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       }
       _loadAll();
     } catch (e) {
-      if (mounted) {
+      final message = e.toString().replaceFirst('Exception: ', '');
+      if (message.contains('permanently denied')) {
+        await _showLocationSettingsPrompt();
+      } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Check-out failed: $e'),
+            content: Text('Check-out failed: $message'),
             backgroundColor: AppColors.danger,
           ),
         );
