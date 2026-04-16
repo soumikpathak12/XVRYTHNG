@@ -13,6 +13,19 @@ int _intFromJson(dynamic value, [int fallback = 0]) {
   return fallback;
 }
 
+double _doubleFromJson(dynamic value, [double fallback = 0]) {
+  if (value == null) return fallback;
+  if (value is double) return value;
+  if (value is int) return value.toDouble();
+  if (value is num) return value.toDouble();
+  if (value is String) {
+    final t = value.trim();
+    if (t.isEmpty) return fallback;
+    return double.tryParse(t) ?? fallback;
+  }
+  return fallback;
+}
+
 class LeaveRequest {
   final int id;
   final String leaveType;
@@ -75,9 +88,9 @@ class LeaveBalance {
   });
 
   factory LeaveBalance.fromJson(Map<String, dynamic> json) => LeaveBalance(
-        type: json['type'] ?? '',
-        entitled: (json['entitled'] ?? 0).toDouble(),
-        used: (json['used'] ?? 0).toDouble(),
-        remaining: (json['remaining'] ?? 0).toDouble(),
+      type: (json['type'] ?? json['leave_type'] ?? '').toString(),
+      entitled: _doubleFromJson(json['entitled'] ?? json['total_days']),
+      used: _doubleFromJson(json['used'] ?? json['used_days']),
+      remaining: _doubleFromJson(json['remaining']),
       );
 }
