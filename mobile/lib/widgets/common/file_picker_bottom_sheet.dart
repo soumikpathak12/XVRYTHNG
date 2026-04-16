@@ -14,6 +14,7 @@ class FilePickerResult {
 
 Future<FilePickerResult?> showFilePickerSheet(BuildContext context,
     {bool imageOnly = false,
+    bool imageAndPdfOnly = false,
     int imageQuality = 85,
     double? maxWidth,
     double? maxHeight}) async {
@@ -24,6 +25,7 @@ Future<FilePickerResult?> showFilePickerSheet(BuildContext context,
     ),
     builder: (ctx) => _FilePickerSheet(
       imageOnly: imageOnly,
+      imageAndPdfOnly: imageAndPdfOnly,
       imageQuality: imageQuality,
       maxWidth: maxWidth,
       maxHeight: maxHeight,
@@ -33,11 +35,13 @@ Future<FilePickerResult?> showFilePickerSheet(BuildContext context,
 
 class _FilePickerSheet extends StatelessWidget {
   final bool imageOnly;
+  final bool imageAndPdfOnly;
   final int imageQuality;
   final double? maxWidth;
   final double? maxHeight;
   const _FilePickerSheet({
     this.imageOnly = false,
+    this.imageAndPdfOnly = false,
     this.imageQuality = 85,
     this.maxWidth,
     this.maxHeight,
@@ -112,7 +116,7 @@ class _FilePickerSheet extends StatelessWidget {
         FilePickerResult(
           file: File(photo.path),
           name: photo.name,
-          mimeType: 'image/jpeg',
+          mimeType: photo.mimeType ?? 'image/jpeg',
         ),
       );
     }
@@ -132,14 +136,29 @@ class _FilePickerSheet extends StatelessWidget {
         FilePickerResult(
           file: File(image.path),
           name: image.name,
-          mimeType: _getMimeType(image.name),
+          mimeType: image.mimeType ?? _getMimeType(image.name),
         ),
       );
     }
   }
 
   Future<void> _pickFromFiles(BuildContext context) async {
-    final result = await FilePicker.platform.pickFiles();
+    final result = imageAndPdfOnly
+        ? await FilePicker.platform.pickFiles(
+            type: FileType.custom,
+            allowedExtensions: const [
+              'jpg',
+              'jpeg',
+              'png',
+              'gif',
+              'webp',
+              'bmp',
+              'heic',
+              'heif',
+              'pdf',
+            ],
+          )
+        : await FilePicker.platform.pickFiles();
     if (result != null && result.files.single.path != null && context.mounted) {
       final pf = result.files.single;
       Navigator.pop(

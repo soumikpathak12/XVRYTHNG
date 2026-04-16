@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -596,6 +595,22 @@ class _ChatViewState extends State<_ChatView> {
   bool _sending = false;
   int? _lastJumpTarget;
 
+  bool _isAllowedAttachmentType(String filename, String? mimeType) {
+    final lowerName = filename.toLowerCase();
+    final lowerMime = (mimeType ?? '').toLowerCase();
+    final isImage = lowerMime.startsWith('image/') ||
+        lowerName.endsWith('.jpg') ||
+        lowerName.endsWith('.jpeg') ||
+        lowerName.endsWith('.png') ||
+        lowerName.endsWith('.gif') ||
+        lowerName.endsWith('.webp') ||
+        lowerName.endsWith('.bmp') ||
+        lowerName.endsWith('.heic') ||
+        lowerName.endsWith('.heif');
+    final isPdf = lowerMime == 'application/pdf' || lowerName.endsWith('.pdf');
+    return isImage || isPdf;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -665,8 +680,18 @@ class _ChatViewState extends State<_ChatView> {
   }
 
   Future<void> _pickAttachment() async {
-    final result = await showFilePickerSheet(context);
+    final result = await showFilePickerSheet(context, imageAndPdfOnly: true);
     if (result == null || !mounted) return;
+
+    if (!_isAllowedAttachmentType(result.name, result.mimeType)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Only image files and PDFs are allowed.'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      return;
+    }
 
     setState(() => _sending = true);
     try {
@@ -1068,48 +1093,17 @@ class _ChatBubble extends StatelessWidget {
 
   List<Widget> _buildAttachments(BuildContext context, bool isOwn) {
     return message.attachments.map((att) {
-      final storageUrl = att.storageUrl;
-      final resolvedUrl = storageUrl == null
-          ? null
-          : storageUrl.startsWith('http')
-              ? storageUrl
-              : '${ApiConfig.baseUrl}$storageUrl';
+      final urlCandidates = _buildAttachmentUrlCandidates(att.storageUrl);
 
-      if (att.isImage && resolvedUrl != null) {
+      if (att.isImage && urlCandidates.isNotEmpty) {
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(10),
-            child: Image.network(
-              resolvedUrl,
+            child: _AttachmentImagePreview(
+              urls: urlCandidates,
+              filename: att.filename,
               width: 200,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                width: 200,
-                height: 100,
-                color: AppColors.surface,
-                alignment: Alignment.center,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.broken_image_outlined,
-                      color: AppColors.disabled,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      att.filename,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
             ),
           ),
         );
@@ -1153,6 +1147,31 @@ class _ChatBubble extends StatelessWidget {
     }).toList();
   }
 
+  List<String> _buildAttachmentUrlCandidates(String? rawUrl) {
+    if (rawUrl == null || rawUrl.trim().isEmpty) return const [];
+    final normalizedRaw = rawUrl.trim().replaceAll('\\', '/');
+    final candidates = <String>[];
+    void add(String u) {
+      final v = u.trim();
+      if (v.isNotEmpty && !candidates.contains(v)) candidates.add(v);
+    }
+
+    if (normalizedRaw.startsWith('http')) {
+      add(normalizedRaw);
+    } else {
+      final prefixed = normalizedRaw.startsWith('/')
+          ? normalizedRaw
+          : '/$normalizedRaw';
+      add('${ApiConfig.baseUrl}$prefixed');
+      if (prefixed.startsWith('/uploads/')) {
+        add('${ApiConfig.baseUrl}/api$prefixed');
+      } else if (prefixed.startsWith('/api/uploads/')) {
+        add('${ApiConfig.baseUrl}${prefixed.replaceFirst('/api/uploads/', '/uploads/')}');
+      }
+    }
+    return candidates;
+  }
+
   Color _senderColor(int senderId) {
     const colors = [
       AppColors.primary,
@@ -1163,6 +1182,82 @@ class _ChatBubble extends StatelessWidget {
       Color(0xFF1565C0),
     ];
     return colors[senderId.abs() % colors.length];
+  }
+}
+
+class _AttachmentImagePreview extends StatefulWidget {
+  final List<String> urls;
+  final String filename;
+  final double width;
+
+  const _AttachmentImagePreview({
+    required this.urls,
+    required this.filename,
+    required this.width,
+  });
+
+  @override
+  State<_AttachmentImagePreview> createState() => _AttachmentImagePreviewState();
+}
+
+class _AttachmentImagePreviewState extends State<_AttachmentImagePreview> {
+  int _index = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.urls.isEmpty || _index >= widget.urls.length) {
+      return _broken(widget.filename, widget.width);
+    }
+
+    return Image.network(
+      widget.urls[_index],
+      width: widget.width,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) {
+        if (_index < widget.urls.length - 1) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _index += 1);
+          });
+          return SizedBox(
+            width: widget.width,
+            height: 100,
+            child: const Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.primary,
+              ),
+            ),
+          );
+        }
+        return _broken(widget.filename, widget.width);
+      },
+    );
+  }
+
+  Widget _broken(String filename, double width) {
+    return Container(
+      width: width,
+      height: 100,
+      color: AppColors.surface,
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.broken_image_outlined, color: AppColors.disabled),
+          const SizedBox(height: 6),
+          Text(
+            filename,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
   }
 }
 

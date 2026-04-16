@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../core/storage/secure_storage.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,9 +16,27 @@ class _LoginScreenState extends State<LoginScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
 
-  bool _rememberMe = false;
+  bool _rememberMe = true;
   bool _obscure = true;
   bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _hydrateSavedLoginHints();
+  }
+
+  Future<void> _hydrateSavedLoginHints() async {
+    final remembered = await SecureStore.readRemember();
+    final lastEmail = await SecureStore.readLastEmail();
+    if (!mounted) return;
+    setState(() {
+      _rememberMe = remembered || _rememberMe;
+      if (lastEmail != null && lastEmail.trim().isNotEmpty) {
+        _email.text = lastEmail.trim();
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -32,6 +51,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _submitting = true);
 
     final auth = context.read<AuthProvider>();
+    await SecureStore.saveLastEmail(_email.text.trim());
     await auth.login(
       _email.text.trim(),
       _password.text,

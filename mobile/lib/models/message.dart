@@ -108,10 +108,26 @@ class Attachment {
       );
 
   bool get isImage =>
-      mimetype?.startsWith('image/') == true ||
-      filename.toLowerCase().endsWith('.jpg') ||
-      filename.toLowerCase().endsWith('.jpeg') ||
-      filename.toLowerCase().endsWith('.png');
+      (mimetype?.toLowerCase().startsWith('image/') == true) ||
+      _lowerFile.endsWith('.jpg') ||
+      _lowerFile.endsWith('.jpeg') ||
+      _lowerFile.endsWith('.png') ||
+      _lowerFile.endsWith('.gif') ||
+      _lowerFile.endsWith('.webp') ||
+      _lowerFile.endsWith('.bmp') ||
+      _lowerFile.endsWith('.heic') ||
+      _lowerFile.endsWith('.heif') ||
+      _lowerStorage.endsWith('.jpg') ||
+      _lowerStorage.endsWith('.jpeg') ||
+      _lowerStorage.endsWith('.png') ||
+      _lowerStorage.endsWith('.gif') ||
+      _lowerStorage.endsWith('.webp') ||
+      _lowerStorage.endsWith('.bmp') ||
+      _lowerStorage.endsWith('.heic') ||
+      _lowerStorage.endsWith('.heif');
+
+  String get _lowerFile => filename.toLowerCase();
+  String get _lowerStorage => (storageUrl ?? '').toLowerCase();
 }
 
 class Participant {

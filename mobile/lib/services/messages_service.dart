@@ -7,6 +7,8 @@ import '../models/message.dart';
 class MessagesService {
   final _api = ApiClient();
 
+  String _basename(String path) => path.split(RegExp(r'[\\/]')).last;
+
   Future<List<Participant>> getCompanyUsers(int? companyId) async {
     try {
       final path = companyId != null
@@ -118,7 +120,7 @@ class MessagesService {
       final uploadForm = FormData.fromMap({
         'attachment': await MultipartFile.fromFile(
           file.path,
-          filename: name ?? file.path.split('\\').last,
+          filename: name ?? _basename(file.path),
         ),
       });
       final uploaded = await uploadAttachment(
