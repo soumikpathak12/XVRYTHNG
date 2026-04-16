@@ -44,14 +44,29 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
   List<Offset?> _signaturePoints = [];
   String? _generatedSignature;
 
+  Offset? _pointInSignatureCanvas(Offset point) {
+    final renderBox =
+        _signatureBoundaryKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return point;
+
+    final size = renderBox.size;
+    final inside =
+        point.dx >= 0 &&
+        point.dy >= 0 &&
+        point.dx <= size.width &&
+        point.dy <= size.height;
+    return inside ? point : null;
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _companyId = context.read<AuthProvider>().user?.companyId;
-      context
-          .read<InstallationProvider>()
-          .loadJobDetail(widget.jobId, companyId: _companyId);
+      context.read<InstallationProvider>().loadJobDetail(
+        widget.jobId,
+        companyId: _companyId,
+      );
       _refreshJobExpenses();
     });
   }
@@ -66,17 +81,21 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
   Future<void> _updateStatus(String newStatus) async {
     setState(() => _actionLoading = true);
     try {
-      await context
-          .read<InstallationProvider>()
-          .updateJobStatus(widget.jobId, newStatus, companyId: _companyId);
-      await context
-          .read<InstallationProvider>()
-          .loadJobDetail(widget.jobId, companyId: _companyId);
+      await context.read<InstallationProvider>().updateJobStatus(
+        widget.jobId,
+        newStatus,
+        companyId: _companyId,
+      );
+      await context.read<InstallationProvider>().loadJobDetail(
+        widget.jobId,
+        companyId: _companyId,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-                'Status updated to ${InstallationJob.statusLabels[newStatus] ?? newStatus}'),
+              'Status updated to ${InstallationJob.statusLabels[newStatus] ?? newStatus}',
+            ),
             backgroundColor: AppColors.success,
           ),
         );
@@ -97,12 +116,17 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
 
   Future<void> _toggleChecklist(int itemId, bool checked) async {
     try {
-      await _service.updateChecklist(widget.jobId, itemId, checked,
-          companyId: _companyId);
+      await _service.updateChecklist(
+        widget.jobId,
+        itemId,
+        checked,
+        companyId: _companyId,
+      );
       if (mounted) {
-        context
-            .read<InstallationProvider>()
-            .loadJobDetail(widget.jobId, companyId: _companyId);
+        context.read<InstallationProvider>().loadJobDetail(
+          widget.jobId,
+          companyId: _companyId,
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -117,8 +141,7 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
   }
 
   Future<void> _uploadPhoto() async {
-    final result =
-        await showFilePickerSheet(context, imageOnly: true);
+    final result = await showFilePickerSheet(context, imageOnly: true);
     if (result == null) return;
 
     setState(() => _actionLoading = true);
@@ -131,9 +154,10 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
       });
       await _service.uploadPhoto(widget.jobId, formData, companyId: _companyId);
       if (mounted) {
-        context
-            .read<InstallationProvider>()
-            .loadJobDetail(widget.jobId, companyId: _companyId);
+        context.read<InstallationProvider>().loadJobDetail(
+          widget.jobId,
+          companyId: _companyId,
+        );
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Photo uploaded'),
@@ -164,11 +188,12 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
       return;
     }
 
-    final hasSignature = _signaturePoints.any((p) => p != null) || _generatedSignature != null;
+    final hasSignature =
+        _signaturePoints.any((p) => p != null) || _generatedSignature != null;
     if (!hasSignature) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Signature is required')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Signature is required')));
       return;
     }
 
@@ -184,9 +209,10 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
         'notes': _signoffNotesCtrl.text.trim(),
       }, companyId: _companyId);
       if (mounted) {
-        await context
-            .read<InstallationProvider>()
-            .loadJobDetail(widget.jobId, companyId: _companyId);
+        await context.read<InstallationProvider>().loadJobDetail(
+          widget.jobId,
+          companyId: _companyId,
+        );
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Installation signed off successfully'),
@@ -209,7 +235,9 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
   }
 
   Future<String?> _uploadSignoffSignature() async {
-    final boundary = _signatureBoundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+    final boundary =
+        _signatureBoundaryKey.currentContext?.findRenderObject()
+            as RenderRepaintBoundary?;
     if (boundary == null) return null;
     final image = await boundary.toImage(pixelRatio: 3);
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
@@ -220,10 +248,15 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
       'section': 'signoff',
       'photo': MultipartFile.fromBytes(
         bytes,
-        filename: 'signoff-${widget.jobId}-${DateTime.now().millisecondsSinceEpoch}.png',
+        filename:
+            'signoff-${widget.jobId}-${DateTime.now().millisecondsSinceEpoch}.png',
       ),
     });
-    final uploaded = await _service.uploadPhoto(widget.jobId, formData, companyId: _companyId);
+    final uploaded = await _service.uploadPhoto(
+      widget.jobId,
+      formData,
+      companyId: _companyId,
+    );
     return (uploaded['storage_url'] ?? uploaded['storageUrl'])?.toString();
   }
 
@@ -231,7 +264,12 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
     final amountCtrl = TextEditingController();
     final descCtrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
-    final allowedCategories = const ['travel', 'materials', 'equipment', 'other'];
+    final allowedCategories = const [
+      'travel',
+      'materials',
+      'equipment',
+      'other',
+    ];
     var category = allowedCategories.first;
     var expenseDate = DateTime.now();
     File? receiptFile;
@@ -270,10 +308,12 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                     border: OutlineInputBorder(),
                   ),
                   items: allowedCategories
-                      .map((c) => DropdownMenuItem(
-                            value: c,
-                            child: Text(c[0].toUpperCase() + c.substring(1)),
-                          ))
+                      .map(
+                        (c) => DropdownMenuItem(
+                          value: c,
+                          child: Text(c[0].toUpperCase() + c.substring(1)),
+                        ),
+                      )
                       .toList(),
                   onChanged: (v) {
                     if (v != null) setSheetState(() => category = v);
@@ -282,15 +322,19 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                 const SizedBox(height: 10),
                 TextFormField(
                   controller: amountCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: const InputDecoration(
                     labelText: 'Amount',
                     border: OutlineInputBorder(),
                   ),
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'Amount is required';
+                    if (v == null || v.trim().isEmpty)
+                      return 'Amount is required';
                     final parsed = double.tryParse(v.trim());
-                    if (parsed == null || parsed <= 0) return 'Enter valid amount';
+                    if (parsed == null || parsed <= 0)
+                      return 'Enter valid amount';
                     return null;
                   },
                 ),
@@ -302,7 +346,9 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                     labelText: 'Description',
                     border: OutlineInputBorder(),
                   ),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Description is required' : null,
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Description is required'
+                      : null,
                 ),
                 const SizedBox(height: 10),
                 ListTile(
@@ -314,17 +360,24 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                     final picked = await showDatePicker(
                       context: sheetContext,
                       initialDate: expenseDate,
-                      firstDate: DateTime.now().subtract(const Duration(days: 90)),
+                      firstDate: DateTime.now().subtract(
+                        const Duration(days: 90),
+                      ),
                       lastDate: DateTime.now(),
                     );
-                    if (picked != null) setSheetState(() => expenseDate = picked);
+                    if (picked != null)
+                      setSheetState(() => expenseDate = picked);
                   },
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: Icon(
-                    receiptFile == null ? Icons.upload_file_outlined : Icons.check_circle_outline,
-                    color: receiptFile == null ? AppColors.textSecondary : AppColors.success,
+                    receiptFile == null
+                        ? Icons.upload_file_outlined
+                        : Icons.check_circle_outline,
+                    color: receiptFile == null
+                        ? AppColors.textSecondary
+                        : AppColors.success,
                   ),
                   title: Text(receiptName ?? 'Upload Receipt'),
                   subtitle: const Text('Required: image or PDF'),
@@ -347,10 +400,7 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                       height: 120,
                       width: double.infinity,
                       child: (receiptMimeType ?? '').startsWith('image/')
-                          ? Image.file(
-                              receiptFile!,
-                              fit: BoxFit.cover,
-                            )
+                          ? Image.file(receiptFile!, fit: BoxFit.cover)
                           : Container(
                               color: AppColors.surface,
                               child: const Center(
@@ -423,9 +473,10 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
       });
       await _expenseService.submitExpense(formData);
       if (mounted) {
-        await context
-            .read<InstallationProvider>()
-            .loadJobDetail(widget.jobId, companyId: _companyId);
+        await context.read<InstallationProvider>().loadJobDetail(
+          widget.jobId,
+          companyId: _companyId,
+        );
         await _refreshJobExpenses();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -472,11 +523,13 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
         final detail = provider.jobDetail;
         final loading = provider.loading && detail == null;
         final shellLeading = ShellScaffoldScope.navigationLeading(context);
-        final canPop = GoRouter.of(context).canPop() || Navigator.of(context).canPop();
+        final canPop =
+            GoRouter.of(context).canPop() || Navigator.of(context).canPop();
 
         return Scaffold(
           appBar: AppBar(
-            leading: shellLeading ??
+            leading:
+                shellLeading ??
                 (canPop
                     ? IconButton(
                         icon: const Icon(Icons.arrow_back_ios_new_rounded),
@@ -494,58 +547,63 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
             message: 'Please wait...',
             child: loading
                 ? const Center(
-                    child:
-                        CircularProgressIndicator(color: AppColors.primary))
+                    child: CircularProgressIndicator(color: AppColors.primary),
+                  )
                 : detail == null
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.error_outline,
-                                size: 48, color: AppColors.danger),
-                            const SizedBox(height: 12),
-                            Text(provider.error ?? 'Failed to load job'),
-                            const SizedBox(height: 16),
-                            FilledButton(
-                              onPressed: () => provider
-                                  .loadJobDetail(widget.jobId,
-                                      companyId: _companyId),
-                              child: const Text('Retry'),
-                            ),
-                          ],
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          size: 48,
+                          color: AppColors.danger,
                         ),
-                      )
-                    : RefreshIndicator(
-                        color: AppColors.primary,
-                        onRefresh: () =>
-                            Future.wait([
-                              provider.loadJobDetail(widget.jobId,
-                                  companyId: _companyId),
-                              _refreshJobExpenses(),
-                            ]),
-                        child: ListView(
-                          padding: const EdgeInsets.all(16),
-                          physics: _isSigning
-                              ? const NeverScrollableScrollPhysics()
-                              : const AlwaysScrollableScrollPhysics(),
-                          children: [
-                            _buildHeader(detail),
-                            const SizedBox(height: 16),
-                            _ElapsedTimerCard(detail: detail),
-                            const SizedBox(height: 16),
-                            _buildStatusActions(detail),
-                            const SizedBox(height: 20),
-                            _buildChecklist(detail),
-                            const SizedBox(height: 20),
-                            _buildPhotos(detail),
-                            const SizedBox(height: 20),
-                            _buildExpenses(detail),
-                            const SizedBox(height: 20),
-                            _buildSignoff(detail),
-                            const SizedBox(height: 40),
-                          ],
+                        const SizedBox(height: 12),
+                        Text(provider.error ?? 'Failed to load job'),
+                        const SizedBox(height: 16),
+                        FilledButton(
+                          onPressed: () => provider.loadJobDetail(
+                            widget.jobId,
+                            companyId: _companyId,
+                          ),
+                          child: const Text('Retry'),
                         ),
+                      ],
+                    ),
+                  )
+                : RefreshIndicator(
+                    color: AppColors.primary,
+                    onRefresh: () => Future.wait([
+                      provider.loadJobDetail(
+                        widget.jobId,
+                        companyId: _companyId,
                       ),
+                      _refreshJobExpenses(),
+                    ]),
+                    child: ListView(
+                      padding: const EdgeInsets.all(16),
+                      physics: _isSigning
+                          ? const NeverScrollableScrollPhysics()
+                          : const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        _buildHeader(detail),
+                        const SizedBox(height: 16),
+                        _ElapsedTimerCard(detail: detail),
+                        const SizedBox(height: 16),
+                        _buildStatusActions(detail),
+                        const SizedBox(height: 20),
+                        _buildChecklist(detail),
+                        const SizedBox(height: 20),
+                        _buildPhotos(detail),
+                        const SizedBox(height: 20),
+                        _buildExpenses(detail),
+                        const SizedBox(height: 20),
+                        _buildSignoff(detail),
+                        const SizedBox(height: 40),
+                      ],
+                    ),
+                  ),
           ),
         );
       },
@@ -554,14 +612,16 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
 
   Widget _buildHeader(Map<String, dynamic> detail) {
     final status = (detail['status'] as String?) ?? 'scheduled';
-    final address = [detail['address'], detail['suburb']]
-        .where((s) => s != null && s.toString().isNotEmpty)
-        .join(', ');
+    final address = [
+      detail['address'],
+      detail['suburb'],
+    ].where((s) => s != null && s.toString().isNotEmpty).join(', ');
     final dateStr = detail['scheduled_date'];
     final time = detail['scheduled_time'] ?? '';
     final formattedDate = dateStr != null
-        ? DateFormat('EEEE, dd MMM yyyy')
-            .format(DateTime.parse(dateStr.toString()))
+        ? DateFormat(
+            'EEEE, dd MMM yyyy',
+          ).format(DateTime.parse(dateStr.toString()))
         : 'Not scheduled';
     final systemSize = detail['system_size_kw'];
     final systemType = detail['system_type'];
@@ -602,8 +662,11 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
             const SizedBox(height: 10),
             Row(
               children: [
-                const Icon(Icons.location_on_outlined,
-                    size: 16, color: AppColors.textSecondary),
+                const Icon(
+                  Icons.location_on_outlined,
+                  size: 16,
+                  color: AppColors.textSecondary,
+                ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
@@ -626,10 +689,7 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
               ),
               if (time.isNotEmpty) ...[
                 const SizedBox(width: 16),
-                _DetailChip(
-                  icon: Icons.access_time_outlined,
-                  label: time,
-                ),
+                _DetailChip(icon: Icons.access_time_outlined, label: time),
               ],
             ],
           ),
@@ -718,8 +778,7 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
 
   Widget _buildChecklist(Map<String, dynamic> detail) {
     final rawChecklist = detail['checklist'] as List? ?? [];
-    final items =
-        rawChecklist.map((e) => ChecklistItem.fromJson(e)).toList();
+    final items = rawChecklist.map((e) => ChecklistItem.fromJson(e)).toList();
 
     return _SectionCard(
       title: 'Checklist',
@@ -739,10 +798,7 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
               padding: EdgeInsets.symmetric(vertical: 12),
               child: Text(
                 'No checklist items',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 14,
-                ),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
               ),
             )
           : Column(
@@ -771,8 +827,11 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                             ),
                           ),
                           child: item.checked
-                              ? const Icon(Icons.check,
-                                  size: 16, color: AppColors.white)
+                              ? const Icon(
+                                  Icons.check,
+                                  size: 16,
+                                  color: AppColors.white,
+                                )
                               : null,
                         ),
                         const SizedBox(width: 12),
@@ -809,8 +868,11 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
       title: 'Photos',
       icon: Icons.photo_library_outlined,
       trailing: IconButton(
-        icon: const Icon(Icons.add_a_photo_outlined,
-            color: AppColors.primary, size: 22),
+        icon: const Icon(
+          Icons.add_a_photo_outlined,
+          color: AppColors.primary,
+          size: 22,
+        ),
         onPressed: _uploadPhoto,
         tooltip: 'Upload photo',
         visualDensity: VisualDensity.compact,
@@ -821,8 +883,11 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
               child: Center(
                 child: Column(
                   children: [
-                    Icon(Icons.camera_alt_outlined,
-                        size: 40, color: AppColors.disabled),
+                    Icon(
+                      Icons.camera_alt_outlined,
+                      size: 40,
+                      color: AppColors.disabled,
+                    ),
                     const SizedBox(height: 8),
                     const Text(
                       'No photos yet',
@@ -874,8 +939,11 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                       child: const Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.add_rounded,
-                              color: AppColors.primary, size: 28),
+                          Icon(
+                            Icons.add_rounded,
+                            color: AppColors.primary,
+                            size: 28,
+                          ),
                           SizedBox(height: 4),
                           Text(
                             'Add',
@@ -901,14 +969,18 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Container(
                             color: AppColors.surface,
-                            child: const Icon(Icons.broken_image_outlined,
-                                color: AppColors.disabled),
+                            child: const Icon(
+                              Icons.broken_image_outlined,
+                              color: AppColors.disabled,
+                            ),
                           ),
                         )
                       : Container(
                           color: AppColors.surface,
-                          child: const Icon(Icons.image_outlined,
-                              color: AppColors.disabled),
+                          child: const Icon(
+                            Icons.image_outlined,
+                            color: AppColors.disabled,
+                          ),
                         ),
                 );
               },
@@ -939,10 +1011,7 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
               padding: EdgeInsets.symmetric(vertical: 12),
               child: Text(
                 'No expenses recorded',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 14,
-                ),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
               ),
             )
           : Column(
@@ -952,15 +1021,16 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                     : 'Expense';
                 final isPending = expense.status == 'pending';
                 final isApproved = expense.status == 'approved';
-                final isImage = (expense.receiptPath ?? '')
-                        .toLowerCase()
-                        .contains(RegExp(r'\.(png|jpe?g|gif|webp)$')) ||
+                final isImage =
+                    (expense.receiptPath ?? '').toLowerCase().contains(
+                      RegExp(r'\.(png|jpe?g|gif|webp)$'),
+                    ) ||
                     (expense.receiptPath ?? '').contains('/uploads/');
                 final receiptUrl = expense.receiptPath == null
                     ? null
                     : expense.receiptPath!.startsWith('http')
-                        ? expense.receiptPath!
-                        : '${ApiConfig.baseUrl}${expense.receiptPath}';
+                    ? expense.receiptPath!
+                    : '${ApiConfig.baseUrl}${expense.receiptPath}';
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
                   child: Row(
@@ -996,8 +1066,11 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                             color: AppColors.warning.withOpacity(0.12),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(Icons.receipt_outlined,
-                              size: 18, color: Color(0xFFB8860B)),
+                          child: const Icon(
+                            Icons.receipt_outlined,
+                            size: 18,
+                            color: Color(0xFFB8860B),
+                          ),
                         ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -1015,13 +1088,14 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                             Text(
                               isApproved
                                   ? (expense.expenseDate != null
-                                      ? DateFormat('dd MMM yyyy')
-                                          .format(expense.expenseDate!)
-                                      : 'Approved expense')
+                                        ? DateFormat(
+                                            'dd MMM yyyy',
+                                          ).format(expense.expenseDate!)
+                                        : 'Approved expense')
                                   : isPending
-                                      ? 'Pending approval'
-                                      : expense.status[0].toUpperCase() +
-                                          expense.status.substring(1),
+                                  ? 'Pending approval'
+                                  : expense.status[0].toUpperCase() +
+                                        expense.status.substring(1),
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: AppColors.textSecondary,
@@ -1068,12 +1142,16 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                     color: AppColors.success.withOpacity(0.06),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                        color: AppColors.success.withOpacity(0.2)),
+                      color: AppColors.success.withOpacity(0.2),
+                    ),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.check_circle_rounded,
-                          color: AppColors.success, size: 24),
+                      const Icon(
+                        Icons.check_circle_rounded,
+                        color: AppColors.success,
+                        size: 24,
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -1090,8 +1168,10 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                             if (signoff['signed_at'] != null)
                               Text(
                                 DateFormat('dd MMM yyyy, HH:mm').format(
-                                    DateTime.parse(
-                                        signoff['signed_at'].toString())),
+                                  DateTime.parse(
+                                    signoff['signed_at'].toString(),
+                                  ),
+                                ),
                                 style: const TextStyle(
                                   fontSize: 12,
                                   color: AppColors.textSecondary,
@@ -1132,14 +1212,30 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                           child: Listener(
                             behavior: HitTestBehavior.opaque,
                             onPointerDown: (event) {
+                              final point = _pointInSignatureCanvas(
+                                event.localPosition,
+                              );
+                              if (point == null) return;
                               setState(() {
                                 _generatedSignature = null;
                                 _isSigning = true;
-                                _signaturePoints.add(event.localPosition);
+                                _signaturePoints.add(point);
                               });
                             },
                             onPointerMove: (event) {
-                              setState(() => _signaturePoints.add(event.localPosition));
+                              final point = _pointInSignatureCanvas(
+                                event.localPosition,
+                              );
+                              setState(() {
+                                if (point == null) {
+                                  if (_signaturePoints.isNotEmpty &&
+                                      _signaturePoints.last != null) {
+                                    _signaturePoints.add(null);
+                                  }
+                                  return;
+                                }
+                                _signaturePoints.add(point);
+                              });
                             },
                             onPointerUp: (event) {
                               setState(() {
@@ -1158,12 +1254,17 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                               onVerticalDragUpdate: (_) {},
                               onHorizontalDragDown: (_) {},
                               onHorizontalDragUpdate: (_) {},
-                              child: CustomPaint(
-                                painter: _SignaturePainter(_signaturePoints, generatedText: _generatedSignature),
-                                child: Container(
-                                  color: Colors.transparent,
-                                  width: double.infinity,
-                                  height: double.infinity,
+                              child: ClipRect(
+                                child: CustomPaint(
+                                  painter: _SignaturePainter(
+                                    _signaturePoints,
+                                    generatedText: _generatedSignature,
+                                  ),
+                                  child: Container(
+                                    color: Colors.transparent,
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                  ),
                                 ),
                               ),
                             ),
@@ -1172,7 +1273,10 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                       ),
                       const Divider(height: 1),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
                         child: Row(
                           children: [
                             TextButton(
@@ -1188,7 +1292,11 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                                 final name = _signoffCustomerCtrl.text.trim();
                                 if (name.isEmpty) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Please enter customer name first')),
+                                    const SnackBar(
+                                      content: Text(
+                                        'Please enter customer name first',
+                                      ),
+                                    ),
                                   );
                                   return;
                                 }
@@ -1219,8 +1327,7 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                   width: double.infinity,
                   height: 48,
                   child: FilledButton.icon(
-                    onPressed:
-                        status == 'completed' ? _submitSignoff : null,
+                    onPressed: status == 'completed' ? _submitSignoff : null,
                     icon: const Icon(Icons.verified_outlined, size: 20),
                     label: const Text(
                       'Sign Off Installation',
@@ -1252,6 +1359,18 @@ class _ElapsedTimerCard extends StatefulWidget {
 class _ElapsedTimerCardState extends State<_ElapsedTimerCard> {
   Timer? _ticker;
   int _elapsedSeconds = 0;
+
+  DateTime? _parseServerTimestamp(dynamic raw) {
+    final value = '${raw ?? ''}'.trim();
+    if (value.isEmpty) return null;
+
+    final normalized = value.contains(' ')
+        ? value.replaceFirst(' ', 'T')
+        : value;
+    final hasTimezone = RegExp(r'(Z|[+-]\d{2}:?\d{2})$').hasMatch(normalized);
+    final candidate = hasTimezone ? normalized : '${normalized}Z';
+    return DateTime.tryParse(candidate)?.toLocal();
+  }
 
   @override
   void initState() {
@@ -1303,7 +1422,7 @@ class _ElapsedTimerCardState extends State<_ElapsedTimerCard> {
       for (final row in recordsRaw) {
         if (row is! Map) continue;
         final event = '${row['event'] ?? ''}';
-        final ts = DateTime.tryParse('${row['recorded_at'] ?? ''}');
+        final ts = _parseServerTimestamp(row['recorded_at']);
         if (ts == null) continue;
         if (event == 'start' || event == 'resume') {
           openAt = ts;
@@ -1321,7 +1440,7 @@ class _ElapsedTimerCardState extends State<_ElapsedTimerCard> {
     }
 
     if (status == 'in_progress') {
-      final startedAt = DateTime.tryParse('${detail['started_at'] ?? ''}');
+      final startedAt = _parseServerTimestamp(detail['started_at']);
       if (startedAt != null) {
         final running = DateTime.now().difference(startedAt).inSeconds;
         return (totalElapsed + running).clamp(0, 1 << 31);
@@ -1347,13 +1466,13 @@ class _ElapsedTimerCardState extends State<_ElapsedTimerCard> {
     final color = _status == 'completed'
         ? AppColors.success
         : _status == 'in_progress'
-            ? AppColors.warning
-            : AppColors.info;
+        ? AppColors.warning
+        : AppColors.info;
     final label = _status == 'completed'
         ? 'Total Time'
         : _status == 'in_progress'
-            ? 'Time Running'
-            : 'Paused At';
+        ? 'Time Running'
+        : 'Paused At';
 
     return Container(
       width: double.infinity,
@@ -1558,9 +1677,19 @@ class _SignaturePainter extends CustomPainter {
     }
 
     if (points.isEmpty) {
-      final textStyle = const TextStyle(color: Colors.black26, fontSize: 13, fontWeight: FontWeight.normal);
-      final textSpan = TextSpan(text: 'Drag your finger to sign here', style: textStyle);
-      final textPainter = TextPainter(text: textSpan, textDirection: ui.TextDirection.ltr);
+      final textStyle = const TextStyle(
+        color: Colors.black26,
+        fontSize: 13,
+        fontWeight: FontWeight.normal,
+      );
+      final textSpan = TextSpan(
+        text: 'Drag your finger to sign here',
+        style: textStyle,
+      );
+      final textPainter = TextPainter(
+        text: textSpan,
+        textDirection: ui.TextDirection.ltr,
+      );
       textPainter.layout();
       final offset = Offset(
         (size.width - textPainter.width) / 2,

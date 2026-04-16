@@ -6,6 +6,23 @@ import '../models/payroll_run.dart';
 class PayrollService {
   final _api = ApiClient();
 
+  Future<PayrollRun?> _findRunByPeriod(String period) async {
+    final runs = await getPayrollRuns();
+    PayrollRunSummary? selected;
+    for (final run in runs) {
+      final start = run.periodStart;
+      if (start.length >= 7 && start.substring(0, 7) == period) {
+        selected = run;
+        break;
+      }
+    }
+    if (selected == null && runs.isNotEmpty) {
+      selected = runs.first;
+    }
+    if (selected == null) return null;
+    return getPayrollRunDetails(selected.id);
+  }
+
   /// GET /api/employees/payroll/runs
   Future<List<PayrollRunSummary>> getPayrollRuns() async {
     try {
@@ -38,12 +55,14 @@ class PayrollService {
     required String periodType,
   }) async {
     try {
-      final response = await _api.post('/api/employees/payroll/calculate',
-          data: {
-            'periodStart': periodStart,
-            'periodEnd': periodEnd,
-            'periodType': periodType,
-          });
+      final response = await _api.post(
+        '/api/employees/payroll/calculate',
+        data: {
+          'periodStart': periodStart,
+          'periodEnd': periodEnd,
+          'periodType': periodType,
+        },
+      );
       final data = response.data['data'] ?? response.data;
       return PayrollRun.fromJson(Map<String, dynamic>.from(data));
     } on DioException catch (e) {
@@ -54,8 +73,10 @@ class PayrollService {
   /// POST /api/employees/payroll/save
   Future<void> savePayrollRun(Map<String, dynamic> payrollData) async {
     try {
-      await _api.post('/api/employees/payroll/save',
-          data: {'payrollData': payrollData});
+      await _api.post(
+        '/api/employees/payroll/save',
+        data: {'payrollData': payrollData},
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }
@@ -65,7 +86,8 @@ class PayrollService {
   Future<void> generatePayslip(int runId, int employeeId) async {
     try {
       await _api.post(
-          '/api/employees/payroll/runs/$runId/payslips/$employeeId/generate');
+        '/api/employees/payroll/runs/$runId/payslips/$employeeId/generate',
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }
@@ -74,8 +96,9 @@ class PayrollService {
   /// POST /api/employees/payroll/runs/:id/payslips/generate-all
   Future<void> generateAllPayslips(int runId) async {
     try {
-      await _api
-          .post('/api/employees/payroll/runs/$runId/payslips/generate-all');
+      await _api.post(
+        '/api/employees/payroll/runs/$runId/payslips/generate-all',
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }
@@ -84,40 +107,77 @@ class PayrollService {
   /// POST /api/employees/payroll/runs/:id/payslips/email-all
   Future<Map<String, dynamic>> emailAllPayslips(int runId) async {
     try {
-      final response = await _api
-          .post('/api/employees/payroll/runs/$runId/payslips/email-all');
-      return Map<String, dynamic>.from(
-          response.data['data'] ?? response.data);
-    } on DioException catch (e) {
-      throw ApiException.fromDioError(e);
-    }
-  }
-
-  /// GET /api/employees/payroll/summary?period=YYYY-MM
-  Future<Map<String, dynamic>> getPayrollSummary({String? period}) async {
-    try {
-      final params = <String, dynamic>{};
-      if (period != null) params['period'] = period;
-      final response =
-          await _api.get('/api/employees/payroll/summary', queryParameters: params);
+      final response = await _api.post(
+        '/api/employees/payroll/runs/$runId/payslips/email-all',
+      );
       return Map<String, dynamic>.from(response.data['data'] ?? response.data);
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }
   }
 
-  /// GET /api/employees/payroll/records?period=YYYY-MM
+  /// Derive payroll summary from existing runs/details endpoints.
+  Future<Map<String, dynamic>> getPayrollSummary({String? period}) async {
+    try {
+      if (period == null || period.trim().isEmpty) {
+        return {
+          'totalGross': 0.0,
+          'totalNet': 0.0,
+          'totalTax': 0.0,
+          'employeeCount': 0,
+        };
+      }
+
+      final run = await _findRunByPeriod(period);
+      if (run == null) {
+        return {
+          'totalGross': 0.0,
+          'totalNet': 0.0,
+          'totalTax': 0.0,
+          'employeeCount': 0,
+        };
+      }
+
+      var totalGross = 0.0;
+      var totalNet = 0.0;
+      var totalTax = 0.0;
+
+      for (final d in run.details) {
+        totalGross += d.grossPay;
+        totalNet += d.netPay;
+        totalTax += d.taxDeductions;
+      }
+
+      return {
+        'totalGross': totalGross,
+        'totalNet': totalNet,
+        'totalTax': totalTax,
+        'employeeCount': run.details.length,
+      };
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  /// Derive payroll records from existing runs/details endpoints.
   Future<List<Map<String, dynamic>>> getPayrollRecords({String? period}) async {
     try {
-      final params = <String, dynamic>{};
-      if (period != null) params['period'] = period;
-      final response =
-          await _api.get('/api/employees/payroll/records', queryParameters: params);
-      final data = response.data['data'] ?? response.data;
-      if (data is List) {
-        return data.map((e) => Map<String, dynamic>.from(e)).toList();
-      }
-      return [];
+      if (period == null || period.trim().isEmpty) return [];
+
+      final run = await _findRunByPeriod(period);
+      if (run == null) return [];
+
+      return run.details
+          .map(
+            (d) => {
+              'employeeId': d.employeeId,
+              'employeeName': d.employeeName,
+              'grossPay': d.grossPay,
+              'tax': d.taxDeductions,
+              'netPay': d.netPay,
+            },
+          )
+          .toList();
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }

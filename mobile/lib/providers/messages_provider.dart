@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/message.dart';
@@ -12,6 +13,7 @@ class MessagesProvider extends ChangeNotifier {
   int? _activeConversationId;
   bool _loading = false;
   bool _hasMore = false;
+  int? _jumpToMessageId;
   Timer? _pollTimer;
 
   List<Conversation> get conversations => _conversations;
@@ -20,6 +22,7 @@ class MessagesProvider extends ChangeNotifier {
   int? get activeConversationId => _activeConversationId;
   bool get loading => _loading;
   bool get hasMore => _hasMore;
+  int? get jumpToMessageId => _jumpToMessageId;
 
   int get totalUnread =>
       _conversations.fold(0, (sum, c) => sum + c.unreadCount);
@@ -42,13 +45,22 @@ class MessagesProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
-  Future<void> openConversation(int id, {int? companyId}) async {
+  Future<void> openConversation(
+    int id, {
+    int? companyId,
+    int? jumpToMessageId,
+  }) async {
     _activeConversationId = id;
+    _jumpToMessageId = jumpToMessageId;
     _messages = [];
     _loading = true;
     notifyListeners();
     try {
-      final result = await _service.getMessages(id, companyId: companyId);
+      final result = await _service.getMessages(
+        id,
+        companyId: companyId,
+        jump: jumpToMessageId,
+      );
       // API returns chronological (oldest first); reverse list so index 0 = newest for reverse ListView.
       final list = List<ChatMessage>.from(result['messages'] as List<ChatMessage>);
       _messages = list.reversed.toList();
@@ -88,12 +100,40 @@ class MessagesProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
+  void clearJumpTarget() {
+    if (_jumpToMessageId == null) return;
+    _jumpToMessageId = null;
+    notifyListeners();
+  }
+
   Future<void> sendMessage(String body, {int? companyId}) async {
     if (_activeConversationId == null) return;
     try {
       final msg = await _service.sendMessage(
           _activeConversationId!, body,
           companyId: companyId);
+      _messages = [msg, ..._messages];
+      notifyListeners();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<void> sendAttachment(
+    File file, {
+    String? name,
+    String? mimeType,
+    int? companyId,
+  }) async {
+    if (_activeConversationId == null) return;
+    try {
+      final msg = await _service.sendAttachment(
+        _activeConversationId!,
+        file,
+        name: name,
+        mimeType: mimeType,
+        companyId: companyId,
+      );
       _messages = [msg, ..._messages];
       notifyListeners();
     } catch (e) {

@@ -72,9 +72,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
                     final allow = await _canMoveToStage(data, stage, next);
                     if (!allow) return;
                     setState(() => _isStageUpdating = true);
-                    await context
-                        .read<ProjectsProvider>()
-                        .updateProjectStage(widget.projectId, next);
+                    await context.read<ProjectsProvider>().updateProjectStage(
+                      widget.projectId,
+                      next,
+                    );
                     if (!context.mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -127,9 +128,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
                 ),
               );
               if (ok == true && context.mounted) {
-                await context
-                    .read<ProjectsProvider>()
-                    .loadProjectDetail(widget.projectId);
+                await context.read<ProjectsProvider>().loadProjectDetail(
+                  widget.projectId,
+                );
                 await _loadAux();
               }
             },
@@ -167,8 +168,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
               title: 'Failed to load project',
               subtitle: provider.error,
               actionLabel: 'Retry',
-              onAction: () =>
-                  provider.loadProjectDetail(widget.projectId),
+              onAction: () => provider.loadProjectDetail(widget.projectId),
             );
           }
           final data = _resolveData(provider);
@@ -187,9 +187,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
                 projectId: widget.projectId,
                 data: {...data, 'documents': _documents},
               ),
-              _CommunicationTab(
-                data: {...data, 'communications': _notes},
-              ),
+              _CommunicationTab(data: {...data, 'communications': _notes}),
               _TimelineTab(data: data),
             ],
           );
@@ -224,9 +222,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
             : null;
         _assigneeIds = idsRaw is List
             ? idsRaw
-                .map((e) => int.tryParse(e.toString()) ?? 0)
-                .where((e) => e > 0)
-                .toList()
+                  .map((e) => int.tryParse(e.toString()) ?? 0)
+                  .where((e) => e > 0)
+                  .toList()
             : const [];
         _notes = notes;
         _documents = docs;
@@ -245,13 +243,14 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
     final isForwardMove = from != -1 && to != -1 && to > from;
 
     if (isForwardMove) {
-      final preApprovalRef = (data['lead_pre_approval_reference_no'] ??
-              data['pre_approval_reference_no'] ??
-              '')
-          .toString()
-          .trim();
-      final solarVic = data['lead_solar_vic_eligibility'] ??
-          data['solar_vic_eligibility'];
+      final preApprovalRef =
+          (data['lead_pre_approval_reference_no'] ??
+                  data['pre_approval_reference_no'] ??
+                  '')
+              .toString()
+              .trim();
+      final solarVic =
+          data['lead_solar_vic_eligibility'] ?? data['solar_vic_eligibility'];
       final hasSolarVic = solarVic != null && solarVic.toString().isNotEmpty;
 
       if (preApprovalRef.isEmpty || !hasSolarVic) {
@@ -259,7 +258,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-                'Pre-approval reference number and Solar Vic eligibility are required before moving to the next stage.'),
+              'Pre-approval reference number and Solar Vic eligibility are required before moving to the next stage.',
+            ),
             backgroundColor: AppColors.danger,
           ),
         );
@@ -269,14 +269,16 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
 
     final gridIdx = order.indexOf('grid_connection_initiated');
     if (from != -1 && to != -1 && gridIdx != -1 && to > gridIdx) {
-      final postInstallRef =
-          (data['post_install_reference_no'] ?? '').toString().trim();
+      final postInstallRef = (data['post_install_reference_no'] ?? '')
+          .toString()
+          .trim();
       if (postInstallRef.isEmpty) {
         if (!mounted) return false;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-                'Post-install reference number is required before moving past GRID Connection Initiated.'),
+              'Post-install reference number is required before moving past GRID Connection Initiated.',
+            ),
             backgroundColor: AppColors.danger,
           ),
         );
@@ -288,7 +290,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-                'Upload at least one project document before moving past GRID Connection Initiated.'),
+              'Upload at least one project document before moving past GRID Connection Initiated.',
+            ),
             backgroundColor: AppColors.danger,
           ),
         );
@@ -333,8 +336,16 @@ class _OverviewTab extends StatelessWidget {
             icon: Icons.inventory_2_outlined,
             children: [
               _DetailRow('Project ID', (data['id'] ?? '-').toString()),
-              _DetailRow('Stage', data['stage']?.toString() ?? '-'),
-              _DetailRow('Expected Completion', _read(data, const ['expected_completion_date'])),
+              _DetailRow(
+                'Stage',
+                Project.stageLabels[data['stage']?.toString()] ??
+                    data['stage']?.toString() ??
+                    '-',
+              ),
+              _DetailRow(
+                'Expected Completion',
+                _read(data, const ['expected_completion_date']),
+              ),
               _DetailRow('Created', _formatDate(data['created_at'])),
             ],
           ),
@@ -343,11 +354,20 @@ class _OverviewTab extends StatelessWidget {
             title: 'Customer Details',
             icon: Icons.person_outline,
             children: [
-              _DetailRow('Customer', _read(data, const ['customer_name', 'customerName'])),
+              _DetailRow(
+                'Customer',
+                _read(data, const ['customer_name', 'customerName']),
+              ),
               _DetailRow('Email', _read(data, const ['lead_email', 'email'])),
               _DetailRow('Phone', _read(data, const ['lead_phone', 'phone'])),
-              _DetailRow('Suburb', _read(data, const ['lead_suburb', 'suburb'])),
-              _DetailRow('Source', _read(data, const ['lead_source', 'source'])),
+              _DetailRow(
+                'Suburb',
+                _read(data, const ['lead_suburb', 'suburb']),
+              ),
+              _DetailRow(
+                'Source',
+                _read(data, const ['lead_source', 'source']),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -355,11 +375,33 @@ class _OverviewTab extends StatelessWidget {
             title: 'System Specifications',
             icon: Icons.solar_power_outlined,
             children: [
-              _DetailRow('System Size', _read(data, const ['lead_system_size_kw', 'system_size_kw'])),
-              _DetailRow('System Type', _read(data, const ['lead_system_type', 'system_type'])),
-              _DetailRow('Value', _formatCurrency(data['lead_value_amount'] ?? data['value_amount'] ?? data['value'])),
-              _DetailRow('PV Inverter', _read(data, const ['lead_pv_inverter_brand', 'pv_inverter_brand'])),
-              _DetailRow('PV Panel', _read(data, const ['lead_pv_panel_brand', 'pv_panel_brand'])),
+              _DetailRow(
+                'System Size',
+                _read(data, const ['lead_system_size_kw', 'system_size_kw']),
+              ),
+              _DetailRow(
+                'System Type',
+                _read(data, const ['lead_system_type', 'system_type']),
+              ),
+              _DetailRow(
+                'Value',
+                _formatCurrency(
+                  data['lead_value_amount'] ??
+                      data['value_amount'] ??
+                      data['value'],
+                ),
+              ),
+              _DetailRow(
+                'PV Inverter',
+                _read(data, const [
+                  'lead_pv_inverter_brand',
+                  'pv_inverter_brand',
+                ]),
+              ),
+              _DetailRow(
+                'PV Panel',
+                _read(data, const ['lead_pv_panel_brand', 'pv_panel_brand']),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -367,11 +409,26 @@ class _OverviewTab extends StatelessWidget {
             title: 'Property Characteristics',
             icon: Icons.home_work_outlined,
             children: [
-              _DetailRow('House Storey', _read(data, const ['lead_house_storey', 'house_storey'])),
-              _DetailRow('Roof Type', _read(data, const ['lead_roof_type', 'roof_type'])),
-              _DetailRow('Meter Phase', _read(data, const ['lead_meter_phase', 'meter_phase'])),
-              _DetailRow('2nd Storey Access', _boolLabel(data['lead_access_to_second_storey'])),
-              _DetailRow('Inverter Access', _boolLabel(data['lead_access_to_inverter'])),
+              _DetailRow(
+                'House Storey',
+                _read(data, const ['lead_house_storey', 'house_storey']),
+              ),
+              _DetailRow(
+                'Roof Type',
+                _read(data, const ['lead_roof_type', 'roof_type']),
+              ),
+              _DetailRow(
+                'Meter Phase',
+                _read(data, const ['lead_meter_phase', 'meter_phase']),
+              ),
+              _DetailRow(
+                '2nd Storey Access',
+                _boolLabel(data['lead_access_to_second_storey']),
+              ),
+              _DetailRow(
+                'Inverter Access',
+                _boolLabel(data['lead_access_to_inverter']),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -379,13 +436,40 @@ class _OverviewTab extends StatelessWidget {
             title: 'Utility Information',
             icon: Icons.electric_bolt_outlined,
             children: [
-              _DetailRow('Pre-Approval Ref', _read(data, const ['lead_pre_approval_reference_no', 'pre_approval_reference_no'])),
-              _DetailRow('Post-Install Ref', _read(data, const ['post_install_reference_no'])),
-              _DetailRow('Energy Retailer', _read(data, const ['lead_energy_retailer', 'energy_retailer'])),
-              _DetailRow('Energy Distributor', _read(data, const ['lead_energy_distributor', 'energy_distributor'])),
-              _DetailRow('Solar Vic Eligibility', _boolLabel(data['lead_solar_vic_eligibility'])),
-              _DetailRow('NMI Number', _read(data, const ['lead_nmi_number', 'nmi_number'])),
-              _DetailRow('Meter Number', _read(data, const ['lead_meter_number', 'meter_number'])),
+              _DetailRow(
+                'Pre-Approval Ref',
+                _read(data, const [
+                  'lead_pre_approval_reference_no',
+                  'pre_approval_reference_no',
+                ]),
+              ),
+              _DetailRow(
+                'Post-Install Ref',
+                _read(data, const ['post_install_reference_no']),
+              ),
+              _DetailRow(
+                'Energy Retailer',
+                _read(data, const ['lead_energy_retailer', 'energy_retailer']),
+              ),
+              _DetailRow(
+                'Energy Distributor',
+                _read(data, const [
+                  'lead_energy_distributor',
+                  'energy_distributor',
+                ]),
+              ),
+              _DetailRow(
+                'Solar Vic Eligibility',
+                _boolLabel(data['lead_solar_vic_eligibility']),
+              ),
+              _DetailRow(
+                'NMI Number',
+                _read(data, const ['lead_nmi_number', 'nmi_number']),
+              ),
+              _DetailRow(
+                'Meter Number',
+                _read(data, const ['lead_meter_number', 'meter_number']),
+              ),
             ],
           ),
         ],
@@ -400,9 +484,9 @@ class _OverviewTab extends StatelessWidget {
           child: Text(
             data['customer_name'] ?? data['customerName'] ?? 'Project',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
           ),
         ),
         StatusBadge.fromStatus(stage),
@@ -458,7 +542,9 @@ class _OverviewTab extends StatelessWidget {
     if (v == null || v.toString().isEmpty) return '-';
     if (v is bool) return v ? 'Yes' : 'No';
     final s = v.toString().toLowerCase();
-    return (s == '1' || s == 'true') ? 'Yes' : (s == '0' || s == 'false' ? 'No' : v.toString());
+    return (s == '1' || s == 'true')
+        ? 'Yes'
+        : (s == '0' || s == 'false' ? 'No' : v.toString());
   }
 
   String _formatCurrency(dynamic val) {
@@ -481,10 +567,15 @@ class _FinancialTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final revenue = data['lead_value_amount'] ?? data['value_amount'] ?? data['value'];
+    final revenue =
+        data['lead_value_amount'] ?? data['value_amount'] ?? data['value'];
     final cost = data['approved_expense_total'];
-    final r = (revenue is num) ? revenue.toDouble() : double.tryParse('${revenue ?? 0}') ?? 0;
-    final c = (cost is num) ? cost.toDouble() : double.tryParse('${cost ?? 0}') ?? 0;
+    final r = (revenue is num)
+        ? revenue.toDouble()
+        : double.tryParse('${revenue ?? 0}') ?? 0;
+    final c = (cost is num)
+        ? cost.toDouble()
+        : double.tryParse('${cost ?? 0}') ?? 0;
     final margin = r - c;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -619,8 +710,7 @@ class _ExpensesTabState extends State<_ExpensesTab>
       );
     }
 
-    final currencyFmt =
-        NumberFormat.currency(symbol: '\$', decimalDigits: 2);
+    final currencyFmt = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
     final approvedTotal = _expenses
         .where((e) => e.status == 'approved')
         .fold<double>(0, (sum, e) => sum + e.amount);
@@ -679,16 +769,17 @@ class _ExpensesTabState extends State<_ExpensesTab>
             final desc = expense.description?.trim().isNotEmpty == true
                 ? expense.description!
                 : (Expense.categoryLabels[expense.category] ??
-                    expense.category);
+                      expense.category);
             final isApproved = expense.status == 'approved';
             final isPending = expense.status == 'pending';
             final isRejected = expense.status == 'rejected';
             final receiptUrl = expense.receiptPath == null
                 ? null
                 : expense.receiptPath!.startsWith('http')
-                    ? expense.receiptPath!
-                    : '${ApiConfig.baseUrl}${expense.receiptPath}';
-            final isImage = receiptUrl != null &&
+                ? expense.receiptPath!
+                : '${ApiConfig.baseUrl}${expense.receiptPath}';
+            final isImage =
+                receiptUrl != null &&
                 (receiptUrl.toLowerCase().contains('.png') ||
                     receiptUrl.toLowerCase().contains('.jpg') ||
                     receiptUrl.toLowerCase().contains('.jpeg') ||
@@ -724,8 +815,7 @@ class _ExpensesTabState extends State<_ExpensesTab>
                                 ? Image.network(
                                     receiptUrl,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) =>
-                                        const Icon(
+                                    errorBuilder: (_, __, ___) => const Icon(
                                       Icons.broken_image_outlined,
                                       color: AppColors.disabled,
                                     ),
@@ -741,8 +831,7 @@ class _ExpensesTabState extends State<_ExpensesTab>
                           width: 44,
                           height: 44,
                           decoration: BoxDecoration(
-                            color:
-                                AppColors.primary.withOpacity(0.08),
+                            color: AppColors.primary.withOpacity(0.08),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: const Icon(
@@ -754,8 +843,7 @@ class _ExpensesTabState extends State<_ExpensesTab>
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               desc,
@@ -773,8 +861,9 @@ class _ExpensesTabState extends State<_ExpensesTab>
                                 if (expense.employeeName != null)
                                   expense.employeeName!,
                                 if (expense.expenseDate != null)
-                                  DateFormat('dd MMM yyyy')
-                                      .format(expense.expenseDate!),
+                                  DateFormat(
+                                    'dd MMM yyyy',
+                                  ).format(expense.expenseDate!),
                               ].join(' · '),
                               style: const TextStyle(
                                 fontSize: 12,
@@ -786,8 +875,7 @@ class _ExpensesTabState extends State<_ExpensesTab>
                       ),
                       const SizedBox(width: 8),
                       Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.end,
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
                             currencyFmt.format(expense.amount),
@@ -797,8 +885,8 @@ class _ExpensesTabState extends State<_ExpensesTab>
                               color: isApproved
                                   ? AppColors.success
                                   : isRejected
-                                      ? AppColors.danger
-                                      : AppColors.textPrimary,
+                                  ? AppColors.danger
+                                  : AppColors.textPrimary,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -840,8 +928,7 @@ class _ExpensesTabState extends State<_ExpensesTab>
                         ),
                       ),
                       child: Row(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Icon(
                             Icons.info_outline,
@@ -944,8 +1031,16 @@ class _ScheduleAssignTab extends StatelessWidget {
             title: 'Schedule',
             icon: Icons.calendar_today_outlined,
             children: [
-              _DetailRow('Status', schedule?['status']?.toString() ?? data['schedule_status']?.toString() ?? '-'),
-              _DetailRow('Scheduled At', _fmt(schedule?['scheduled_at'] ?? data['scheduled_at'])),
+              _DetailRow(
+                'Status',
+                schedule?['status']?.toString() ??
+                    data['schedule_status']?.toString() ??
+                    '-',
+              ),
+              _DetailRow(
+                'Scheduled At',
+                _fmt(schedule?['scheduled_at'] ?? data['scheduled_at']),
+              ),
               _DetailRow('Notes', schedule?['notes']?.toString() ?? '-'),
             ],
           ),
@@ -956,7 +1051,9 @@ class _ScheduleAssignTab extends StatelessWidget {
             children: [
               _DetailRow(
                 'Assignees',
-                assigneeIds.isEmpty ? '-' : assigneeIds.map((e) => '#$e').join(', '),
+                assigneeIds.isEmpty
+                    ? '-'
+                    : assigneeIds.map((e) => '#$e').join(', '),
               ),
             ],
           ),
@@ -1010,7 +1107,10 @@ class _DocumentsTab extends StatelessWidget {
                 label: const Text('Upload'),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.primary,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                 ),
               ),
             ],
@@ -1037,9 +1137,15 @@ class _DocumentsTab extends StatelessWidget {
                       ),
                       subtitle: Text(
                         doc['uploaded_at'] ?? doc['created_at'] ?? '',
-                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
-                      trailing: const Icon(Icons.download_outlined, color: AppColors.primary),
+                      trailing: const Icon(
+                        Icons.download_outlined,
+                        color: AppColors.primary,
+                      ),
                     );
                   },
                 ),
@@ -1108,7 +1214,10 @@ class _DocumentsTab extends StatelessWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Upload failed: $e'), backgroundColor: AppColors.danger),
+          SnackBar(
+            content: Text('Upload failed: $e'),
+            backgroundColor: AppColors.danger,
+          ),
         );
       }
     }
@@ -1288,11 +1397,11 @@ class _CommunicationTab extends StatelessWidget {
                       backgroundColor: AppColors.primary.withOpacity(0.1),
                       child: Text(
                         (msg['sender'] ?? msg['from'] ?? '?')
-                            .toString()
-                            .isNotEmpty
+                                .toString()
+                                .isNotEmpty
                             ? (msg['sender'] ?? msg['from'] ?? '?')
-                                .toString()[0]
-                                .toUpperCase()
+                                  .toString()[0]
+                                  .toUpperCase()
                             : '?',
                         style: const TextStyle(
                           color: AppColors.primary,
@@ -1396,18 +1505,25 @@ class _DetailRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 110,
+            width: 128,
             child: Text(
               label,
               style: const TextStyle(
                 fontSize: 13,
                 color: AppColors.textSecondary,
               ),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.only(right: 10),
+            child: Text(
+              ':',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
             ),
           ),
           Expanded(

@@ -19,7 +19,7 @@ import * as attendanceEditController from '../controllers/attendanceEditControll
 import * as leaveController from '../controllers/leaveController.js';
 import * as expenseController from '../controllers/expenseController.js';
 import * as payrollController from '../controllers/payrollController.js';
-import { receiptUpload } from '../controllers/expenseController.js';
+import { uploadReceiptMiddleware } from '../controllers/expenseController.js';
 const router = Router();
 router.use(requireAuth, tenantContext);
 
@@ -65,7 +65,7 @@ router.patch('/leave/:id/review', leaveController.reviewRequest);
 router.delete('/leave/:id/cancel', leaveController.cancelRequest);
 
 // Expenses
-router.post('/expenses', receiptUpload.single('receipt'), expenseController.submitExpense);
+router.post('/expenses', uploadReceiptMiddleware, expenseController.submitExpense);
 router.get('/expenses/my', expenseController.myExpenses);
 router.get('/expenses/job/:jobId', expenseController.jobExpenses);
 router.get('/expenses/pending', expenseController.pendingExpenses);

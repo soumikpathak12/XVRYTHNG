@@ -26,14 +26,17 @@ class _OperationsDashboardScreenState extends State<OperationsDashboardScreen>
 
   // Approvals
   List<Approval> _approvals = [];
+  List<Approval> _approvedApprovals = [];
   bool _approvalsLoading = true;
 
   // Leave
   List<LeaveRequest> _pendingLeaves = [];
+  List<Approval> _approvedLeaves = [];
   bool _leavesLoading = true;
 
   // Expenses
   List<Expense> _pendingExpenses = [];
+  List<Approval> _approvedExpenses = [];
   bool _expensesLoading = true;
 
   @override
@@ -58,7 +61,12 @@ class _OperationsDashboardScreenState extends State<OperationsDashboardScreen>
   Future<void> _loadApprovals() async {
     setState(() => _approvalsLoading = true);
     try {
-      _approvals = await _approvalsService.listApprovals(status: 'pending');
+      final out = await Future.wait([
+        _approvalsService.listApprovals(status: 'pending'),
+        _approvalsService.listApprovals(status: 'approved'),
+      ]);
+      _approvals = out[0];
+      _approvedApprovals = out[1];
     } catch (e) {
       debugPrint('Approvals load error: $e');
     }
@@ -68,7 +76,12 @@ class _OperationsDashboardScreenState extends State<OperationsDashboardScreen>
   Future<void> _loadLeaves() async {
     setState(() => _leavesLoading = true);
     try {
-      _pendingLeaves = await _leaveService.getPendingLeaves();
+      final out = await Future.wait([
+        _leaveService.getPendingLeaves(),
+        _approvalsService.listApprovals(type: 'leave', status: 'approved'),
+      ]);
+      _pendingLeaves = out[0] as List<LeaveRequest>;
+      _approvedLeaves = out[1] as List<Approval>;
     } catch (e) {
       debugPrint('Approvals load error: $e');
     }
@@ -78,61 +91,188 @@ class _OperationsDashboardScreenState extends State<OperationsDashboardScreen>
   Future<void> _loadExpenses() async {
     setState(() => _expensesLoading = true);
     try {
-      _pendingExpenses = await _expenseService.getPendingExpenses();
+      final out = await Future.wait([
+        _expenseService.getPendingExpenses(),
+        _approvalsService.listApprovals(type: 'expense', status: 'approved'),
+      ]);
+      _pendingExpenses = out[0] as List<Expense>;
+      _approvedExpenses = out[1] as List<Approval>;
     } catch (e) {
       debugPrint('Approvals load error: $e');
     }
     if (mounted) setState(() => _expensesLoading = false);
   }
 
-  Future<void> _decideApproval(
-      String type, int id, String action) async {
+  String _fmtDate(DateTime? dt) {
+    if (dt == null) return '-';
+    return '${dt.day}/${dt.month}/${dt.year}';
+  }
+
+  Widget _sectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          color: AppColors.textSecondary,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+
+  Future<String?> _askReviewComment({
+    required String action,
+    required bool requiredComment,
+  }) async {
+    if (!mounted) return null;
+    String draft = '';
+    String? errorText;
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              title: Text(
+                action == 'approve' ? 'Approve Request' : 'Reject Request',
+              ),
+              content: TextField(
+                maxLines: 3,
+                autofocus: true,
+                onChanged: (value) {
+                  draft = value;
+                  if (errorText != null && value.trim().isNotEmpty) {
+                    setDialogState(() => errorText = null);
+                  }
+                },
+                decoration: InputDecoration(
+                  labelText: requiredComment
+                      ? 'Comment *'
+                      : 'Comment (optional)',
+                  hintText: 'Enter your note...',
+                  border: const OutlineInputBorder(),
+                  errorText: errorText,
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(null),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final trimmed = draft.trim();
+                    if (requiredComment && trimmed.isEmpty) {
+                      setDialogState(() => errorText = 'Comment is required');
+                      return;
+                    }
+                    Navigator.of(dialogContext).pop(trimmed);
+                  },
+                  child: const Text('Submit'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    return result;
+  }
+
+  Future<void> _decideApproval(String type, int id, String action) async {
     try {
-      await _approvalsService.decide(type, id, action, '');
-      _loadApprovals();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('${action == 'approve' ? 'Approved' : 'Rejected'}'),
-        backgroundColor:
-            action == 'approve' ? AppColors.success : AppColors.danger,
-      ));
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed: $e')),
+      final reviewAction = action == 'approve' ? 'approved' : 'rejected';
+      final comment = await _askReviewComment(
+        action: action,
+        requiredComment: true,
       );
+      if (!mounted || comment == null) return;
+      await _approvalsService.decide(type, id, reviewAction, comment);
+      _loadApprovals();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${action == 'approve' ? 'Approved' : 'Rejected'}'),
+          backgroundColor: action == 'approve'
+              ? AppColors.success
+              : AppColors.danger,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed: $e')));
     }
   }
 
   Future<void> _reviewLeave(int id, String action) async {
     try {
-      await _leaveService.reviewLeave(id, action);
-      _loadLeaves();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-            'Leave ${action == 'approve' ? 'approved' : 'rejected'}'),
-        backgroundColor:
-            action == 'approve' ? AppColors.success : AppColors.danger,
-      ));
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed: $e')),
+      final reviewAction = action == 'approve' ? 'approved' : 'rejected';
+      final comment = await _askReviewComment(
+        action: action,
+        requiredComment: false,
       );
+      if (!mounted || comment == null) return;
+      await _leaveService.reviewLeave(
+        id,
+        reviewAction,
+        note: comment.isEmpty ? null : comment,
+      );
+      _loadLeaves();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Leave ${action == 'approve' ? 'approved' : 'rejected'}',
+          ),
+          backgroundColor: action == 'approve'
+              ? AppColors.success
+              : AppColors.danger,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed: $e')));
     }
   }
 
   Future<void> _reviewExpense(int id, String action) async {
     try {
-      await _expenseService.reviewExpense(id, action);
-      _loadExpenses();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-            'Expense ${action == 'approve' ? 'approved' : 'rejected'}'),
-        backgroundColor:
-            action == 'approve' ? AppColors.success : AppColors.danger,
-      ));
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed: $e')),
+      final reviewAction = action == 'approve' ? 'approved' : 'rejected';
+      final comment = await _askReviewComment(
+        action: action,
+        requiredComment: false,
       );
+      if (!mounted || comment == null) return;
+      await _expenseService.reviewExpense(
+        id,
+        reviewAction,
+        comment: comment.isEmpty ? null : comment,
+      );
+      _loadExpenses();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Expense ${action == 'approve' ? 'approved' : 'rejected'}',
+          ),
+          backgroundColor: action == 'approve'
+              ? AppColors.success
+              : AppColors.danger,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed: $e')));
     }
   }
 
@@ -147,53 +287,62 @@ class _OperationsDashboardScreenState extends State<OperationsDashboardScreen>
         title: const Text('Operations'),
         bottom: TabBar(
           controller: _tabs,
-          indicatorColor: AppColors.primary,
-          labelColor: AppColors.primary,
-          unselectedLabelColor: AppColors.textSecondary,
+          indicatorColor: Colors.white,
+          indicatorWeight: 3,
+          indicatorSize: TabBarIndicatorSize.label,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          labelStyle: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
+          unselectedLabelStyle: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
           tabs: [
             Tab(
-                child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Approvals'),
-                if (!_approvalsLoading && _approvals.isNotEmpty) ...[
-                  const SizedBox(width: 6),
-                  _badge('${_approvals.length}'),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Approvals'),
+                  if (!_approvalsLoading && _approvals.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    _badge('${_approvals.length}'),
+                  ],
                 ],
-              ],
-            )),
+              ),
+            ),
             Tab(
-                child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Leave'),
-                if (!_leavesLoading && _pendingLeaves.isNotEmpty) ...[
-                  const SizedBox(width: 6),
-                  _badge('${_pendingLeaves.length}'),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Leave'),
+                  if (!_leavesLoading && _pendingLeaves.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    _badge('${_pendingLeaves.length}'),
+                  ],
                 ],
-              ],
-            )),
+              ),
+            ),
             Tab(
-                child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Expenses'),
-                if (!_expensesLoading && _pendingExpenses.isNotEmpty) ...[
-                  const SizedBox(width: 6),
-                  _badge('${_pendingExpenses.length}'),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Expenses'),
+                  if (!_expensesLoading && _pendingExpenses.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    _badge('${_pendingExpenses.length}'),
+                  ],
                 ],
-              ],
-            )),
+              ),
+            ),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabs,
-        children: [
-          _buildApprovals(),
-          _buildLeaves(),
-          _buildExpenses(),
-        ],
+        children: [_buildApprovals(), _buildLeaves(), _buildExpenses()],
       ),
     );
   }
@@ -208,7 +357,10 @@ class _OperationsDashboardScreenState extends State<OperationsDashboardScreen>
       child: Text(
         text,
         style: const TextStyle(
-            color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -216,30 +368,54 @@ class _OperationsDashboardScreenState extends State<OperationsDashboardScreen>
   Widget _buildApprovals() {
     if (_approvalsLoading) {
       return const Center(
-          child: CircularProgressIndicator(color: AppColors.primary));
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
     }
-    if (_approvals.isEmpty) {
-      return _buildEmpty('No pending approvals', Icons.check_circle_outline);
+    if (_approvals.isEmpty && _approvedApprovals.isEmpty) {
+      return _buildEmpty('No approval requests', Icons.check_circle_outline);
     }
     return RefreshIndicator(
       onRefresh: _loadApprovals,
       color: AppColors.primary,
-      child: ListView.separated(
+      child: ListView(
         padding: const EdgeInsets.all(16),
-        itemCount: _approvals.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
-        itemBuilder: (_, i) {
-          final a = _approvals[i];
-          return _ApprovalCard(
-            title: a.employeeName.isNotEmpty ? a.employeeName : 'Approval #${a.id}',
-            subtitle: a.description ?? a.reason ?? a.category ?? '',
-            type: a.type,
-            onApprove: () =>
-                _decideApproval(a.type, a.id, 'approve'),
-            onReject: () =>
-                _decideApproval(a.type, a.id, 'reject'),
-          );
-        },
+        children: [
+          if (_approvals.isNotEmpty) ...[
+            _sectionTitle('Pending'),
+            ..._approvals.map((a) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _ApprovalCard(
+                  title: a.employeeName.isNotEmpty
+                      ? a.employeeName
+                      : 'Approval #${a.id}',
+                  subtitle: a.description ?? a.reason ?? a.category ?? '',
+                  type: a.type,
+                  status: a.status,
+                  onApprove: () => _decideApproval(a.type, a.id, 'approve'),
+                  onReject: () => _decideApproval(a.type, a.id, 'reject'),
+                ),
+              );
+            }),
+          ],
+          if (_approvedApprovals.isNotEmpty) ...[
+            _sectionTitle('Approved'),
+            ..._approvedApprovals.map((a) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _ApprovalCard(
+                  title: a.employeeName.isNotEmpty
+                      ? a.employeeName
+                      : 'Approval #${a.id}',
+                  subtitle: a.description ?? a.reason ?? a.category ?? '',
+                  type: a.type,
+                  status: a.status,
+                  reviewerNote: a.reviewerNote,
+                ),
+              );
+            }),
+          ],
+        ],
       ),
     );
   }
@@ -247,32 +423,56 @@ class _OperationsDashboardScreenState extends State<OperationsDashboardScreen>
   Widget _buildLeaves() {
     if (_leavesLoading) {
       return const Center(
-          child: CircularProgressIndicator(color: AppColors.primary));
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
     }
-    if (_pendingLeaves.isEmpty) {
-      return _buildEmpty(
-          'No pending leave requests', Icons.beach_access_outlined);
+    if (_pendingLeaves.isEmpty && _approvedLeaves.isEmpty) {
+      return _buildEmpty('No leave requests', Icons.beach_access_outlined);
     }
     return RefreshIndicator(
       onRefresh: _loadLeaves,
       color: AppColors.primary,
-      child: ListView.separated(
+      child: ListView(
         padding: const EdgeInsets.all(16),
-        itemCount: _pendingLeaves.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
-        itemBuilder: (_, i) {
-          final l = _pendingLeaves[i];
-          final startStr = '${l.startDate.day}/${l.startDate.month}/${l.startDate.year}';
-          final endStr = '${l.endDate.day}/${l.endDate.month}/${l.endDate.year}';
-          return _ApprovalCard(
-            title: 'Leave Request #${l.id}',
-            subtitle:
-                '${l.leaveType} • $startStr → $endStr',
-            type: 'leave',
-            onApprove: () => _reviewLeave(l.id, 'approve'),
-            onReject: () => _reviewLeave(l.id, 'reject'),
-          );
-        },
+        children: [
+          if (_pendingLeaves.isNotEmpty) ...[
+            _sectionTitle('Pending'),
+            ..._pendingLeaves.map((l) {
+              final startStr = _fmtDate(l.startDate);
+              final endStr = _fmtDate(l.endDate);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _ApprovalCard(
+                  title: 'Leave Request #${l.id}',
+                  subtitle: '${l.leaveType} • $startStr -> $endStr',
+                  type: 'leave',
+                  status: 'pending',
+                  onApprove: () => _reviewLeave(l.id, 'approve'),
+                  onReject: () => _reviewLeave(l.id, 'reject'),
+                ),
+              );
+            }),
+          ],
+          if (_approvedLeaves.isNotEmpty) ...[
+            _sectionTitle('Approved'),
+            ..._approvedLeaves.map((l) {
+              final startStr = _fmtDate(l.startDate);
+              final endStr = _fmtDate(l.endDate);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _ApprovalCard(
+                  title: l.employeeName.isNotEmpty
+                      ? l.employeeName
+                      : 'Leave Request #${l.id}',
+                  subtitle: '${l.leaveType ?? 'leave'} • $startStr -> $endStr',
+                  type: 'leave',
+                  status: l.status,
+                  reviewerNote: l.reviewerNote,
+                ),
+              );
+            }),
+          ],
+        ],
       ),
     );
   }
@@ -280,29 +480,57 @@ class _OperationsDashboardScreenState extends State<OperationsDashboardScreen>
   Widget _buildExpenses() {
     if (_expensesLoading) {
       return const Center(
-          child: CircularProgressIndicator(color: AppColors.primary));
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
     }
-    if (_pendingExpenses.isEmpty) {
-      return _buildEmpty(
-          'No pending expenses', Icons.receipt_long_outlined);
+    if (_pendingExpenses.isEmpty && _approvedExpenses.isEmpty) {
+      return _buildEmpty('No expense requests', Icons.receipt_long_outlined);
     }
     return RefreshIndicator(
       onRefresh: _loadExpenses,
       color: AppColors.primary,
-      child: ListView.separated(
+      child: ListView(
         padding: const EdgeInsets.all(16),
-        itemCount: _pendingExpenses.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
-        itemBuilder: (_, i) {
-          final e = _pendingExpenses[i];
-          return _ApprovalCard(
-            title: e.category.isNotEmpty ? e.category : 'Expense #${e.id}',
-            subtitle: '\$${e.amount.toStringAsFixed(2)} • ${e.description ?? ''}',
-            type: 'expense',
-            onApprove: () => _reviewExpense(e.id, 'approve'),
-            onReject: () => _reviewExpense(e.id, 'reject'),
-          );
-        },
+        children: [
+          if (_pendingExpenses.isNotEmpty) ...[
+            _sectionTitle('Pending'),
+            ..._pendingExpenses.map((e) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _ApprovalCard(
+                  title: e.category.isNotEmpty
+                      ? e.category
+                      : 'Expense #${e.id}',
+                  subtitle:
+                      '\$${e.amount.toStringAsFixed(2)} • ${e.description ?? ''}',
+                  type: 'expense',
+                  status: 'pending',
+                  onApprove: () => _reviewExpense(e.id, 'approve'),
+                  onReject: () => _reviewExpense(e.id, 'reject'),
+                ),
+              );
+            }),
+          ],
+          if (_approvedExpenses.isNotEmpty) ...[
+            _sectionTitle('Approved'),
+            ..._approvedExpenses.map((e) {
+              final amount = e.amount ?? 0;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _ApprovalCard(
+                  title: e.category?.isNotEmpty == true
+                      ? e.category!
+                      : 'Expense #${e.id}',
+                  subtitle:
+                      '\$${amount.toStringAsFixed(2)} • ${e.description ?? ''}',
+                  type: 'expense',
+                  status: e.status,
+                  reviewerNote: e.reviewerNote,
+                ),
+              );
+            }),
+          ],
+        ],
       ),
     );
   }
@@ -314,9 +542,13 @@ class _OperationsDashboardScreenState extends State<OperationsDashboardScreen>
         children: [
           Icon(icon, size: 48, color: AppColors.textSecondary.withOpacity(0.4)),
           const SizedBox(height: 12),
-          Text(message,
-              style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 15)),
+          Text(
+            message,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 15,
+            ),
+          ),
         ],
       ),
     );
@@ -327,15 +559,19 @@ class _ApprovalCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final String type;
-  final VoidCallback onApprove;
-  final VoidCallback onReject;
+  final String status;
+  final String? reviewerNote;
+  final VoidCallback? onApprove;
+  final VoidCallback? onReject;
 
   const _ApprovalCard({
     required this.title,
     required this.subtitle,
     required this.type,
-    required this.onApprove,
-    required this.onReject,
+    required this.status,
+    this.reviewerNote,
+    this.onApprove,
+    this.onReject,
   });
 
   @override
@@ -353,8 +589,7 @@ class _ApprovalCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: _typeColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
@@ -384,41 +619,74 @@ class _ApprovalCard extends StatelessWidget {
           Text(
             subtitle,
             style: const TextStyle(
-                fontSize: 12, color: AppColors.textSecondary),
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: onReject,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.danger,
-                    side: const BorderSide(color: AppColors.danger),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
-                  child: const Text('Reject',
-                      style: TextStyle(fontWeight: FontWeight.w600)),
-                ),
+          if (reviewerNote != null && reviewerNote!.trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Comment: ${reviewerNote!.trim()}',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+                fontStyle: FontStyle.italic,
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: FilledButton(
-                  onPressed: onApprove,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.success,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+            ),
+          ],
+          if (onApprove != null && onReject != null) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onReject,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.danger,
+                      side: const BorderSide(color: AppColors.danger),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    child: const Text(
+                      'Reject',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
                   ),
-                  child: const Text('Approve',
-                      style: TextStyle(fontWeight: FontWeight.w600)),
                 ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: onApprove,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.success,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    child: const Text(
+                      'Approve',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ] else ...[
+            const SizedBox(height: 8),
+            Text(
+              status.toUpperCase(),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: status == 'approved'
+                    ? AppColors.success
+                    : AppColors.textSecondary,
               ),
-            ],
-          ),
+            ),
+          ],
         ],
       ),
     );

@@ -1,12 +1,15 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import '../../core/config/api_config.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/message.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/messages_provider.dart';
 import '../../widgets/common/file_picker_bottom_sheet.dart';
 import '../../widgets/common/shell_scaffold_scope.dart';
+import '../../utils/melbourne_time.dart';
 
 class MessagesScreen extends StatefulWidget {
   const MessagesScreen({super.key});
@@ -52,6 +55,23 @@ class _MessagesScreenState extends State<MessagesScreen> {
     }
   }
 
+  void _openConversationMatch(Conversation conversation) {
+    final auth = context.read<AuthProvider>();
+    final jumpToMessageId = conversation.lastMessage?.isSearchMatch == true
+        ? conversation.lastMessage?.id
+        : null;
+    context
+        .read<MessagesProvider>()
+        .openConversation(
+          conversation.id,
+          companyId: auth.user?.companyId,
+          jumpToMessageId: jumpToMessageId,
+        );
+    if (!_isTablet) {
+      setState(() => _showChat = true);
+    }
+  }
+
   void _backToList() {
     setState(() => _showChat = false);
   }
@@ -76,7 +96,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
       body: Column(
         children: [
           _buildSearchBar(),
-          Expanded(child: _ConversationList(onTap: _openConversation)),
+          Expanded(child: _ConversationList(onTap: _openConversationMatch)),
         ],
       ),
       floatingActionButton: _NewConversationFab(
@@ -102,7 +122,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
               children: [
                 _buildSearchBar(),
                 Expanded(
-                    child: _ConversationList(onTap: _openConversation)),
+                    child: _ConversationList(onTap: _openConversationMatch)),
               ],
             ),
           ),
@@ -204,7 +224,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
 // ---------------------------------------------------------------------------
 
 class _ConversationList extends StatelessWidget {
-  final ValueChanged<int> onTap;
+  final ValueChanged<Conversation> onTap;
   const _ConversationList({required this.onTap});
 
   @override
@@ -270,7 +290,7 @@ class _ConversationList extends StatelessWidget {
                 conversation: conv,
                 currentUserId: auth.user?.id ?? 0,
                 isActive: isActive,
-                onTap: () => onTap(conv.id),
+                onTap: () => onTap(conv),
               );
             },
           ),
@@ -427,7 +447,9 @@ class _ChatView extends StatefulWidget {
 class _ChatViewState extends State<_ChatView> {
   final _msgController = TextEditingController();
   final _scrollController = ScrollController();
+  final Map<int, GlobalKey> _messageKeys = {};
   bool _sending = false;
+  int? _lastJumpTarget;
 
   @override
   void initState() {
@@ -440,6 +462,27 @@ class _ChatViewState extends State<_ChatView> {
     _msgController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _scrollToJumpTarget(MessagesProvider provider) {
+    final targetId = provider.jumpToMessageId;
+    if (targetId == null || targetId == _lastJumpTarget) return;
+    final key = _messageKeys[targetId];
+    final contextForTarget = key?.currentContext;
+    if (contextForTarget == null) return;
+    _lastJumpTarget = targetId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final currentContext = _messageKeys[targetId]?.currentContext;
+      if (currentContext == null) return;
+      Scrollable.ensureVisible(
+        currentContext,
+        alignment: 0.25,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+      context.read<MessagesProvider>().clearJumpTarget();
+    });
   }
 
   void _onScroll() {
@@ -480,12 +523,27 @@ class _ChatViewState extends State<_ChatView> {
     final result = await showFilePickerSheet(context);
     if (result == null || !mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Selected: ${result.name}'),
-        backgroundColor: AppColors.primary,
-      ),
-    );
+    setState(() => _sending = true);
+    try {
+      final auth = context.read<AuthProvider>();
+      await context.read<MessagesProvider>().sendAttachment(
+            result.file,
+            name: result.name,
+            mimeType: result.mimeType,
+            companyId: auth.user?.companyId,
+          );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Failed to send attachment: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
   }
 
   @override
@@ -495,6 +553,7 @@ class _ChatViewState extends State<_ChatView> {
 
     return Consumer<MessagesProvider>(
       builder: (context, provider, _) {
+        _scrollToJumpTarget(provider);
         final convId = provider.activeConversationId;
         final conv = provider.conversations
             .where((c) => c.id == convId)
@@ -545,6 +604,10 @@ class _ChatViewState extends State<_ChatView> {
                           itemCount: provider.messages.length,
                           itemBuilder: (context, index) {
                             final msg = provider.messages[index];
+                            final messageKey = _messageKeys.putIfAbsent(
+                              msg.id,
+                              () => GlobalKey(),
+                            );
                             final prevMsg = index < provider.messages.length - 1
                                 ? provider.messages[index + 1]
                                 : null;
@@ -555,7 +618,9 @@ class _ChatViewState extends State<_ChatView> {
                                 (prevMsg == null ||
                                     prevMsg.senderId != msg.senderId);
 
-                            return Column(
+                            return Container(
+                              key: messageKey,
+                              child: Column(
                               children: [
                                 if (showDateSep)
                                   _DateSeparator(date: msg.createdAt),
@@ -564,6 +629,7 @@ class _ChatViewState extends State<_ChatView> {
                                   showSender: showSender,
                                 ),
                               ],
+                              ),
                             );
                           },
                         ),
@@ -857,21 +923,47 @@ class _ChatBubble extends StatelessWidget {
 
   List<Widget> _buildAttachments(BuildContext context, bool isOwn) {
     return message.attachments.map((att) {
-      if (att.isImage && att.storageUrl != null) {
+      final storageUrl = att.storageUrl;
+      final resolvedUrl = storageUrl == null
+          ? null
+          : storageUrl.startsWith('http')
+              ? storageUrl
+              : '${ApiConfig.baseUrl}$storageUrl';
+
+      if (att.isImage && resolvedUrl != null) {
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: Image.network(
-              att.storageUrl!,
+              resolvedUrl,
               width: 200,
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => Container(
                 width: 200,
                 height: 100,
                 color: AppColors.surface,
-                child: const Icon(Icons.broken_image_outlined,
-                    color: AppColors.disabled),
+                alignment: Alignment.center,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.broken_image_outlined,
+                      color: AppColors.disabled,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      att.filename,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -940,7 +1032,7 @@ class _DateSeparator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (date == null) return const SizedBox.shrink();
-    final now = DateTime.now();
+    final now = MelbourneTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final d = DateTime(date!.year, date!.month, date!.day);
 

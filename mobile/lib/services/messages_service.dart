@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'dart:io';
 import '../core/network/api_client.dart';
 import '../core/network/api_exceptions.dart';
 import '../models/message.dart';
@@ -27,7 +28,7 @@ class MessagesService {
     try {
       final params = <String, dynamic>{};
       if (companyId != null) params['companyId'] = companyId;
-      if (search != null && search.isNotEmpty) params['search'] = search;
+      if (search != null && search.isNotEmpty) params['q'] = search;
       final response =
           await _api.get('/api/chats', queryParameters: params);
       final data = response.data['data'] ?? response.data;
@@ -61,11 +62,12 @@ class MessagesService {
   }
 
   Future<Map<String, dynamic>> getMessages(int conversationId,
-      {String? before, int limit = 50, int? companyId}) async {
+      {String? before, int? jump, int limit = 50, int? companyId}) async {
     try {
       final params = <String, dynamic>{'limit': limit};
       // Backend expects numeric message id for pagination, not ISO timestamps.
       if (before != null && before.isNotEmpty) params['before'] = before;
+      if (jump != null) params['jump'] = jump;
       if (companyId != null) params['companyId'] = companyId;
       final response = await _api.get('/api/chats/$conversationId/messages',
           queryParameters: params);
@@ -99,6 +101,45 @@ class MessagesService {
       if (companyId != null) data['companyId'] = companyId;
       final response =
           await _api.post('/api/chats/$conversationId/messages', data: data);
+      return ChatMessage.fromJson(response.data['data'] ?? response.data);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<ChatMessage> sendAttachment(
+    int conversationId,
+    File file, {
+    String? name,
+    String? mimeType,
+    int? companyId,
+  }) async {
+    try {
+      final uploadForm = FormData.fromMap({
+        'attachment': await MultipartFile.fromFile(
+          file.path,
+          filename: name ?? file.path.split('\\').last,
+        ),
+      });
+      final uploaded = await uploadAttachment(
+        conversationId,
+        uploadForm,
+        companyId: companyId,
+      );
+      final response = await _api.post(
+        '/api/chats/$conversationId/messages',
+        data: {
+          'body': '',
+          'attachments': [
+            {
+              'filename': uploaded.filename,
+              'mimetype': uploaded.mimetype ?? mimeType,
+              'storageUrl': uploaded.storageUrl,
+            },
+          ],
+          if (companyId != null) 'companyId': companyId,
+        },
+      );
       return ChatMessage.fromJson(response.data['data'] ?? response.data);
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);

@@ -1,3 +1,5 @@
+import '../utils/melbourne_time.dart';
+
 class Conversation {
   final int id;
   final String? name;
@@ -52,6 +54,7 @@ class ChatMessage {
   final String? senderName;
   final int? senderId;
   final bool isOwn;
+  final bool isSearchMatch;
   final DateTime? createdAt;
   final List<Attachment> attachments;
 
@@ -61,6 +64,7 @@ class ChatMessage {
     this.senderName,
     this.senderId,
     this.isOwn = false,
+    this.isSearchMatch = false,
     this.createdAt,
     this.attachments = const [],
   });
@@ -71,19 +75,16 @@ class ChatMessage {
         senderName: json['senderName'] ?? json['sender_name'],
         senderId: json['senderId'] ?? json['sender_id'],
         isOwn: json['isOwn'] == true || json['is_own'] == true,
-        createdAt: _parseDate(json['createdAt'] ?? json['created_at']),
+        isSearchMatch: json['isSearchMatch'] == true || json['is_search_match'] == true,
+        createdAt: MelbourneTime.parseServerTimestamp(
+          json['createdAt'] ?? json['created_at'],
+        ),
         attachments: (json['attachments'] as List?)
                 ?.map((a) => Attachment.fromJson(
                     Map<String, dynamic>.from(a as Map)))
                 .toList() ??
             [],
       );
-
-  static DateTime? _parseDate(dynamic v) {
-    if (v == null) return null;
-    if (v is DateTime) return v;
-    return DateTime.tryParse(v.toString());
-  }
 }
 
 class Attachment {

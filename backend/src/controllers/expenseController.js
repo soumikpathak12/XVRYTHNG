@@ -7,6 +7,8 @@ import * as attendanceService from '../services/attendanceService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
+const RECEIPT_MAX_BYTES = Number(process.env.EXPENSE_RECEIPT_MAX_BYTES || 15 * 1024 * 1024);
+const RECEIPT_MAX_MB = Math.max(1, Math.round(RECEIPT_MAX_BYTES / (1024 * 1024)));
 
 // Multer setup — receipts → src/uploads/receipts/<companyId>/
 const storage = multer.diskStorage({
@@ -35,7 +37,29 @@ const fileFilter = (_req, file, cb) => {
   }
 };
 
-export const receiptUpload = multer({ storage, fileFilter, limits: { fileSize: 5 * 1024 * 1024 } });
+export const receiptUpload = multer({
+  storage,
+  fileFilter,
+  limits: { fileSize: RECEIPT_MAX_BYTES },
+});
+
+export function uploadReceiptMiddleware(req, res, next) {
+  receiptUpload.single('receipt')(req, res, (err) => {
+    if (!err) return next();
+
+    if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({
+        success: false,
+        message: `Receipt file is too large. Max allowed size is ${RECEIPT_MAX_MB}MB.`,
+      });
+    }
+
+    return res.status(400).json({
+      success: false,
+      message: err.message || 'Invalid receipt upload.',
+    });
+  });
+}
 
 function resolveCompanyId(req) {
   const fromTenant = req.tenantId != null ? Number(req.tenantId) : null;

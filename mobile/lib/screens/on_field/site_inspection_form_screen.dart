@@ -22,17 +22,18 @@ class SiteInspectionFormScreen extends StatefulWidget {
   const SiteInspectionFormScreen({super.key, required this.leadId});
 
   @override
-  State<SiteInspectionFormScreen> createState() => _SiteInspectionFormScreenState();
+  State<SiteInspectionFormScreen> createState() =>
+      _SiteInspectionFormScreenState();
 }
 
 class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
   final SiteInspectionService _siService = SiteInspectionService();
   final LeadsService _leadService = LeadsService();
-  
+
   bool _loading = true;
   bool _submitting = false;
   String? _error;
-  
+
   Lead? _lead;
   Map<String, dynamic> _formData = {};
   int? _inspectionId;
@@ -66,8 +67,10 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Please log in to the web application to export the PDF format exactly.'),
-            backgroundColor: AppColors.info,
+          content: Text(
+            'Please log in to the web application to export the PDF format exactly.',
+          ),
+          backgroundColor: AppColors.info,
         ),
       );
     }
@@ -78,11 +81,11 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
       _loading = true;
       _error = null;
     });
-    
+
     try {
       final leadData = await _leadService.getLead(widget.leadId);
       _lead = Lead.fromJson(leadData['lead'] ?? leadData['data'] ?? leadData);
-      
+
       final siResp = await _siService.getInspection(widget.leadId);
       if (siResp != null) {
         _inspectionId = siResp['id'];
@@ -116,13 +119,15 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
   /// Resolve value from dotted path or flat key
   dynamic _getValue(String key) {
     if (_formData.containsKey(key)) return _formData[key];
-    
+
     // Check nested if not found as flat
     if (key.contains('.')) {
       final parts = key.split('.');
       dynamic current = _formData;
       for (final part in parts) {
-        if (current is Map && (current.containsKey(part) || current.containsKey(_toCamelCase(part)))) {
+        if (current is Map &&
+            (current.containsKey(part) ||
+                current.containsKey(_toCamelCase(part)))) {
           current = current[part] ?? current[_toCamelCase(part)];
         } else {
           return null;
@@ -133,12 +138,78 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
     return null;
   }
 
-  String _toCamelCase(String s) => s.split('_').asMap().entries.map((e) => e.key == 0 ? e.value : e.value[0].toUpperCase() + e.value.substring(1)).join();
+  String _toCamelCase(String s) => s
+      .split('_')
+      .asMap()
+      .entries
+      .map(
+        (e) => e.key == 0
+            ? e.value
+            : e.value[0].toUpperCase() + e.value.substring(1),
+      )
+      .join();
 
   void _setValue(String key, dynamic val) {
     setState(() {
       _formData[key] = val;
+      if (key == 'recommendations.count') {
+        final count = int.tryParse('${val ?? '0'}') ?? 0;
+        _trimRecommendationOptions(count.clamp(0, 10));
+      }
     });
+  }
+
+  void _trimRecommendationOptions(int count) {
+    final keys = _formData.keys
+        .where((k) => k.startsWith('recommendations.option_'))
+        .toList();
+    for (final key in keys) {
+      final suffix = key.substring('recommendations.option_'.length);
+      final index = int.tryParse(suffix);
+      if (index != null && index > count) {
+        _formData.remove(key);
+      }
+    }
+  }
+
+  int _recommendationCount() {
+    final raw = _getValue('recommendations.count');
+    final parsed = int.tryParse('${raw ?? '0'}') ?? 0;
+    return parsed.clamp(0, 10);
+  }
+
+  List<InspectionField> _fieldsForSection(InspectionSection section) {
+    final base = section.id == 'final'
+        ? section.fields
+              .where(
+                (f) =>
+                    f.key != 'customer_name' &&
+                    f.key != 'signature_url' &&
+                    f.key != 'customer_notes',
+              )
+              .toList()
+        : section.fields;
+
+    if (section.id != 'final') return base;
+
+    final result = <InspectionField>[];
+    final count = _recommendationCount();
+    for (final field in base) {
+      result.add(field);
+      if (field.key == 'recommendations.count' && count > 0) {
+        for (var i = 1; i <= count; i++) {
+          result.add(
+            InspectionField(
+              key: 'recommendations.option_$i',
+              label: 'Recommendation Option $i',
+              type: InspectionFieldType.text,
+              placeholder: 'Enter recommendation option $i',
+            ),
+          );
+        }
+      }
+    }
+    return result;
   }
 
   void _syncSignoffFieldsFromForm() {
@@ -147,7 +218,9 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
     final confirmedRaw = _getValue('customer_confirmed');
     final confirmedText = confirmedRaw?.toString().toLowerCase().trim();
     _customerConfirmed =
-        confirmedText == 'true' || confirmedText == '1' || confirmedText == 'yes';
+        confirmedText == 'true' ||
+        confirmedText == '1' ||
+        confirmedText == 'yes';
   }
 
   String _resolveUrl(dynamic rawUrl) {
@@ -169,7 +242,8 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
     final v = raw?.toString().trim().toLowerCase() ?? '';
     if (v.isEmpty) return null;
     if (v.contains('klip')) return 'Tin Kliplock';
-    if (v.contains('colorbond') || v.contains('colourbond')) return 'Tin Colorbond';
+    if (v.contains('colorbond') || v.contains('colourbond'))
+      return 'Tin Colorbond';
     if (v.contains('shilling')) return 'Tile Shillings';
     if (v.contains('terracotta')) return 'Tile Terracotta';
     if (v.contains('concrete') && v.contains('tile')) return 'Tile Concrete';
@@ -189,9 +263,24 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
   String? _normalizeHouseStorey(dynamic raw) {
     final v = raw?.toString().trim().toLowerCase() ?? '';
     if (v.isEmpty) return null;
-    if (v == '1' || v == 'single' || v == 'one' || v == 'one storey' || v == 'one-story') return 'Single';
-    if (v == '2' || v == 'double' || v == 'two' || v == 'two storey' || v == 'two-story') return 'Double';
-    if (v == '3' || v == 'triple' || v == 'three' || v == 'multi' || v == 'triple storey') return 'Triple';
+    if (v == '1' ||
+        v == 'single' ||
+        v == 'one' ||
+        v == 'one storey' ||
+        v == 'one-story')
+      return 'Single';
+    if (v == '2' ||
+        v == 'double' ||
+        v == 'two' ||
+        v == 'two storey' ||
+        v == 'two-story')
+      return 'Double';
+    if (v == '3' ||
+        v == 'triple' ||
+        v == 'three' ||
+        v == 'multi' ||
+        v == 'triple storey')
+      return 'Triple';
     return null;
   }
 
@@ -223,7 +312,8 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
     final inspector = _normalizeInspectorName(
       raw['inspector_name'] ?? raw['assigned_to_name'],
     );
-    final inspectedAt = raw['site_inspection_date'] ??
+    final inspectedAt =
+        raw['site_inspection_date'] ??
         raw['site_inspection_scheduled_at'] ??
         raw['scheduled_date'] ??
         raw['scheduled_at'];
@@ -239,16 +329,20 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
         _parseDateTimeValue(inspectedAt) != null) {
       form['inspected_at'] = _toSqlDateTime(_parseDateTimeValue(inspectedAt)!);
     }
-    if (_isEmptyVal(form['inspector_name']) && inspector != null) form['inspector_name'] = inspector;
-    if (_isEmptyVal(form['roof_type']) && roof != null) form['roof_type'] = roof;
+    if (_isEmptyVal(form['inspector_name']) && inspector != null)
+      form['inspector_name'] = inspector;
+    if (_isEmptyVal(form['roof_type']) && roof != null)
+      form['roof_type'] = roof;
     if (_isEmptyVal(form['roofProfile.roofMaterial']) && roof != null) {
       form['roofProfile.roofMaterial'] = roof;
     }
     if (_isEmptyVal(form['customer_name']) && !_isEmptyVal(customerName)) {
       form['customer_name'] = customerName;
     }
-    if (_isEmptyVal(form['meter_phase']) && meter != null) form['meter_phase'] = meter;
-    if (_isEmptyVal(form['house_storey']) && storey != null) form['house_storey'] = storey;
+    if (_isEmptyVal(form['meter_phase']) && meter != null)
+      form['meter_phase'] = meter;
+    if (_isEmptyVal(form['house_storey']) && storey != null)
+      form['house_storey'] = storey;
     if (_isEmptyVal(form['switchboard.nmi']) && !_isEmptyVal(nmi)) {
       form['switchboard.nmi'] = nmi;
     }
@@ -263,8 +357,8 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
     final form = rawForm is Map<String, dynamic>
         ? Map<String, dynamic>.from(rawForm)
         : rawForm is Map
-            ? Map<String, dynamic>.from(rawForm)
-            : <String, dynamic>{};
+        ? Map<String, dynamic>.from(rawForm)
+        : <String, dynamic>{};
 
     const topLevelKeys = [
       'inspected_at',
@@ -283,18 +377,19 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
 
     for (final key in topLevelKeys) {
       final val = siResp[key];
-      if (val != null && (form[key] == null || form[key].toString().trim().isEmpty)) {
+      if (val != null &&
+          (form[key] == null || form[key].toString().trim().isEmpty)) {
         form[key] = val;
       }
     }
 
     if (_isEmptyVal(form['inspected_at'])) {
-      final candidate = siResp['site_inspection_date'] ??
+      final candidate =
+          siResp['site_inspection_date'] ??
           siResp['site_inspection_scheduled_at'] ??
           siResp['scheduled_date'] ??
           siResp['scheduled_at'];
-      if (!_isEmptyVal(candidate) &&
-          _parseDateTimeValue(candidate) != null) {
+      if (!_isEmptyVal(candidate) && _parseDateTimeValue(candidate) != null) {
         form['inspected_at'] = _toSqlDateTime(_parseDateTimeValue(candidate)!);
       }
     }
@@ -313,7 +408,8 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
     if (photoData == null) return '';
     if (photoData is String) return _resolveUrl(photoData);
     if (photoData is Map) {
-      final raw = photoData['storage_url'] ??
+      final raw =
+          photoData['storage_url'] ??
           photoData['storageUrl'] ??
           photoData['url'] ??
           photoData['file_url'] ??
@@ -393,7 +489,8 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
         ),
       });
       final uploaded = await _siService.uploadFile(widget.leadId, formData);
-      final storageUrl = uploaded['storage_url'] ??
+      final storageUrl =
+          uploaded['storage_url'] ??
           uploaded['storageUrl'] ??
           uploaded['file_url'] ??
           uploaded['fileUrl'] ??
@@ -420,7 +517,10 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Upload failed: $e'), backgroundColor: AppColors.danger),
+          SnackBar(
+            content: Text('Upload failed: $e'),
+            backgroundColor: AppColors.danger,
+          ),
         );
       }
     } finally {
@@ -439,17 +539,25 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
         await _siService.saveDraft(widget.leadId, payload);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Draft saved'), backgroundColor: AppColors.primary),
+            const SnackBar(
+              content: Text('Draft saved'),
+              backgroundColor: AppColors.primary,
+            ),
           );
         }
       } else {
         for (final section in inspectionSections) {
           for (final field in section.fields) {
             final val = _getValue(field.key);
-            if (field.required && (val == null || val.toString().trim().isEmpty)) {
-              setState(() => _currentStep = inspectionSections.indexOf(section));
+            if (field.required &&
+                (val == null || val.toString().trim().isEmpty)) {
+              setState(
+                () => _currentStep = inspectionSections.indexOf(section),
+              );
               _pageController.jumpToPage(_currentStep);
-              throw Exception('Field "${field.label}" in "${section.label}" is required.');
+              throw Exception(
+                'Field "${field.label}" in "${section.label}" is required.',
+              );
             }
           }
         }
@@ -457,7 +565,10 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
         await _siService.submit(widget.leadId, payload);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Inspection submitted successfully'), backgroundColor: AppColors.success),
+            const SnackBar(
+              content: Text('Inspection submitted successfully'),
+              backgroundColor: AppColors.success,
+            ),
           );
           Navigator.pop(context, true);
         }
@@ -465,7 +576,10 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString().replaceAll('Exception: ', '')), backgroundColor: AppColors.danger),
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: AppColors.danger,
+          ),
         );
       }
     } finally {
@@ -480,8 +594,10 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
     _formData['customer_notes'] = customerNotes;
     _formData['customer_confirmed'] = _customerConfirmed;
 
-    final hasDrawnSignature = _signaturePoints.any((p) => p != null) || _generatedSignature != null;
-    final existingSignature = _getValue('signature_url')?.toString().trim() ?? '';
+    final hasDrawnSignature =
+        _signaturePoints.any((p) => p != null) || _generatedSignature != null;
+    final existingSignature =
+        _getValue('signature_url')?.toString().trim() ?? '';
 
     if (hasDrawnSignature) {
       final signatureFile = await _exportSignatureToFile();
@@ -493,7 +609,8 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
         'section': 'signature',
       });
       final uploaded = await _siService.uploadFile(widget.leadId, formData);
-      final storageUrl = uploaded['storage_url'] ??
+      final storageUrl =
+          uploaded['storage_url'] ??
           uploaded['storageUrl'] ??
           uploaded['file_url'] ??
           uploaded['fileUrl'] ??
@@ -512,14 +629,16 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
       }
       if (!_customerConfirmed) {
         throw Exception(
-            'Please confirm that the site inspection has been completed.');
+          'Please confirm that the site inspection has been completed.',
+        );
       }
     }
   }
 
   Future<File> _exportSignatureToFile() async {
     final boundary =
-        _signatureKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+        _signatureKey.currentContext?.findRenderObject()
+            as RenderRepaintBoundary?;
     if (boundary == null) {
       throw Exception('Unable to capture signature.');
     }
@@ -540,30 +659,38 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Site Inspection Form'),
-      ),
+      appBar: AppBar(title: const Text('Site Inspection Form')),
       body: LoadingOverlay(
         isLoading: _submitting,
         child: _loading
-            ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+            ? const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              )
             : _error != null
-                ? _buildErrorState()
-                : _buildMainContent(),
+            ? _buildErrorState()
+            : _buildMainContent(),
       ),
-      bottomNavigationBar: _loading || _error != null ? null : _buildBottomActions(),
+      bottomNavigationBar: _loading || _error != null
+          ? null
+          : _buildBottomActions(),
     );
   }
 
   Widget _buildErrorState() {
     return Center(
-      child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.error_outline, size: 48, color: AppColors.danger),
-        const SizedBox(height: 16),
-        Text(_error!, textAlign: TextAlign.center),
-        const SizedBox(height: 24),
-        FilledButton(onPressed: _loadData, child: const Text('Retry')),
-      ])),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: AppColors.danger),
+            const SizedBox(height: 16),
+            Text(_error!, textAlign: TextAlign.center),
+            const SizedBox(height: 24),
+            FilledButton(onPressed: _loadData, child: const Text('Retry')),
+          ],
+        ),
+      ),
     );
   }
 
@@ -580,7 +707,8 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
                 : const PageScrollPhysics(),
             onPageChanged: (idx) => setState(() => _currentStep = idx),
             itemCount: inspectionSections.length,
-            itemBuilder: (context, idx) => _buildSectionForm(inspectionSections[idx]),
+            itemBuilder: (context, idx) =>
+                _buildSectionForm(inspectionSections[idx]),
           ),
         ),
       ],
@@ -590,7 +718,10 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
   Widget _buildStepRail() {
     return Container(
       height: 60,
-      decoration: BoxDecoration(color: AppColors.white, border: Border(bottom: BorderSide(color: AppColors.border))),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        border: Border(bottom: BorderSide(color: AppColors.border)),
+      ),
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -603,26 +734,49 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
             child: InkWell(
               onTap: () {
                 setState(() => _currentStep = idx);
-                _pageController.animateToPage(idx, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+                _pageController.animateToPage(
+                  idx,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                );
               },
               borderRadius: BorderRadius.circular(20),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: active ? AppColors.primary : (done ? AppColors.primary.withOpacity(0.1) : AppColors.surface),
+                  color: active
+                      ? AppColors.primary
+                      : (done
+                            ? AppColors.primary.withOpacity(0.1)
+                            : AppColors.surface),
                   borderRadius: BorderRadius.circular(25),
-                  border: Border.all(color: active ? AppColors.primary : AppColors.border),
+                  border: Border.all(
+                    color: active ? AppColors.primary : AppColors.border,
+                  ),
                 ),
                 child: Row(
                   children: [
-                    if (done) ...[const Icon(Icons.check_circle, size: 16, color: AppColors.primary), const SizedBox(width: 6)],
+                    if (done) ...[
+                      const Icon(
+                        Icons.check_circle,
+                        size: 16,
+                        color: AppColors.primary,
+                      ),
+                      const SizedBox(width: 6),
+                    ],
                     Text(
                       '${idx + 1}. ${inspectionSections[idx].label}',
                       style: TextStyle(
                         fontSize: 12,
-                        fontWeight: active ? FontWeight.w800 : (done ? FontWeight.w600 : FontWeight.w500),
-                        color: active ? Colors.white : (done ? AppColors.primary : AppColors.textSecondary),
+                        fontWeight: active
+                            ? FontWeight.w800
+                            : (done ? FontWeight.w600 : FontWeight.w500),
+                        color: active
+                            ? Colors.white
+                            : (done
+                                  ? AppColors.primary
+                                  : AppColors.textSecondary),
                       ),
                     ),
                   ],
@@ -645,8 +799,22 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Step ${_currentStep + 1} of ${inspectionSections.length}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textSecondary)),
-              Text('${(progress * 100).round()}% Completed', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.primary)),
+              Text(
+                'Step ${_currentStep + 1} of ${inspectionSections.length}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              Text(
+                '${(progress * 100).round()}% Completed',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                  color: AppColors.primary,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -667,12 +835,18 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
   Widget _buildBottomActions() {
     final isLast = _currentStep == inspectionSections.length - 1;
     final isFirst = _currentStep == 0;
-    
+
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 20),
       decoration: BoxDecoration(
         color: AppColors.white,
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, -3))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 8,
+            offset: const Offset(0, -3),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -683,7 +857,9 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
             tooltip: 'Export PDF',
             style: IconButton.styleFrom(
               backgroundColor: const Color(0xFFF1F5F9),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
           ),
           const SizedBox(width: 6),
@@ -694,27 +870,46 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
             tooltip: 'Save Draft',
             style: IconButton.styleFrom(
               backgroundColor: const Color(0xFFF1F5F9),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
           ),
           const Spacer(),
           // Back button
           if (!isFirst) ...[
             TextButton(
-              onPressed: _submitting ? null : () => _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut),
+              onPressed: _submitting
+                  ? null
+                  : () => _pageController.previousPage(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                    ),
               child: const Text('Back'),
             ),
             const SizedBox(width: 8),
           ],
           // Main action button
           FilledButton(
-            onPressed: _submitting ? null : (isLast ? () => _submit(false) : () => _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut)),
+            onPressed: _submitting
+                ? null
+                : (isLast
+                      ? () => _submit(false)
+                      : () => _pageController.nextPage(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                        )),
             style: FilledButton.styleFrom(
               backgroundColor: isLast ? AppColors.success : AppColors.primary,
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
-            child: Text(isLast ? 'Submit' : 'Next', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            child: Text(
+              isLast ? 'Submit' : 'Next',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
           ),
         ],
       ),
@@ -722,21 +917,21 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
   }
 
   Widget _buildSectionForm(InspectionSection section) {
-    final fields = section.id == 'final'
-        ? section.fields
-            .where((f) =>
-                f.key != 'customer_name' &&
-                f.key != 'signature_url' &&
-                f.key != 'customer_notes')
-            .toList()
-        : section.fields;
+    final fields = _fieldsForSection(section);
     return ListView(
       padding: const EdgeInsets.all(16),
       physics: _isSigning
           ? const NeverScrollableScrollPhysics()
           : const AlwaysScrollableScrollPhysics(),
       children: [
-        Text(section.label, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+        Text(
+          section.label,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: AppColors.textPrimary,
+          ),
+        ),
         const SizedBox(height: 16),
         ...fields.map(_buildFieldControl),
         if (section.id == 'final') ...[
@@ -749,9 +944,12 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
   }
 
   Widget _buildCustomerSignoffBlock() {
-    final existingSignature = _getValue('signature_url')?.toString().trim() ?? '';
+    final existingSignature =
+        _getValue('signature_url')?.toString().trim() ?? '';
     final showExistingImage =
-        existingSignature.isNotEmpty && !_signaturePoints.any((p) => p != null) && _generatedSignature == null;
+        existingSignature.isNotEmpty &&
+        !_signaturePoints.any((p) => p != null) &&
+        _generatedSignature == null;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -813,7 +1011,9 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
               borderRadius: BorderRadius.circular(10),
               child: AspectRatio(
                 aspectRatio: 16 / 5,
-                child: _NetworkPhotoPreview(urls: _buildPhotoUrlCandidates(existingSignature)),
+                child: _NetworkPhotoPreview(
+                  urls: _buildPhotoUrlCandidates(existingSignature),
+                ),
               ),
             )
           else
@@ -859,7 +1059,10 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
                       ),
                     ),
                     child: CustomPaint(
-                      painter: _SignaturePainter(_signaturePoints, generatedText: _generatedSignature),
+                      painter: _SignaturePainter(
+                        _signaturePoints,
+                        generatedText: _generatedSignature,
+                      ),
                       child: const SizedBox.expand(),
                     ),
                   ),
@@ -886,7 +1089,9 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
                   final name = _customerNameCtrl.text.trim();
                   if (name.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Please enter customer name first')),
+                      const SnackBar(
+                        content: Text('Please enter customer name first'),
+                      ),
                     );
                     return;
                   }
@@ -932,7 +1137,7 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
 
   Widget _buildFieldControl(InspectionField field) {
     final val = _getValue(field.key);
-    
+
     switch (field.type) {
       case InspectionFieldType.text:
       case InspectionFieldType.number:
@@ -940,9 +1145,13 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
         return Padding(
           padding: const EdgeInsets.only(bottom: 16),
           child: TextFormField(
-            key: Key('${field.key}_$_currentStep'), // Force rebuild on step change for correct local state
+            key: Key(
+              '${field.key}_$_currentStep',
+            ), // Force rebuild on step change for correct local state
             initialValue: val?.toString() ?? field.defaultValue ?? '',
-            keyboardType: field.type == InspectionFieldType.number ? TextInputType.number : TextInputType.text,
+            keyboardType: field.type == InspectionFieldType.number
+                ? TextInputType.number
+                : TextInputType.text,
             maxLines: field.type == InspectionFieldType.textarea ? 3 : 1,
             decoration: InputDecoration(
               labelText: field.required ? '${field.label} *' : field.label,
@@ -971,9 +1180,12 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
               floatingLabelBehavior: FloatingLabelBehavior.always,
             ),
             items: options
-                .map((e) => DropdownMenuItem(
+                .map(
+                  (e) => DropdownMenuItem(
                     value: e,
-                    child: Text(e, style: const TextStyle(fontSize: 13))))
+                    child: Text(e, style: const TextStyle(fontSize: 13)),
+                  ),
+                )
                 .toList(),
             onChanged: (v) => _setValue(field.key, v),
           ),
@@ -998,23 +1210,54 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(field.label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+          Text(
+            field.label,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
+          ),
           const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
                 child: InkWell(
                   onTap: () async {
-                    final picked = await showDatePicker(context: context, initialDate: current, firstDate: DateTime(2020), lastDate: DateTime(2030));
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: current,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime(2030),
+                    );
                     if (picked != null) {
-                      final next = DateTime(picked.year, picked.month, picked.day, current.hour, current.minute);
+                      final next = DateTime(
+                        picked.year,
+                        picked.month,
+                        picked.day,
+                        current.hour,
+                        current.minute,
+                      );
                       _setValue(field.key, _toSqlDateTime(next));
                     }
                   },
                   child: Container(
                     padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(10)),
-                    child: Row(children: [const Icon(Icons.calendar_today, size: 16, color: AppColors.primary), const SizedBox(width: 10), Text(dateStr, style: const TextStyle(fontSize: 13))]),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: AppColors.border),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.calendar_today,
+                          size: 16,
+                          color: AppColors.primary,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(dateStr, style: const TextStyle(fontSize: 13)),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1022,16 +1265,38 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
               Expanded(
                 child: InkWell(
                   onTap: () async {
-                    final picked = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(current));
+                    final picked = await showTimePicker(
+                      context: context,
+                      initialTime: TimeOfDay.fromDateTime(current),
+                    );
                     if (picked != null) {
-                      final next = DateTime(current.year, current.month, current.day, picked.hour, picked.minute);
+                      final next = DateTime(
+                        current.year,
+                        current.month,
+                        current.day,
+                        picked.hour,
+                        picked.minute,
+                      );
                       _setValue(field.key, _toSqlDateTime(next));
                     }
                   },
                   child: Container(
                     padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(10)),
-                    child: Row(children: [const Icon(Icons.access_time, size: 16, color: AppColors.primary), const SizedBox(width: 10), Text(timeStr, style: const TextStyle(fontSize: 13))]),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: AppColors.border),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.access_time,
+                          size: 16,
+                          color: AppColors.primary,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(timeStr, style: const TextStyle(fontSize: 13)),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1053,7 +1318,14 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(field.label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+          Text(
+            field.label,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
+          ),
           const SizedBox(height: 8),
           if (url.isNotEmpty)
             Stack(
@@ -1066,9 +1338,8 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
                         ? Image.file(
                             File(localPath),
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _NetworkPhotoPreview(
-                              urls: urlCandidates,
-                            ),
+                            errorBuilder: (_, __, ___) =>
+                                _NetworkPhotoPreview(urls: urlCandidates),
                           )
                         : _NetworkPhotoPreview(urls: urlCandidates),
                   ),
@@ -1079,7 +1350,15 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
                   child: CircleAvatar(
                     backgroundColor: Colors.white.withOpacity(0.9),
                     radius: 18,
-                    child: IconButton(onPressed: () => setState(() => _formData.remove(field.key)), icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.danger)),
+                    child: IconButton(
+                      onPressed: () =>
+                          setState(() => _formData.remove(field.key)),
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        size: 18,
+                        color: AppColors.danger,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -1090,13 +1369,30 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
               child: Container(
                 height: 100,
                 width: double.infinity,
-                decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border, style: BorderStyle.solid)),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.border,
+                    style: BorderStyle.solid,
+                  ),
+                ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.add_a_photo_outlined, size: 28, color: AppColors.primary),
+                    const Icon(
+                      Icons.add_a_photo_outlined,
+                      size: 28,
+                      color: AppColors.primary,
+                    ),
                     const SizedBox(height: 4),
-                    Text('Tap to upload ${field.label}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    Text(
+                      'Tap to upload ${field.label}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1115,7 +1411,14 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(field.label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+          Text(
+            field.label,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
+          ),
           const SizedBox(height: 8),
           ...field.options!.map((opt) {
             final active = current.contains(opt);
@@ -1207,9 +1510,19 @@ class _SignaturePainter extends CustomPainter {
     }
 
     if (points.isEmpty) {
-      final textStyle = const TextStyle(color: Colors.black26, fontSize: 13, fontWeight: FontWeight.normal);
-      final textSpan = TextSpan(text: 'Drag your finger to sign here', style: textStyle);
-      final textPainter = TextPainter(text: textSpan, textDirection: ui.TextDirection.ltr);
+      final textStyle = const TextStyle(
+        color: Colors.black26,
+        fontSize: 13,
+        fontWeight: FontWeight.normal,
+      );
+      final textSpan = TextSpan(
+        text: 'Drag your finger to sign here',
+        style: textStyle,
+      );
+      final textPainter = TextPainter(
+        text: textSpan,
+        textDirection: ui.TextDirection.ltr,
+      );
       textPainter.layout();
       final offset = Offset(
         (size.width - textPainter.width) / 2,

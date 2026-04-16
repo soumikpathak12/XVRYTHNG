@@ -103,10 +103,23 @@ class ChecklistItem {
     this.note,
   });
 
+  static int _parseInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse('${value ?? ''}') ?? 0;
+  }
+
+  static bool _parseBool(dynamic value) {
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    final normalized = '${value ?? ''}'.trim().toLowerCase();
+    return normalized == '1' || normalized == 'true' || normalized == 'yes';
+  }
+
   factory ChecklistItem.fromJson(Map<String, dynamic> json) => ChecklistItem(
-        id: json['id'] ?? 0,
-        label: json['label'] ?? '',
-        checked: json['checked'] == true,
-        note: json['note'],
-      );
+    id: _parseInt(json['item_id'] ?? json['id']),
+    label: json['label'] ?? '',
+    checked: _parseBool(json['checked']),
+    note: json['note'],
+  );
 }

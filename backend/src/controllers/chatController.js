@@ -10,9 +10,16 @@ import { broadcastNewMessage } from '../chatSocket.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const UPLOAD_DIR = path.resolve(__dirname, '../uploads/chats');
+const UPLOAD_DIR = path.resolve(__dirname, '../../uploads/chats');
 
 const MESSAGES_PAGE_SIZE = 50;
+
+function userDisplayNameSql(alias = 'u') {
+  return `COALESCE(
+    NULLIF(TRIM(CONCAT(COALESCE(e.first_name, ''), ' ', COALESCE(e.last_name, ''))), ''),
+    ${alias}.name
+  )`;
+}
 
 /** Effective company for scoping: tenantId (from header/query) or user's company */
 function effectiveCompanyId(req) {
@@ -30,8 +37,9 @@ export async function listCompanyUsers(req, res) {
     }
 
     const [rows] = await db.execute(
-      `SELECT u.id, u.name, u.email, r.name AS role_name
+      `SELECT u.id, ${userDisplayNameSql()} AS name, u.email, r.name AS role_name
        FROM users u
+       LEFT JOIN employees e ON e.user_id = u.id
        INNER JOIN roles r ON r.id = u.role_id
        WHERE u.company_id = ? AND u.status = 'active' AND u.id != ?
        ORDER BY u.name ASC`,
@@ -61,8 +69,9 @@ export async function listPlatformUsers(req, res) {
     }
 
     const [rows] = await db.execute(
-      `SELECT u.id, u.name, u.email, r.name AS role_name, c.name AS company_name, u.company_id
+      `SELECT u.id, ${userDisplayNameSql()} AS name, u.email, r.name AS role_name, c.name AS company_name, u.company_id
        FROM users u
+       LEFT JOIN employees e ON e.user_id = u.id
        INNER JOIN roles r ON r.id = u.role_id
        LEFT JOIN companies c ON c.id = u.company_id
        WHERE u.status = 'active' AND u.id != ?
@@ -146,9 +155,10 @@ export async function listConversations(req, res) {
     const placeholders = conversationIds.map(() => '?').join(',');
     const [lastMessages] = await db.execute(
       `SELECT m.conversation_id, m.id AS message_id, m.sender_id, m.body, m.created_at,
-              u.name AS sender_name
+              ${userDisplayNameSql()} AS sender_name
        FROM messages m
        INNER JOIN users u ON u.id = m.sender_id
+       LEFT JOIN employees e ON e.user_id = u.id
        WHERE m.id IN (
          SELECT MAX(id) FROM messages WHERE conversation_id IN (${placeholders}) GROUP BY conversation_id
        )`,
@@ -156,9 +166,10 @@ export async function listConversations(req, res) {
     );
 
     const [participantsRows] = await db.execute(
-      `SELECT cp.conversation_id, cp.user_id, u.name, r.name AS role_name
+      `SELECT cp.conversation_id, cp.user_id, ${userDisplayNameSql()} AS name, r.name AS role_name
        FROM conversation_participants cp
        INNER JOIN users u ON u.id = cp.user_id
+       LEFT JOIN employees e ON e.user_id = u.id
        INNER JOIN roles r ON r.id = u.role_id
        WHERE cp.conversation_id IN (${placeholders})`,
       conversationIds,
@@ -190,9 +201,10 @@ export async function listConversations(req, res) {
     if (searchQuery) {
       const [matched] = await db.execute(
         `SELECT m.conversation_id, m.id AS message_id, m.sender_id, m.body, m.created_at,
-                u.name AS sender_name
+                ${userDisplayNameSql()} AS sender_name
          FROM messages m
          INNER JOIN users u ON u.id = m.sender_id
+         LEFT JOIN employees e ON e.user_id = u.id
          WHERE m.id IN (
            SELECT MAX(id) FROM messages WHERE conversation_id IN (${placeholders}) AND body LIKE ? GROUP BY conversation_id
          )`,
@@ -374,9 +386,10 @@ export async function getConversation(req, res) {
     }
 
     const [participants] = await db.execute(
-      `SELECT u.id, u.name, r.name AS role_name
+      `SELECT u.id, ${userDisplayNameSql()} AS name, r.name AS role_name
        FROM conversation_participants cp
        INNER JOIN users u ON u.id = cp.user_id
+       LEFT JOIN employees e ON e.user_id = u.id
        INNER JOIN roles r ON r.id = u.role_id
        WHERE cp.conversation_id = ?`,
       [convId],
@@ -413,9 +426,10 @@ export async function getMessages(req, res) {
     const jump = req.query.jump ? parseInt(req.query.jump, 10) : null;
     const limit = Math.min(parseInt(req.query.limit, 10) || MESSAGES_PAGE_SIZE, 100);
 
-    let sql = `SELECT m.id, m.sender_id, m.body, m.created_at, u.name AS sender_name
-               FROM messages m
-               INNER JOIN users u ON u.id = m.sender_id
+    let sql = `SELECT m.id, m.sender_id, m.body, m.created_at, ${userDisplayNameSql()} AS sender_name
+           FROM messages m
+           INNER JOIN users u ON u.id = m.sender_id
+           LEFT JOIN employees e ON e.user_id = u.id
                WHERE m.conversation_id = ?
                `;
     const params = [convId];
@@ -431,12 +445,14 @@ export async function getMessages(req, res) {
       // UNION
       // Messages > jump (limit 10)
       sql = `
-        (SELECT m.id, m.sender_id, m.body, m.created_at, u.name AS sender_name
+        (SELECT m.id, m.sender_id, m.body, m.created_at, ${userDisplayNameSql()} AS sender_name
          FROM messages m INNER JOIN users u ON u.id = m.sender_id
+         LEFT JOIN employees e ON e.user_id = u.id
          WHERE m.conversation_id = ? AND m.id <= ? ORDER BY m.id DESC LIMIT ?)
         UNION
-        (SELECT m.id, m.sender_id, m.body, m.created_at, u.name AS sender_name
+        (SELECT m.id, m.sender_id, m.body, m.created_at, ${userDisplayNameSql()} AS sender_name
          FROM messages m INNER JOIN users u ON u.id = m.sender_id
+         LEFT JOIN employees e ON e.user_id = u.id
          WHERE m.conversation_id = ? AND m.id > ? ORDER BY m.id ASC LIMIT 10)
         ORDER BY id DESC
       `;
@@ -538,9 +554,10 @@ export async function sendMessage(req, res) {
     }
 
     const [rows] = await db.execute(
-      `SELECT m.id, m.sender_id, m.body, m.created_at, u.name AS sender_name
+      `SELECT m.id, m.sender_id, m.body, m.created_at, ${userDisplayNameSql()} AS sender_name
        FROM messages m
        INNER JOIN users u ON u.id = m.sender_id
+       LEFT JOIN employees e ON e.user_id = u.id
        WHERE m.id = ?`,
       [newMessageId],
     );

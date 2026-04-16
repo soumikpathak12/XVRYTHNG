@@ -17,17 +17,25 @@ class ApiException implements Exception {
         final statusCode = error.response?.statusCode;
         final data = error.response?.data;
         String message = 'Something went wrong';
+        if (statusCode == 413) {
+          message =
+              'Receipt file is too large. Please choose a smaller photo or PDF.';
+        }
         if (data is Map) {
           message = data['message'] ?? data['error'] ?? message;
         }
         return ApiException(
-            message: message, statusCode: statusCode, data: data);
+          message: message,
+          statusCode: statusCode,
+          data: data,
+        );
       case DioExceptionType.cancel:
         return ApiException(message: 'Request cancelled');
       case DioExceptionType.connectionError:
         if ((error.message ?? '').toLowerCase().contains('cleartext')) {
           return ApiException(
-              message: 'Insecure HTTP blocked on Android (cleartext).');
+            message: 'Insecure HTTP blocked on Android (cleartext).',
+          );
         }
         return ApiException(message: 'No internet connection');
       default:
@@ -36,6 +44,7 @@ class ApiException implements Exception {
   }
 
   @override
-  String toString() =>
-      statusCode == null ? 'ApiException: $message' : 'ApiException($statusCode): $message';
+  String toString() => statusCode == null
+      ? 'ApiException: $message'
+      : 'ApiException($statusCode): $message';
 }

@@ -3,7 +3,11 @@ class InspectionSection {
   final String label;
   final List<InspectionField> fields;
 
-  InspectionSection({required this.id, required this.label, required this.fields});
+  InspectionSection({
+    required this.id,
+    required this.label,
+    required this.fields,
+  });
 }
 
 enum InspectionFieldType {
@@ -41,7 +45,12 @@ final List<InspectionSection> inspectionSections = [
     id: 'core',
     label: 'Core Details',
     fields: [
-      InspectionField(key: 'inspected_at', label: 'Inspected At', type: InspectionFieldType.datetime, required: true),
+      InspectionField(
+        key: 'inspected_at',
+        label: 'Inspected At',
+        type: InspectionFieldType.datetime,
+        required: true,
+      ),
       InspectionField(
         key: 'inspector_name',
         label: 'Site Inspector Name',
@@ -53,7 +62,13 @@ final List<InspectionSection> inspectionSections = [
         key: 'roof_type',
         label: 'Roof Type',
         type: InspectionFieldType.select,
-        options: ['Tin Colorbond', 'Tin Kliplock', 'Tile Concrete', 'Tile Terracotta', 'Tile Shillings'],
+        options: [
+          'Tin Colorbond',
+          'Tin Kliplock',
+          'Tile Concrete',
+          'Tile Terracotta',
+          'Tile Shillings',
+        ],
         required: true,
       ),
       InspectionField(
@@ -82,8 +97,16 @@ final List<InspectionSection> inspectionSections = [
         type: InspectionFieldType.textarea,
         required: true,
       ),
-      InspectionField(key: 'roof_pitch_deg', label: 'Roof Pitch (deg)', type: InspectionFieldType.number),
-      InspectionField(key: 'shading', label: 'Shading (legacy note)', type: InspectionFieldType.text),
+      InspectionField(
+        key: 'roof_pitch_deg',
+        label: 'Roof Pitch (deg)',
+        type: InspectionFieldType.number,
+      ),
+      InspectionField(
+        key: 'shading',
+        label: 'Shading (legacy note)',
+        type: InspectionFieldType.text,
+      ),
     ],
   ),
   InspectionSection(
@@ -120,17 +143,37 @@ final List<InspectionSection> inspectionSections = [
         type: InspectionFieldType.select,
         options: ['Yes', 'No'],
       ),
-      InspectionField(key: 'jobDetails.licenseSelfie', label: 'License selfie (Photo)', type: InspectionFieldType.photo),
-      InspectionField(key: 'jobDetails.fullHousePhoto', label: 'Full house/building image', type: InspectionFieldType.photo),
+      InspectionField(
+        key: 'jobDetails.licenseSelfie',
+        label: 'License selfie (Photo)',
+        type: InspectionFieldType.photo,
+      ),
+      InspectionField(
+        key: 'jobDetails.fullHousePhoto',
+        label: 'Full house/building image',
+        type: InspectionFieldType.photo,
+      ),
     ],
   ),
   InspectionSection(
     id: 'switchboard',
     label: 'Switchboard / Main MSB',
     fields: [
-      InspectionField(key: 'switchboard.meterPhoto', label: 'Meter Photo', type: InspectionFieldType.photo),
-      InspectionField(key: 'switchboard.meterNumber', label: 'Meter Number', type: InspectionFieldType.text),
-      InspectionField(key: 'switchboard.nmi', label: 'NMI', type: InspectionFieldType.text),
+      InspectionField(
+        key: 'switchboard.meterPhoto',
+        label: 'Meter Photo',
+        type: InspectionFieldType.photo,
+      ),
+      InspectionField(
+        key: 'switchboard.meterNumber',
+        label: 'Meter Number',
+        type: InspectionFieldType.text,
+      ),
+      InspectionField(
+        key: 'switchboard.nmi',
+        label: 'NMI',
+        type: InspectionFieldType.text,
+      ),
       InspectionField(
         key: 'switchboard.isCompliant',
         label: 'Is Switchboard compliant?',
@@ -149,33 +192,80 @@ final List<InspectionSection> inspectionSections = [
         type: InspectionFieldType.select,
         options: ['Yes', 'No'],
       ),
-      InspectionField(key: 'switchboard.neutralEarthPhoto', label: 'Neutral & Earth Bar Photo', type: InspectionFieldType.photo),
+      InspectionField(
+        key: 'switchboard.neutralEarthPhoto',
+        label: 'Neutral & Earth Bar Photo',
+        type: InspectionFieldType.photo,
+      ),
       InspectionField(
         key: 'switchboard.asbestosPresent',
         label: 'Asbestos present?',
         type: InspectionFieldType.select,
         options: ['Yes', 'No'],
       ),
-      InspectionField(key: 'switchboard.mainSwitchRatingAmps', label: 'Main Switch Rating (A)', type: InspectionFieldType.text),
-      InspectionField(key: 'switchboard.pointOfAttachment', label: 'What is point of attachment?', type: InspectionFieldType.text),
-      InspectionField(key: 'switchboard.distanceTxToPOA', label: 'Distance of Transformer to POA', type: InspectionFieldType.text),
-      InspectionField(key: 'switchboard.distancePOAToMSB', label: 'Distance of POA to MSB', type: InspectionFieldType.text),
-      InspectionField(key: 'switchboard.consumerMainsCableSize', label: 'Cable Size of Consumer Mains', type: InspectionFieldType.text),
+      InspectionField(
+        key: 'switchboard.mainSwitchRatingAmps',
+        label: 'Main Switch Rating (A)',
+        type: InspectionFieldType.text,
+      ),
+      InspectionField(
+        key: 'switchboard.pointOfAttachment',
+        label: 'What is point of attachment?',
+        type: InspectionFieldType.text,
+      ),
+      InspectionField(
+        key: 'switchboard.distanceTxToPOA',
+        label: 'Distance of Transformer to POA',
+        type: InspectionFieldType.text,
+      ),
+      InspectionField(
+        key: 'switchboard.distancePOAToMSB',
+        label: 'Distance of POA to MSB',
+        type: InspectionFieldType.text,
+      ),
+      InspectionField(
+        key: 'switchboard.consumerMainsCableSize',
+        label: 'Cable Size of Consumer Mains',
+        type: InspectionFieldType.text,
+      ),
       InspectionField(
         key: 'switchboard.consumerMainsCableType',
         label: 'Cable type (AL/CU)',
         type: InspectionFieldType.select,
-        options: ['Single Core Aluminium', 'Multi Core Aluminium', 'Single Core Copper', 'Multi Core Copper'],
+        options: [
+          'Single Core Aluminium',
+          'Multi Core Aluminium',
+          'Single Core Copper',
+          'Multi Core Copper',
+        ],
       ),
       InspectionField(
         key: 'switchboard.mainsRunMethod',
         label: 'How is the mains cable run?',
         type: InspectionFieldType.select,
-        options: ['Inside wall', 'Cable tray', 'In roof', 'Underground', 'Pole mounted'],
+        options: [
+          'Inside wall',
+          'Cable tray',
+          'In roof',
+          'Underground',
+          'Pole mounted',
+        ],
       ),
-      InspectionField(key: 'switchboard.photoSwitchboardOn', label: 'Image of Switchboard (cover ON)', type: InspectionFieldType.photo),
-      InspectionField(key: 'switchboard.photoSwitchboardOff', label: 'Image of Switchboard (cover OFF)', type: InspectionFieldType.photo),
-      InspectionField(key: 'switchboard.voltageReadingPhotos', label: 'Voltage reading A–N / N–E photos', type: InspectionFieldType.photo),
+      InspectionField(
+        key: 'switchboard.photoSwitchboardOn',
+        label: 'Image of Switchboard (cover ON)',
+        type: InspectionFieldType.photo,
+      ),
+      InspectionField(
+        key: 'switchboard.photoSwitchboardOff',
+        label: 'Image of Switchboard (cover OFF)',
+        type: InspectionFieldType.photo,
+      ),
+      InspectionField(
+        key: 'switchboard.voltageReadingPhotos',
+        label: 'Voltage reading A–N / N–E photos',
+        type: InspectionFieldType.photo,
+      ),
       InspectionField(
         key: 'switchboard.inverterConnectedToMSB',
         label: 'Is Inverter to be connected to this MSB?',
@@ -194,7 +284,11 @@ final List<InspectionSection> inspectionSections = [
         type: InspectionFieldType.select,
         options: ['Yes', 'No'],
       ),
-      InspectionField(key: 'switchboard.distanceInverterFromMSB', label: 'Distance of Inverter from MSB', type: InspectionFieldType.text),
+      InspectionField(
+        key: 'switchboard.distanceInverterFromMSB',
+        label: 'Distance of Inverter from MSB',
+        type: InspectionFieldType.text,
+      ),
     ],
   ),
   InspectionSection(
@@ -207,28 +301,45 @@ final List<InspectionSection> inspectionSections = [
         type: InspectionFieldType.select,
         options: ['Yes', 'No'],
       ),
-      InspectionField(key: 'subBoard.subBoardPOCPhoto', label: 'Sub-Board / POC Photo (optional)', type: InspectionFieldType.photo),
+      InspectionField(
+        key: 'subBoard.subBoardPOCPhoto',
+        label: 'Sub-Board / POC Photo (optional)',
+        type: InspectionFieldType.photo,
+      ),
     ],
   ),
   InspectionSection(
     id: 'inverter',
     label: 'Inverter Installation Location',
     fields: [
-      InspectionField(key: 'inverterLocation.locationPhoto', label: 'Inverter location photo', type: InspectionFieldType.photo),
+      InspectionField(
+        key: 'inverterLocation.locationPhoto',
+        label: 'Inverter location photo',
+        type: InspectionFieldType.photo,
+      ),
       InspectionField(
         key: 'inverterLocation.requireACIsolator',
         label: 'Require AC Isolator at location?',
         type: InspectionFieldType.select,
         options: ['Yes', 'No'],
       ),
-      InspectionField(key: 'inverterLocation.mountingMethod', label: 'Mounting Method', type: InspectionFieldType.text, placeholder: 'Wall mounted / structure'),
+      InspectionField(
+        key: 'inverterLocation.mountingMethod',
+        label: 'Mounting Method',
+        type: InspectionFieldType.text,
+        placeholder: 'Wall mounted / structure',
+      ),
       InspectionField(
         key: 'inverterLocation.conduitRunDiscussed',
         label: 'Conduit Run Discussed with Customer?',
         type: InspectionFieldType.select,
         options: ['Yes', 'No'],
       ),
-      InspectionField(key: 'inverterLocation.notes', label: 'Inverter Notes', type: InspectionFieldType.textarea),
+      InspectionField(
+        key: 'inverterLocation.notes',
+        label: 'Inverter Notes',
+        type: InspectionFieldType.textarea,
+      ),
     ],
   ),
   InspectionSection(
@@ -271,9 +382,21 @@ final List<InspectionSection> inspectionSections = [
         type: InspectionFieldType.select,
         options: ['Yes', 'No'],
       ),
-      InspectionField(key: 'monitoring.wifiName', label: 'WiFi Name', type: InspectionFieldType.text),
-      InspectionField(key: 'monitoring.wifiPassword', label: 'WiFi Password', type: InspectionFieldType.text),
-      InspectionField(key: 'monitoring.distanceToEthernetPort', label: 'Distance to Ethernet Port', type: InspectionFieldType.text),
+      InspectionField(
+        key: 'monitoring.wifiName',
+        label: 'WiFi Name',
+        type: InspectionFieldType.text,
+      ),
+      InspectionField(
+        key: 'monitoring.wifiPassword',
+        label: 'WiFi Password',
+        type: InspectionFieldType.text,
+      ),
+      InspectionField(
+        key: 'monitoring.distanceToEthernetPort',
+        label: 'Distance to Ethernet Port',
+        type: InspectionFieldType.text,
+      ),
       InspectionField(
         key: 'existingSystem.existingSolar',
         label: 'Existing solar on site?',
@@ -292,7 +415,12 @@ final List<InspectionSection> inspectionSections = [
     id: 'roof',
     label: 'Roof Details',
     fields: [
-      InspectionField(key: 'roofProfile.roofHeightMeters', label: 'Roof Height (m)', type: InspectionFieldType.text, placeholder: 'e.g., 5.2'),
+      InspectionField(
+        key: 'roofProfile.roofHeightMeters',
+        label: 'Roof Height (m)',
+        type: InspectionFieldType.text,
+        placeholder: 'e.g., 5.2',
+      ),
       InspectionField(
         key: 'roofProfile.safeAccess',
         label: 'Safe & clear access to roof?',
@@ -323,13 +451,27 @@ final List<InspectionSection> inspectionSections = [
         type: InspectionFieldType.select,
         options: ['Yes', 'No'],
       ),
-      InspectionField(key: 'roofProfile.edgeProtectionMeters', label: 'Meters of Edge Protection', type: InspectionFieldType.text),
-      InspectionField(key: 'roofProfile.edgeProtectionPhoto', label: 'Edge Protection Photo', type: InspectionFieldType.photo),
+      InspectionField(
+        key: 'roofProfile.edgeProtectionMeters',
+        label: 'Meters of Edge Protection',
+        type: InspectionFieldType.text,
+      ),
+      InspectionField(
+        key: 'roofProfile.edgeProtectionPhoto',
+        label: 'Edge Protection Photo',
+        type: InspectionFieldType.photo,
+      ),
       InspectionField(
         key: 'roofProfile.roofMaterial',
         label: 'Roof type',
         type: InspectionFieldType.select,
-        options: ['Tin Colorbond', 'Tin Kliplock', 'Tile Concrete', 'Tile Terracotta', 'Tile Shillings'],
+        options: [
+          'Tin Colorbond',
+          'Tin Kliplock',
+          'Tile Concrete',
+          'Tile Terracotta',
+          'Tile Shillings',
+        ],
       ),
       InspectionField(
         key: 'roofProfile.roofConditionOK',
@@ -337,12 +479,36 @@ final List<InspectionSection> inspectionSections = [
         type: InspectionFieldType.select,
         options: ['Yes', 'No'],
       ),
-      InspectionField(key: 'roofProfile.section1Pitch', label: 'Section 1 pitch', type: InspectionFieldType.text),
-      InspectionField(key: 'roofProfile.section1Photo', label: 'Section 1 Photo', type: InspectionFieldType.photo),
-      InspectionField(key: 'roofProfile.section2Pitch', label: 'Section 2 pitch (if applicable)', type: InspectionFieldType.text),
-      InspectionField(key: 'roofProfile.section2Photo', label: 'Section 2 Photo', type: InspectionFieldType.photo),
-      InspectionField(key: 'roofProfile.section3Pitch', label: 'Section 3 pitch (if applicable)', type: InspectionFieldType.text),
-      InspectionField(key: 'roofProfile.section3Photo', label: 'Section 3 Photo', type: InspectionFieldType.photo),
+      InspectionField(
+        key: 'roofProfile.section1Pitch',
+        label: 'Section 1 pitch',
+        type: InspectionFieldType.text,
+      ),
+      InspectionField(
+        key: 'roofProfile.section1Photo',
+        label: 'Section 1 Photo',
+        type: InspectionFieldType.photo,
+      ),
+      InspectionField(
+        key: 'roofProfile.section2Pitch',
+        label: 'Section 2 pitch (if applicable)',
+        type: InspectionFieldType.text,
+      ),
+      InspectionField(
+        key: 'roofProfile.section2Photo',
+        label: 'Section 2 Photo',
+        type: InspectionFieldType.photo,
+      ),
+      InspectionField(
+        key: 'roofProfile.section3Pitch',
+        label: 'Section 3 pitch (if applicable)',
+        type: InspectionFieldType.text,
+      ),
+      InspectionField(
+        key: 'roofProfile.section3Photo',
+        label: 'Section 3 Photo',
+        type: InspectionFieldType.photo,
+      ),
       InspectionField(
         key: 'roofProfile.anchorPoints',
         label: 'Anchor points on roof?',
@@ -391,16 +557,33 @@ final List<InspectionSection> inspectionSections = [
         type: InspectionFieldType.select,
         options: ['Yes', 'No'],
       ),
-      InspectionField(key: 'roofProfile.dcCableRunMeters', label: 'DC Cable Run (m)', type: InspectionFieldType.text),
-      InspectionField(key: 'roofProfile.dcConduitMeters', label: 'DC Conduit (m)', type: InspectionFieldType.text),
+      InspectionField(
+        key: 'roofProfile.dcCableRunMeters',
+        label: 'DC Cable Run (m)',
+        type: InspectionFieldType.text,
+      ),
+      InspectionField(
+        key: 'roofProfile.dcConduitMeters',
+        label: 'DC Conduit (m)',
+        type: InspectionFieldType.text,
+      ),
     ],
   ),
   InspectionSection(
     id: 'mudmap',
     label: 'Mud Map',
     fields: [
-      InspectionField(key: 'mudMap.mapPhoto', label: 'Mud Map (mark inverter, MSB, POC)', type: InspectionFieldType.photo),
-      InspectionField(key: 'mudMap.accessNotes', label: 'Access notes', type: InspectionFieldType.textarea, placeholder: 'Proposed roof access location'),
+      InspectionField(
+        key: 'mudMap.mapPhoto',
+        label: 'Mud Map (mark inverter, MSB, POC)',
+        type: InspectionFieldType.photo,
+      ),
+      InspectionField(
+        key: 'mudMap.accessNotes',
+        label: 'Access notes',
+        type: InspectionFieldType.textarea,
+        placeholder: 'Proposed roof access location',
+      ),
     ],
   ),
   InspectionSection(
@@ -417,10 +600,14 @@ final List<InspectionSection> inspectionSections = [
           'Heavy shading from adjacent buildings',
           'Partial shading in morning',
           'Heavy shading from trees',
-          'Other'
+          'Other',
         ],
       ),
-      InspectionField(key: 'shading.other', label: 'Other shading source', type: InspectionFieldType.text),
+      InspectionField(
+        key: 'shading.other',
+        label: 'Other shading source',
+        type: InspectionFieldType.text,
+      ),
       InspectionField(
         key: 'electrical.hazards',
         label: 'Electrical Hazards',
@@ -433,18 +620,30 @@ final List<InspectionSection> inspectionSections = [
           'Faulty breakers',
           'Code violations',
           'Poor grounding',
-          'Other'
+          'Other',
         ],
       ),
-      InspectionField(key: 'electrical.notes', label: 'Hazard notes', type: InspectionFieldType.textarea),
+      InspectionField(
+        key: 'electrical.notes',
+        label: 'Hazard notes',
+        type: InspectionFieldType.textarea,
+      ),
       InspectionField(
         key: 'recommendations.count',
         label: 'Number of recommendation options',
         type: InspectionFieldType.select,
-        options: ['0', '1', '2', '3', '4', '5'],
+        options: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'],
       ),
-      InspectionField(key: 'recommendations.summary', label: 'Summary Recommendation', type: InspectionFieldType.textarea),
-      InspectionField(key: 'mediaSummary.note', label: 'Final Media Summary Note', type: InspectionFieldType.textarea),
+      InspectionField(
+        key: 'recommendations.summary',
+        label: 'Summary Recommendation',
+        type: InspectionFieldType.textarea,
+      ),
+      InspectionField(
+        key: 'mediaSummary.note',
+        label: 'Final Media Summary Note',
+        type: InspectionFieldType.textarea,
+      ),
       InspectionField(
         key: 'customer_name',
         label: 'Customer Name',
