@@ -68,6 +68,12 @@ app.use(express.json({ limit: '25mb' }));
 
 app.use('/uploads', express.static(uploadsDir));
 app.use('/uploads', express.static(legacyUploadsDir));
+
+// Some deployments / reverse proxies may not forward `/uploads` to the node
+// process, causing 404s for chat previews. Expose the same static files under
+// `/api/uploads` as well (this path is already routed to the API).
+app.use('/api/uploads', express.static(uploadsDir));
+app.use('/api/uploads', express.static(legacyUploadsDir));
 app.use('/api/leads/:leadId/site-inspection/files', siteInspectionFilesRoutes);
 app.get('/health', (_, res) => res.status(200).json({ status: 'ok' }));
 

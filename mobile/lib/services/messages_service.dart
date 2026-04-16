@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 import 'dart:io';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:path_provider/path_provider.dart';
 import '../core/network/api_client.dart';
 import '../core/network/api_exceptions.dart';
 import '../models/message.dart';
@@ -8,6 +10,49 @@ class MessagesService {
   final _api = ApiClient();
 
   String _basename(String path) => path.split(RegExp(r'[\\/]')).last;
+
+  bool _isImageMime(String? mimeType) =>
+      (mimeType ?? '').toLowerCase().startsWith('image/');
+
+  bool _isGifMime(String? mimeType) =>
+      (mimeType ?? '').toLowerCase().trim() == 'image/gif';
+
+  bool _isHeicLike({
+    required String? mimeType,
+    required String filenameOrPath,
+  }) {
+    final ext = _extensionFromName(filenameOrPath);
+    final m = (mimeType ?? '').toLowerCase();
+    return m == 'image/heic' ||
+        m == 'image/heif' ||
+        ext == '.heic' ||
+        ext == '.heif';
+  }
+
+  String _mimeTypeFromFilename(String filename) {
+    final ext = _extensionFromName(filename);
+    switch (ext) {
+      case '.jpg':
+      case '.jpeg':
+        return 'image/jpeg';
+      case '.png':
+        return 'image/png';
+      case '.gif':
+        return 'image/gif';
+      case '.webp':
+        return 'image/webp';
+      case '.bmp':
+        return 'image/bmp';
+      case '.heic':
+        return 'image/heic';
+      case '.heif':
+        return 'image/heif';
+      case '.pdf':
+        return 'application/pdf';
+      default:
+        return 'application/octet-stream';
+    }
+  }
 
   String _extensionFromName(String name) {
     final base = name.split(RegExp(r'[\\/]')).last;
@@ -165,15 +210,63 @@ class MessagesService {
     int? companyId,
   }) async {
     try {
+      File fileToUpload = file;
+      String? mimeToUpload = mimeType;
+      final originalSize = await file.length();
+      final pickedName = (name ?? _basename(file.path)).trim();
+
+      final likelyImage = _isImageMime(mimeType) ||
+          ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.heic', '.heif']
+              .contains(_extensionFromName((name ?? '').trim())) ||
+          ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.heic', '.heif']
+              .contains(_extensionFromName(_basename(file.path)));
+
+      // Camera uploads (especially iOS HEIC / extension-less names) can break
+      // previews if served with unsupported format metadata. Normalize image
+      // uploads to JPEG, and compress large files to avoid size errors.
+      final shouldNormalizeToJpeg = likelyImage &&
+          !_isGifMime(mimeType) &&
+          (_isHeicLike(mimeType: mimeType, filenameOrPath: pickedName) ||
+              _isHeicLike(
+                  mimeType: mimeType, filenameOrPath: _basename(file.path)) ||
+              _extensionFromName(pickedName).isEmpty ||
+              _extensionFromName(_basename(file.path)).isEmpty ||
+              originalSize > 2 * 1024 * 1024);
+
+      if (shouldNormalizeToJpeg) {
+        final tempDir = await getTemporaryDirectory();
+        final outPath =
+            '${tempDir.path}/chat_${conversationId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        final compressed = await FlutterImageCompress.compressAndGetFile(
+          file.path,
+          outPath,
+          quality: originalSize > 6 * 1024 * 1024 ? 70 : 82,
+          minWidth: 1280,
+          minHeight: 1280,
+          format: CompressFormat.jpeg,
+        );
+        if (compressed != null) {
+          fileToUpload = File(compressed.path);
+          mimeToUpload = 'image/jpeg';
+          name = _basename(fileToUpload.path);
+        }
+      }
+
       final finalFilename = _filenameWithBestExtension(
-        file: file,
+        file: fileToUpload,
         name: name,
-        mimeType: mimeType,
+        mimeType: mimeToUpload ?? mimeType,
       );
+
+      final effectiveMime = (mimeToUpload != null && mimeToUpload.trim().isNotEmpty)
+          ? mimeToUpload
+          : _mimeTypeFromFilename(finalFilename);
+
       final uploadForm = FormData.fromMap({
         'attachment': await MultipartFile.fromFile(
-          file.path,
+          fileToUpload.path,
           filename: finalFilename,
+          contentType: DioMediaType.parse(effectiveMime),
         ),
       });
       final uploaded = await uploadAttachment(
@@ -188,7 +281,7 @@ class MessagesService {
           'attachments': [
             {
               'filename': uploaded.filename,
-              'mimetype': uploaded.mimetype ?? mimeType,
+              'mimetype': uploaded.mimetype ?? effectiveMime,
               'storageUrl': uploaded.storageUrl,
             },
           ],

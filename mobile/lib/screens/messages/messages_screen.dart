@@ -1,7 +1,11 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
 import '../../core/config/api_config.dart';
+import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/message.dart';
 import '../../providers/auth_provider.dart';
@@ -595,6 +599,18 @@ class _ChatViewState extends State<_ChatView> {
   bool _sending = false;
   int? _lastJumpTarget;
 
+  void _openAttachmentViewer(List<String> urls, String filename) {
+    if (urls.isEmpty) return;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => _AttachmentImageViewer(
+        urls: urls,
+        filename: filename,
+      ),
+    );
+  }
+
   bool _isAllowedAttachmentType(String filename, String? mimeType) {
     final lowerName = filename.toLowerCase();
     final lowerMime = (mimeType ?? '').toLowerCase();
@@ -797,6 +813,8 @@ class _ChatViewState extends State<_ChatView> {
                                 _ChatBubble(
                                   message: msg,
                                   showSender: showSender,
+                                  onImageTap:
+                                      _openAttachmentViewer,
                                 ),
                               ],
                               ),
@@ -996,10 +1014,12 @@ class _ChatViewState extends State<_ChatView> {
 class _ChatBubble extends StatelessWidget {
   final ChatMessage message;
   final bool showSender;
+  final void Function(List<String> urls, String filename)? onImageTap;
 
   const _ChatBubble({
     required this.message,
     this.showSender = false,
+    this.onImageTap,
   });
 
   @override
@@ -1098,12 +1118,18 @@ class _ChatBubble extends StatelessWidget {
       if (att.isImage && urlCandidates.isNotEmpty) {
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: ClipRRect(
+          child: InkWell(
             borderRadius: BorderRadius.circular(10),
-            child: _AttachmentImagePreview(
-              urls: urlCandidates,
-              filename: att.filename,
-              width: 200,
+            onTap: onImageTap == null
+                ? null
+                : () => onImageTap!(urlCandidates, att.filename),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: _AttachmentImagePreview(
+                urls: urlCandidates,
+                filename: att.filename,
+                size: 120,
+              ),
             ),
           ),
         );
@@ -1188,12 +1214,12 @@ class _ChatBubble extends StatelessWidget {
 class _AttachmentImagePreview extends StatefulWidget {
   final List<String> urls;
   final String filename;
-  final double width;
+  final double size;
 
   const _AttachmentImagePreview({
     required this.urls,
     required this.filename,
-    required this.width,
+    required this.size,
   });
 
   @override
@@ -1201,43 +1227,99 @@ class _AttachmentImagePreview extends StatefulWidget {
 }
 
 class _AttachmentImagePreviewState extends State<_AttachmentImagePreview> {
+  Uint8List? _imageBytes;
+  bool _loading = true;
   int _index = 0;
 
   @override
+  void initState() {
+    super.initState();
+    _loadImage();
+  }
+
+  @override
+  void didUpdateWidget(covariant _AttachmentImagePreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.urls.join('|') != widget.urls.join('|')) {
+      _imageBytes = null;
+      _loading = true;
+      _index = 0;
+      _loadImage();
+    }
+  }
+
+  Future<void> _loadImage() async {
+    final api = ApiClient();
+    for (int i = _index; i < widget.urls.length; i++) {
+      try {
+        final uri = Uri.parse(widget.urls[i]);
+        final encoded = uri.replace(
+          pathSegments: uri.pathSegments
+              .map(Uri.decodeComponent)
+              .map(Uri.encodeComponent)
+              .toList(),
+        );
+        final resp = await api.dio.get<List<int>>(
+          encoded.toString(),
+          options: Options(
+            responseType: ResponseType.bytes,
+            validateStatus: (code) => code != null && code >= 200 && code < 500,
+          ),
+        );
+        final status = resp.statusCode ?? 0;
+        final data = resp.data;
+        if (status >= 200 && status < 300 && data != null && data.isNotEmpty) {
+          if (!mounted) return;
+          setState(() {
+            _imageBytes = Uint8List.fromList(data);
+            _loading = false;
+            _index = i;
+          });
+          return;
+        }
+      } catch (_) {
+        // Try next fallback URL.
+      }
+      if (!mounted) return;
+      setState(() => _index = i + 1);
+    }
+    if (mounted) {
+      setState(() => _loading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (widget.urls.isEmpty || _index >= widget.urls.length) {
-      return _broken(widget.filename, widget.width);
+    if (_loading) {
+      return SizedBox(
+        width: widget.size,
+        height: widget.size,
+        child: const Center(
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: AppColors.primary,
+          ),
+        ),
+      );
     }
 
-    return Image.network(
-      widget.urls[_index],
-      width: widget.width,
+    if (_imageBytes == null) {
+      return _broken(widget.filename, widget.size);
+    }
+
+    return Image.memory(
+      _imageBytes!,
+      width: widget.size,
+      height: widget.size,
       fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) {
-        if (_index < widget.urls.length - 1) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) setState(() => _index += 1);
-          });
-          return SizedBox(
-            width: widget.width,
-            height: 100,
-            child: const Center(
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: AppColors.primary,
-              ),
-            ),
-          );
-        }
-        return _broken(widget.filename, widget.width);
-      },
+      errorBuilder: (_, __, ___) => _broken(widget.filename, widget.size),
     );
   }
 
-  Widget _broken(String filename, double width) {
+  Widget _broken(String filename, double size) {
     return Container(
-      width: width,
-      height: 100,
+      width: size,
+      height: size,
       color: AppColors.surface,
       alignment: Alignment.center,
       child: Column(
@@ -1256,6 +1338,187 @@ class _AttachmentImagePreviewState extends State<_AttachmentImagePreview> {
             overflow: TextOverflow.ellipsis,
           ),
         ],
+      ),
+    );
+  }
+}
+
+// Full-screen image viewer (WhatsApp-like) for chat attachments.
+class _AttachmentImageViewer extends StatefulWidget {
+  final List<String> urls;
+  final String filename;
+
+  const _AttachmentImageViewer({
+    required this.urls,
+    required this.filename,
+  });
+
+  @override
+  State<_AttachmentImageViewer> createState() => _AttachmentImageViewerState();
+}
+
+class _AttachmentImageViewerState extends State<_AttachmentImageViewer> {
+  Uint8List? _imageBytes;
+  bool _loading = true;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadImageBytes();
+  }
+
+  String _safeSaveName(String filename) {
+    final base = filename.split(RegExp(r'[\\/]')).last;
+    final safe = base.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+    return safe.isNotEmpty ? safe : 'image';
+  }
+
+  Future<void> _loadImageBytes() async {
+    final api = ApiClient();
+    for (int i = 0; i < widget.urls.length; i++) {
+      try {
+        final uri = Uri.parse(widget.urls[i]);
+        final encoded = uri.replace(
+          pathSegments: uri.pathSegments
+              .map(Uri.decodeComponent)
+              .map(Uri.encodeComponent)
+              .toList(),
+        );
+        final resp = await api.dio.get<List<int>>(
+          encoded.toString(),
+          options: Options(
+            responseType: ResponseType.bytes,
+            validateStatus: (code) => code != null && code >= 200 && code < 500,
+          ),
+        );
+
+        final data = resp.data;
+        if ((resp.statusCode ?? 0) >= 200 && (resp.statusCode ?? 0) < 300 && data != null && data.isNotEmpty) {
+          if (!mounted) return;
+          setState(() {
+            _imageBytes = Uint8List.fromList(data);
+            _loading = false;
+          });
+          return;
+        }
+      } catch (_) {
+        // Try next fallback URL.
+      }
+    }
+
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _saveToPhone() async {
+    if (_imageBytes == null || _saving) return;
+    setState(() => _saving = true);
+    try {
+      final result = await ImageGallerySaverPlus.saveImage(
+        _imageBytes!,
+        name: _safeSaveName(widget.filename),
+        quality: 90,
+      );
+      final isSuccess = result is Map ? (result['isSuccess'] == true) : false;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(isSuccess ? 'Saved to phone' : 'Save failed'),
+            backgroundColor: isSuccess ? AppColors.success : AppColors.danger,
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Save failed'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      insetPadding: EdgeInsets.zero,
+      backgroundColor: Colors.black,
+      child: SafeArea(
+        child: Column(
+          children: [
+            Container(
+              color: Colors.black,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  Expanded(
+                    child: Text(
+                      widget.filename,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: _saving
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.download_rounded,
+                            color: Colors.white,
+                          ),
+                    onPressed: _loading ? null : _saveToPhone,
+                    tooltip: 'Save to phone',
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: _loading
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.primary,
+                      ),
+                    )
+                  : (_imageBytes != null
+                      ? InteractiveViewer(
+                          minScale: 1,
+                          maxScale: 5,
+                          child: Image.memory(
+                            _imageBytes!,
+                            fit: BoxFit.contain,
+                          ),
+                        )
+                      : Center(
+                          child: Text(
+                            'Could not load image',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        )),
+            ),
+          ],
+        ),
       ),
     );
   }
