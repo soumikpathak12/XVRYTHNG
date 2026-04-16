@@ -13,6 +13,20 @@ const __dirname = path.dirname(__filename);
 const UPLOAD_DIR = path.resolve(__dirname, '../../uploads/chats');
 
 const MESSAGES_PAGE_SIZE = 50;
+const ALLOWED_ATTACHMENT_MIME = new Set([
+  'application/pdf',
+]);
+const ALLOWED_ATTACHMENT_EXT = new Set([
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.gif',
+  '.webp',
+  '.bmp',
+  '.heic',
+  '.heif',
+  '.pdf',
+]);
 
 function userDisplayNameSql(alias = 'u') {
   return `COALESCE(
@@ -728,6 +742,18 @@ export async function uploadAttachment(req, res) {
     }
 
     const file = req.files.attachment;
+    const fileMime = String(file.mimetype || '').toLowerCase();
+    const fileExt = path.extname(String(file.name || '')).toLowerCase();
+    const isAllowed =
+      fileMime.startsWith('image/') ||
+      ALLOWED_ATTACHMENT_MIME.has(fileMime) ||
+      ALLOWED_ATTACHMENT_EXT.has(fileExt);
+    if (!isAllowed) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only image files and PDFs are allowed',
+      });
+    }
     fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
     // Generate unique local filename

@@ -14,6 +14,7 @@ class FilePickerResult {
 
 Future<FilePickerResult?> showFilePickerSheet(BuildContext context,
     {bool imageOnly = false,
+    bool imageAndPdfOnly = false,
     int imageQuality = 85,
     double? maxWidth,
     double? maxHeight}) async {
@@ -24,6 +25,7 @@ Future<FilePickerResult?> showFilePickerSheet(BuildContext context,
     ),
     builder: (ctx) => _FilePickerSheet(
       imageOnly: imageOnly,
+      imageAndPdfOnly: imageAndPdfOnly,
       imageQuality: imageQuality,
       maxWidth: maxWidth,
       maxHeight: maxHeight,
@@ -33,11 +35,13 @@ Future<FilePickerResult?> showFilePickerSheet(BuildContext context,
 
 class _FilePickerSheet extends StatelessWidget {
   final bool imageOnly;
+  final bool imageAndPdfOnly;
   final int imageQuality;
   final double? maxWidth;
   final double? maxHeight;
   const _FilePickerSheet({
     this.imageOnly = false,
+    this.imageAndPdfOnly = false,
     this.imageQuality = 85,
     this.maxWidth,
     this.maxHeight,
@@ -98,6 +102,29 @@ class _FilePickerSheet extends StatelessWidget {
     );
   }
 
+  String _extensionFromMimeType(String? mimeType) {
+    final m = (mimeType ?? '').toLowerCase().trim();
+    if (m == 'image/jpeg' || m == 'image/jpg') return '.jpg';
+    if (m == 'image/png') return '.png';
+    if (m == 'image/gif') return '.gif';
+    if (m == 'image/webp') return '.webp';
+    if (m == 'image/bmp') return '.bmp';
+    if (m == 'image/heic') return '.heic';
+    if (m == 'image/heif') return '.heif';
+    if (m == 'application/pdf') return '.pdf';
+    return '';
+  }
+
+  String _ensureExtension(String filename, String mimeType) {
+    final hasDot = filename.contains('.') &&
+        !filename.endsWith('.') &&
+        filename.split('.').last.trim().isNotEmpty;
+    if (hasDot) return filename;
+    final ext = _extensionFromMimeType(mimeType);
+    if (ext.isEmpty) return filename;
+    return '$filename$ext';
+  }
+
   Future<void> _pickFromCamera(BuildContext context) async {
     final picker = ImagePicker();
     final photo = await picker.pickImage(
@@ -107,12 +134,21 @@ class _FilePickerSheet extends StatelessWidget {
       maxHeight: maxHeight,
     );
     if (photo != null && context.mounted) {
+      final pathBase = photo.path.split(RegExp(r'[\\/]')).last;
+      final baseName = photo.name.trim().contains('.')
+          ? photo.name
+          : (pathBase.isNotEmpty ? pathBase : photo.name);
+      final mime = _getMimeType(photo.path);
+      final resolvedMime = mime != 'application/octet-stream'
+          ? mime
+          : (photo.mimeType ?? 'image/jpeg');
+      final chosenName = _ensureExtension(baseName, resolvedMime);
       Navigator.pop(
         context,
         FilePickerResult(
           file: File(photo.path),
-          name: photo.name,
-          mimeType: 'image/jpeg',
+          name: chosenName,
+          mimeType: resolvedMime,
         ),
       );
     }
@@ -127,19 +163,43 @@ class _FilePickerSheet extends StatelessWidget {
       maxHeight: maxHeight,
     );
     if (image != null && context.mounted) {
+      final pathBase = image.path.split(RegExp(r'[\\/]')).last;
+      final baseName = image.name.trim().contains('.')
+          ? image.name
+          : (pathBase.isNotEmpty ? pathBase : image.name);
+      final mime = _getMimeType(image.path);
+      final resolvedMime = mime != 'application/octet-stream'
+          ? mime
+          : (image.mimeType ?? 'image/jpeg');
+      final chosenName = _ensureExtension(baseName, resolvedMime);
       Navigator.pop(
         context,
         FilePickerResult(
           file: File(image.path),
-          name: image.name,
-          mimeType: _getMimeType(image.name),
+          name: chosenName,
+          mimeType: resolvedMime,
         ),
       );
     }
   }
 
   Future<void> _pickFromFiles(BuildContext context) async {
-    final result = await FilePicker.platform.pickFiles();
+    final result = imageAndPdfOnly
+        ? await FilePicker.platform.pickFiles(
+            type: FileType.custom,
+            allowedExtensions: const [
+              'jpg',
+              'jpeg',
+              'png',
+              'gif',
+              'webp',
+              'bmp',
+              'heic',
+              'heif',
+              'pdf',
+            ],
+          )
+        : await FilePicker.platform.pickFiles();
     if (result != null && result.files.single.path != null && context.mounted) {
       final pf = result.files.single;
       Navigator.pop(
@@ -154,7 +214,8 @@ class _FilePickerSheet extends StatelessWidget {
   }
 
   String _getMimeType(String name) {
-    final ext = name.split('.').last.toLowerCase();
+    final base = name.split(RegExp(r'[\\/]')).last;
+    final ext = base.contains('.') ? base.split('.').last.toLowerCase() : '';
     switch (ext) {
       case 'jpg':
       case 'jpeg':

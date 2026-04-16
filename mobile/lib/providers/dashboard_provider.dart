@@ -12,6 +12,7 @@ class DashboardProvider extends ChangeNotifier {
   List<ActivityItem> _activities = [];
   bool _loading = false;
   String? _error;
+  int _dashboardLoadSeq = 0;
   /// Matches web + API: `week` | `month` | `quarter` | `custom`
   String _range = 'month';
   String? _customFrom;
@@ -84,6 +85,10 @@ class DashboardProvider extends ChangeNotifier {
       }
     }
 
+    // Prevent race conditions where an older request finishes after a newer
+    // one and overwrites the latest metrics (observed on iOS).
+    final int loadSeq = ++_dashboardLoadSeq;
+
     notifyListeners();
     try {
       final result = await _service.getSalesDashboard(
@@ -91,14 +96,18 @@ class DashboardProvider extends ChangeNotifier {
         from: _range == 'custom' ? _customFrom : null,
         to: _range == 'custom' ? _customTo : null,
       );
+      if (loadSeq != _dashboardLoadSeq) return;
       _metrics = result['metrics'] as DashboardMetrics;
       _pipelineStages = result['pipelineByStage'] as List<PipelineStage>;
       _leadsBySource = result['leadsBySource'] as List<LeadBySource>;
     } catch (e) {
+      if (loadSeq != _dashboardLoadSeq) return;
       _error = e.toString();
     } finally {
-      _loading = false;
-      notifyListeners();
+      if (loadSeq == _dashboardLoadSeq) {
+        _loading = false;
+        notifyListeners();
+      }
     }
   }
 

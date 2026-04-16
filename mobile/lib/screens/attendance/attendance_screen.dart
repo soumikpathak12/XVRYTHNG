@@ -223,12 +223,36 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   /// Matches web: completed shift with fewer than 8 recorded hours may request a correction.
   bool _shortShiftNeedsEditRecord(AttendanceRecord r) {
     if (r.checkInTime == null || r.checkOutTime == null) return false;
-    return (r.hoursWorked ?? 0) < 8;
+    return _effectiveWorkedHours(
+          checkInRaw: r.checkInTime,
+          checkOutRaw: r.checkOutTime,
+          apiHours: r.hoursWorked,
+        ) <
+        8;
   }
 
   bool _shortShiftNeedsEditToday(AttendanceToday? t) {
     if (t == null || !t.isCheckedOut) return false;
-    return (t.hoursWorked ?? 0) < 8;
+    return _effectiveWorkedHours(
+          checkInRaw: t.checkInTime,
+          checkOutRaw: t.checkOutTime,
+          apiHours: t.hoursWorked,
+        ) <
+        8;
+  }
+
+  double _effectiveWorkedHours({
+    required String? checkInRaw,
+    required String? checkOutRaw,
+    required double? apiHours,
+  }) {
+    if (apiHours != null && apiHours > 0) return apiHours;
+    final checkIn = checkInRaw == null ? null : _parseTime(checkInRaw);
+    final checkOut = checkOutRaw == null ? null : _parseTime(checkOutRaw);
+    if (checkIn == null || checkOut == null) return apiHours ?? 0;
+    final duration = checkOut.difference(checkIn);
+    if (duration.isNegative) return apiHours ?? 0;
+    return duration.inMinutes / 60.0;
   }
 
   AttendanceRecord? _recordFromToday(AttendanceToday t) {
@@ -400,7 +424,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                             const SizedBox(height: 8),
                             Text(
                               'Check in: ${_fmtTime(record.checkInTime)} · Check out: ${_fmtTime(record.checkOutTime)} · '
-                              '${record.hoursWorked != null ? '${record.hoursWorked!.toStringAsFixed(2)} h' : '—'}',
+                              '${_effectiveWorkedHours(checkInRaw: record.checkInTime, checkOutRaw: record.checkOutTime, apiHours: record.hoursWorked).toStringAsFixed(2)} h',
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: AppColors.textSecondary,
@@ -929,7 +953,11 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   }
 
   Widget _buildWorkedSummary() {
-    final hours = _today?.hoursWorked ?? 0;
+    final hours = _effectiveWorkedHours(
+      checkInRaw: _today?.checkInTime,
+      checkOutRaw: _today?.checkOutTime,
+      apiHours: _today?.hoursWorked,
+    );
     return Card(
       elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -1056,7 +1084,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    '${(r.hoursWorked ?? 0).toStringAsFixed(1)}h',
+                    '${_effectiveWorkedHours(checkInRaw: r.checkInTime, checkOutRaw: r.checkOutTime, apiHours: r.hoursWorked).toStringAsFixed(1)}h',
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 14,

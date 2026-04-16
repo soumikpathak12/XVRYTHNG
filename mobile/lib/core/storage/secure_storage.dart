@@ -6,6 +6,7 @@ class SecureStore {
   static const _kAccess = 'access_token';
   static const _kRefresh = 'refresh_token';
   static const _kRemember = 'remember_me';
+  static const _kLastEmail = 'last_email';
 
   static Future<void> saveTokens({
     required String accessToken,
@@ -28,4 +29,9 @@ class SecureStore {
       (await _storage.read(key: _kRemember)) == '1';
 
   static Future<void> clear() => _storage.deleteAll();
+
+  static Future<void> saveLastEmail(String email) =>
+      _storage.write(key: _kLastEmail, value: email.trim());
+
+  static Future<String?> readLastEmail() => _storage.read(key: _kLastEmail);
 }

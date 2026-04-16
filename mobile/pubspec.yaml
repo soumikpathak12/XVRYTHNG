@@ -60,6 +60,8 @@ dependencies:
   # Sharing
   share_plus: ^10.1.3
   android_intent_plus: ^6.0.0
+  flutter_image_compress: ^2.4.0
+  image_gallery_saver_plus: ^4.0.1
 
 dev_dependencies:
   flutter_test:
