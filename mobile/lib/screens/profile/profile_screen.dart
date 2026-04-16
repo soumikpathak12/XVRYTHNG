@@ -44,7 +44,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _pickAndUploadAvatar() async {
-    final result = await showFilePickerSheet(context, imageOnly: true);
+    final result = await showFilePickerSheet(
+      context,
+      imageOnly: true,
+      imageQuality: null,
+      maxWidth: null,
+      maxHeight: null,
+    );
     if (result == null) return;
 
     setState(() => _uploadingAvatar = true);
@@ -65,9 +71,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Upload failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
       }
     } finally {
       if (mounted) setState(() => _uploadingAvatar = false);
@@ -84,15 +90,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) {
         await context.read<AuthProvider>().initialize();
         setState(() => _editingName = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Name updated')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Name updated')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
       if (mounted) setState(() => _savingName = false);
@@ -107,17 +113,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
     if (_newPwCtrl.text != _confirmPwCtrl.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Passwords don\'t match')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Passwords don\'t match')));
       return;
     }
 
     setState(() => _changingPassword = true);
     try {
-      await context
-          .read<AuthProvider>()
-          .changePassword(_currentPwCtrl.text, _newPwCtrl.text);
+      await context.read<AuthProvider>().changePassword(
+        _currentPwCtrl.text,
+        _newPwCtrl.text,
+      );
       _currentPwCtrl.clear();
       _newPwCtrl.clear();
       _confirmPwCtrl.clear();
@@ -128,9 +135,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
       if (mounted) setState(() => _changingPassword = false);
@@ -180,8 +187,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           CircleAvatar(
             radius: 56,
             backgroundColor: AppColors.primary.withOpacity(0.1),
-            backgroundImage:
-                avatarUrl != null ? NetworkImage(avatarUrl) : null,
+            backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
             child: avatarUrl == null
                 ? Text(
                     name.isNotEmpty ? name[0].toUpperCase() : '?',
@@ -214,8 +220,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             color: AppColors.white,
                           ),
                         )
-                      : const Icon(Icons.camera_alt,
-                          size: 18, color: AppColors.white),
+                      : const Icon(
+                          Icons.camera_alt,
+                          size: 18,
+                          color: AppColors.white,
+                        ),
                 ),
               ),
             ),
@@ -254,8 +263,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 8),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
             decoration: BoxDecoration(
               color: AppColors.primary.withOpacity(0.1),
               borderRadius: BorderRadius.circular(20),
@@ -274,8 +282,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.business,
-                    size: 15, color: AppColors.textSecondary),
+                const Icon(
+                  Icons.business,
+                  size: 15,
+                  color: AppColors.textSecondary,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   user.companyName!,
@@ -352,7 +363,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: AppColors.white),
+                            strokeWidth: 2,
+                            color: AppColors.white,
+                          ),
                         )
                       : const Text('Save'),
                 ),
@@ -426,7 +439,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: AppColors.white),
+                        strokeWidth: 2,
+                        color: AppColors.white,
+                      ),
                     )
                   : const Text('Update Password'),
             ),

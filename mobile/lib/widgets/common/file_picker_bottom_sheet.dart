@@ -12,12 +12,14 @@ class FilePickerResult {
   FilePickerResult({required this.file, required this.name, this.mimeType});
 }
 
-Future<FilePickerResult?> showFilePickerSheet(BuildContext context,
-    {bool imageOnly = false,
-    bool imageAndPdfOnly = false,
-    int imageQuality = 85,
-    double? maxWidth,
-    double? maxHeight}) async {
+Future<FilePickerResult?> showFilePickerSheet(
+  BuildContext context, {
+  bool imageOnly = false,
+  bool imageAndPdfOnly = false,
+  int? imageQuality = 85,
+  double? maxWidth,
+  double? maxHeight,
+}) async {
   return showModalBottomSheet<FilePickerResult>(
     context: context,
     shape: const RoundedRectangleBorder(
@@ -36,7 +38,7 @@ Future<FilePickerResult?> showFilePickerSheet(BuildContext context,
 class _FilePickerSheet extends StatelessWidget {
   final bool imageOnly;
   final bool imageAndPdfOnly;
-  final int imageQuality;
+  final int? imageQuality;
   final double? maxWidth;
   final double? maxHeight;
   const _FilePickerSheet({
@@ -66,9 +68,9 @@ class _FilePickerSheet extends StatelessWidget {
             const SizedBox(height: 20),
             Text(
               imageOnly ? 'Select Image' : 'Select File',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 20),
             Row(
@@ -116,7 +118,8 @@ class _FilePickerSheet extends StatelessWidget {
   }
 
   String _ensureExtension(String filename, String mimeType) {
-    final hasDot = filename.contains('.') &&
+    final hasDot =
+        filename.contains('.') &&
         !filename.endsWith('.') &&
         filename.split('.').last.trim().isNotEmpty;
     if (hasDot) return filename;
@@ -271,9 +274,9 @@ class _OptionTile extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
             ),
           ],
         ),
