@@ -57,6 +57,10 @@ dependencies:
   csv: ^6.0.0
   path_provider: ^2.1.4
 
+  # PDF generation & sharing for mobile
+  pdf: ^3.11.1
+  printing: ^5.13.3
+
   # Sharing
   share_plus: ^10.1.3
   flutter_image_compress: ^2.4.0

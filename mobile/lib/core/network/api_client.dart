@@ -78,6 +78,17 @@ class ApiClient {
     onSendProgress: onSendProgress,
   );
 
+  Future<Response> uploadPut(
+    String path,
+    FormData formData, {
+    void Function(int, int)? onSendProgress,
+  }) => dio.put(
+    path,
+    data: formData,
+    options: Options(contentType: 'multipart/form-data'),
+    onSendProgress: onSendProgress,
+  );
+
   void dispose() {
     _sessionExpiredController.close();
   }

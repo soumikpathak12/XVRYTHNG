@@ -22,6 +22,7 @@ class _SiteInspectionLeadsScreenState extends State<SiteInspectionLeadsScreen> {
   DateTime _selectedDay = DateTime.now();
   bool _initialLoadTriggered = false;
   String _viewMode = 'day'; // 'day', 'week', 'month'
+  String _statusFilter = 'all'; // 'all', 'draft', 'submitted'
 
   
   // View constants for the new timeline
@@ -93,13 +94,41 @@ class _SiteInspectionLeadsScreenState extends State<SiteInspectionLeadsScreen> {
 
           final allEvents = provider.events;
           final inspections = allEvents.where((e) => e.isSiteInspection).toList();
-          final dayInspections = provider.eventsForDay(_selectedDay).where((e) => e.isSiteInspection).toList();
+          final dayInspections = provider
+              .eventsForDay(_selectedDay)
+              .where((e) => e.isSiteInspection)
+              .toList();
+
+          // Status buckets similar to the web dashboard
+          final drafts =
+              inspections.where((e) => (e.status ?? '').toLowerCase() == 'draft').toList();
+          final submitted = inspections
+              .where((e) => (e.status ?? '').toLowerCase() == 'submitted')
+              .toList();
+
+          // Apply status filter to the visible day list
+          final filteredDayInspections = dayInspections.where((e) {
+            final s = (e.status ?? '').toLowerCase();
+            if (_statusFilter == 'draft') return s == 'draft';
+            if (_statusFilter == 'submitted') return s == 'submitted';
+            return true;
+          }).toList();
 
           return ListView(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             children: [
               const SizedBox(height: 8),
-              _buildHeader(),
+              _buildHeader(
+                totalCount: inspections.length,
+                draftCount: drafts.length,
+                submittedCount: submitted.length,
+              ),
+              const SizedBox(height: 16),
+              _buildStatusFilterChips(
+                totalCount: inspections.length,
+                draftCount: drafts.length,
+                submittedCount: submitted.length,
+              ),
               const SizedBox(height: 20),
               _buildViewToggle(),
               const SizedBox(height: 16),
@@ -117,14 +146,21 @@ class _SiteInspectionLeadsScreenState extends State<SiteInspectionLeadsScreen> {
                 children: [
                    const Icon(Icons.list_alt_rounded, size: 16, color: AppColors.textSecondary),
                    const SizedBox(width: 8),
-                   Text('Scheduled for ${DateFormat('dd MMM').format(_selectedDay)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.textSecondary)),
+                   Text(
+                     'Scheduled for ${DateFormat('dd MMM').format(_selectedDay)}',
+                     style: const TextStyle(
+                       fontWeight: FontWeight.w800,
+                       fontSize: 13,
+                       color: AppColors.textSecondary,
+                     ),
+                   ),
                 ],
               ),
               const SizedBox(height: 12),
-              if (dayInspections.isEmpty)
+              if (filteredDayInspections.isEmpty)
                 _buildEmptyState()
               else
-                ...dayInspections.map(_buildInspectionCard),
+                ...filteredDayInspections.map(_buildInspectionCard),
               const SizedBox(height: 100),
             ],
           );
@@ -133,7 +169,11 @@ class _SiteInspectionLeadsScreenState extends State<SiteInspectionLeadsScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader({
+    required int totalCount,
+    required int draftCount,
+    required int submittedCount,
+  }) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -153,16 +193,143 @@ class _SiteInspectionLeadsScreenState extends State<SiteInspectionLeadsScreen> {
                 child: const Icon(Icons.assignment_outlined, color: Colors.teal, size: 18),
               ),
               const SizedBox(width: 12),
-              const Expanded(child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('INSPECTION TRACKER', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.teal, letterSpacing: 0.8)),
-                  Text('Scheduled Workspace', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-                ],
-              )),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'INSPECTION TRACKER',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.teal,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    const Text(
+                      'Scheduled Workspace',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '$totalCount total · $draftCount draft · $submittedCount completed',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStatusFilterChips({
+    required int totalCount,
+    required int draftCount,
+    required int submittedCount,
+  }) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        children: [
+          _statusChip(
+            label: 'All',
+            count: totalCount,
+            isActive: _statusFilter == 'all',
+            color: AppColors.textSecondary,
+            onTap: () => setState(() => _statusFilter = 'all'),
+          ),
+          const SizedBox(width: 6),
+          _statusChip(
+            label: 'Draft',
+            count: draftCount,
+            isActive: _statusFilter == 'draft',
+            color: Colors.amber[800] ?? Colors.orange,
+            onTap: () => setState(() => _statusFilter = 'draft'),
+          ),
+          const SizedBox(width: 6),
+          _statusChip(
+            label: 'Completed',
+            count: submittedCount,
+            isActive: _statusFilter == 'submitted',
+            color: Colors.teal[800] ?? Colors.teal,
+            onTap: () => setState(() => _statusFilter = 'submitted'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statusChip({
+    required String label,
+    required int count,
+    required bool isActive,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isActive ? Colors.white : Colors.white.withOpacity(0.0),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: isActive ? color : AppColors.border.withOpacity(0.6),
+          ),
+          boxShadow: isActive
+              ? [
+                  BoxShadow(
+                    color: color.withOpacity(0.18),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: isActive ? color : AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              count.toString(),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: isActive ? color : AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

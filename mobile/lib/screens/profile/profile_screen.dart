@@ -50,13 +50,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _uploadingAvatar = true);
     try {
       final formData = FormData.fromMap({
-        'avatar': await MultipartFile.fromFile(
+        'photo': await MultipartFile.fromFile(
           result.file.path,
           filename: result.name,
           contentType: DioMediaType.parse(result.mimeType ?? 'image/jpeg'),
         ),
       });
-      await _api.upload('/api/users/me/avatar', formData);
+      await _api.uploadPut('/api/users/me', formData);
       if (mounted) {
         await context.read<AuthProvider>().initialize();
         ScaffoldMessenger.of(context).showSnackBar(
