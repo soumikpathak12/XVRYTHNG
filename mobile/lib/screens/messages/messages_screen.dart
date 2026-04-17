@@ -47,14 +47,14 @@ class _MessagesScreenState extends State<MessagesScreen> {
     super.dispose();
   }
 
-  bool get _isTablet =>
-      MediaQuery.of(context).size.shortestSide >= 600;
+  bool get _isTablet => MediaQuery.of(context).size.shortestSide >= 600;
 
   void _openConversation(int id) {
     final auth = context.read<AuthProvider>();
-    context
-        .read<MessagesProvider>()
-        .openConversation(id, companyId: auth.user?.companyId);
+    context.read<MessagesProvider>().openConversation(
+      id,
+      companyId: auth.user?.companyId,
+    );
     if (!_isTablet) {
       setState(() => _showChat = true);
     }
@@ -65,13 +65,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
     final jumpToMessageId = conversation.lastMessage?.isSearchMatch == true
         ? conversation.lastMessage?.id
         : null;
-    context
-        .read<MessagesProvider>()
-        .openConversation(
-          conversation.id,
-          companyId: auth.user?.companyId,
-          jumpToMessageId: jumpToMessageId,
-        );
+    context.read<MessagesProvider>().openConversation(
+      conversation.id,
+      companyId: auth.user?.companyId,
+      jumpToMessageId: jumpToMessageId,
+    );
     if (!_isTablet) {
       setState(() => _showChat = true);
     }
@@ -85,14 +83,51 @@ class _MessagesScreenState extends State<MessagesScreen> {
     _searchController.clear();
     setState(() => _searchQuery = '');
     final auth = context.read<AuthProvider>();
-    await context
-        .read<MessagesProvider>()
-        .loadConversations(companyId: auth.user?.companyId);
+    await context.read<MessagesProvider>().loadConversations(
+      companyId: auth.user?.companyId,
+    );
   }
 
   Future<void> _selectSearchResult(Conversation conversation) async {
     await _clearSearch();
     _openConversationMatch(conversation);
+  }
+
+  Future<void> _selectUserResult(Participant user) async {
+    final auth = context.read<AuthProvider>();
+    final msgProvider = context.read<MessagesProvider>();
+
+    Conversation? existingDm;
+    for (final conv in msgProvider.conversations) {
+      final isDirect = conv.type == 'dm' || conv.type == 'direct';
+      if (!isDirect) continue;
+      final hasUser = conv.participants.any((p) => p.userId == user.userId);
+      if (hasUser) {
+        existingDm = conv;
+        break;
+      }
+    }
+
+    try {
+      final conv =
+          existingDm ??
+          await msgProvider.createConversation(
+            type: 'dm',
+            otherUserId: user.userId,
+            companyId: auth.user?.companyId,
+          );
+      await _clearSearch();
+      _openConversation(conv.id);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to start conversation: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -118,7 +153,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
           if (_showSearchDropdown)
             _SearchDropdown(
               query: _searchQuery,
+              currentUserId: context.watch<AuthProvider>().user?.id ?? 0,
               onSelect: _selectSearchResult,
+              onSelectUser: _selectUserResult,
             )
           else
             Expanded(child: _ConversationList(onTap: _openConversationMatch)),
@@ -149,7 +186,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
                 if (_showSearchDropdown)
                   _SearchDropdown(
                     query: _searchQuery,
+                    currentUserId: context.watch<AuthProvider>().user?.id ?? 0,
                     onSelect: _selectSearchResult,
+                    onSelectUser: _selectUserResult,
                   )
                 else
                   Expanded(
@@ -167,8 +206,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.chat_bubble_outline_rounded,
-                            size: 56, color: AppColors.disabled),
+                        Icon(
+                          Icons.chat_bubble_outline_rounded,
+                          size: 56,
+                          color: AppColors.disabled,
+                        ),
                         SizedBox(height: 16),
                         Text(
                           'Select a conversation',
@@ -202,10 +244,14 @@ class _MessagesScreenState extends State<MessagesScreen> {
             controller: _searchController,
             decoration: InputDecoration(
               hintText: 'Search conversations...',
-              hintStyle:
-                  const TextStyle(color: AppColors.disabled, fontSize: 14),
-              prefixIcon:
-                  const Icon(Icons.search, color: AppColors.textSecondary),
+              hintStyle: const TextStyle(
+                color: AppColors.disabled,
+                fontSize: 14,
+              ),
+              prefixIcon: const Icon(
+                Icons.search,
+                color: AppColors.textSecondary,
+              ),
               suffixIcon: _searchQuery.isNotEmpty
                   ? IconButton(
                       icon: const Icon(Icons.clear, size: 20),
@@ -214,8 +260,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
                   : null,
               filled: true,
               fillColor: AppColors.surface,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
@@ -226,8 +274,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide:
-                    const BorderSide(color: AppColors.primary, width: 1.5),
+                borderSide: const BorderSide(
+                  color: AppColors.primary,
+                  width: 1.5,
+                ),
               ),
             ),
             onChanged: (v) {
@@ -247,11 +297,15 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
 class _SearchDropdown extends StatelessWidget {
   final String query;
+  final int currentUserId;
   final ValueChanged<Conversation> onSelect;
+  final ValueChanged<Participant> onSelectUser;
 
   const _SearchDropdown({
     required this.query,
+    required this.currentUserId,
     required this.onSelect,
+    required this.onSelectUser,
   });
 
   @override
@@ -260,13 +314,29 @@ class _SearchDropdown extends StatelessWidget {
     return Expanded(
       child: Consumer<MessagesProvider>(
         builder: (context, provider, _) {
-          if (provider.loading) {
+          final q = query.trim().toLowerCase();
+          final peopleMatches = provider.users
+              .where((u) => u.userId != currentUserId)
+              .where((u) {
+                if (q.isEmpty) return false;
+                return u.name.toLowerCase().contains(q) ||
+                    (u.email?.toLowerCase().contains(q) ?? false) ||
+                    (u.role?.toLowerCase().contains(q) ?? false);
+              })
+              .toList();
+
+          final hasConversationMatches = provider.conversations.isNotEmpty;
+          final hasPeopleMatches = peopleMatches.isNotEmpty;
+
+          if (provider.loading &&
+              !hasConversationMatches &&
+              !hasPeopleMatches) {
             return const Center(
               child: CircularProgressIndicator(color: AppColors.primary),
             );
           }
 
-          if (provider.conversations.isEmpty) {
+          if (!hasConversationMatches && !hasPeopleMatches) {
             return Center(
               child: Text(
                 'No results for "$query"',
@@ -295,69 +365,157 @@ class _SearchDropdown extends StatelessWidget {
                   ),
                 ],
               ),
-              child: ListView.separated(
+              child: ListView(
                 shrinkWrap: true,
                 padding: const EdgeInsets.symmetric(vertical: 6),
-                itemCount: provider.conversations.length,
-                separatorBuilder: (_, __) => const Divider(
-                  height: 1,
-                  indent: 64,
-                  color: AppColors.divider,
-                ),
-                itemBuilder: (context, index) {
-                  final conv = provider.conversations[index];
-                  final displayName = conv.getDisplayName(auth.user?.id ?? 0);
-                  final last = conv.lastMessage;
-                  final preview = last?.body?.trim().isNotEmpty == true
-                      ? last!.body!.trim()
-                      : 'Conversation';
-                  final isMsgMatch = last?.isSearchMatch == true;
-
-                  return ListTile(
-                    dense: true,
-                    leading: CircleAvatar(
-                      radius: 18,
-                      backgroundColor: AppColors.primary.withOpacity(0.15),
+                children: [
+                  if (hasConversationMatches) ...[
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(14, 6, 14, 2),
                       child: Text(
-                        displayName.isNotEmpty
-                            ? displayName[0].toUpperCase()
-                            : '?',
-                        style: const TextStyle(
-                          color: AppColors.primary,
+                        'Conversations',
+                        style: TextStyle(
+                          fontSize: 12,
                           fontWeight: FontWeight.w700,
+                          color: AppColors.textSecondary,
                         ),
                       ),
                     ),
-                    title: Text(
-                      displayName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
+                    ...provider.conversations.map((conv) {
+                      final displayName = conv.getDisplayName(
+                        auth.user?.id ?? 0,
+                      );
+                      final last = conv.lastMessage;
+                      final preview = last?.body?.trim().isNotEmpty == true
+                          ? last!.body!.trim()
+                          : 'Conversation';
+                      final isMsgMatch = last?.isSearchMatch == true;
+
+                      return Column(
+                        children: [
+                          ListTile(
+                            dense: true,
+                            leading: CircleAvatar(
+                              radius: 18,
+                              backgroundColor: AppColors.primary.withOpacity(
+                                0.15,
+                              ),
+                              child: Text(
+                                displayName.isNotEmpty
+                                    ? displayName[0].toUpperCase()
+                                    : '?',
+                                style: const TextStyle(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            title: Text(
+                              displayName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            subtitle: Text(
+                              isMsgMatch ? 'Message: $preview' : preview,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: isMsgMatch
+                                    ? AppColors.primary
+                                    : AppColors.textSecondary,
+                                fontWeight: isMsgMatch
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                              ),
+                            ),
+                            trailing: const Icon(
+                              Icons.north_east_rounded,
+                              size: 18,
+                              color: AppColors.textSecondary,
+                            ),
+                            onTap: () => onSelect(conv),
+                          ),
+                          const Divider(
+                            height: 1,
+                            indent: 64,
+                            color: AppColors.divider,
+                          ),
+                        ],
+                      );
+                    }),
+                  ],
+                  if (hasPeopleMatches) ...[
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(14, 10, 14, 2),
+                      child: Text(
+                        'People',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ),
-                    subtitle: Text(
-                      isMsgMatch ? 'Message: $preview' : preview,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: isMsgMatch
-                            ? AppColors.primary
-                            : AppColors.textSecondary,
-                        fontWeight:
-                            isMsgMatch ? FontWeight.w600 : FontWeight.w400,
-                      ),
-                    ),
-                    trailing: const Icon(
-                      Icons.north_east_rounded,
-                      size: 18,
-                      color: AppColors.textSecondary,
-                    ),
-                    onTap: () => onSelect(conv),
-                  );
-                },
+                    ...peopleMatches.map((user) {
+                      return Column(
+                        children: [
+                          ListTile(
+                            dense: true,
+                            leading: CircleAvatar(
+                              radius: 18,
+                              backgroundColor: AppColors.info.withOpacity(0.15),
+                              child: Text(
+                                user.name.isNotEmpty
+                                    ? user.name[0].toUpperCase()
+                                    : '?',
+                                style: const TextStyle(
+                                  color: AppColors.info,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            title: Text(
+                              user.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            subtitle: Text(
+                              user.email?.trim().isNotEmpty == true
+                                  ? user.email!
+                                  : 'Start new conversation',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            trailing: const Icon(
+                              Icons.person_add_alt_1_rounded,
+                              size: 18,
+                              color: AppColors.textSecondary,
+                            ),
+                            onTap: () => onSelectUser(user),
+                          ),
+                          const Divider(
+                            height: 1,
+                            indent: 64,
+                            color: AppColors.divider,
+                          ),
+                        ],
+                      );
+                    }),
+                  ],
+                ],
               ),
             ),
           );
@@ -393,8 +551,11 @@ class _ConversationList extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.chat_bubble_outline_rounded,
-                      size: 48, color: AppColors.disabled),
+                  Icon(
+                    Icons.chat_bubble_outline_rounded,
+                    size: 48,
+                    color: AppColors.disabled,
+                  ),
                   SizedBox(height: 16),
                   Text(
                     'No conversations yet',
@@ -426,11 +587,8 @@ class _ConversationList extends StatelessWidget {
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(vertical: 4),
             itemCount: provider.conversations.length,
-            separatorBuilder: (_, __) => const Divider(
-              height: 1,
-              indent: 76,
-              color: AppColors.divider,
-            ),
+            separatorBuilder: (_, __) =>
+                const Divider(height: 1, indent: 76, color: AppColors.divider),
             itemBuilder: (context, index) {
               final conv = provider.conversations[index];
               final isActive = conv.id == provider.activeConversationId;
@@ -470,12 +628,13 @@ class _ConversationTile extends StatelessWidget {
     final hasUnread = conversation.unreadCount > 0;
 
     return Material(
-      color: isActive ? AppColors.primary.withOpacity(0.06) : Colors.transparent,
+      color: isActive
+          ? AppColors.primary.withOpacity(0.06)
+          : Colors.transparent,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             children: [
               _Avatar(name: displayName, size: 48),
@@ -538,7 +697,9 @@ class _ConversationTile extends StatelessWidget {
                           const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 7, vertical: 3),
+                              horizontal: 7,
+                              vertical: 3,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.primary,
                               borderRadius: BorderRadius.circular(10),
@@ -604,17 +765,15 @@ class _ChatViewState extends State<_ChatView> {
     showDialog<void>(
       context: context,
       barrierDismissible: true,
-      builder: (ctx) => _AttachmentImageViewer(
-        urls: urls,
-        filename: filename,
-      ),
+      builder: (ctx) => _AttachmentImageViewer(urls: urls, filename: filename),
     );
   }
 
   bool _isAllowedAttachmentType(String filename, String? mimeType) {
     final lowerName = filename.toLowerCase();
     final lowerMime = (mimeType ?? '').toLowerCase();
-    final isImage = lowerMime.startsWith('image/') ||
+    final isImage =
+        lowerMime.startsWith('image/') ||
         lowerName.endsWith('.jpg') ||
         lowerName.endsWith('.jpeg') ||
         lowerName.endsWith('.png') ||
@@ -665,9 +824,9 @@ class _ChatViewState extends State<_ChatView> {
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 100) {
       final auth = context.read<AuthProvider>();
-      context
-          .read<MessagesProvider>()
-          .loadMoreMessages(companyId: auth.user?.companyId);
+      context.read<MessagesProvider>().loadMoreMessages(
+        companyId: auth.user?.companyId,
+      );
     }
   }
 
@@ -678,9 +837,10 @@ class _ChatViewState extends State<_ChatView> {
     setState(() => _sending = true);
     try {
       final auth = context.read<AuthProvider>();
-      await context
-          .read<MessagesProvider>()
-          .sendMessage(text, companyId: auth.user?.companyId);
+      await context.read<MessagesProvider>().sendMessage(
+        text,
+        companyId: auth.user?.companyId,
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -713,16 +873,16 @@ class _ChatViewState extends State<_ChatView> {
     try {
       final auth = context.read<AuthProvider>();
       await context.read<MessagesProvider>().sendAttachment(
-            result.file,
-            name: result.name,
-            mimeType: result.mimeType,
-            companyId: auth.user?.companyId,
-          );
+        result.file,
+        name: result.name,
+        mimeType: result.mimeType,
+        companyId: auth.user?.companyId,
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Failed to send attachment: $e'),
+            content: Text('Failed to send attachment: $e'),
             backgroundColor: AppColors.danger,
           ),
         );
@@ -755,72 +915,81 @@ class _ChatViewState extends State<_ChatView> {
               child: provider.loading && provider.messages.isEmpty
                   ? const Center(
                       child: CircularProgressIndicator(
-                          color: AppColors.primary))
+                        color: AppColors.primary,
+                      ),
+                    )
                   : provider.messages.isEmpty
-                      ? const Center(
+                  ? const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.chat_outlined,
+                            size: 48,
+                            color: AppColors.disabled,
+                          ),
+                          SizedBox(height: 12),
+                          Text(
+                            'No messages yet',
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Send the first message!',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppColors.disabled,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: _scrollController,
+                      reverse: true,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      itemCount: provider.messages.length,
+                      itemBuilder: (context, index) {
+                        final msg = provider.messages[index];
+                        final messageKey = _messageKeys.putIfAbsent(
+                          msg.id,
+                          () => GlobalKey(),
+                        );
+                        final prevMsg = index < provider.messages.length - 1
+                            ? provider.messages[index + 1]
+                            : null;
+                        final showDateSep = _shouldShowDateSeparator(
+                          msg.createdAt,
+                          prevMsg?.createdAt,
+                        );
+                        final showSender =
+                            isGroup &&
+                            !msg.isOwn &&
+                            (prevMsg == null ||
+                                prevMsg.senderId != msg.senderId);
+
+                        return Container(
+                          key: messageKey,
                           child: Column(
-                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.chat_outlined,
-                                  size: 48, color: AppColors.disabled),
-                              SizedBox(height: 12),
-                              Text(
-                                'No messages yet',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                'Send the first message!',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: AppColors.disabled,
-                                ),
+                              if (showDateSep)
+                                _DateSeparator(date: msg.createdAt),
+                              _ChatBubble(
+                                message: msg,
+                                showSender: showSender,
+                                onImageTap: _openAttachmentViewer,
                               ),
                             ],
                           ),
-                        )
-                      : ListView.builder(
-                          controller: _scrollController,
-                          reverse: true,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 8),
-                          itemCount: provider.messages.length,
-                          itemBuilder: (context, index) {
-                            final msg = provider.messages[index];
-                            final messageKey = _messageKeys.putIfAbsent(
-                              msg.id,
-                              () => GlobalKey(),
-                            );
-                            final prevMsg = index < provider.messages.length - 1
-                                ? provider.messages[index + 1]
-                                : null;
-                            final showDateSep = _shouldShowDateSeparator(
-                                msg.createdAt, prevMsg?.createdAt);
-                            final showSender = isGroup &&
-                                !msg.isOwn &&
-                                (prevMsg == null ||
-                                    prevMsg.senderId != msg.senderId);
-
-                            return Container(
-                              key: messageKey,
-                              child: Column(
-                              children: [
-                                if (showDateSep)
-                                  _DateSeparator(date: msg.createdAt),
-                                _ChatBubble(
-                                  message: msg,
-                                  showSender: showSender,
-                                  onImageTap:
-                                      _openAttachmentViewer,
-                                ),
-                              ],
-                              ),
-                            );
-                          },
-                        ),
+                        );
+                      },
+                    ),
             ),
             _buildInputBar(),
           ],
@@ -830,18 +999,16 @@ class _ChatViewState extends State<_ChatView> {
   }
 
   Widget _buildChatHeader(
- BuildContext context, Conversation? conv, int currentUserId) {
+    BuildContext context,
+    Conversation? conv,
+    int currentUserId,
+  ) {
     final title = conv?.getDisplayName(currentUserId) ?? 'Chat';
     final participantCount = conv?.participants.length ?? 0;
     final isGroup = conv?.type == 'group';
 
     return Container(
-      padding: EdgeInsets.fromLTRB(
-        widget.onBack != null ? 4 : 16,
-        8,
-        8,
-        8,
-      ),
+      padding: EdgeInsets.fromLTRB(widget.onBack != null ? 4 : 16, 8, 8, 8),
       color: AppColors.white,
       child: SafeArea(
         bottom: false,
@@ -896,7 +1063,10 @@ class _ChatViewState extends State<_ChatView> {
   }
 
   void _openAddGroupMembers(
-      BuildContext context, int conversationId, int currentUserId) {
+    BuildContext context,
+    int conversationId,
+    int currentUserId,
+  ) {
     final auth = context.read<AuthProvider>();
     showModalBottomSheet<void>(
       context: context,
@@ -947,12 +1117,16 @@ class _ChatViewState extends State<_ChatView> {
               textCapitalization: TextCapitalization.sentences,
               decoration: InputDecoration(
                 hintText: 'Type a message...',
-                hintStyle:
-                    const TextStyle(color: AppColors.disabled, fontSize: 14),
+                hintStyle: const TextStyle(
+                  color: AppColors.disabled,
+                  fontSize: 14,
+                ),
                 filled: true,
                 fillColor: AppColors.surface,
                 contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 10),
+                  horizontal: 16,
+                  vertical: 10,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
                   borderSide: BorderSide.none,
@@ -989,8 +1163,11 @@ class _ChatViewState extends State<_ChatView> {
                           color: AppColors.white,
                         ),
                       )
-                    : const Icon(Icons.send_rounded,
-                        color: AppColors.white, size: 20),
+                    : const Icon(
+                        Icons.send_rounded,
+                        color: AppColors.white,
+                        size: 20,
+                      ),
               ),
             ),
           ),
@@ -1028,8 +1205,9 @@ class _ChatBubble extends StatelessWidget {
     final alignment = isOwn ? CrossAxisAlignment.end : CrossAxisAlignment.start;
     final bgColor = isOwn ? AppColors.primary : const Color(0xFFF0F0F0);
     final textColor = isOwn ? AppColors.white : AppColors.textPrimary;
-    final timeColor =
-        isOwn ? AppColors.white.withOpacity(0.7) : AppColors.textSecondary;
+    final timeColor = isOwn
+        ? AppColors.white.withOpacity(0.7)
+        : AppColors.textSecondary;
 
     final borderRadius = BorderRadius.only(
       topLeft: const Radius.circular(16),
@@ -1064,16 +1242,19 @@ class _ChatBubble extends StatelessWidget {
               ),
             ),
           Row(
-            mainAxisAlignment:
-                isOwn ? MainAxisAlignment.end : MainAxisAlignment.start,
+            mainAxisAlignment: isOwn
+                ? MainAxisAlignment.end
+                : MainAxisAlignment.start,
             children: [
               ConstrainedBox(
                 constraints: BoxConstraints(
                   maxWidth: MediaQuery.of(context).size.width * 0.75,
                 ),
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: bgColor,
                     borderRadius: borderRadius,
@@ -1192,7 +1373,9 @@ class _ChatBubble extends StatelessWidget {
       if (prefixed.startsWith('/uploads/')) {
         add('${ApiConfig.baseUrl}/api$prefixed');
       } else if (prefixed.startsWith('/api/uploads/')) {
-        add('${ApiConfig.baseUrl}${prefixed.replaceFirst('/api/uploads/', '/uploads/')}');
+        add(
+          '${ApiConfig.baseUrl}${prefixed.replaceFirst('/api/uploads/', '/uploads/')}',
+        );
       }
     }
     return candidates;
@@ -1223,7 +1406,8 @@ class _AttachmentImagePreview extends StatefulWidget {
   });
 
   @override
-  State<_AttachmentImagePreview> createState() => _AttachmentImagePreviewState();
+  State<_AttachmentImagePreview> createState() =>
+      _AttachmentImagePreviewState();
 }
 
 class _AttachmentImagePreviewState extends State<_AttachmentImagePreview> {
@@ -1348,10 +1532,7 @@ class _AttachmentImageViewer extends StatefulWidget {
   final List<String> urls;
   final String filename;
 
-  const _AttachmentImageViewer({
-    required this.urls,
-    required this.filename,
-  });
+  const _AttachmentImageViewer({required this.urls, required this.filename});
 
   @override
   State<_AttachmentImageViewer> createState() => _AttachmentImageViewerState();
@@ -1394,7 +1575,10 @@ class _AttachmentImageViewerState extends State<_AttachmentImageViewer> {
         );
 
         final data = resp.data;
-        if ((resp.statusCode ?? 0) >= 200 && (resp.statusCode ?? 0) < 300 && data != null && data.isNotEmpty) {
+        if ((resp.statusCode ?? 0) >= 200 &&
+            (resp.statusCode ?? 0) < 300 &&
+            data != null &&
+            data.isNotEmpty) {
           if (!mounted) return;
           setState(() {
             _imageBytes = Uint8List.fromList(data);
@@ -1499,23 +1683,23 @@ class _AttachmentImageViewerState extends State<_AttachmentImageViewer> {
                       ),
                     )
                   : (_imageBytes != null
-                      ? InteractiveViewer(
-                          minScale: 1,
-                          maxScale: 5,
-                          child: Image.memory(
-                            _imageBytes!,
-                            fit: BoxFit.contain,
-                          ),
-                        )
-                      : Center(
-                          child: Text(
-                            'Could not load image',
-                            style: TextStyle(
-                              color: AppColors.textSecondary,
-                              fontWeight: FontWeight.w600,
+                        ? InteractiveViewer(
+                            minScale: 1,
+                            maxScale: 5,
+                            child: Image.memory(
+                              _imageBytes!,
+                              fit: BoxFit.contain,
                             ),
-                          ),
-                        )),
+                          )
+                        : Center(
+                            child: Text(
+                              'Could not load image',
+                              style: TextStyle(
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          )),
             ),
           ],
         ),
@@ -1578,9 +1762,7 @@ class _DateSeparator extends StatelessWidget {
 class _NewConversationFab extends StatelessWidget {
   final ValueChanged<int> onConversationOpened;
 
-  const _NewConversationFab({
-    required this.onConversationOpened,
-  });
+  const _NewConversationFab({required this.onConversationOpened});
 
   @override
   Widget build(BuildContext context) {
@@ -1625,7 +1807,8 @@ class _NewConversationFab extends StatelessWidget {
                   companyId: auth.user?.companyId,
                 );
                 await msgProvider.loadConversations(
-                    companyId: auth.user?.companyId);
+                  companyId: auth.user?.companyId,
+                );
                 if (context.mounted) {
                   onConversationOpened(conv.id);
                 }
@@ -1642,7 +1825,8 @@ class _NewConversationFab extends StatelessWidget {
               companyId: auth.user?.companyId,
             );
             await msgProvider.loadConversations(
-                companyId: auth.user?.companyId);
+              companyId: auth.user?.companyId,
+            );
             onConversationOpened(conv.id);
           } catch (e) {
             if (context.mounted) {
@@ -1777,7 +1961,9 @@ class _AddGroupMembersSheetState extends State<_AddGroupMembersSheet> {
                       borderSide: BorderSide.none,
                     ),
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                   ),
                   onChanged: (v) => setState(() => _filter = v),
                 ),
@@ -1830,11 +2016,13 @@ class _AddGroupMembersSheetState extends State<_AddGroupMembersSheet> {
                                             companyId: widget.companyId,
                                           );
                                           if (context.mounted) {
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
                                               SnackBar(
                                                 content: Text(
-                                                    '${user.name} added'),
+                                                  '${user.name} added',
+                                                ),
                                                 backgroundColor:
                                                     AppColors.primary,
                                               ),
@@ -1842,11 +2030,13 @@ class _AddGroupMembersSheetState extends State<_AddGroupMembersSheet> {
                                           }
                                         } catch (e) {
                                           if (context.mounted) {
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
                                               SnackBar(
                                                 content: Text(
-                                                    'Could not add: $e'),
+                                                  'Could not add: $e',
+                                                ),
                                                 backgroundColor:
                                                     AppColors.danger,
                                               ),
@@ -1872,8 +2062,6 @@ class _AddGroupMembersSheetState extends State<_AddGroupMembersSheet> {
     );
   }
 }
-
-
 
 class _CreateGroupSheet extends StatefulWidget {
   final List<Participant> users;
@@ -1936,9 +2124,9 @@ class _CreateGroupSheetState extends State<_CreateGroupSheet> {
               const SizedBox(height: 16),
               Text(
                 'Create Group Chat',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -2060,8 +2248,7 @@ class _NewConversationSheetState extends State<_NewConversationSheet> {
   Widget build(BuildContext context) {
     final filtered = widget.users
         .where((u) => u.userId != widget.currentUserId)
-        .where(
-            (u) => u.name.toLowerCase().contains(_filter.toLowerCase()))
+        .where((u) => u.name.toLowerCase().contains(_filter.toLowerCase()))
         .toList();
 
     return DraggableScrollableSheet(
@@ -2088,8 +2275,8 @@ class _NewConversationSheetState extends State<_NewConversationSheet> {
                 Text(
                   'New Conversation',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 SizedBox(
@@ -2113,7 +2300,9 @@ class _NewConversationSheetState extends State<_NewConversationSheet> {
                       borderSide: BorderSide.none,
                     ),
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                   ),
                   onChanged: (v) => setState(() => _filter = v),
                 ),

@@ -6,10 +6,12 @@ import '../../core/theme/app_colors.dart';
 import '../../core/config/api_config.dart';
 import '../../providers/projects_provider.dart';
 import '../../services/projects_service.dart';
+import '../../services/employees_service.dart';
 import '../../services/installation_service.dart';
 import '../../services/expense_service.dart';
 import '../../models/project.dart';
 import '../../models/expense.dart';
+import '../../models/employee.dart';
 import 'project_edit_screen.dart';
 import '../../widgets/common/status_badge.dart';
 import '../../widgets/common/empty_state.dart';
@@ -30,8 +32,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final _service = ProjectsService();
+  final _employeesService = EmployeesService();
   Map<String, dynamic>? _schedule;
   List<int> _assigneeIds = const [];
+  Map<int, String> _assigneeNames = const {};
+  bool _updatingScheduleAssign = false;
   List<Map<String, dynamic>> _notes = const [];
   List<Map<String, dynamic>> _documents = const [];
   bool _isStageUpdating = false;
@@ -181,6 +186,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
                 data: data,
                 schedule: _schedule,
                 assigneeIds: _assigneeIds,
+                assigneeNames: _assigneeNames,
+                onEdit: _updatingScheduleAssign
+                    ? null
+                    : () => _openScheduleAssignEditor(data),
               ),
               _ExpensesTab(projectId: widget.projectId),
               _DocumentsTab(
@@ -210,12 +219,17 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
         _service.getScheduleAssign(widget.projectId),
         _service.getProjectNotes(widget.projectId),
         _service.getProjectDocuments(widget.projectId),
+        _employeesService.listEmployees(),
       ]);
       if (!mounted) return;
       final sched = out[0] as Map<String, dynamic>;
       final notes = out[1] as List<Map<String, dynamic>>;
       final docs = out[2] as List<Map<String, dynamic>>;
+      final employees = out[3] as List<Employee>;
       final idsRaw = sched['assignees'];
+      final nameMap = <int, String>{
+        for (final e in employees) e.id: e.fullName.trim(),
+      };
       setState(() {
         _schedule = sched['schedule'] is Map
             ? Map<String, dynamic>.from(sched['schedule'])
@@ -226,10 +240,249 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
                   .where((e) => e > 0)
                   .toList()
             : const [];
+        _assigneeNames = nameMap;
         _notes = notes;
         _documents = docs;
       });
     } catch (_) {}
+  }
+
+  Future<void> _openScheduleAssignEditor(Map<String, dynamic> data) async {
+    final scheduledRaw = _schedule?['scheduled_at'] ?? data['scheduled_at'];
+    final parsed = _tryParseDateTime(scheduledRaw);
+
+    DateTime? selectedDate = parsed;
+    TimeOfDay? selectedTime = parsed == null
+        ? null
+        : TimeOfDay(hour: parsed.hour, minute: parsed.minute);
+    final notesCtrl = TextEditingController(
+      text: _schedule?['notes']?.toString() ?? '',
+    );
+    final selectedAssignees = _assigneeIds.toSet();
+
+    Future<void> pickDate(StateSetter setSheetState) async {
+      final now = DateTime.now();
+      final picked = await showDatePicker(
+        context: context,
+        initialDate: selectedDate ?? now,
+        firstDate: DateTime(now.year - 1),
+        lastDate: DateTime(now.year + 5),
+      );
+      if (picked != null) {
+        setSheetState(() => selectedDate = picked);
+      }
+    }
+
+    Future<void> pickTime(StateSetter setSheetState) async {
+      final picked = await showTimePicker(
+        context: context,
+        initialTime: selectedTime ?? TimeOfDay.now(),
+      );
+      if (picked != null) {
+        setSheetState(() => selectedTime = picked);
+      }
+    }
+
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetCtx) {
+        return StatefulBuilder(
+          builder: (sheetCtx, setSheetState) {
+            final media = MediaQuery.of(sheetCtx);
+            final dateLabel = selectedDate == null
+                ? 'Choose date'
+                : DateFormat('dd/MM/yyyy').format(selectedDate!);
+            final timeLabel = selectedTime == null
+                ? 'Choose time'
+                : selectedTime!.format(sheetCtx);
+
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                media.viewInsets.bottom + 20,
+              ),
+              child: SafeArea(
+                top: false,
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Update Schedule & Assign',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => pickDate(setSheetState),
+                              icon: const Icon(Icons.calendar_today_outlined),
+                              label: Text(dateLabel),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => pickTime(setSheetState),
+                              icon: const Icon(Icons.access_time_outlined),
+                              label: Text(timeLabel),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: notesCtrl,
+                        minLines: 2,
+                        maxLines: 4,
+                        decoration: const InputDecoration(
+                          labelText: 'Notes',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      const Text(
+                        'Assignees',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (_assigneeNames.isEmpty)
+                        const Text(
+                          'No employees found',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        )
+                      else
+                        ..._assigneeNames.entries.map((entry) {
+                          final checked = selectedAssignees.contains(entry.key);
+                          return CheckboxListTile(
+                            value: checked,
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              entry.value.isEmpty
+                                  ? '#${entry.key}'
+                                  : entry.value,
+                            ),
+                            subtitle: entry.value.isEmpty
+                                ? null
+                                : Text('#${entry.key}'),
+                            onChanged: (v) {
+                              setSheetState(() {
+                                if (v == true) {
+                                  selectedAssignees.add(entry.key);
+                                } else {
+                                  selectedAssignees.remove(entry.key);
+                                }
+                              });
+                            },
+                          );
+                        }),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.pop(sheetCtx, false),
+                              child: const Text('Cancel'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: FilledButton(
+                              onPressed: () {
+                                if (selectedDate == null ||
+                                    selectedTime == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Please choose date and time',
+                                      ),
+                                      backgroundColor: AppColors.danger,
+                                    ),
+                                  );
+                                  return;
+                                }
+                                Navigator.pop(sheetCtx, true);
+                              },
+                              child: const Text('Save'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (saved != true || !mounted) {
+      notesCtrl.dispose();
+      return;
+    }
+    if (selectedDate == null || selectedTime == null) {
+      notesCtrl.dispose();
+      return;
+    }
+
+    final timeFormatted =
+        '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}';
+
+    try {
+      setState(() => _updatingScheduleAssign = true);
+      await _service.updateScheduleAssign(widget.projectId, {
+        'date': DateFormat('yyyy-MM-dd').format(selectedDate!),
+        'time': timeFormatted,
+        'notes': notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
+        'assignees': selectedAssignees.toList(),
+      });
+      if (!mounted) return;
+      await context.read<ProjectsProvider>().loadProjectDetail(
+        widget.projectId,
+      );
+      await _loadAux();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Schedule & assignees updated'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update schedule/assign: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    } finally {
+      notesCtrl.dispose();
+      if (mounted) setState(() => _updatingScheduleAssign = false);
+    }
+  }
+
+  DateTime? _tryParseDateTime(dynamic value) {
+    if (value == null) return null;
+    final raw = value.toString().trim();
+    if (raw.isEmpty) return null;
+    return DateTime.tryParse(raw.replaceFirst(' ', 'T'));
   }
 
   Future<bool> _canMoveToStage(
@@ -1015,10 +1268,14 @@ class _ScheduleAssignTab extends StatelessWidget {
   final Map<String, dynamic> data;
   final Map<String, dynamic>? schedule;
   final List<int> assigneeIds;
+  final Map<int, String> assigneeNames;
+  final VoidCallback? onEdit;
   const _ScheduleAssignTab({
     required this.data,
     required this.schedule,
     required this.assigneeIds,
+    required this.assigneeNames,
+    this.onEdit,
   });
 
   @override
@@ -1030,6 +1287,20 @@ class _ScheduleAssignTab extends StatelessWidget {
           _SectionCard(
             title: 'Schedule',
             icon: Icons.calendar_today_outlined,
+            trailing: FilledButton.icon(
+              onPressed: onEdit,
+              icon: const Icon(Icons.edit_calendar_outlined, size: 16),
+              label: const Text('Edit'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                minimumSize: Size.zero,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+              ),
+            ),
             children: [
               _DetailRow(
                 'Status',
@@ -1053,7 +1324,12 @@ class _ScheduleAssignTab extends StatelessWidget {
                 'Assignees',
                 assigneeIds.isEmpty
                     ? '-'
-                    : assigneeIds.map((e) => '#$e').join(', '),
+                    : assigneeIds
+                          .map((id) {
+                            final name = assigneeNames[id]?.trim() ?? '';
+                            return name.isEmpty ? '#$id' : '$name (#$id)';
+                          })
+                          .join(', '),
               ),
             ],
           ),
@@ -1452,11 +1728,13 @@ class _CommunicationTab extends StatelessWidget {
 class _SectionCard extends StatelessWidget {
   final String title;
   final IconData icon;
+  final Widget? trailing;
   final List<Widget> children;
 
   const _SectionCard({
     required this.title,
     required this.icon,
+    this.trailing,
     required this.children,
   });
 
@@ -1477,14 +1755,17 @@ class _SectionCard extends StatelessWidget {
               children: [
                 Icon(icon, size: 20, color: AppColors.primary),
                 const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
-                    color: AppColors.textPrimary,
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
+                if (trailing != null) trailing!,
               ],
             ),
             const SizedBox(height: 12),

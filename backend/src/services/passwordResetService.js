@@ -56,12 +56,35 @@ async function sendResetEmailViaResend({ to, subject, text, html }) {
  * so you can test without email.
  */
 export async function requestPasswordReset({ email, companyId = null, ip, userAgent }) {
+  const normalizedEmail = String(email || '').toLowerCase();
+
   const [rows] = await db.execute(
     `SELECT id, email, status FROM users
      WHERE email = ? AND (company_id <=> ?) LIMIT 1`,
-    [String(email || '').toLowerCase(), companyId]
+    [normalizedEmail, companyId]
   );
-  const user = rows?.[0];
+  let user = rows?.[0] || null;
+
+  // Match login behavior: when company is unknown, allow email-only lookup
+  // if and only if there is exactly one account for this email.
+  if (!user && companyId == null) {
+    const [emailRows] = await db.execute(
+      `SELECT id, email, status, company_id
+         FROM users
+        WHERE email = ?
+        ORDER BY company_id IS NULL DESC`,
+      [normalizedEmail]
+    );
+
+    if (emailRows.length === 1) {
+      user = emailRows[0];
+    } else if (emailRows.length > 1) {
+      console.warn(
+        '[request-reset] skipped: multiple accounts share this email and no companyId provided:',
+        normalizedEmail
+      );
+    }
+  }
 
   if (user && user.status === 'active') {
     // Clean up expired tokens for this user

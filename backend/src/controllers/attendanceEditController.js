@@ -3,13 +3,14 @@ import * as attendanceService from '../services/attendanceService.js';
 
 function resolveCompanyId(req) {
   const fromTenant = req.tenantId != null ? Number(req.tenantId) : null;
-  const fromQuery  = req.query.companyId != null ? Number(req.query.companyId) : null;
+  const fromQuery = req.query.companyId != null ? Number(req.query.companyId) : null;
   const fromHeader = req.headers['x-tenant-id']
     ? Number(req.headers['x-tenant-id'])
     : req.headers['x-company-id']
     ? Number(req.headers['x-company-id'])
     : null;
-  return fromTenant ?? fromQuery ?? fromHeader ?? null;
+  const fromUser = req.user?.companyId != null ? Number(req.user.companyId) : null;
+  return fromTenant ?? fromQuery ?? fromHeader ?? fromUser ?? null;
 }
 
 /**

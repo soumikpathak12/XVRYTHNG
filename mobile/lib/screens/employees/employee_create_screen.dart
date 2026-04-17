@@ -3,19 +3,26 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../providers/employees_provider.dart';
+import '../../services/employees_service.dart';
 import '../../widgets/common/loading_overlay.dart';
 
 class EmployeeCreateScreen extends StatefulWidget {
-  const EmployeeCreateScreen({super.key});
+  final int? employeeId;
+
+  const EmployeeCreateScreen({super.key, this.employeeId});
 
   @override
   State<EmployeeCreateScreen> createState() => _EmployeeCreateScreenState();
 }
 
 class _EmployeeCreateScreenState extends State<EmployeeCreateScreen> {
+  final EmployeesService _service = EmployeesService();
   int _currentStep = 0;
   bool _submitting = false;
+  bool _loadingEmployee = false;
   final _formKeys = List.generate(6, (_) => GlobalKey<FormState>());
+
+  bool get _isEditing => widget.employeeId != null;
 
   // Step 1 - Personal Info
   final _firstName = TextEditingController();
@@ -63,16 +70,29 @@ class _EmployeeCreateScreenState extends State<EmployeeCreateScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<EmployeesProvider>().loadJobRoles();
+      _loadInitialData();
     });
   }
 
   @override
   void dispose() {
     for (final c in [
-      _firstName, _lastName, _dob, _email, _phone, _street, _city,
-      _stateCtrl, _postcode, _startDate, _rate, _password, _confirmPassword,
-      _ecName, _ecPhone, _ecRelation,
+      _firstName,
+      _lastName,
+      _dob,
+      _email,
+      _phone,
+      _street,
+      _city,
+      _stateCtrl,
+      _postcode,
+      _startDate,
+      _rate,
+      _password,
+      _confirmPassword,
+      _ecName,
+      _ecPhone,
+      _ecRelation,
     ]) {
       c.dispose();
     }
@@ -83,11 +103,11 @@ class _EmployeeCreateScreenState extends State<EmployeeCreateScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add Employee'),
+        title: Text(_isEditing ? 'Edit Employee' : 'Add Employee'),
       ),
       body: LoadingOverlay(
-        isLoading: _submitting,
-        message: 'Creating employee...',
+        isLoading: _submitting || _loadingEmployee,
+        message: _isEditing ? 'Updating employee...' : 'Creating employee...',
         child: Column(
           children: [
             _buildStepIndicator(),
@@ -132,7 +152,9 @@ class _EmployeeCreateScreenState extends State<EmployeeCreateScreen> {
             return Row(
               children: [
                 GestureDetector(
-                  onTap: i <= _currentStep ? () => setState(() => _currentStep = i) : null,
+                  onTap: i <= _currentStep
+                      ? () => setState(() => _currentStep = i)
+                      : null,
                   child: Column(
                     children: [
                       Container(
@@ -143,20 +165,24 @@ class _EmployeeCreateScreenState extends State<EmployeeCreateScreen> {
                           color: isCompleted
                               ? AppColors.success
                               : isCurrent
-                                  ? AppColors.primary
-                                  : AppColors.surface,
+                              ? AppColors.primary
+                              : AppColors.surface,
                           border: Border.all(
                             color: isCompleted
                                 ? AppColors.success
                                 : isCurrent
-                                    ? AppColors.primary
-                                    : AppColors.border,
+                                ? AppColors.primary
+                                : AppColors.border,
                             width: 2,
                           ),
                         ),
                         child: Center(
                           child: isCompleted
-                              ? const Icon(Icons.check, size: 16, color: AppColors.white)
+                              ? const Icon(
+                                  Icons.check,
+                                  size: 16,
+                                  color: AppColors.white,
+                                )
                               : Text(
                                   '${i + 1}',
                                   style: TextStyle(
@@ -174,8 +200,12 @@ class _EmployeeCreateScreenState extends State<EmployeeCreateScreen> {
                         labels[i],
                         style: TextStyle(
                           fontSize: 10,
-                          fontWeight: isCurrent ? FontWeight.w600 : FontWeight.normal,
-                          color: isCurrent ? AppColors.primary : AppColors.textSecondary,
+                          fontWeight: isCurrent
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                          color: isCurrent
+                              ? AppColors.primary
+                              : AppColors.textSecondary,
                         ),
                       ),
                     ],
@@ -296,26 +326,34 @@ class _EmployeeCreateScreenState extends State<EmployeeCreateScreen> {
             label: 'Phone',
             icon: Icons.phone_outlined,
             keyboardType: TextInputType.phone,
+            validator: _isEditing ? null : _required('Phone is required'),
           ),
           const SizedBox(height: 20),
           _sectionLabel('Address'),
           const SizedBox(height: 12),
-          _field(controller: _street, label: 'Street', icon: Icons.home_outlined),
+          _field(
+            controller: _street,
+            label: 'Street',
+            icon: Icons.home_outlined,
+          ),
           const SizedBox(height: 14),
           Row(
             children: [
               Expanded(
                 child: _field(
-                    controller: _city,
-                    label: 'City',
-                    icon: Icons.location_city_outlined),
+                  controller: _city,
+                  label: 'City',
+                  icon: Icons.location_city_outlined,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _field(
-                    controller: _stateCtrl,
-                    label: 'State',
-                    icon: Icons.map_outlined),
+                  controller: _stateCtrl,
+                  label: 'State',
+                  icon: Icons.map_outlined,
+                  validator: _isEditing ? null : _required('State is required'),
+                ),
               ),
             ],
           ),
@@ -345,8 +383,12 @@ class _EmployeeCreateScreenState extends State<EmployeeCreateScreen> {
             value: _jobRoleId,
             decoration: _inputDecoration('Job Role *', Icons.work_outline),
             items: provider.jobRoles
-                .map((r) => DropdownMenuItem(
-                    value: r.id.toString(), child: Text(r.name)))
+                .map(
+                  (r) => DropdownMenuItem(
+                    value: r.id.toString(),
+                    child: Text(r.name),
+                  ),
+                )
                 .toList(),
             onChanged: (v) => setState(() => _jobRoleId = v),
             validator: (v) =>
@@ -355,8 +397,10 @@ class _EmployeeCreateScreenState extends State<EmployeeCreateScreen> {
           const SizedBox(height: 14),
           DropdownButtonFormField<String>(
             value: _employmentType,
-            decoration:
-                _inputDecoration('Employment Type', Icons.badge_outlined),
+            decoration: _inputDecoration(
+              'Employment Type',
+              Icons.badge_outlined,
+            ),
             items: _employmentTypes
                 .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                 .toList(),
@@ -392,6 +436,13 @@ class _EmployeeCreateScreenState extends State<EmployeeCreateScreen> {
 
   // Step 4: Account
   Widget _stepAccount() {
+    if (_isEditing) {
+      return _lockedSection(
+        'Login Account',
+        'Login access is managed separately. Use the create-login action from the employee record if credentials need to be issued.',
+      );
+    }
+
     return Form(
       key: _formKeys[3],
       child: Column(
@@ -401,8 +452,7 @@ class _EmployeeCreateScreenState extends State<EmployeeCreateScreen> {
           const SizedBox(height: 12),
           SwitchListTile(
             title: const Text('Enable Login'),
-            subtitle:
-                const Text('Allow this employee to log in to the app'),
+            subtitle: const Text('Allow this employee to log in to the app'),
             value: _enableLogin,
             activeColor: AppColors.primary,
             onChanged: (v) => setState(() => _enableLogin = v),
@@ -417,11 +467,12 @@ class _EmployeeCreateScreenState extends State<EmployeeCreateScreen> {
                 labelText: 'Password *',
                 prefixIcon: const Icon(Icons.lock_outline),
                 suffixIcon: IconButton(
-                  icon: Icon(_obscurePass
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined),
-                  onPressed: () =>
-                      setState(() => _obscurePass = !_obscurePass),
+                  icon: Icon(
+                    _obscurePass
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                  ),
+                  onPressed: () => setState(() => _obscurePass = !_obscurePass),
                 ),
                 border: const OutlineInputBorder(),
               ),
@@ -454,6 +505,13 @@ class _EmployeeCreateScreenState extends State<EmployeeCreateScreen> {
 
   // Step 5: Emergency Contacts
   Widget _stepEmergencyContacts() {
+    if (_isEditing) {
+      return _lockedSection(
+        'Emergency Contact',
+        'Emergency contact editing is not available in the current mobile flow.',
+      );
+    }
+
     return Form(
       key: _formKeys[4],
       child: Column(
@@ -499,14 +557,23 @@ class _EmployeeCreateScreenState extends State<EmployeeCreateScreen> {
         _reviewCard('Contact', [
           _reviewRow('Email', _email.text.isEmpty ? '-' : _email.text),
           _reviewRow('Phone', _phone.text.isEmpty ? '-' : _phone.text),
-          _reviewRow('Address', [_street.text, _city.text, _stateCtrl.text, _postcode.text]
-              .where((s) => s.isNotEmpty)
-              .join(', ')),
+          _reviewRow(
+            'Address',
+            [
+              _street.text,
+              _city.text,
+              _stateCtrl.text,
+              _postcode.text,
+            ].where((s) => s.isNotEmpty).join(', '),
+          ),
         ]),
         _reviewCard('Employment', [
           _reviewRow('Job Role', _jobRoleName()),
           _reviewRow('Employment Type', _employmentType ?? '-'),
-          _reviewRow('Start Date', _startDate.text.isEmpty ? '-' : _startDate.text),
+          _reviewRow(
+            'Start Date',
+            _startDate.text.isEmpty ? '-' : _startDate.text,
+          ),
           _reviewRow('Rate', _rate.text.isEmpty ? '-' : '\$${_rate.text}'),
         ]),
         _reviewCard('Account', [
@@ -567,7 +634,10 @@ class _EmployeeCreateScreenState extends State<EmployeeCreateScreen> {
             width: 120,
             child: Text(
               label,
-              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+              ),
             ),
           ),
           Expanded(
@@ -620,13 +690,19 @@ class _EmployeeCreateScreenState extends State<EmployeeCreateScreen> {
               child: FilledButton(
                 onPressed: _submitting ? null : (isLast ? _submit : _nextStep),
                 style: FilledButton.styleFrom(
-                  backgroundColor: isLast ? AppColors.success : AppColors.primary,
+                  backgroundColor: isLast
+                      ? AppColors.success
+                      : AppColors.primary,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                child: Text(isLast ? 'Create Employee' : 'Continue'),
+                child: Text(
+                  isLast
+                      ? (_isEditing ? 'Update Employee' : 'Create Employee')
+                      : 'Continue',
+                ),
               ),
             ),
           ],
@@ -645,51 +721,34 @@ class _EmployeeCreateScreenState extends State<EmployeeCreateScreen> {
   Future<void> _submit() async {
     setState(() => _submitting = true);
     try {
-      final data = <String, dynamic>{
-        'first_name': _firstName.text.trim(),
-        'last_name': _lastName.text.trim(),
-        'email': _email.text.trim(),
-        'phone': _phone.text.trim(),
-        if (_gender != null) 'gender': _gender!.toLowerCase(),
-        if (_dobDate != null) 'date_of_birth': _dobDate!.toIso8601String().split('T')[0],
-        if (_street.text.isNotEmpty) 'street': _street.text.trim(),
-        if (_city.text.isNotEmpty) 'city': _city.text.trim(),
-        if (_stateCtrl.text.isNotEmpty) 'state': _stateCtrl.text.trim(),
-        if (_postcode.text.isNotEmpty) 'postcode': _postcode.text.trim(),
-        if (_jobRoleId != null) 'job_role_id': int.tryParse(_jobRoleId!) ?? _jobRoleId,
-        if (_departmentId != null) 'department_id': int.tryParse(_departmentId!) ?? _departmentId,
-        if (_employmentType != null)
-          'employment_type': _employmentType!.toLowerCase().replaceAll('-', '_'),
-        if (_startDateValue != null)
-          'start_date': _startDateValue!.toIso8601String().split('T')[0],
-        if (_rate.text.isNotEmpty) 'rate': double.tryParse(_rate.text) ?? 0,
-        if (_enableLogin) 'enable_login': true,
-        if (_enableLogin && _password.text.isNotEmpty) 'password': _password.text,
-        if (_ecName.text.isNotEmpty)
-          'emergency_contacts': [
-            {
-              'name': _ecName.text.trim(),
-              'phone': _ecPhone.text.trim(),
-              'relationship': _ecRelation.text.trim(),
-            }
-          ],
-      };
-
-      await context.read<EmployeesProvider>().createEmployee(data);
+      final payload = _buildEmployeePayload();
+      if (_isEditing) {
+        await _service.updateEmployee(widget.employeeId!, payload);
+      } else {
+        await _service.createEmployee(payload);
+      }
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Employee created successfully'),
+        SnackBar(
+          content: Text(
+            _isEditing
+                ? 'Employee updated successfully'
+                : 'Employee created successfully',
+          ),
           backgroundColor: AppColors.success,
         ),
       );
-      context.pop();
+      context.pop(_isEditing ? true : null);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to create employee: $e'),
+            content: Text(
+              _isEditing
+                  ? 'Failed to update employee: $e'
+                  : 'Failed to create employee: $e',
+            ),
             backgroundColor: AppColors.danger,
           ),
         );
@@ -744,6 +803,166 @@ class _EmployeeCreateScreenState extends State<EmployeeCreateScreen> {
   String? Function(String?) _required(String message) =>
       (v) => (v == null || v.trim().isEmpty) ? message : null;
 
+  Widget _lockedSection(String title, String message) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.border, width: 0.5),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _sectionLabel(title),
+            const SizedBox(height: 10),
+            Text(
+              message,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _loadInitialData() async {
+    await context.read<EmployeesProvider>().loadJobRoles();
+    if (_isEditing) {
+      await _loadEmployeeForEdit();
+    }
+  }
+
+  Future<void> _loadEmployeeForEdit() async {
+    if (widget.employeeId == null) return;
+    setState(() => _loadingEmployee = true);
+    try {
+      final employee = await _service.getEmployee(widget.employeeId!);
+      _populateFromEmployee(employee);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load employee: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingEmployee = false);
+    }
+  }
+
+  void _populateFromEmployee(Map<String, dynamic> data) {
+    final firstName = data['first_name']?.toString() ?? '';
+    final lastName = data['last_name']?.toString() ?? '';
+    final email = data['email']?.toString() ?? '';
+    final phone = data['phone']?.toString() ?? '';
+    final street =
+        data['address_line1']?.toString() ?? data['street']?.toString() ?? '';
+    final city = data['city']?.toString() ?? '';
+    final state = data['state']?.toString() ?? '';
+    final postcode =
+        data['postal_code']?.toString() ?? data['postcode']?.toString() ?? '';
+    final gender = data['gender']?.toString();
+    final jobRoleId = data['job_role_id']?.toString();
+    final departmentId = data['department_id']?.toString();
+    final startDate = data['start_date']?.toString();
+    final rateAmount =
+        data['rate_amount']?.toString() ?? data['rate']?.toString() ?? '';
+    final emergencyContacts = data['emergency_contacts'];
+
+    setState(() {
+      _firstName.text = firstName;
+      _lastName.text = lastName;
+      _email.text = email;
+      _phone.text = phone;
+      _street.text = street;
+      _city.text = city;
+      _stateCtrl.text = state;
+      _postcode.text = postcode;
+      _gender = gender != null && gender.isNotEmpty
+          ? '${gender[0].toUpperCase()}${gender.substring(1)}'
+          : null;
+      _jobRoleId = jobRoleId;
+      _departmentId = departmentId;
+      if (startDate != null && startDate.isNotEmpty) {
+        _startDateValue = DateTime.tryParse(startDate);
+        final parsed = _startDateValue;
+        if (parsed != null) {
+          _startDate.text = '${parsed.day}/${parsed.month}/${parsed.year}';
+        }
+      }
+      _rate.text = rateAmount;
+      if (emergencyContacts is List && emergencyContacts.isNotEmpty) {
+        final first = emergencyContacts.first;
+        if (first is Map) {
+          _ecName.text =
+              first['contact_name']?.toString() ??
+              first['name']?.toString() ??
+              '';
+          _ecPhone.text = first['phone']?.toString() ?? '';
+          _ecRelation.text = first['relationship']?.toString() ?? '';
+        }
+      }
+    });
+  }
+
+  Map<String, dynamic> _buildEmployeePayload() {
+    final payload = <String, dynamic>{
+      'personal': <String, dynamic>{
+        'first_name': _firstName.text.trim(),
+        'last_name': _lastName.text.trim(),
+        if (_dobDate != null)
+          'date_of_birth': _dobDate!.toIso8601String().split('T')[0],
+        if (_gender != null) 'gender': _gender!.toLowerCase(),
+      },
+      'contact': <String, dynamic>{
+        'email': _email.text.trim(),
+        'phone': _phone.text.trim(),
+        if (_street.text.isNotEmpty) 'address_line1': _street.text.trim(),
+        if (_city.text.isNotEmpty) 'city': _city.text.trim(),
+        if (_stateCtrl.text.isNotEmpty) 'state': _stateCtrl.text.trim(),
+        if (_postcode.text.isNotEmpty) 'postal_code': _postcode.text.trim(),
+        'country': 'Australia',
+      },
+      'employment': <String, dynamic>{
+        if (_jobRoleId != null)
+          'job_role_id': int.tryParse(_jobRoleId!) ?? _jobRoleId,
+        if (_departmentId != null)
+          'department_id': int.tryParse(_departmentId!) ?? _departmentId,
+        if (_startDateValue != null)
+          'start_date': _startDateValue!.toIso8601String().split('T')[0],
+        if (_rate.text.isNotEmpty)
+          'rate_amount': double.tryParse(_rate.text) ?? 0,
+        'rate_type': 'monthly',
+      },
+    };
+
+    if (!_isEditing && _enableLogin && _password.text.isNotEmpty) {
+      payload['account'] = <String, dynamic>{
+        'enable_login': true,
+        'password': _password.text,
+      };
+    }
+
+    if (!_isEditing && _ecName.text.isNotEmpty) {
+      payload['emergency_contacts'] = [
+        {
+          'contact_name': _ecName.text.trim(),
+          'phone': _ecPhone.text.trim(),
+          'relationship': _ecRelation.text.trim(),
+        },
+      ];
+    }
+
+    return payload;
+  }
+
   Future<void> _pickDate({
     DateTime? current,
     DateTime? firstDate,
@@ -757,9 +976,9 @@ class _EmployeeCreateScreenState extends State<EmployeeCreateScreen> {
       lastDate: lastDate ?? DateTime.now(),
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
-          colorScheme: Theme.of(ctx).colorScheme.copyWith(
-                primary: AppColors.primary,
-              ),
+          colorScheme: Theme.of(
+            ctx,
+          ).colorScheme.copyWith(primary: AppColors.primary),
         ),
         child: child!,
       ),

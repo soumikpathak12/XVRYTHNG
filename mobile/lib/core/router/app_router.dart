@@ -54,7 +54,8 @@ GoRouter createRouter(AuthProvider authProvider) {
     redirect: (context, state) {
       final auth = authProvider;
       final isLoggedIn = auth.isAuthenticated;
-      final isAuthRoute = state.matchedLocation == '/login' ||
+      final isAuthRoute =
+          state.matchedLocation == '/login' ||
           state.matchedLocation == '/forgot-password' ||
           state.matchedLocation.startsWith('/reset-password');
 
@@ -66,7 +67,8 @@ GoRouter createRouter(AuthProvider authProvider) {
       final isSplash = state.matchedLocation == '/splash';
 
       if (!isLoggedIn && !isAuthRoute) return '/login';
-      if (isLoggedIn && (isAuthRoute || isSplash)) return auth.getDefaultRoute();
+      if (isLoggedIn && (isAuthRoute || isSplash))
+        return auth.getDefaultRoute();
       return null;
     },
     routes: [
@@ -81,14 +83,10 @@ GoRouter createRouter(AuthProvider authProvider) {
       ),
       GoRoute(
         path: '/splash',
-        builder: (context, state) => const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        ),
+        builder: (context, state) =>
+            const Scaffold(body: Center(child: CircularProgressIndicator())),
       ),
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginScreen(),
-      ),
+      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
         path: '/forgot-password',
         builder: (context, state) => const ForgotPasswordScreen(),
@@ -148,6 +146,12 @@ GoRouter createRouter(AuthProvider authProvider) {
             ),
           ),
           GoRoute(
+            path: '/admin/employees/:id/edit',
+            builder: (context, state) => EmployeeCreateScreen(
+              employeeId: int.parse(state.pathParameters['id']!),
+            ),
+          ),
+          GoRoute(
             path: '/admin/projects',
             builder: (context, state) => const ProjectsScreen(),
           ),
@@ -192,8 +196,7 @@ GoRouter createRouter(AuthProvider authProvider) {
           ),
           GoRoute(
             path: '/admin/guest-users',
-            builder: (context, state) =>
-                const OperationalUsersPlaceholderScreen(
+            builder: (context, state) => const OperationalUsersPlaceholderScreen(
               title: 'Guest Users',
               subtitle:
                   'Guest users management will be available here in the next update.',
@@ -201,8 +204,7 @@ GoRouter createRouter(AuthProvider authProvider) {
           ),
           GoRoute(
             path: '/admin/trial-users',
-            builder: (context, state) =>
-                const OperationalUsersPlaceholderScreen(
+            builder: (context, state) => const OperationalUsersPlaceholderScreen(
               title: 'Trial Users',
               subtitle:
                   'Trial users management will be available here in the next update.',
@@ -292,6 +294,26 @@ GoRouter createRouter(AuthProvider authProvider) {
             path: '/dashboard/leads/:id/site-inspection',
             builder: (context, state) => SiteInspectionFormScreen(
               leadId: int.parse(state.pathParameters['id']!),
+            ),
+          ),
+          GoRoute(
+            path: '/dashboard/employees',
+            builder: (context, state) => const EmployeesScreen(),
+          ),
+          GoRoute(
+            path: '/dashboard/employees/new',
+            builder: (context, state) => const EmployeeCreateScreen(),
+          ),
+          GoRoute(
+            path: '/dashboard/employees/:id',
+            builder: (context, state) => EmployeeProfileScreen(
+              employeeId: int.parse(state.pathParameters['id']!),
+            ),
+          ),
+          GoRoute(
+            path: '/dashboard/employees/:id/edit',
+            builder: (context, state) => EmployeeCreateScreen(
+              employeeId: int.parse(state.pathParameters['id']!),
             ),
           ),
           GoRoute(

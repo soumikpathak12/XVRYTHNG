@@ -11,8 +11,7 @@ class ProjectsService {
       final params = <String, dynamic>{};
       if (search != null && search.isNotEmpty) params['search'] = search;
       if (stage != null && stage.isNotEmpty) params['stage'] = stage;
-      final response =
-          await _api.get('/api/projects', queryParameters: params);
+      final response = await _api.get('/api/projects', queryParameters: params);
       final data = response.data['data'] ?? response.data;
       if (data is List) {
         return data.map((e) => Project.fromJson(e)).toList();
@@ -57,15 +56,27 @@ class ProjectsService {
     }
   }
 
+  Future<void> updateScheduleAssign(int id, Map<String, dynamic> data) async {
+    try {
+      await _api.patch('/api/projects/$id/schedule-assign', data: data);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
   // Retailer Projects
-  Future<List<Project>> getRetailerProjects(
-      {String? search, String? stage}) async {
+  Future<List<Project>> getRetailerProjects({
+    String? search,
+    String? stage,
+  }) async {
     try {
       final params = <String, dynamic>{};
       if (search != null) params['search'] = search;
       if (stage != null) params['stage'] = stage;
-      final response =
-          await _api.get('/api/retailer-projects', queryParameters: params);
+      final response = await _api.get(
+        '/api/retailer-projects',
+        queryParameters: params,
+      );
       final data = response.data['data'] ?? response.data;
       if (data is List) {
         return data.map((e) => Project.fromJson(e)).toList();
@@ -138,11 +149,9 @@ class ProjectsService {
 
   // ── Project Documents ────────────────────────────────────────────
 
-  Future<List<Map<String, dynamic>>> getProjectDocuments(
-      int projectId) async {
+  Future<List<Map<String, dynamic>>> getProjectDocuments(int projectId) async {
     try {
-      final response =
-          await _api.get('/api/projects/$projectId/documents');
+      final response = await _api.get('/api/projects/$projectId/documents');
       final data = response.data['data'] ?? response.data;
       if (data is List) {
         return data.map((e) => Map<String, dynamic>.from(e)).toList();
@@ -157,16 +166,14 @@ class ProjectsService {
 
   Future<Project> createRetailerProject(Map<String, dynamic> data) async {
     try {
-      final response =
-          await _api.post('/api/retailer-projects', data: data);
+      final response = await _api.post('/api/retailer-projects', data: data);
       return Project.fromJson(response.data['data'] ?? response.data);
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }
   }
 
-  Future<void> updateRetailerProject(
-      int id, Map<String, dynamic> data) async {
+  Future<void> updateRetailerProject(int id, Map<String, dynamic> data) async {
     try {
       await _api.put('/api/retailer-projects/$id', data: data);
     } on DioException catch (e) {
@@ -176,8 +183,10 @@ class ProjectsService {
 
   Future<void> updateRetailerProjectStage(int id, String stage) async {
     try {
-      await _api.patch('/api/retailer-projects/$id/stage',
-          data: {'stage': stage});
+      await _api.patch(
+        '/api/retailer-projects/$id/stage',
+        data: {'stage': stage},
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }
@@ -186,10 +195,12 @@ class ProjectsService {
   // ── Retailer Project Notes & Docs ────────────────────────────────
 
   Future<List<Map<String, dynamic>>> getRetailerProjectNotes(
-      int projectId) async {
+    int projectId,
+  ) async {
     try {
-      final response =
-          await _api.get('/api/retailer-projects/$projectId/notes');
+      final response = await _api.get(
+        '/api/retailer-projects/$projectId/notes',
+      );
       final data = response.data['data'] ?? response.data;
       if (data is List) {
         return data.map((e) => Map<String, dynamic>.from(e)).toList();
@@ -202,28 +213,36 @@ class ProjectsService {
 
   Future<void> addRetailerProjectNote(int projectId, String note) async {
     try {
-      await _api.post('/api/retailer-projects/$projectId/notes',
-          data: {'note': note});
+      await _api.post(
+        '/api/retailer-projects/$projectId/notes',
+        data: {'note': note},
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }
   }
 
   Future<void> uploadRetailerProjectDocument(
-      int projectId, FormData formData) async {
+    int projectId,
+    FormData formData,
+  ) async {
     try {
       await _api.upload(
-          '/api/retailer-projects/$projectId/documents/upload', formData);
+        '/api/retailer-projects/$projectId/documents/upload',
+        formData,
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }
   }
 
   Future<List<Map<String, dynamic>>> getRetailerProjectDocuments(
-      int projectId) async {
+    int projectId,
+  ) async {
     try {
-      final response =
-          await _api.get('/api/retailer-projects/$projectId/documents');
+      final response = await _api.get(
+        '/api/retailer-projects/$projectId/documents',
+      );
       final data = response.data['data'] ?? response.data;
       if (data is List) {
         return data.map((e) => Map<String, dynamic>.from(e)).toList();
@@ -238,30 +257,34 @@ class ProjectsService {
 
   Future<Map<String, dynamic>> getRetailerSchedule(int projectId) async {
     try {
-      final response =
-          await _api.get('/api/retailer-projects/$projectId/schedule');
-      return Map<String, dynamic>.from(
-          response.data['data'] ?? response.data);
+      final response = await _api.get(
+        '/api/retailer-projects/$projectId/schedule',
+      );
+      return Map<String, dynamic>.from(response.data['data'] ?? response.data);
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }
   }
 
   Future<void> updateRetailerSchedule(
-      int projectId, Map<String, dynamic> data) async {
+    int projectId,
+    Map<String, dynamic> data,
+  ) async {
     try {
-      await _api.patch('/api/retailer-projects/$projectId/schedule',
-          data: data);
+      await _api.patch(
+        '/api/retailer-projects/$projectId/schedule',
+        data: data,
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }
   }
 
-  Future<List<Map<String, dynamic>>> getRetailerAssignees(
-      int projectId) async {
+  Future<List<Map<String, dynamic>>> getRetailerAssignees(int projectId) async {
     try {
-      final response =
-          await _api.get('/api/retailer-projects/$projectId/assignees');
+      final response = await _api.get(
+        '/api/retailer-projects/$projectId/assignees',
+      );
       final data = response.data['data'] ?? response.data;
       if (data is List) {
         return data.map((e) => Map<String, dynamic>.from(e)).toList();
@@ -273,13 +296,16 @@ class ProjectsService {
   }
 
   Future<void> updateRetailerAssignees(
-      int projectId, List<int> employeeIds) async {
+    int projectId,
+    List<int> employeeIds,
+  ) async {
     try {
-      await _api.patch('/api/retailer-projects/$projectId/assignees',
-          data: {'employeeIds': employeeIds});
+      await _api.patch(
+        '/api/retailer-projects/$projectId/assignees',
+        data: {'employeeIds': employeeIds},
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }
   }
 }
-

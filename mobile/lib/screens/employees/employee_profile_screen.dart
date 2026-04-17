@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:dio/dio.dart';
 import '../../core/theme/app_colors.dart';
@@ -36,7 +37,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
           PopupMenuButton<String>(
             onSelected: (v) {
               if (v == 'edit') {
-                // Navigate to edit
+                _openEditEmployee(context);
               }
             },
             itemBuilder: (_) => [
@@ -59,15 +60,13 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
               title: 'Failed to load profile',
               subtitle: provider.error,
               actionLabel: 'Retry',
-              onAction: () =>
-                  provider.loadEmployeeDetail(widget.employeeId),
+              onAction: () => provider.loadEmployeeDetail(widget.employeeId),
             );
           }
           final data = provider.employeeDetail ?? {};
           return RefreshIndicator(
             color: AppColors.primary,
-            onRefresh: () =>
-                provider.loadEmployeeDetail(widget.employeeId),
+            onRefresh: () => provider.loadEmployeeDetail(widget.employeeId),
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16),
@@ -81,10 +80,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                   const SizedBox(height: 12),
                   _EmploymentCard(data: data),
                   const SizedBox(height: 12),
-                  _DocumentsCard(
-                    employeeId: widget.employeeId,
-                    data: data,
-                  ),
+                  _DocumentsCard(employeeId: widget.employeeId, data: data),
                   const SizedBox(height: 80),
                 ],
               ),
@@ -93,6 +89,21 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         },
       ),
     );
+  }
+
+  Future<void> _openEditEmployee(BuildContext context) async {
+    final location = GoRouterState.of(context).matchedLocation;
+    final isAdmin = location.startsWith('/admin/');
+    final editPath = isAdmin
+        ? '/admin/employees/${widget.employeeId}/edit'
+        : '/dashboard/employees/${widget.employeeId}/edit';
+
+    final updated = await context.push<bool>(editPath);
+    if (updated == true && context.mounted) {
+      await context.read<EmployeesProvider>().loadEmployeeDetail(
+        widget.employeeId,
+      );
+    }
   }
 
   Widget _buildHeader(Map<String, dynamic> data) {
@@ -121,10 +132,10 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
             CircleAvatar(
               radius: 40,
               backgroundColor: AppColors.primary.withOpacity(0.1),
-              backgroundImage:
-                  avatarUrl != null ? NetworkImage(avatarUrl) : null,
-              onBackgroundImageError:
-                  avatarUrl != null ? (_, __) {} : null,
+              backgroundImage: avatarUrl != null
+                  ? NetworkImage(avatarUrl)
+                  : null,
+              onBackgroundImageError: avatarUrl != null ? (_, __) {} : null,
               child: avatarUrl == null
                   ? Text(
                       initials,
@@ -160,26 +171,42 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (role.isNotEmpty) ...[
-                  const Icon(Icons.work_outline,
-                      size: 14, color: AppColors.textSecondary),
+                  const Icon(
+                    Icons.work_outline,
+                    size: 14,
+                    color: AppColors.textSecondary,
+                  ),
                   const SizedBox(width: 4),
-                  Text(role,
-                      style: const TextStyle(
-                          fontSize: 13, color: AppColors.textSecondary)),
+                  Text(
+                    role,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
                 ],
                 if (role.isNotEmpty && department.isNotEmpty)
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 8),
-                    child: Text('·',
-                        style: TextStyle(color: AppColors.textSecondary)),
+                    child: Text(
+                      '·',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
                   ),
                 if (department.isNotEmpty) ...[
-                  const Icon(Icons.business_outlined,
-                      size: 14, color: AppColors.textSecondary),
+                  const Icon(
+                    Icons.business_outlined,
+                    size: 14,
+                    color: AppColors.textSecondary,
+                  ),
                   const SizedBox(width: 4),
-                  Text(department,
-                      style: const TextStyle(
-                          fontSize: 13, color: AppColors.textSecondary)),
+                  Text(
+                    department,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
                 ],
               ],
             ),
@@ -271,11 +298,12 @@ class _EmploymentCard extends StatelessWidget {
         _DetailRow('Employee Code', data['employee_code'] ?? '-'),
         _DetailRow('Job Role', data['role_name'] ?? data['role'] ?? '-'),
         _DetailRow(
-            'Department', data['department_name'] ?? data['department'] ?? '-'),
+          'Department',
+          data['department_name'] ?? data['department'] ?? '-',
+        ),
         _DetailRow('Employment Type', data['employment_type'] ?? '-'),
         _DetailRow('Start Date', _formatDate(data['start_date'])),
-        _DetailRow('Rate',
-            data['rate'] != null ? '\$${data['rate']}' : '-'),
+        _DetailRow('Rate', data['rate'] != null ? '\$${data['rate']}' : '-'),
       ],
     );
   }
@@ -323,13 +351,18 @@ class _DocumentsCard extends StatelessWidget {
             child: Center(
               child: Column(
                 children: [
-                  Icon(Icons.description_outlined,
-                      size: 36, color: AppColors.disabled),
+                  Icon(
+                    Icons.description_outlined,
+                    size: 36,
+                    color: AppColors.disabled,
+                  ),
                   SizedBox(height: 8),
                   Text(
                     'No documents uploaded',
                     style: TextStyle(
-                        color: AppColors.textSecondary, fontSize: 13),
+                      color: AppColors.textSecondary,
+                      fontSize: 13,
+                    ),
                   ),
                 ],
               ),
@@ -340,15 +373,19 @@ class _DocumentsCard extends StatelessWidget {
           return ListTile(
             contentPadding: EdgeInsets.zero,
             leading: _docIcon(name.toString()),
-            title: Text(name.toString(),
-                style: const TextStyle(fontSize: 14)),
+            title: Text(name.toString(), style: const TextStyle(fontSize: 14)),
             subtitle: Text(
               doc['uploaded_at'] ?? doc['created_at'] ?? '',
               style: const TextStyle(
-                  fontSize: 12, color: AppColors.textSecondary),
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
             ),
-            trailing: const Icon(Icons.download_outlined,
-                color: AppColors.primary, size: 20),
+            trailing: const Icon(
+              Icons.download_outlined,
+              color: AppColors.primary,
+              size: 20,
+            ),
             dense: true,
           );
         }),

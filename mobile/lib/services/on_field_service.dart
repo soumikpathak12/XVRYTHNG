@@ -12,12 +12,14 @@ class OnFieldService {
     String? from,
     String? to,
     String? type,
+    int? companyId,
   }) async {
     try {
       final params = <String, dynamic>{};
       if (from != null) params['from'] = from;
       if (to != null) params['to'] = to;
       if (type != null) params['type'] = type;
+      if (companyId != null) params['companyId'] = companyId;
       final response =
           await _api.get('/api/on-field/calendar', queryParameters: params);
       final data = response.data['data'] ?? response.data;
@@ -35,11 +37,13 @@ class OnFieldService {
   Future<List<OnFieldEvent>> getCalendarLeads({
     String? from,
     String? to,
+    int? companyId,
   }) async {
     try {
       final params = <String, dynamic>{};
       if (from != null) params['from'] = from;
       if (to != null) params['to'] = to;
+      if (companyId != null) params['companyId'] = companyId;
       final response =
           await _api.get('/api/calendar/leads', queryParameters: params);
       final data = response.data['data'] ?? response.data;
@@ -58,10 +62,10 @@ class OnFieldService {
   }
 
   /// Fetch all on-field events (both calendar types merged).
-  Future<List<OnFieldEvent>> getAllEvents({String? from, String? to}) async {
+  Future<List<OnFieldEvent>> getAllEvents({String? from, String? to, int? companyId}) async {
     final results = await Future.wait([
-      getCalendarEvents(from: from, to: to),
-      getCalendarLeads(from: from, to: to),
+      getCalendarEvents(from: from, to: to, companyId: companyId),
+      getCalendarLeads(from: from, to: to, companyId: companyId),
     ]);
     final merged = [...results[0], ...results[1]];
     merged.sort((a, b) => a.start.compareTo(b.start));

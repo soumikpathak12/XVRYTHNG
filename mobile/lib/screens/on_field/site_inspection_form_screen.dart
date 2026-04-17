@@ -4,10 +4,12 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import '../../core/config/api_config.dart';
+import '../../core/network/api_client.dart';
 import '../../core/network/api_exceptions.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/lead.dart';
@@ -69,214 +71,274 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
 
   Future<void> _exportPdf() async {
     try {
+      if (mounted) setState(() => _submitting = true);
       if (_lead == null) {
         await _loadData();
       }
-
       final doc = pw.Document();
       final lead = _lead;
-      final inspectedAt = _parseDateTimeValue(_getValue('inspected_at')) ??
-          DateTime.now();
 
-      String clean(dynamic v) =>
-          (v == null || v.toString().trim().isEmpty) ? '-' : v.toString().trim();
+      final brandPrimary = PdfColor.fromInt(0xFF18877E);
+      final brandDark = PdfColor.fromInt(0xFF1E293B);
+      final brandGray = PdfColor.fromInt(0xFF64748B);
+      final brandLight = PdfColor.fromInt(0xFFF1F5F9);
+      final brandBorder = PdfColor.fromInt(0xFFE2E8F0);
 
+      final companyName =
+          context.read<AuthProvider>().user?.companyName?.trim().isNotEmpty ==
+              true
+          ? context.read<AuthProvider>().user!.companyName!.trim()
+          : 'xTechs Renewables';
+
+      pw.MemoryImage? coverLogo;
+      try {
+        final logoData = await rootBundle.load('assets/icon/app_icon.jpeg');
+        coverLogo = pw.MemoryImage(logoData.buffer.asUint8List());
+      } catch (_) {
+        coverLogo = null;
+      }
+
+      doc.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: pw.EdgeInsets.zero,
+          build: (_) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+              children: [
+                pw.Container(
+                  height: 150,
+                  color: brandPrimary,
+                  padding: const pw.EdgeInsets.fromLTRB(50, 34, 50, 20),
+                  child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.center,
+                    children: [
+                      pw.Expanded(
+                        child: pw.Text(
+                          'Site Inspection Report',
+                          style: pw.TextStyle(
+                            color: PdfColors.white,
+                            fontSize: 24,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      if (coverLogo != null)
+                        pw.Container(
+                          width: 56,
+                          height: 56,
+                          decoration: pw.BoxDecoration(
+                            borderRadius: pw.BorderRadius.circular(8),
+                          ),
+                          child: pw.Image(coverLogo, fit: pw.BoxFit.cover),
+                        ),
+                    ],
+                  ),
+                ),
+                pw.SizedBox(height: 40),
+                pw.Container(
+                  margin: const pw.EdgeInsets.symmetric(horizontal: 50),
+                  child: pw.Text(
+                    _cleanForPdf(companyName),
+                    style: pw.TextStyle(fontSize: 12, color: brandDark),
+                  ),
+                ),
+                pw.SizedBox(height: 24),
+                pw.Container(
+                  margin: const pw.EdgeInsets.symmetric(horizontal: 50),
+                  padding: const pw.EdgeInsets.all(14),
+                  decoration: pw.BoxDecoration(
+                    color: brandLight,
+                    borderRadius: pw.BorderRadius.circular(4),
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        'Customer Summary',
+                        style: pw.TextStyle(
+                          color: brandDark,
+                          fontSize: 12,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                      pw.SizedBox(height: 12),
+                      pw.Text(
+                        'Customer: ${_cleanForPdf(lead?.customerName ?? _getValue('customer_name'))}',
+                        style: pw.TextStyle(fontSize: 11, color: brandDark),
+                      ),
+                      pw.SizedBox(height: 8),
+                      pw.Text(
+                        'Contact: ${_cleanForPdf(lead?.phone ?? lead?.email)}',
+                        style: pw.TextStyle(fontSize: 11, color: brandDark),
+                      ),
+                      pw.SizedBox(height: 8),
+                      pw.Text(
+                        'Address: ${_cleanForPdf(lead?.suburb)}',
+                        style: pw.TextStyle(fontSize: 11, color: brandDark),
+                      ),
+                      pw.SizedBox(height: 8),
+                      pw.Text(
+                        'Inspected At: ${_cleanForPdf(_getValue('inspected_at'))}',
+                        style: pw.TextStyle(fontSize: 11, color: brandDark),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+
+      final bodyWidgets = <pw.Widget>[];
+
+      for (final section in inspectionSections) {
+        final rows = <List<String>>[];
+        final media = <Map<String, dynamic>>[];
+
+        for (final field in _fieldsForSection(section)) {
+          final val = _getValue(field.key);
+          if (!_hasValueForPdf(val)) continue;
+
+          if (field.type == InspectionFieldType.photo) {
+            final image = await _mediaImageForPdf(val);
+            if (image != null) {
+              media.add({'title': field.label, 'image': image});
+            }
+            continue;
+          }
+
+          rows.add([
+            _fixSpacedLettersForPdf(field.label),
+            _fixSpacedLettersForPdf(_formatValueForPdf(val)),
+          ]);
+        }
+
+        if (rows.isEmpty && media.isEmpty) continue;
+
+        bodyWidgets.add(
+          _buildPdfSectionHeader(
+            _fixSpacedLettersForPdf(section.label),
+            brandPrimary,
+          ),
+        );
+
+        if (rows.isNotEmpty) {
+          bodyWidgets.add(
+            _buildPdfKeyValueTable(
+              rows: rows,
+              brandPrimary: brandPrimary,
+              brandDark: brandDark,
+              brandBorder: brandBorder,
+            ),
+          );
+          bodyWidgets.add(pw.SizedBox(height: 12));
+        }
+
+        for (final item in media) {
+          final image = item['image'] as pw.MemoryImage;
+          final title = item['title'] as String;
+          bodyWidgets.add(
+            _buildPdfImageCard(
+              title: _fixSpacedLettersForPdf(title),
+              image: image,
+              brandDark: brandDark,
+              brandBorder: brandBorder,
+            ),
+          );
+          bodyWidgets.add(pw.SizedBox(height: 14));
+        }
+      }
+
+      final effectiveCustomerName = _customerNameCtrl.text.trim().isNotEmpty
+          ? _customerNameCtrl.text.trim()
+          : (_getValue('customer_name')?.toString() ?? '');
+      final effectiveCustomerNotes = _customerNotesCtrl.text.trim().isNotEmpty
+          ? _customerNotesCtrl.text.trim()
+          : (_getValue('customer_notes')?.toString() ?? '');
+      final effectiveSignatureUrl =
+          _getValue('signature_url')?.toString().trim() ?? '';
+      final effectiveCustomerConfirmed =
+          _customerConfirmed ||
+          effectiveSignatureUrl.isNotEmpty ||
+          effectiveCustomerName.isNotEmpty;
+
+      pw.MemoryImage? signatureImage;
+      if (effectiveSignatureUrl.isNotEmpty) {
+        signatureImage = await _mediaImageForPdf({
+          'storage_url': effectiveSignatureUrl,
+        });
+      }
+      if (signatureImage == null &&
+          (_signaturePoints.any((p) => p != null) ||
+              _generatedSignature != null)) {
+        try {
+          final sigFile = await _exportSignatureToFile();
+          final bytes = await sigFile.readAsBytes();
+          if (bytes.isNotEmpty) signatureImage = pw.MemoryImage(bytes);
+        } catch (_) {
+          signatureImage = null;
+        }
+      }
+
+      if (effectiveCustomerName.isNotEmpty || signatureImage != null) {
+        bodyWidgets.add(
+          _buildPdfSectionHeader('Customer Sign-Off', brandPrimary),
+        );
+
+        final signoffRows = <List<String>>[
+          ['Customer Name', _cleanForPdf(effectiveCustomerName)],
+          ['Confirmed', effectiveCustomerConfirmed ? 'Yes' : 'No'],
+        ];
+        if (_hasValueForPdf(effectiveCustomerNotes)) {
+          signoffRows.add(['Notes', _cleanForPdf(effectiveCustomerNotes)]);
+        }
+
+        bodyWidgets.add(
+          _buildPdfKeyValueTable(
+            rows: signoffRows,
+            brandPrimary: brandPrimary,
+            brandDark: brandDark,
+            brandBorder: brandBorder,
+          ),
+        );
+
+        if (signatureImage != null) {
+          bodyWidgets.add(pw.SizedBox(height: 12));
+          bodyWidgets.add(
+            _buildPdfImageCard(
+              title: 'Customer Signature',
+              image: signatureImage,
+              brandDark: brandDark,
+              brandBorder: brandBorder,
+              fixedHeight: 100,
+            ),
+          );
+        }
+      }
+
+      final generatedAt = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
       doc.addPage(
         pw.MultiPage(
           pageFormat: PdfPageFormat.a4,
-          build: (context) {
-            return [
-              pw.Header(
-                level: 0,
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text(
-                      'Site Inspection Report',
-                      style: pw.TextStyle(
-                        fontSize: 20,
-                        fontWeight: pw.FontWeight.bold,
-                      ),
-                    ),
-                    pw.SizedBox(height: 4),
-                    pw.Text(
-                      'Lead #${widget.leadId}',
-                      style: const pw.TextStyle(fontSize: 10),
-                    ),
-                  ],
+          margin: const pw.EdgeInsets.fromLTRB(50, 70, 50, 60),
+          footer: (context) {
+            return pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text(
+                  'Generated: $generatedAt',
+                  style: pw.TextStyle(fontSize: 9, color: brandGray),
                 ),
-              ),
-              pw.SizedBox(height: 12),
-              pw.Text(
-                'Customer',
-                style: pw.TextStyle(
-                  fontSize: 13,
-                  fontWeight: pw.FontWeight.bold,
+                pw.Text(
+                  'Page ${context.pageNumber} of ${context.pagesCount}',
+                  style: pw.TextStyle(fontSize: 9, color: brandGray),
                 ),
-              ),
-              pw.SizedBox(height: 6),
-              pw.Table(
-                border: pw.TableBorder.all(width: 0.3),
-                defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
-                children: [
-                  pw.TableRow(
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text('Name'),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          clean(lead?.customerName ?? _getValue('customer_name')),
-                        ),
-                      ),
-                    ],
-                  ),
-                  pw.TableRow(
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text('Suburb'),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(clean(lead?.suburb)),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              pw.SizedBox(height: 16),
-              pw.Text(
-                'Inspection Summary',
-                style: pw.TextStyle(
-                  fontSize: 13,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-              ),
-              pw.SizedBox(height: 6),
-              pw.Table(
-                border: pw.TableBorder.all(width: 0.3),
-                defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
-                children: [
-                  pw.TableRow(
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text('Inspected At'),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          DateFormat('dd MMM yyyy, hh:mm a').format(inspectedAt),
-                        ),
-                      ),
-                    ],
-                  ),
-                  pw.TableRow(
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text('Inspector'),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(clean(_getValue('inspector_name'))),
-                      ),
-                    ],
-                  ),
-                  pw.TableRow(
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text('Roof Type'),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(clean(_getValue('roof_type'))),
-                      ),
-                    ],
-                  ),
-                  pw.TableRow(
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text('Meter Phase'),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(clean(_getValue('meter_phase'))),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              pw.SizedBox(height: 16),
-              pw.Text(
-                'Customer Sign-off',
-                style: pw.TextStyle(
-                  fontSize: 13,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-              ),
-              pw.SizedBox(height: 6),
-              pw.Table(
-                border: pw.TableBorder.all(width: 0.3),
-                defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
-                children: [
-                  pw.TableRow(
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text('Customer Name'),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(clean(_getValue('customer_name'))),
-                      ),
-                    ],
-                  ),
-                  pw.TableRow(
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text('Confirmed'),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(_customerConfirmed ? 'Yes' : 'No'),
-                      ),
-                    ],
-                  ),
-                  pw.TableRow(
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text('Notes'),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          clean(_customerNotesCtrl.text.isNotEmpty
-                              ? _customerNotesCtrl.text
-                              : _getValue('customer_notes')),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              pw.SizedBox(height: 24),
-              pw.Text(
-                'Summary only',
-                style: const pw.TextStyle(
-                  fontSize: 9,
-                  color: PdfColor.fromInt(0x777777),
-                ),
-              ),
-            ];
+              ],
+            );
           },
+          build: (_) => bodyWidgets,
         ),
       );
 
@@ -294,7 +356,233 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
           ),
         );
       }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  String _cleanForPdf(dynamic value) {
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? '-' : text;
+  }
+
+  String _fixSpacedLettersForPdf(String input) {
+    var str = input;
+    str = str.replaceAll(RegExp(r'[\u200B-\u200D\uFEFF]'), '');
+    str = str.replaceAll(
+      RegExp(r'[\s\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]+'),
+      ' ',
+    );
+    str = str.replaceAll(
+      RegExp(r'[\u2010\u2011\u2012\u2013\u2014\u2015\u2212]'),
+      '-',
+    );
+    str = str
+        .replaceAll(RegExp(r'[\u2018\u2019\u201B\u2032]'), "'")
+        .replaceAll(RegExp(r'[\u201C\u201D\u201F\u2033]'), '"')
+        .replaceAll('\u2026', '...');
+
+    final tokens = str
+        .trim()
+        .split(RegExp(r'[\s\u00A0]+'))
+        .where((t) => t.isNotEmpty)
+        .toList();
+    final singleCount = tokens.where((t) => t.length == 1).length;
+    final looksLikeSpaced =
+        tokens.length >= 8 &&
+        singleCount / (tokens.isEmpty ? 1 : tokens.length) >= 0.7;
+
+    final compact = tokens.join('');
+    final compactKey = compact.toLowerCase();
+    if (compactKey == 'ismultioccupancy?' || compactKey == 'ismultioccupancy') {
+      return 'Is Multi Occupancy?';
+    }
+    if (!looksLikeSpaced) return str;
+
+    return compact
+        .replaceAllMapped(
+          RegExp(r'([a-z])([A-Z])'),
+          (m) => '${m.group(1)} ${m.group(2)}',
+        )
+        .replaceAllMapped(
+          RegExp(r'([A-Za-z])(\d)'),
+          (m) => '${m.group(1)} ${m.group(2)}',
+        )
+        .replaceAllMapped(
+          RegExp(r'(\d)([A-Za-z])'),
+          (m) => '${m.group(1)} ${m.group(2)}',
+        );
+  }
+
+  bool _hasValueForPdf(dynamic value) {
+    if (value == null) return false;
+    if (value is String) return value.trim().isNotEmpty;
+    if (value is List) return value.any(_hasValueForPdf);
+    if (value is Map) {
+      if (value['preview_data_url'] != null ||
+          value['storage_url'] != null ||
+          value['filename'] != null) {
+        return true;
+      }
+      return value.values.any(_hasValueForPdf);
+    }
+    return true;
+  }
+
+  String _formatValueForPdf(dynamic value) {
+    if (value == null) return '-';
+    if (value is bool) return value ? 'Yes' : 'No';
+    if (value is num) return value.toString();
+    if (value is DateTime)
+      return DateFormat('yyyy-MM-dd HH:mm').format(value.toLocal());
+    if (value is List) {
+      final formatted = value
+          .map(_formatValueForPdf)
+          .where((v) => v.trim().isNotEmpty && v.trim() != '-')
+          .toList();
+      return formatted.isEmpty ? '-' : formatted.join(', ');
+    }
+    if (value is Map) {
+      if (value['filename'] != null) return value['filename'].toString();
+      if (value['storage_url'] != null) return value['storage_url'].toString();
+      final values = value.values
+          .map(_formatValueForPdf)
+          .where((v) => v.trim().isNotEmpty && v.trim() != '-')
+          .toList();
+      return values.isEmpty ? '-' : values.join(', ');
+    }
+    return _cleanForPdf(value);
+  }
+
+  Future<Uint8List?> _fetchImageBytesForPdf(String rawUrl) async {
+    final resolved = _resolveUrl(rawUrl);
+    if (resolved.isEmpty) return null;
+
+    final candidates = _buildPhotoUrlCandidates(resolved);
+    for (final src in candidates) {
+      try {
+        final resp = await ApiClient().dio.get<List<int>>(
+          src,
+          options: Options(responseType: ResponseType.bytes),
+        );
+        final data = resp.data;
+        if (data == null || data.isEmpty) continue;
+        final contentType = (resp.headers.value('content-type') ?? '')
+            .toLowerCase();
+        if (!contentType.startsWith('image/')) continue;
+        return Uint8List.fromList(data);
+      } catch (_) {
+        continue;
+      }
+    }
+    return null;
+  }
+
+  Future<pw.MemoryImage?> _mediaImageForPdf(dynamic fileObj) async {
+    final candidates = fileObj is List ? fileObj : [fileObj];
+    for (final item in candidates) {
+      if (item == null) continue;
+
+      if (item is Map) {
+        final localPath = _extractLocalPhotoPath(item);
+        if (localPath != null) {
+          try {
+            final bytes = await File(localPath).readAsBytes();
+            if (bytes.isNotEmpty) return pw.MemoryImage(bytes);
+          } catch (_) {}
+        }
+
+        final storageUrl =
+            item['storage_url'] ??
+            item['storageUrl'] ??
+            item['url'] ??
+            item['file_url'] ??
+            item['fileUrl'] ??
+            item['path'];
+        final bytes = await _fetchImageBytesForPdf('${storageUrl ?? ''}');
+        if (bytes != null && bytes.isNotEmpty) {
+          return pw.MemoryImage(bytes);
+        }
+      } else if (item is String && item.trim().isNotEmpty) {
+        final bytes = await _fetchImageBytesForPdf(item.trim());
+        if (bytes != null && bytes.isNotEmpty) {
+          return pw.MemoryImage(bytes);
+        }
+      }
+    }
+    return null;
+  }
+
+  pw.Widget _buildPdfSectionHeader(String title, PdfColor primary) {
+    return pw.Container(
+      width: double.infinity,
+      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      color: primary,
+      child: pw.Text(
+        title,
+        style: pw.TextStyle(
+          color: PdfColors.white,
+          fontSize: 13,
+          fontWeight: pw.FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  pw.Widget _buildPdfKeyValueTable({
+    required List<List<String>> rows,
+    required PdfColor brandPrimary,
+    required PdfColor brandDark,
+    required PdfColor brandBorder,
+  }) {
+    return pw.TableHelper.fromTextArray(
+      headers: ['Field', 'Value'],
+      data: rows,
+      border: pw.TableBorder.all(color: brandBorder, width: 0.6),
+      headerStyle: pw.TextStyle(
+        color: PdfColors.white,
+        fontSize: 11,
+        fontWeight: pw.FontWeight.bold,
+      ),
+      headerDecoration: pw.BoxDecoration(color: brandPrimary),
+      cellStyle: pw.TextStyle(fontSize: 11, color: brandDark),
+      cellPadding: const pw.EdgeInsets.all(6),
+      columnWidths: {0: const pw.FixedColumnWidth(220)},
+      cellAlignment: pw.Alignment.centerLeft,
+      headerAlignment: pw.Alignment.centerLeft,
+    );
+  }
+
+  pw.Widget _buildPdfImageCard({
+    required String title,
+    required pw.MemoryImage image,
+    required PdfColor brandDark,
+    required PdfColor brandBorder,
+    double fixedHeight = 150,
+  }) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          title,
+          style: pw.TextStyle(
+            fontSize: 12,
+            color: brandDark,
+            fontWeight: pw.FontWeight.bold,
+          ),
+        ),
+        pw.SizedBox(height: 8),
+        pw.Container(
+          width: 220,
+          height: fixedHeight,
+          padding: const pw.EdgeInsets.all(5),
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: brandBorder),
+          ),
+          child: pw.Image(image, fit: pw.BoxFit.contain),
+        ),
+      ],
+    );
   }
 
   Future<void> _loadData() async {

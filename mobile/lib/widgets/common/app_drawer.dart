@@ -44,14 +44,23 @@ class AppDrawer extends StatelessWidget {
                 CircleAvatar(
                   radius: 30,
                   backgroundColor: Colors.white24,
-                  child: Text(
-                    _getInitials(user?.name ?? ''),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  backgroundImage:
+                      (user?.avatarUrl != null &&
+                          user!.avatarUrl!.trim().isNotEmpty)
+                      ? NetworkImage(user.avatarUrl!)
+                      : null,
+                  child:
+                      (user?.avatarUrl == null ||
+                          user!.avatarUrl!.trim().isEmpty)
+                      ? Text(
+                          _getInitials(user?.name ?? ''),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        )
+                      : null,
                 ),
                 const SizedBox(height: 12),
                 Text(

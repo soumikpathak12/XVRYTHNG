@@ -8,7 +8,8 @@ function resolveCompanyId(req) {
     : req.headers['x-company-id']
     ? Number(req.headers['x-company-id'])
     : null;
-  return fromTenant ?? fromQuery ?? fromHeader ?? null;
+  const fromUser = req.user?.companyId != null ? Number(req.user.companyId) : null;
+  return fromTenant ?? fromQuery ?? fromHeader ?? fromUser ?? null;
 }
 
 export async function checkIn(req, res) {

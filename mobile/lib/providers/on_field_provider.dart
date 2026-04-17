@@ -60,13 +60,13 @@ class OnFieldProvider extends ChangeNotifier {
   }
 
   /// Load on-field events for a date range and merge with existing cache.
-  Future<void> loadEvents({String? from, String? to}) async {
+  Future<void> loadEvents({String? from, String? to, int? companyId}) async {
     _loading = true;
     _error = null;
     notifyListeners();
 
     try {
-      final newEvents = await _service.getAllEvents(from: from, to: to);
+      final newEvents = await _service.getAllEvents(from: from, to: to, companyId: companyId);
       
       // Merge by stable event fingerprint (entity + start minute).
       // This removes duplicate rows coming from both calendar endpoints.
@@ -97,10 +97,10 @@ class OnFieldProvider extends ChangeNotifier {
 
   /// Fetch events for the visible bounds of the standard TableCalendar grid (approx 5-6 weeks) 
   /// instead of fetching multiple massive 3-month queries. This makes the API instantaneous.
-  Future<void> loadEventsForMonth(DateTime month) async {
+  Future<void> loadEventsForMonth(DateTime month, {int? companyId}) async {
     final start = DateTime(month.year, month.month, 1).subtract(const Duration(days: 10));
     final end = DateTime(month.year, month.month + 1, 0).add(const Duration(days: 10));
     
-    await loadEvents(from: _dateKey(start), to: _dateKey(end));
+    await loadEvents(from: _dateKey(start), to: _dateKey(end), companyId: companyId);
   }
 }

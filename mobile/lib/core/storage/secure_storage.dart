@@ -7,6 +7,7 @@ class SecureStore {
   static const _kRefresh = 'refresh_token';
   static const _kRemember = 'remember_me';
   static const _kLastEmail = 'last_email';
+  static const _kSelectedCompanyId = 'selected_company_id';
 
   static Future<void> saveTokens({
     required String accessToken,
@@ -34,4 +35,18 @@ class SecureStore {
       _storage.write(key: _kLastEmail, value: email.trim());
 
   static Future<String?> readLastEmail() => _storage.read(key: _kLastEmail);
+
+  static Future<void> saveSelectedCompanyId(int? companyId) async {
+    if (companyId == null) {
+      await _storage.delete(key: _kSelectedCompanyId);
+      return;
+    }
+    await _storage.write(key: _kSelectedCompanyId, value: companyId.toString());
+  }
+
+  static Future<int?> readSelectedCompanyId() async {
+    final raw = await _storage.read(key: _kSelectedCompanyId);
+    if (raw == null || raw.trim().isEmpty) return null;
+    return int.tryParse(raw);
+  }
 }

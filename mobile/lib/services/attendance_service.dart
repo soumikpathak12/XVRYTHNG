@@ -6,9 +6,12 @@ import '../models/attendance.dart';
 class AttendanceService {
   final _api = ApiClient();
 
-  Future<AttendanceToday?> getTodayStatus() async {
+  Future<AttendanceToday?> getTodayStatus({int? companyId}) async {
     try {
-      final response = await _api.get('/api/employees/attendance/today');
+      final response = await _api.get(
+        '/api/employees/attendance/today',
+        queryParameters: companyId != null ? {'companyId': companyId} : null,
+      );
       final data = response.data['data'];
       if (data == null) return null;
       return AttendanceToday.fromJson(data);
@@ -17,13 +20,16 @@ class AttendanceService {
     }
   }
 
-  Future<AttendanceToday> checkIn(double lat, double lng) async {
+  Future<AttendanceToday> checkIn(double lat, double lng, {int? companyId}) async {
     try {
-      final response =
-          await _api.post('/api/employees/attendance/check-in', data: {
+      final response = await _api.dio.post(
+        '/api/employees/attendance/check-in',
+        queryParameters: companyId != null ? {'companyId': companyId} : null,
+        data: {
         'lat': lat,
         'lng': lng,
-      });
+      },
+      );
       return AttendanceToday.fromJson(
           response.data['data'] ?? response.data);
     } on DioException catch (e) {
@@ -31,13 +37,16 @@ class AttendanceService {
     }
   }
 
-  Future<AttendanceToday> checkOut(double lat, double lng) async {
+  Future<AttendanceToday> checkOut(double lat, double lng, {int? companyId}) async {
     try {
-      final response =
-          await _api.post('/api/employees/attendance/check-out', data: {
+      final response = await _api.dio.post(
+        '/api/employees/attendance/check-out',
+        queryParameters: companyId != null ? {'companyId': companyId} : null,
+        data: {
         'lat': lat,
         'lng': lng,
-      });
+      },
+      );
       return AttendanceToday.fromJson(
           response.data['data'] ?? response.data);
     } on DioException catch (e) {
@@ -45,9 +54,12 @@ class AttendanceService {
     }
   }
 
-  Future<List<AttendanceRecord>> getHistory() async {
+  Future<List<AttendanceRecord>> getHistory({int? companyId}) async {
     try {
-      final response = await _api.get('/api/employees/attendance/history');
+      final response = await _api.get(
+        '/api/employees/attendance/history',
+        queryParameters: companyId != null ? {'companyId': companyId} : null,
+      );
       final data = response.data['data'] ?? response.data;
       if (data is List) {
         return data.map((e) => AttendanceRecord.fromJson(e)).toList();
@@ -58,18 +70,24 @@ class AttendanceService {
     }
   }
 
-  Future<void> submitEditRequest(Map<String, dynamic> data) async {
+  Future<void> submitEditRequest(Map<String, dynamic> data, {int? companyId}) async {
     try {
-      await _api.post('/api/employees/attendance/edit-request', data: data);
+      await _api.dio.post(
+        '/api/employees/attendance/edit-request',
+        queryParameters: companyId != null ? {'companyId': companyId} : null,
+        data: data,
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }
   }
 
-  Future<List<AttendanceEditRequest>> getMyEditRequests() async {
+  Future<List<AttendanceEditRequest>> getMyEditRequests({int? companyId}) async {
     try {
-      final response =
-          await _api.get('/api/employees/attendance/edit-requests');
+      final response = await _api.get(
+        '/api/employees/attendance/edit-requests',
+        queryParameters: companyId != null ? {'companyId': companyId} : null,
+      );
       final data = response.data['data'] ?? response.data;
       if (data is List) {
         return data.map((e) => AttendanceEditRequest.fromJson(e)).toList();
@@ -80,10 +98,12 @@ class AttendanceService {
     }
   }
 
-  Future<List<AttendanceEditRequest>> getPendingEditRequests() async {
+  Future<List<AttendanceEditRequest>> getPendingEditRequests({int? companyId}) async {
     try {
-      final response =
-          await _api.get('/api/employees/attendance/edit-requests/pending');
+      final response = await _api.get(
+        '/api/employees/attendance/edit-requests/pending',
+        queryParameters: companyId != null ? {'companyId': companyId} : null,
+      );
       final data = response.data['data'] ?? response.data;
       if (data is List) {
         return data.map((e) => AttendanceEditRequest.fromJson(e)).toList();
@@ -95,12 +115,16 @@ class AttendanceService {
   }
 
   Future<void> reviewEditRequest(
-      int id, String action, String? note) async {
+      int id, String action, String? note, {int? companyId}) async {
     try {
-      await _api.patch('/api/employees/attendance/edit-requests/$id', data: {
-        'action': action,
-        if (note != null) 'reviewerNote': note,
-      });
+      await _api.dio.patch(
+        '/api/employees/attendance/edit-requests/$id',
+        queryParameters: companyId != null ? {'companyId': companyId} : null,
+        data: {
+          'action': action,
+          if (note != null) 'reviewerNote': note,
+        },
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }

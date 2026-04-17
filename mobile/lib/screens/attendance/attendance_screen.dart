@@ -2,10 +2,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../models/attendance.dart';
+import '../../providers/auth_provider.dart';
 import '../../services/attendance_service.dart';
+import '../../utils/melbourne_time.dart';
 import '../../widgets/common/empty_state.dart';
 import '../../widgets/common/loading_overlay.dart';
 import '../../widgets/common/shell_scaffold_scope.dart';
@@ -20,7 +23,6 @@ class AttendanceScreen extends StatefulWidget {
 
 class _AttendanceScreenState extends State<AttendanceScreen>
     with SingleTickerProviderStateMixin {
-  static const Duration _auOffset = Duration(hours: 10);
   final _service = AttendanceService();
 
   AttendanceToday? _today;
@@ -60,10 +62,11 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       _error = null;
     });
     try {
+      final companyId = context.read<AuthProvider>().user?.companyId;
       final results = await Future.wait([
-        _service.getTodayStatus(),
-        _service.getHistory(),
-        _service.getMyEditRequests(),
+        _service.getTodayStatus(companyId: companyId),
+        _service.getHistory(companyId: companyId),
+        _service.getMyEditRequests(companyId: companyId),
       ]);
       _today = results[0] as AttendanceToday?;
       _history = results[1] as List<AttendanceRecord>;
@@ -83,7 +86,8 @@ class _AttendanceScreenState extends State<AttendanceScreen>
         if (!mounted) return;
         final checkIn = _parseTime(_today!.checkInTime!);
         if (checkIn != null) {
-          setState(() => _elapsed = DateTime.now().difference(checkIn));
+          final diff = MelbourneTime.now().difference(checkIn);
+          setState(() => _elapsed = diff.isNegative ? Duration.zero : diff);
         }
       });
     }
@@ -92,21 +96,19 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   DateTime? _parseTime(String raw) {
     final trimmed = raw.trim();
     final hasDate = trimmed.contains('-') && trimmed.contains(':');
-    final hasZoneInfo = RegExp(r'(Z|[+-]\d{2}:?\d{2})$').hasMatch(trimmed);
+
+    if (hasDate) {
+      final parsed = MelbourneTime.parseServerTimestamp(trimmed);
+      if (parsed != null) return parsed;
+    }
 
     try {
       final parsed = DateTime.parse(trimmed);
-      if (hasDate) {
-        // Attendance API stores timestamps in UTC. Normalize to AU time for
-        // consistent display and elapsed-hour calculations.
-        if (hasZoneInfo) return parsed.toUtc().add(_auOffset);
-        return parsed.add(_auOffset);
-      }
       return parsed;
     } catch (_) {
       try {
         final parts = trimmed.split(':');
-        final now = DateTime.now();
+        final now = MelbourneTime.now();
         return DateTime(
           now.year,
           now.month,
@@ -162,7 +164,12 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     setState(() => _actionLoading = true);
     try {
       final pos = await _getPosition();
-      final result = await _service.checkIn(pos.latitude, pos.longitude);
+      final companyId = context.read<AuthProvider>().user?.companyId;
+      final result = await _service.checkIn(
+        pos.latitude,
+        pos.longitude,
+        companyId: companyId,
+      );
       setState(() => _today = result);
       _startLiveTimer();
       if (mounted) {
@@ -191,7 +198,12 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     setState(() => _actionLoading = true);
     try {
       final pos = await _getPosition();
-      final result = await _service.checkOut(pos.latitude, pos.longitude);
+      final companyId = context.read<AuthProvider>().user?.companyId;
+      final result = await _service.checkOut(
+        pos.latitude,
+        pos.longitude,
+        companyId: companyId,
+      );
       _liveTimer?.cancel();
       setState(() {
         _today = result;
