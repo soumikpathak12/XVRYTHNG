@@ -5,12 +5,14 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/config/api_config.dart';
+import '../../core/network/api_client.dart';
 import '../../core/network/api_exceptions.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/lead.dart';
@@ -87,217 +89,585 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
         await _loadData();
       }
 
-      final doc = pw.Document();
       final lead = _lead;
+      if (lead == null) {
+        throw Exception('Lead data is unavailable.');
+      }
+
       final inspectedAt =
           _parseDateTimeValue(_getValue('inspected_at')) ?? DateTime.now();
+      final doc = pw.Document();
+      final apiClient = ApiClient();
+      final logoBytes = await rootBundle.load('assets/icon/app_icon.jpeg');
+      final logoImage = pw.MemoryImage(logoBytes.buffer.asUint8List());
+
+      final brandPrimary = PdfColor.fromInt(0xFF18877E);
+      final brandDark = PdfColor.fromInt(0xFF1E293B);
+      final brandGray = PdfColor.fromInt(0xFF64748B);
+      final brandLight = PdfColor.fromInt(0xFFF1F5F9);
+      final brandBorder = PdfColor.fromInt(0xFFE2E8F0);
 
       String clean(dynamic v) => (v == null || v.toString().trim().isEmpty)
           ? '-'
           : v.toString().trim();
 
-      doc.addPage(
-        pw.MultiPage(
-          pageFormat: PdfPageFormat.a4,
-          build: (context) {
-            return [
-              pw.Header(
-                level: 0,
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+      bool hasValueForPdf(dynamic v) {
+        if (v == null) return false;
+        if (v is String) return v.trim().isNotEmpty;
+        if (v is Iterable) return v.any(hasValueForPdf);
+        if (v is Map) {
+          if (v['preview_data_url'] != null ||
+              v['previewDataUrl'] != null ||
+              v['storage_url'] != null ||
+              v['storageUrl'] != null ||
+              v['filename'] != null) {
+            return true;
+          }
+          return v.values.any(hasValueForPdf);
+        }
+        return true;
+      }
+
+      String? formatValueForPdf(dynamic v) {
+        if (!hasValueForPdf(v)) return null;
+        if (v is DateTime) {
+          return DateFormat('dd MMM yyyy, hh:mm a').format(v.toLocal());
+        }
+        if (v is Iterable) {
+          final parts = v
+              .map(formatValueForPdf)
+              .whereType<String>()
+              .where((s) => s.trim().isNotEmpty && s != '-')
+              .toList();
+          return parts.isEmpty ? null : parts.join(' • ');
+        }
+        if (v is Map) {
+          final map = Map<String, dynamic>.from(v);
+          final value =
+              map['value'] ?? map['name'] ?? map['label'] ?? map['filename'];
+          if (value != null && value.toString().trim().isNotEmpty) {
+            return value.toString().trim();
+          }
+          final text = map.values
+              .map(formatValueForPdf)
+              .whereType<String>()
+              .where((s) => s.trim().isNotEmpty && s != '-')
+              .join(' • ');
+          return text.isEmpty ? null : text;
+        }
+        final text = v.toString().trim();
+        return text.isEmpty ? null : text;
+      }
+
+      String fixSpacedLetters(String s) {
+        var str = String.fromCharCodes(s.runes);
+        str = str.replaceAll(RegExp(r'[\u200B-\u200D\uFEFF]'), '');
+        str = str.replaceAll(
+          RegExp(r'[\s\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]+'),
+          ' ',
+        );
+        str = str.replaceAll(
+          RegExp(r'[\u2010\u2011\u2012\u2013\u2014\u2015\u2212]'),
+          '-',
+        );
+        str = str
+            .replaceAll(RegExp(r'[\u2018\u2019\u201B\u2032]'), "'")
+            .replaceAll(RegExp(r'[\u201C\u201D\u201F\u2033]'), '"')
+            .replaceAll(RegExp(r'\u2026'), '...');
+
+        final tokens = str
+            .trim()
+            .split(RegExp(r'[\s\u00A0]+'))
+            .where((t) => t.isNotEmpty)
+            .toList();
+        final singleCount = tokens.where((t) => t.length == 1).length;
+        final looksLikeSpaced =
+            tokens.length >= 8 && singleCount / tokens.length >= 0.7;
+        final compact = tokens.join('');
+        final compactKey = compact.toLowerCase();
+        if (compactKey == 'ismultioccupancy?' ||
+            compactKey == 'ismultioccupancy') {
+          return 'Is Multi Occupancy?';
+        }
+        if (!looksLikeSpaced) return str;
+        return compact
+            .replaceAllMapped(
+              RegExp(r'([a-z])([A-Z])'),
+              (m) => '${m[1]} ${m[2]}',
+            )
+            .replaceAllMapped(
+              RegExp(r'([A-Za-z])(\d)'),
+              (m) => '${m[1]} ${m[2]}',
+            )
+            .replaceAllMapped(
+              RegExp(r'(\d)([A-Za-z])'),
+              (m) => '${m[1]} ${m[2]}',
+            );
+      }
+
+      String resolveAssetUrl(dynamic rawUrl) {
+        final value = rawUrl?.toString().trim().replaceAll('\\', '/') ?? '';
+        if (value.isEmpty) return '';
+        if (value.startsWith('http')) return value;
+        final cleaned = value.replaceFirst(RegExp(r'^\.?/'), '/');
+        final normalized = cleaned.startsWith('/') ? cleaned : '/$cleaned';
+        if (normalized.startsWith('/uploads/')) {
+          return '${ApiConfig.baseUrl}/api$normalized';
+        }
+        return '${ApiConfig.baseUrl}$normalized';
+      }
+
+      Uint8List? bytesFromDataUrl(String raw) {
+        final commaIndex = raw.indexOf(',');
+        if (commaIndex < 0) return null;
+        try {
+          return base64Decode(raw.substring(commaIndex + 1));
+        } catch (_) {
+          return null;
+        }
+      }
+
+      Future<Uint8List?> fetchImageBytes(dynamic rawSource) async {
+        if (rawSource == null) return null;
+        if (rawSource is Uint8List) return rawSource;
+        if (rawSource is List<int>) return Uint8List.fromList(rawSource);
+
+        if (rawSource is List) {
+          for (final item in rawSource) {
+            final bytes = await fetchImageBytes(item);
+            if (bytes != null) return bytes;
+          }
+          return null;
+        }
+
+        if (rawSource is Map) {
+          final map = Map<String, dynamic>.from(rawSource);
+          final candidates = [
+            map['preview_data_url'],
+            map['previewDataUrl'],
+            map['data_url'],
+            map['storage_url'],
+            map['storageUrl'],
+            map['file_url'],
+            map['fileUrl'],
+            map['url'],
+            map['path'],
+            map['local_path'],
+            map['localPath'],
+          ];
+          for (final candidate in candidates) {
+            final bytes = await fetchImageBytes(candidate);
+            if (bytes != null) return bytes;
+          }
+          return null;
+        }
+
+        final raw = rawSource.toString().trim();
+        if (raw.isEmpty) return null;
+        if (raw.startsWith('data:image/')) {
+          return bytesFromDataUrl(raw);
+        }
+
+        final localPath = raw.replaceAll('\\', '/');
+        final file = File(localPath);
+        if (await file.exists()) {
+          return await file.readAsBytes();
+        }
+
+        final resolved = resolveAssetUrl(raw);
+        final uri = Uri.tryParse(resolved);
+        if (uri == null) return null;
+
+        try {
+          final response = await apiClient.dio.getUri(
+            uri,
+            options: Options(responseType: ResponseType.bytes),
+          );
+          final data = response.data;
+          if (data is Uint8List) return data;
+          if (data is List<int>) return Uint8List.fromList(data);
+        } catch (_) {
+          return null;
+        }
+        return null;
+      }
+
+      pw.Widget buildSectionHeader(String title) {
+        return pw.Container(
+          width: double.infinity,
+          padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: pw.BoxDecoration(
+            color: brandPrimary,
+            borderRadius: pw.BorderRadius.circular(4),
+          ),
+          child: pw.Text(
+            fixSpacedLetters(title),
+            style: pw.TextStyle(
+              fontSize: 13,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.white,
+            ),
+          ),
+        );
+      }
+
+      pw.Widget buildKeyValueTable(List<List<String>> rows) {
+        return pw.Table(
+          border: pw.TableBorder.all(color: brandBorder, width: 0.7),
+          columnWidths: const {
+            0: pw.FixedColumnWidth(180),
+            1: pw.FlexColumnWidth(),
+          },
+          children: rows
+              .map(
+                (row) => pw.TableRow(
                   children: [
-                    pw.Text(
-                      'Site Inspection Report',
-                      style: pw.TextStyle(
-                        fontSize: 20,
-                        fontWeight: pw.FontWeight.bold,
+                    pw.Container(
+                      padding: const pw.EdgeInsets.all(8),
+                      color: PdfColor.fromInt(0xFFF8FAFC),
+                      child: pw.Text(
+                        fixSpacedLetters(row[0]),
+                        style: pw.TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: pw.FontWeight.bold,
+                          color: brandDark,
+                        ),
                       ),
                     ),
-                    pw.SizedBox(height: 4),
-                    pw.Text(
-                      'Lead #${widget.leadId}',
-                      style: const pw.TextStyle(fontSize: 10),
+                    pw.Container(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text(
+                        fixSpacedLetters(row[1]),
+                        style: pw.TextStyle(fontSize: 10.5, color: brandDark),
+                      ),
                     ),
                   ],
                 ),
-              ),
-              pw.SizedBox(height: 12),
-              pw.Text(
-                'Customer',
-                style: pw.TextStyle(
-                  fontSize: 13,
-                  fontWeight: pw.FontWeight.bold,
+              )
+              .toList(),
+        );
+      }
+
+      Future<pw.Widget?> buildImageCard(
+        String title,
+        dynamic fileObj, {
+        int? index,
+      }) async {
+        final candidates = fileObj is List ? fileObj : [fileObj];
+        for (final candidate in candidates) {
+          final bytes = await fetchImageBytes(candidate);
+          if (bytes == null) continue;
+          final imageLabel = index == null ? title : '$title ${index + 1}';
+          return pw.Container(
+            margin: const pw.EdgeInsets.only(top: 10),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  fixSpacedLetters(imageLabel),
+                  style: pw.TextStyle(
+                    fontSize: 12,
+                    fontWeight: pw.FontWeight.bold,
+                    color: brandDark,
+                  ),
                 ),
-              ),
-              pw.SizedBox(height: 6),
-              pw.Table(
-                border: pw.TableBorder.all(width: 0.3),
-                defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
-                children: [
-                  pw.TableRow(
+                pw.SizedBox(height: 6),
+                pw.Container(
+                  height: 150,
+                  width: 220,
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(color: brandBorder),
+                    borderRadius: pw.BorderRadius.circular(8),
+                  ),
+                  child: pw.Image(pw.MemoryImage(bytes), fit: pw.BoxFit.cover),
+                ),
+              ],
+            ),
+          );
+        }
+        return null;
+      }
+
+      final bodyWidgets = <pw.Widget>[];
+      for (final section in inspectionSections) {
+        final fields = _fieldsForSection(section);
+        final rows = <List<String>>[];
+        final imageWidgets = <pw.Widget>[];
+
+        for (final field in fields) {
+          final value = _getValue(field.key);
+          if (!hasValueForPdf(value)) continue;
+
+          if (field.type == InspectionFieldType.photo) {
+            final items = value is List ? value : [value];
+            for (var i = 0; i < items.length; i++) {
+              final imageCard = await buildImageCard(
+                field.label,
+                items[i],
+                index: items.length > 1 ? i : null,
+              );
+              if (imageCard != null) {
+                imageWidgets.add(imageCard);
+              }
+            }
+            continue;
+          }
+
+          final formatted = field.type == InspectionFieldType.datetime
+              ? (() {
+                  final parsed = _parseDateTimeValue(value);
+                  return parsed != null
+                      ? DateFormat('dd MMM yyyy, hh:mm a').format(parsed)
+                      : formatValueForPdf(value);
+                })()
+              : formatValueForPdf(value);
+          if (formatted == null || formatted.trim().isEmpty) continue;
+          rows.add([field.label, formatted]);
+        }
+
+        if (rows.isEmpty && imageWidgets.isEmpty) continue;
+
+        bodyWidgets.add(buildSectionHeader(section.label));
+        bodyWidgets.add(pw.SizedBox(height: 8));
+        if (rows.isNotEmpty) {
+          bodyWidgets.add(buildKeyValueTable(rows));
+        }
+        if (imageWidgets.isNotEmpty) {
+          bodyWidgets.add(pw.SizedBox(height: 4));
+          bodyWidgets.addAll(imageWidgets);
+        }
+        bodyWidgets.add(pw.SizedBox(height: 14));
+      }
+
+      final effectiveCustomerName = _customerNameCtrl.text.trim().isNotEmpty
+          ? _customerNameCtrl.text.trim()
+          : _getValue('customer_name')?.toString().trim() ?? '';
+      final effectiveCustomerNotes = _customerNotesCtrl.text.trim().isNotEmpty
+          ? _customerNotesCtrl.text.trim()
+          : _getValue('customer_notes')?.toString().trim() ?? '';
+      final confirmedRaw = _getValue('customer_confirmed');
+      final confirmedText = confirmedRaw?.toString().trim().toLowerCase();
+      final effectiveCustomerConfirmed =
+          _customerConfirmed ||
+          confirmedText == 'true' ||
+          confirmedText == '1' ||
+          confirmedText == 'yes';
+
+      final existingSignature =
+          _getValue('signature_url')?.toString().trim() ?? '';
+      Uint8List? signatureBytes;
+      if (existingSignature.isNotEmpty) {
+        signatureBytes = await fetchImageBytes(existingSignature);
+      }
+
+      final hasDrawnSignature =
+          _signaturePoints.any((p) => p != null) || _generatedSignature != null;
+      if (signatureBytes == null && hasDrawnSignature) {
+        try {
+          final signatureFile = await _exportSignatureToFile();
+          signatureBytes = await signatureFile.readAsBytes();
+        } catch (_) {
+          signatureBytes = null;
+        }
+      }
+
+      if (effectiveCustomerName.isNotEmpty ||
+          effectiveCustomerNotes.isNotEmpty ||
+          signatureBytes != null ||
+          effectiveCustomerConfirmed) {
+        bodyWidgets.add(buildSectionHeader('Customer Sign-Off'));
+        bodyWidgets.add(pw.SizedBox(height: 8));
+        bodyWidgets.add(
+          pw.Container(
+            width: double.infinity,
+            padding: const pw.EdgeInsets.all(14),
+            decoration: pw.BoxDecoration(
+              color: PdfColors.white,
+              border: pw.Border.all(color: brandBorder),
+              borderRadius: pw.BorderRadius.circular(12),
+            ),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Container(
+                  width: double.infinity,
+                  padding: const pw.EdgeInsets.all(12),
+                  decoration: pw.BoxDecoration(
+                    color: PdfColor.fromInt(0xFFF8FAFC),
+                    border: pw.Border.all(color: brandBorder),
+                    borderRadius: pw.BorderRadius.circular(10),
+                  ),
+                  child: pw.Text(
+                    '"I confirm the site inspection has been completed and I approve all findings."',
+                    style: pw.TextStyle(
+                      fontSize: 11,
+                      fontStyle: pw.FontStyle.italic,
+                      color: brandDark,
+                    ),
+                  ),
+                ),
+                pw.SizedBox(height: 12),
+                buildKeyValueTable([
+                  [
+                    'Customer Name',
+                    effectiveCustomerName.isNotEmpty
+                        ? effectiveCustomerName
+                        : '-',
+                  ],
+                  ['Confirmed', effectiveCustomerConfirmed ? 'Yes' : 'No'],
+                  if (effectiveCustomerNotes.trim().isNotEmpty)
+                    ['Notes', effectiveCustomerNotes],
+                ]),
+                if (signatureBytes != null) ...[
+                  pw.SizedBox(height: 12),
+                  pw.Text(
+                    'Customer Signature',
+                    style: pw.TextStyle(
+                      fontSize: 12,
+                      fontWeight: pw.FontWeight.bold,
+                      color: brandDark,
+                    ),
+                  ),
+                  pw.SizedBox(height: 6),
+                  pw.Container(
+                    height: 100,
+                    width: 220,
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border.all(color: brandBorder),
+                      borderRadius: pw.BorderRadius.circular(8),
+                    ),
+                    child: pw.Image(
+                      pw.MemoryImage(signatureBytes),
+                      fit: pw.BoxFit.cover,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      }
+
+      doc.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: pw.EdgeInsets.zero,
+          build: (_) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+              children: [
+                pw.Container(
+                  height: 150,
+                  padding: const pw.EdgeInsets.fromLTRB(50, 34, 50, 26),
+                  color: brandPrimary,
+                  child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text('Name'),
+                      pw.Expanded(
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          mainAxisAlignment: pw.MainAxisAlignment.center,
+                          children: [
+                            pw.Text(
+                              'Site Inspection Report',
+                              style: pw.TextStyle(
+                                fontSize: 24,
+                                fontWeight: pw.FontWeight.bold,
+                                color: PdfColors.white,
+                              ),
+                            ),
+                            pw.SizedBox(height: 6),
+                            pw.Text(
+                              clean('xTechs Renewables Pty Ltd'),
+                              style: const pw.TextStyle(
+                                fontSize: 12,
+                                color: PdfColors.white,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          clean(
-                            lead?.customerName ?? _getValue('customer_name'),
+                      pw.SizedBox(width: 16),
+                      pw.Image(
+                        logoImage,
+                        width: 120,
+                        height: 56,
+                        fit: pw.BoxFit.contain,
+                      ),
+                    ],
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.fromLTRB(50, 28, 50, 0),
+                  child: pw.Container(
+                    width: double.infinity,
+                    padding: const pw.EdgeInsets.all(16),
+                    decoration: pw.BoxDecoration(
+                      color: brandLight,
+                      borderRadius: pw.BorderRadius.circular(12),
+                    ),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          'Customer Summary',
+                          style: pw.TextStyle(
+                            fontSize: 12,
+                            fontWeight: pw.FontWeight.bold,
+                            color: brandDark,
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  pw.TableRow(
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text('Suburb'),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(clean(lead?.suburb)),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              pw.SizedBox(height: 16),
-              pw.Text(
-                'Inspection Summary',
-                style: pw.TextStyle(
-                  fontSize: 13,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-              ),
-              pw.SizedBox(height: 6),
-              pw.Table(
-                border: pw.TableBorder.all(width: 0.3),
-                defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
-                children: [
-                  pw.TableRow(
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text('Inspected At'),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          DateFormat(
-                            'dd MMM yyyy, hh:mm a',
-                          ).format(inspectedAt),
+                        pw.SizedBox(height: 10),
+                        pw.Text(
+                          'Customer: ${clean(lead.customerName)}',
+                          style: pw.TextStyle(fontSize: 11, color: brandDark),
                         ),
-                      ),
-                    ],
-                  ),
-                  pw.TableRow(
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text('Inspector'),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(clean(_getValue('inspector_name'))),
-                      ),
-                    ],
-                  ),
-                  pw.TableRow(
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text('Roof Type'),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(clean(_getValue('roof_type'))),
-                      ),
-                    ],
-                  ),
-                  pw.TableRow(
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text('Meter Phase'),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(clean(_getValue('meter_phase'))),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              pw.SizedBox(height: 16),
-              pw.Text(
-                'Customer Sign-off',
-                style: pw.TextStyle(
-                  fontSize: 13,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-              ),
-              pw.SizedBox(height: 6),
-              pw.Table(
-                border: pw.TableBorder.all(width: 0.3),
-                defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
-                children: [
-                  pw.TableRow(
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text('Customer Name'),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(clean(_getValue('customer_name'))),
-                      ),
-                    ],
-                  ),
-                  pw.TableRow(
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text('Confirmed'),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(_customerConfirmed ? 'Yes' : 'No'),
-                      ),
-                    ],
-                  ),
-                  pw.TableRow(
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text('Notes'),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          clean(
-                            _customerNotesCtrl.text.isNotEmpty
-                                ? _customerNotesCtrl.text
-                                : _getValue('customer_notes'),
-                          ),
+                        pw.SizedBox(height: 4),
+                        pw.Text(
+                          'Contact: ${clean(lead.phone ?? lead.email)}',
+                          style: pw.TextStyle(fontSize: 11, color: brandDark),
                         ),
-                      ),
-                    ],
+                        pw.SizedBox(height: 4),
+                        pw.Text(
+                          'Address: ${clean(lead.address ?? lead.suburb)}',
+                          style: pw.TextStyle(fontSize: 11, color: brandDark),
+                        ),
+                        pw.SizedBox(height: 4),
+                        pw.Text(
+                          'Inspected At: ${DateFormat('dd MMM yyyy, hh:mm a').format(inspectedAt)}',
+                          style: pw.TextStyle(fontSize: 11, color: brandDark),
+                        ),
+                      ],
+                    ),
                   ),
-                ],
-              ),
-              pw.SizedBox(height: 24),
-              pw.Text(
-                'Summary only',
-                style: const pw.TextStyle(
-                  fontSize: 9,
-                  color: PdfColor.fromInt(0x777777),
                 ),
-              ),
-            ];
+              ],
+            );
           },
+        ),
+      );
+
+      doc.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.fromLTRB(50, 70, 50, 60),
+          build: (_) => bodyWidgets,
+          footer: (context) => pw.Container(
+            padding: const pw.EdgeInsets.only(top: 8),
+            child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text(
+                  'Generated: ${DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.now())}',
+                  style: pw.TextStyle(fontSize: 9, color: brandGray),
+                ),
+                pw.Text(
+                  'Page ${context.pageNumber} of ${context.pagesCount}',
+                  style: pw.TextStyle(fontSize: 9, color: brandGray),
+                ),
+              ],
+            ),
+          ),
         ),
       );
 
