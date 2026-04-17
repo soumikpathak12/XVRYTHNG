@@ -316,18 +316,30 @@ export default function AttendancePage() {
   }, [status]);
 
   const getLocation = () => new Promise((resolve, reject) => {
-    if (!navigator.geolocation) reject(new Error('Geolocation not supported'));
+    if (!navigator.geolocation) {
+      reject(new Error('Geolocation is not supported on this device/browser.'));
+      return;
+    }
     navigator.geolocation.getCurrentPosition(
-      pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      err => reject(err)
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () =>
+        reject(
+          new Error(
+            'Location access is required for attendance. Please enable GPS/location permission and try again.',
+          ),
+        ),
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0,
+      },
     );
   });
 
   const handleAction = async (action) => {
     setError(null); setLoading(true);
     try {
-      let lat = null, lng = null;
-      try { ({ lat, lng } = await getLocation()); } catch (_) { }
+      const { lat, lng } = await getLocation();
       await api.authFetchJSON(`/api/employees/attendance/${action}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

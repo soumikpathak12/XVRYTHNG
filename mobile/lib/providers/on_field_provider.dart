@@ -51,7 +51,38 @@ class OnFieldProvider extends ChangeNotifier {
     if (e.leadId != null || e.jobId != null || e.projectId != null) score += 2;
     if (e.title.trim().isNotEmpty) score += 1;
     if (e.title.toLowerCase().startsWith('inspection:')) score += 1;
+    if (e.status != null && e.status!.trim().isNotEmpty) score += 2;
+    if (e.notes != null && e.notes!.trim().isNotEmpty) score += 1;
     return score;
+  }
+
+  OnFieldEvent _mergeEventData(OnFieldEvent existing, OnFieldEvent incoming) {
+    final preferred =
+        _eventQuality(incoming) >= _eventQuality(existing) ? incoming : existing;
+    final fallback = identical(preferred, incoming) ? existing : incoming;
+
+    String? chooseText(String? primary, String? secondary) {
+      final p = primary?.trim();
+      if (p != null && p.isNotEmpty) return p;
+      final s = secondary?.trim();
+      if (s != null && s.isNotEmpty) return s;
+      return null;
+    }
+
+    return OnFieldEvent(
+      id: preferred.id != 0 ? preferred.id : fallback.id,
+      title: chooseText(preferred.title, fallback.title) ?? '',
+      type: preferred.type,
+      start: preferred.start,
+      end: preferred.end ?? fallback.end,
+      address: chooseText(preferred.address, fallback.address),
+      leadId: preferred.leadId ?? fallback.leadId,
+      jobId: preferred.jobId ?? fallback.jobId,
+      projectId: preferred.projectId ?? fallback.projectId,
+      assigneeName: chooseText(preferred.assigneeName, fallback.assigneeName),
+      status: chooseText(preferred.status, fallback.status),
+      notes: chooseText(preferred.notes, fallback.notes),
+    );
   }
 
   /// Get events for a specific day using the robust string-key cached map.
@@ -73,8 +104,10 @@ class OnFieldProvider extends ChangeNotifier {
       for (final e in newEvents) {
         final key = _eventDedupeKey(e);
         final existing = _eventsCache[key];
-        if (existing == null || _eventQuality(e) >= _eventQuality(existing)) {
+        if (existing == null) {
           _eventsCache[key] = e;
+        } else {
+          _eventsCache[key] = _mergeEventData(existing, e);
         }
       }
       

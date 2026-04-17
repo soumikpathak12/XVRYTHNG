@@ -10,11 +10,13 @@ class LeadsService {
     String? search,
     String? stage,
     String? salesSegment,
+    int? limit,
   }) async {
     try {
       final params = <String, dynamic>{};
       if (search != null && search.isNotEmpty) params['search'] = search;
       if (stage != null && stage.isNotEmpty) params['stage'] = stage;
+      if (limit != null && limit > 0) params['limit'] = limit;
       if (salesSegment != null &&
           (salesSegment == 'b2c' || salesSegment == 'b2b')) {
         params['sales_segment'] = salesSegment;

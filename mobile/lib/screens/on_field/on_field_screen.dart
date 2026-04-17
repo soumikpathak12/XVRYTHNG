@@ -167,6 +167,32 @@ class _OnFieldScreenState extends State<OnFieldScreen> {
     );
   }
 
+  Future<void> _showLocationSettingsPrompt() async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Enable Location Access'),
+        content: const Text(
+          'Location permission has been permanently denied for this app. Please enable it in app settings to check in.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await Geolocator.openAppSettings();
+            },
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _handleCheckAction(bool isCheckIn) async {
     setState(() => _actionLoading = true);
     try {
@@ -199,6 +225,14 @@ class _OnFieldScreenState extends State<OnFieldScreen> {
             backgroundColor: AppColors.danger,
           ),
         );
+      final message = e.toString().replaceFirst('Exception: ', '');
+      if (message.contains('permanently denied')) {
+        await _showLocationSettingsPrompt();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), backgroundColor: AppColors.danger),
+        );
+      }
     } finally {
       setState(() => _actionLoading = false);
     }

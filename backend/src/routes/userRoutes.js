@@ -18,8 +18,8 @@ router.use((req, res, next) => {
 router.use(
   fileUpload({
     createParentPath: false,
-    limits: { fileSize: 5 * 1024 * 1024 },
-    abortOnLimit: true,
+    // Keep profile uploads unrestricted at middleware level.
+    // Validation is handled in controller and should not hard-stop iOS camera captures.
   })
 );
 

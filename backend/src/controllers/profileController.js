@@ -13,8 +13,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const UPLOAD_DIR = path.resolve(__dirname, '../uploads/profiles');
 
-const MAX_PHOTO_SIZE = 5 * 1024 * 1024; // 5MB
-const ALLOWED_MIMES = ['image/png', 'image/jpeg', 'image/webp'];
+const ALLOWED_MIMES = [
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+];
 
 /** GET /api/users/me */
 export async function getProfile(req, res) {
@@ -66,13 +72,22 @@ export async function updateProfile(req, res) {
     if (req.files?.photo) {
       const file = req.files.photo;
       if (!ALLOWED_MIMES.includes(file.mimetype)) {
-        return res.status(422).json({ success: false, errors: { photo: 'Only PNG, JPG or WebP allowed' } });
-      }
-      if (file.size > MAX_PHOTO_SIZE) {
-        return res.status(422).json({ success: false, errors: { photo: 'Photo must be under 5MB' } });
+        return res.status(422).json({
+          success: false,
+          errors: { photo: 'Only PNG, JPG, WebP, HEIC or HEIF allowed' },
+        });
       }
       fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-      const ext = file.mimetype === 'image/png' ? 'png' : file.mimetype === 'image/webp' ? 'webp' : 'jpg';
+      const ext =
+        file.mimetype === 'image/png'
+          ? 'png'
+          : file.mimetype === 'image/webp'
+          ? 'webp'
+          : file.mimetype === 'image/heic'
+          ? 'heic'
+          : file.mimetype === 'image/heif'
+          ? 'heif'
+          : 'jpg';
       const filename = `profile_${req.user.id}_${Date.now()}.${ext}`;
       const savePath = path.join(UPLOAD_DIR, filename);
       await file.mv(savePath);
