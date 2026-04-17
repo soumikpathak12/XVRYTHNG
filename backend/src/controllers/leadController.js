@@ -841,6 +841,13 @@ export async function getLeadsCount(req, res) {
 // GET /api/leads/dashboard?range=week|month|quarter|custom&from=YYYY-MM-DD&to=YYYY-MM-DD
 export async function getSalesDashboard(req, res) {
   try {
+    // Prevent stale dashboard responses on real iOS devices/proxies.
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate, private',
+      Pragma: 'no-cache',
+      Expires: '0',
+      Vary: 'Authorization, X-Tenant-Id, X-Company-Id',
+    });
     const { range = 'month', from: customFrom = null, to: customTo = null } = req.query;
     const [metrics, team] = await Promise.all([
       leadService.getSalesDashboardMetrics({ range, customFrom, customTo }),

@@ -667,17 +667,19 @@ export async function updateProfileMe(payload) {
     }
     return data;
   }
+  const jsonBody = {
+    name: payload.name,
+    email: payload.email,
+    phone: payload.phone,
+    department: payload.department,
+    notify_email: payload.notify_email,
+    notify_sms: payload.notify_sms,
+  };
+  if (payload.removePhoto === true) jsonBody.remove_photo = true;
   const res = await authFetch('/api/users/me', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      name: payload.name,
-      email: payload.email,
-      phone: payload.phone,
-      department: payload.department,
-      notify_email: payload.notify_email,
-      notify_sms: payload.notify_sms,
-    }),
+    body: JSON.stringify(jsonBody),
   });
   const data = await res.json().catch(() => ({}));
   if (res.status === 422) {

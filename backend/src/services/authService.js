@@ -30,7 +30,7 @@ export async function findUserByEmail(email, companyId = null) {
   const [rows] = await db.execute(
     `SELECT
        u.id, u.company_id, u.role_id, u.email, u.password_hash, u.name, u.status,
-       u.must_change_password, u.failed_attempts, u.lock_until,
+       u.must_change_password, u.failed_attempts, u.lock_until, u.image_url,
        r.name AS role_name
      FROM users u
      INNER JOIN roles r ON u.role_id = r.id
@@ -49,7 +49,7 @@ async function findUsersByEmailOnly(email) {
   const [rows] = await db.execute(
     `SELECT
        u.id, u.company_id, u.role_id, u.email, u.password_hash, u.name, u.status,
-       u.must_change_password, u.failed_attempts, u.lock_until,
+       u.must_change_password, u.failed_attempts, u.lock_until, u.image_url,
        r.name AS role_name
      FROM users u
      INNER JOIN roles r ON u.role_id = r.id
@@ -67,7 +67,7 @@ export async function findUserById(userId) {
   const [rows] = await db.execute(
     `SELECT
        u.id, u.company_id, u.role_id, u.email, u.password_hash, u.name, u.status,
-       u.must_change_password, u.failed_attempts, u.lock_until,
+       u.must_change_password, u.failed_attempts, u.lock_until, u.image_url,
        r.name AS role_name
      FROM users u
      INNER JOIN roles r ON u.role_id = r.id
@@ -260,6 +260,7 @@ export async function refresh(refreshTokenRaw) {
       role: user.role_name,
       roleId: user.role_id,
       companyId: user.company_id,
+      image_url: user.image_url ?? null,
     },
     permissions,
     needsPasswordChange: !!user.must_change_password,
@@ -295,6 +296,7 @@ export async function login(email, password, companyId = null) {
       role: user.role_name,
       roleId: user.role_id,
       companyId: user.company_id,
+      image_url: user.image_url ?? null,
     },
     permissions,
     needsPasswordChange: !!user.must_change_password,

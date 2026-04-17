@@ -6,6 +6,7 @@ import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/common/file_picker_bottom_sheet.dart';
+import '../../widgets/common/loading_overlay.dart';
 import '../../widgets/common/shell_scaffold_scope.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -74,6 +75,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingAvatar = false);
+    }
+  }
+
+  Future<void> _removeAvatar() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove profile photo?'),
+        content: const Text(
+          'Your photo will be removed from your account on the server.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    setState(() => _uploadingAvatar = true);
+    try {
+      await _api.put('/api/users/me', data: {'remove_photo': true});
+      if (mounted) {
+        await context.read<AuthProvider>().initialize();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile photo removed')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Remove failed: $e')));
       }
     } finally {
       if (mounted) setState(() => _uploadingAvatar = false);
@@ -165,17 +208,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text('Profile'),
         actions: ShellScaffoldScope.notificationActions(),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _buildAvatarSection(user?.avatarUrl, user?.name ?? '?'),
-          const SizedBox(height: 24),
-          _buildInfoSection(user),
-          const SizedBox(height: 24),
-          _buildNameEditSection(),
-          const SizedBox(height: 24),
-          _buildPasswordSection(),
-        ],
+      body: LoadingOverlay(
+        isLoading: _uploadingAvatar,
+        message: 'Updating profile photo...',
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _buildAvatarSection(user?.avatarUrl, user?.name ?? '?'),
+            if (user != null &&
+                (user.avatarUrl?.trim().isNotEmpty ?? false)) ...[
+              const SizedBox(height: 12),
+              TextButton.icon(
+                onPressed: _uploadingAvatar ? null : _removeAvatar,
+                icon: const Icon(Icons.delete_outline, color: AppColors.danger),
+                label: const Text(
+                  'Remove profile photo',
+                  style: TextStyle(color: AppColors.danger),
+                ),
+              ),
+            ],
+            const SizedBox(height: 24),
+            _buildInfoSection(user),
+            const SizedBox(height: 24),
+            _buildNameEditSection(),
+            const SizedBox(height: 24),
+            _buildPasswordSection(),
+          ],
+        ),
       ),
     );
   }

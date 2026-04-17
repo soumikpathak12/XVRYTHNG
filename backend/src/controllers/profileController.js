@@ -13,6 +13,21 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const UPLOAD_DIR = path.resolve(__dirname, '../uploads/profiles');
 
+function tryDeleteStoredProfileImage(imageUrlPath) {
+  if (!imageUrlPath || typeof imageUrlPath !== 'string') return;
+  const trimmed = imageUrlPath.trim();
+  if (!trimmed.startsWith('/uploads/profiles/')) return;
+  const base = path.basename(trimmed);
+  if (!base || base.includes('..')) return;
+  const abs = path.join(UPLOAD_DIR, base);
+  if (!abs.startsWith(UPLOAD_DIR)) return;
+  try {
+    if (fs.existsSync(abs)) fs.unlinkSync(abs);
+  } catch (_) {
+    /* ignore */
+  }
+}
+
 const ALLOWED_MIMES = [
   'image/png',
   'image/jpeg',
@@ -68,7 +83,12 @@ export async function updateProfile(req, res) {
       return res.status(422).json({ success: false, errors });
     }
 
-    let imageUrl;
+    const removePhoto =
+      body.remove_photo === true ||
+      body.removePhoto === true ||
+      String(body.remove_photo || body.removePhoto || '').toLowerCase() === 'true';
+
+    let newImageUrl;
     if (req.files?.photo) {
       const file = req.files.photo;
       if (!ALLOWED_MIMES.includes(file.mimetype)) {
@@ -77,6 +97,8 @@ export async function updateProfile(req, res) {
           errors: { photo: 'Only PNG, JPG, WebP, HEIC or HEIF allowed' },
         });
       }
+      const existing = await profileService.getProfile(req.user.id);
+      if (existing?.image_url) tryDeleteStoredProfileImage(existing.image_url);
       fs.mkdirSync(UPLOAD_DIR, { recursive: true });
       const ext =
         file.mimetype === 'image/png'
@@ -91,7 +113,7 @@ export async function updateProfile(req, res) {
       const filename = `profile_${req.user.id}_${Date.now()}.${ext}`;
       const savePath = path.join(UPLOAD_DIR, filename);
       await file.mv(savePath);
-      imageUrl = `/uploads/profiles/${filename}`;
+      newImageUrl = `/uploads/profiles/${filename}`;
     }
 
     const toBool = (v) => v === true || v === '1' || v === 'true';
@@ -102,8 +124,15 @@ export async function updateProfile(req, res) {
       department: body.department !== undefined ? body.department : undefined,
       notify_email: body.notify_email !== undefined ? toBool(body.notify_email) : undefined,
       notify_sms: body.notify_sms !== undefined ? toBool(body.notify_sms) : undefined,
-      image_url: imageUrl,
     };
+    if (newImageUrl !== undefined) {
+      data.image_url = newImageUrl;
+    } else if (removePhoto) {
+      const existing = await profileService.getProfile(req.user.id);
+      if (existing?.image_url) tryDeleteStoredProfileImage(existing.image_url);
+      data.image_url = null;
+    }
+
     const profile = await profileService.updateProfile(req.user.id, data);
     return res.json({ success: true, data: profile });
   } catch (err) {

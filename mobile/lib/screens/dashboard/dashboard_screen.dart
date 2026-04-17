@@ -32,9 +32,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ]);
   }
 
-  void _openRangeSheet(BuildContext context) {
+  Future<void> _openRangeSheet(BuildContext context) async {
     final provider = context.read<DashboardProvider>();
-    showModalBottomSheet<void>(
+    final selection = await showModalBottomSheet<_DashboardRangeSelection>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -46,21 +46,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
           initialRange: provider.range,
           initialFrom: provider.customFrom,
           initialTo: provider.customTo,
-          onApplyPreset: (range) {
-            provider.loadDashboard(range: range);
-            Navigator.pop(ctx);
-          },
-          onApplyCustom: (from, to) {
-            provider.loadDashboard(
-              range: 'custom',
-              customFrom: from,
-              customTo: to,
-            );
-            Navigator.pop(ctx);
-          },
         ),
       ),
     );
+    if (!mounted || selection == null) return;
+    if (selection.range == 'custom') {
+      provider.loadDashboard(
+        range: 'custom',
+        customFrom: selection.from,
+        customTo: selection.to,
+      );
+      return;
+    }
+    provider.loadDashboard(range: selection.range);
   }
 
   @override
@@ -157,15 +155,11 @@ class _DashboardRangeSheet extends StatefulWidget {
   final String initialRange;
   final String? initialFrom;
   final String? initialTo;
-  final void Function(String range) onApplyPreset;
-  final void Function(String from, String to) onApplyCustom;
 
   const _DashboardRangeSheet({
     required this.initialRange,
     required this.initialFrom,
     required this.initialTo,
-    required this.onApplyPreset,
-    required this.onApplyCustom,
   });
 
   @override
@@ -232,6 +226,18 @@ class _DashboardRangeSheetState extends State<_DashboardRangeSheet> {
     if (picked != null) setState(() => _to = picked);
   }
 
+  void _selectPreset(String range) {
+    // Give the radio button a frame to visually update before closing the sheet.
+    setState(() => _range = range);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.pop(
+        context,
+        _DashboardRangeSelection.preset(range),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final df = DateFormat('d MMM yyyy');
@@ -282,10 +288,10 @@ class _DashboardRangeSheetState extends State<_DashboardRangeSheet> {
                   activeColor: AppColors.primary,
                   onChanged: (v) {
                     if (v == null) return;
-                    widget.onApplyPreset(v);
+                    _selectPreset(v);
                   },
                 ),
-                onTap: () => widget.onApplyPreset(e.$1),
+                onTap: () => _selectPreset(e.$1),
                 contentPadding: EdgeInsets.zero,
               ),
             ),
@@ -373,7 +379,13 @@ class _DashboardRangeSheetState extends State<_DashboardRangeSheet> {
                           );
                           return;
                         }
-                        widget.onApplyCustom(_iso(_from!), _iso(_to!));
+                        Navigator.pop(
+                          context,
+                          _DashboardRangeSelection.custom(
+                            from: _iso(_from!),
+                            to: _iso(_to!),
+                          ),
+                        );
                       }
                     : null,
                 child: const Text('Apply custom range'),
@@ -384,6 +396,23 @@ class _DashboardRangeSheetState extends State<_DashboardRangeSheet> {
       ),
     );
   }
+}
+
+class _DashboardRangeSelection {
+  final String range;
+  final String? from;
+  final String? to;
+
+  const _DashboardRangeSelection._(this.range, {this.from, this.to});
+
+  factory _DashboardRangeSelection.preset(String range) =>
+      _DashboardRangeSelection._(range);
+
+  factory _DashboardRangeSelection.custom({
+    required String from,
+    required String to,
+  }) =>
+      _DashboardRangeSelection._('custom', from: from, to: to);
 }
 
 // ---------------------------------------------------------------------------

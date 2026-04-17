@@ -123,6 +123,30 @@ export default function ProfilePage() {
     return Object.keys(err).length === 0;
   };
 
+  const handleRemovePhoto = async () => {
+    if (!window.confirm('Remove your profile photo from the server?')) return;
+    setError(null);
+    setSuccess(null);
+    setSaving(true);
+    try {
+      const res = await api.updateProfileMe({ removePhoto: true });
+      const data = res?.data ?? res;
+      setProfile(data);
+      updateCurrentUser({
+        name: data.name,
+        email: data.email,
+        image_url: data.image_url ?? null,
+      });
+      setPhotoFile(null);
+      setPhotoPreview(null);
+      setSuccess('Profile photo removed.');
+    } catch (e) {
+      setError(e.message || 'Failed to remove photo');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSave = async () => {
     setError(null);
     setSuccess(null);
@@ -227,6 +251,17 @@ export default function ProfilePage() {
           >
             Change Photo
           </button>
+          {(profile?.image_url || photoFile) && (
+            <button
+              type="button"
+              className="edit-photo-btn"
+              style={{ marginTop: 8, color: '#B91C1C', borderColor: '#FECACA' }}
+              onClick={handleRemovePhoto}
+              disabled={saving}
+            >
+              Remove Photo
+            </button>
+          )}
 
           {validation.photo && <p className="form-error">{validation.photo}</p>}
         </div>

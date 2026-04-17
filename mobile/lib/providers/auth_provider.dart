@@ -77,7 +77,11 @@ class AuthProvider extends ChangeNotifier {
         password,
         rememberMe: rememberMe,
       );
-      _user = result.user;
+      try {
+        _user = await _authService.getCurrentUser();
+      } catch (_) {
+        _user = result.user;
+      }
       _permissions = result.permissions;
       if (_permissions.isEmpty) {
         unawaited(

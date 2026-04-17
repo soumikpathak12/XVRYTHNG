@@ -6,6 +6,8 @@ import '../services/messages_service.dart';
 
 class MessagesProvider extends ChangeNotifier {
   final MessagesService _service = MessagesService();
+  final _incomingController =
+      StreamController<IncomingMessageNotification>.broadcast();
 
   List<Conversation> _conversations = [];
   List<ChatMessage> _messages = [];
@@ -15,6 +17,8 @@ class MessagesProvider extends ChangeNotifier {
   bool _hasMore = false;
   int? _jumpToMessageId;
   Timer? _pollTimer;
+  bool _hasConversationSnapshot = false;
+  final Map<int, int> _lastUnreadByConversation = {};
 
   List<Conversation> get conversations => _conversations;
   List<ChatMessage> get messages => _messages;
@@ -26,16 +30,66 @@ class MessagesProvider extends ChangeNotifier {
 
   int get totalUnread =>
       _conversations.fold(0, (sum, c) => sum + c.unreadCount);
+  Stream<IncomingMessageNotification> get incomingNotifications =>
+      _incomingController.stream;
 
-  Future<void> loadConversations({int? companyId, String? search}) async {
+  Future<void> loadConversations({
+    int? companyId,
+    String? search,
+    bool emitNotifications = true,
+  }) async {
     _loading = true;
     notifyListeners();
     try {
-      _conversations =
-          await _service.getConversations(companyId: companyId, search: search);
+      final latest = await _service.getConversations(
+        companyId: companyId,
+        search: search,
+      );
+      if (emitNotifications) {
+        _publishIncomingNotifications(latest);
+      } else {
+        _captureUnreadSnapshot(latest);
+      }
+      _conversations = latest;
     } catch (_) {}
     _loading = false;
     notifyListeners();
+  }
+
+  void _publishIncomingNotifications(List<Conversation> latest) {
+    if (!_hasConversationSnapshot) {
+      _captureUnreadSnapshot(latest);
+      return;
+    }
+    for (final convo in latest) {
+      final previousUnread = _lastUnreadByConversation[convo.id] ?? 0;
+      final hasNewUnread = convo.unreadCount > previousUnread;
+      final last = convo.lastMessage;
+      if (hasNewUnread && last != null && !last.isOwn) {
+        final title = (convo.name ?? '').trim().isEmpty
+            ? 'New message'
+            : convo.name!;
+        final body = (last.body ?? '').trim().isEmpty
+            ? 'You received a new message'
+            : last.body!.trim();
+        _incomingController.add(
+          IncomingMessageNotification(
+            conversationId: convo.id,
+            title: title,
+            body: body,
+            unreadCount: convo.unreadCount,
+          ),
+        );
+      }
+    }
+    _captureUnreadSnapshot(latest);
+  }
+
+  void _captureUnreadSnapshot(List<Conversation> latest) {
+    _lastUnreadByConversation
+      ..clear()
+      ..addEntries(latest.map((c) => MapEntry(c.id, c.unreadCount)));
+    _hasConversationSnapshot = true;
   }
 
   Future<void> loadUsers(int? companyId) async {
@@ -62,7 +116,9 @@ class MessagesProvider extends ChangeNotifier {
         jump: jumpToMessageId,
       );
       // API returns chronological (oldest first); reverse list so index 0 = newest for reverse ListView.
-      final list = List<ChatMessage>.from(result['messages'] as List<ChatMessage>);
+      final list = List<ChatMessage>.from(
+        result['messages'] as List<ChatMessage>,
+      );
       _messages = list.reversed.toList();
       _hasMore = result['hasMore'] as bool;
       await _service.markAsRead(id, companyId: companyId);
@@ -88,12 +144,14 @@ class MessagesProvider extends ChangeNotifier {
       // Backend paginates with message id (older than this id).
       final oldestId = _messages.last.id;
       if (oldestId <= 0) return;
-      final result = await _service.getMessages(_activeConversationId!,
-          before: oldestId.toString(), companyId: companyId);
+      final result = await _service.getMessages(
+        _activeConversationId!,
+        before: oldestId.toString(),
+        companyId: companyId,
+      );
       final older = List<ChatMessage>.from(
-              result['messages'] as List<ChatMessage>)
-          .reversed
-          .toList();
+        result['messages'] as List<ChatMessage>,
+      ).reversed.toList();
       _messages = [..._messages, ...older];
       _hasMore = result['hasMore'] as bool;
       notifyListeners();
@@ -110,8 +168,10 @@ class MessagesProvider extends ChangeNotifier {
     if (_activeConversationId == null) return;
     try {
       final msg = await _service.sendMessage(
-          _activeConversationId!, body,
-          companyId: companyId);
+        _activeConversationId!,
+        body,
+        companyId: companyId,
+      );
       _messages = [msg, ..._messages];
       notifyListeners();
     } catch (e) {
@@ -174,8 +234,10 @@ class MessagesProvider extends ChangeNotifier {
       companyId: companyId,
     );
     await loadConversations(companyId: companyId);
-    await _refreshConversationParticipants(conversationId,
-        companyId: companyId);
+    await _refreshConversationParticipants(
+      conversationId,
+      companyId: companyId,
+    );
   }
 
   /// Merge full participant list from GET /api/chats/:id (list endpoint omits self).
@@ -184,8 +246,10 @@ class MessagesProvider extends ChangeNotifier {
     int? companyId,
   }) async {
     try {
-      final fresh =
-          await _service.getConversation(conversationId, companyId: companyId);
+      final fresh = await _service.getConversation(
+        conversationId,
+        companyId: companyId,
+      );
       final idx = _conversations.indexWhere((c) => c.id == conversationId);
       if (idx < 0) return;
       final prev = _conversations[idx];
@@ -203,7 +267,10 @@ class MessagesProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
-  void startPolling({int? companyId, Duration interval = const Duration(seconds: 30)}) {
+  void startPolling({
+    int? companyId,
+    Duration interval = const Duration(seconds: 30),
+  }) {
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(interval, (_) {
       loadConversations(companyId: companyId);
@@ -216,9 +283,13 @@ class MessagesProvider extends ChangeNotifier {
   Future<void> _refreshActiveConversation({int? companyId}) async {
     if (_activeConversationId == null) return;
     try {
-      final result = await _service.getMessages(_activeConversationId!,
-          companyId: companyId);
-      final list = List<ChatMessage>.from(result['messages'] as List<ChatMessage>);
+      final result = await _service.getMessages(
+        _activeConversationId!,
+        companyId: companyId,
+      );
+      final list = List<ChatMessage>.from(
+        result['messages'] as List<ChatMessage>,
+      );
       _messages = list.reversed.toList();
       notifyListeners();
     } catch (_) {}
@@ -229,9 +300,37 @@ class MessagesProvider extends ChangeNotifier {
     _pollTimer = null;
   }
 
+  void clear() {
+    stopPolling();
+    _conversations = [];
+    _messages = [];
+    _users = [];
+    _activeConversationId = null;
+    _hasMore = false;
+    _jumpToMessageId = null;
+    _hasConversationSnapshot = false;
+    _lastUnreadByConversation.clear();
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     stopPolling();
+    _incomingController.close();
     super.dispose();
   }
+}
+
+class IncomingMessageNotification {
+  final int conversationId;
+  final String title;
+  final String body;
+  final int unreadCount;
+
+  const IncomingMessageNotification({
+    required this.conversationId,
+    required this.title,
+    required this.body,
+    required this.unreadCount,
+  });
 }

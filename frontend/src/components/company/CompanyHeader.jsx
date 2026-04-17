@@ -1,7 +1,21 @@
 // src/components/company/CompanyHeader.jsx
 import { LogOut, User } from 'lucide-react';
 
+const BASE = import.meta.env.VITE_API_URL || '';
+
+function resolveProfileImageUrl(imageUrl) {
+  if (!imageUrl) return null;
+  if (String(imageUrl).startsWith('http')) return imageUrl;
+  if (!BASE) return imageUrl;
+  const cleanBase = BASE.endsWith('/api') ? BASE.slice(0, -4) : BASE;
+  return `${cleanBase}${imageUrl}`;
+}
+
 export default function CompanyHeader({ user, onLogout }) {
+  const avatarSrc = resolveProfileImageUrl(
+    user?.image_url || user?.avatar_url || user?.avatarUrl || user?.photo_url || user?.photoUrl
+  );
+
   return (
     <header
       style={{
@@ -28,9 +42,20 @@ export default function CompanyHeader({ user, onLogout }) {
             justifyContent: 'center',
             fontWeight: 700,
             fontSize: 14,
+            overflow: 'hidden',
           }}
         >
-          {user?.name ? user.name.charAt(0).toUpperCase() : <User size={16} />}
+          {avatarSrc ? (
+            <img
+              src={avatarSrc}
+              alt={user?.name || 'User'}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          ) : user?.name ? (
+            user.name.charAt(0).toUpperCase()
+          ) : (
+            <User size={16} />
+          )}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <span style={{ fontSize: 14, fontWeight: 600, color: '#1F2937' }}>

@@ -43,7 +43,12 @@ class User {
         companyId: json['companyId'] ?? json['company_id'],
         companyName: json['companyName'] ?? json['company_name'],
         avatarUrl: _normalizeAvatarUrl(
-          json['avatarUrl'] ?? json['avatar_url'] ?? json['image_url'],
+          json['avatarUrl'] ??
+              json['avatar_url'] ??
+              json['image_url'] ??
+              json['photo_url'] ??
+              json['photoUrl'] ??
+              json['photo'],
         ),
         needsPasswordChange: json['needsPasswordChange'] == true,
       );
