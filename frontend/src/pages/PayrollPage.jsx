@@ -538,7 +538,8 @@ export default function PayrollPage() {
                     <th style={{ padding: '12px', textAlign: 'right', borderBottom: '1px solid #e5e7eb', fontWeight: '600' }}>Overtime</th>
                     <th style={{ padding: '12px', textAlign: 'right', borderBottom: '1px solid #e5e7eb', fontWeight: '600' }}>Rate</th>
                     <th style={{ padding: '12px', textAlign: 'right', borderBottom: '1px solid #e5e7eb', fontWeight: '600' }}>Gross Pay</th>
-                    <th style={{ padding: '12px', textAlign: 'right', borderBottom: '1px solid #e5e7eb', fontWeight: '600' }}>Deductions</th>
+                    <th style={{ padding: '12px', textAlign: 'right', borderBottom: '1px solid #e5e7eb', fontWeight: '600' }}>PAYG</th>
+                    <th style={{ padding: '12px', textAlign: 'right', borderBottom: '1px solid #e5e7eb', fontWeight: '600' }}>Super (SG)</th>
                     <th style={{ padding: '12px', textAlign: 'right', borderBottom: '1px solid #e5e7eb', fontWeight: '600' }}>Net Pay</th>
                     <th style={{ padding: '12px', textAlign: 'center', borderBottom: '1px solid #e5e7eb', fontWeight: '600' }}>Actions</th>
                   </tr>
@@ -554,7 +555,8 @@ export default function PayrollPage() {
                         <td style={{ padding: '12px', textAlign: 'right' }}>{num(employee.overtime_hours ?? employee.overtimeHours).toFixed(1)}h</td>
                         <td style={{ padding: '12px', textAlign: 'right' }}>{formatCurrency(employee.hourly_rate || employee.hourlyRate)}</td>
                         <td style={{ padding: '12px', textAlign: 'right' }}>{formatCurrency(employee.gross_pay || employee.grossPay)}</td>
-                        <td style={{ padding: '12px', textAlign: 'right' }}>{formatCurrency(employee.deductions)}</td>
+                        <td style={{ padding: '12px', textAlign: 'right' }}>{formatCurrency(employee.tax_deductions ?? employee.taxDeductions)}</td>
+                        <td style={{ padding: '12px', textAlign: 'right', color: '#6b7280' }}>{formatCurrency(employee.super_guarantee_amount ?? employee.superGuaranteeAmount ?? 0)}</td>
                         <td style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>{formatCurrency(employee.net_pay || employee.netPay)}</td>
                         <td style={{ padding: '12px', textAlign: 'center' }}>
                           <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
@@ -593,7 +595,7 @@ export default function PayrollPage() {
                       </tr>
                       {expandedRows.has(employee.employee_id || employee.employeeId) && (
                         <tr>
-                          <td colSpan="8" style={{ padding: '0', background: '#f9fafb' }}>
+                          <td colSpan="10" style={{ padding: '0', background: '#f9fafb' }}>
                             <div style={{ padding: '15px', borderTop: '1px solid #e5e7eb' }}>
                               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px' }}>
                                 <div><strong>Regular Hours:</strong> {num(employee.regular_hours ?? employee.regularHours).toFixed(1)}h</div>
@@ -601,9 +603,14 @@ export default function PayrollPage() {
                                 <div><strong>Hourly Rate:</strong> {formatCurrency(employee.hourly_rate || employee.hourlyRate)}</div>
                                 <div><strong>Overtime Rate:</strong> {formatCurrency(employee.overtime_rate || employee.overtimeRate)}</div>
                                 <div><strong>Gross Pay:</strong> {formatCurrency(employee.gross_pay || employee.grossPay)}</div>
-                                <div><strong>Tax Deductions:</strong> {formatCurrency(employee.tax_deductions || employee.taxDeductions)}</div>
+                                <div><strong>PAYG withholding:</strong> {formatCurrency(employee.tax_deductions || employee.taxDeductions)}</div>
+                                <div><strong>Super guarantee (employer):</strong> {formatCurrency(employee.super_guarantee_amount ?? employee.superGuaranteeAmount ?? 0)}</div>
                                 <div><strong>Other Deductions:</strong> {formatCurrency(employee.other_deductions || employee.otherDeductions)}</div>
                                 <div><strong>Net Pay:</strong> {formatCurrency(employee.net_pay || employee.netPay)}</div>
+                                <div><strong>Leave accrued (h):</strong>{' '}
+                                  annual {(Number(employee.annual_leave_accrued_hours ?? employee.annualLeaveAccruedHours ?? 0)).toFixed(4)},
+                                  personal {(Number(employee.personal_leave_accrued_hours ?? employee.personalLeaveAccruedHours ?? 0)).toFixed(4)}
+                                </div>
                               </div>
                             </div>
                           </td>

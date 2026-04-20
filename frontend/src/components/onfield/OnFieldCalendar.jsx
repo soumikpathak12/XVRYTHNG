@@ -39,6 +39,12 @@ function dateFromKeyAtNoonUTC(key) {
   return new Date(`${key}T12:00:00Z`);
 }
 
+function dayNumInTz(key, tz) {
+  const d = dateFromKeyAtNoonUTC(key);
+  if (Number.isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('en-AU', { timeZone: tz, day: 'numeric' }).format(d);
+}
+
 function keyStartOfMonth(key) {
   if (!key || key.length < 10) return safeTodayKey().slice(0, 8) + '01';
   return key.slice(0, 8) + '01';
@@ -431,7 +437,7 @@ export default function OnFieldCalendar({
                   key={idx}
                   className={`ofc-cell ${isToday ? 'ofc-today' : ''} ${d.outside ? 'ofc-outside' : ''}`}
                 >
-                  <div className="ofc-dateNum">{d.date.getDate()}</div>
+                  <div className="ofc-dateNum">{dayNumInTz(d.key, TZ)}</div>
                   <div className="ofc-cellBody">
                     {preview.map((ev, i) => {
                       const colors = JOB_TYPE_COLORS[ev.type] || JOB_TYPE_COLORS.site_inspection;

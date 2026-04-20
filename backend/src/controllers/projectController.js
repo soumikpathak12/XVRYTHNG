@@ -140,7 +140,10 @@ export async function getProjectInspection(req, res) {
 
 export async function patchProjectScheduleAssign(req, res) {
   try {
-    const companyId = req.tenant.company_id;
+    const companyId = resolveCompanyId(req);
+    if (!companyId) {
+      return res.status(400).json({ success: false, message: 'Missing company context' });
+    }
     const projectId = Number(req.params.id);
     const userId = req.user.id;
 

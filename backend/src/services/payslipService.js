@@ -22,7 +22,8 @@ async function getYtdTotals(companyId, employeeId, periodEnd) {
        SUM(pd.overtime_hours) AS ytd_overtime_hours,
        SUM(pd.gross_pay)      AS ytd_gross_pay,
        SUM(pd.deductions)     AS ytd_deductions,
-       SUM(pd.net_pay)        AS ytd_net_pay
+       SUM(pd.net_pay)        AS ytd_net_pay,
+       SUM(pd.super_guarantee_amount) AS ytd_super_guarantee
      FROM payroll_details pd
      JOIN payroll_runs pr ON pd.payroll_run_id = pr.id
      WHERE pr.company_id = ?
@@ -39,6 +40,7 @@ async function getYtdTotals(companyId, employeeId, periodEnd) {
     grossPay: Number(y.ytd_gross_pay || 0),
     deductions: Number(y.ytd_deductions || 0),
     netPay: Number(y.ytd_net_pay || 0),
+    superGuarantee: Number(y.ytd_super_guarantee || 0),
   };
 }
 
@@ -58,7 +60,7 @@ export async function generatePayslip(payrollRunId, employeeId, companyId) {
 
   // Get employee payroll details
   const [detailRows] = await db.query(
-    `SELECT pd.*, e.first_name, e.last_name, e.email
+    `SELECT pd.*, e.first_name, e.last_name, e.email, e.super_fund_name
      FROM payroll_details pd
      JOIN employees e ON pd.employee_id = e.id
      WHERE pd.payroll_run_id = ? AND pd.employee_id = ?`,
@@ -79,7 +81,16 @@ export async function generatePayslip(payrollRunId, employeeId, companyId) {
   const taxDeductions  = Number(detail.tax_deductions  ?? 0);
   const otherDeductions= Number(detail.other_deductions?? 0);
   const netPay         = Number(detail.net_pay         ?? 0);
+  const superAmount    = Number(detail.super_guarantee_amount ?? 0);
+  const annualLeaveH   = Number(detail.annual_leave_accrued_hours ?? 0);
+  const personalLeaveH = Number(detail.personal_leave_accrued_hours ?? 0);
   const ytd = await getYtdTotals(companyId, employeeId, run.period_end);
+
+  const [[cps]] = await db.query(
+    `SELECT payroll_region FROM company_payroll_settings WHERE company_id = ? LIMIT 1`,
+    [companyId]
+  );
+  const payrollRegionAu = String(cps?.payroll_region ?? 'AU').toUpperCase() !== 'OTHER';
 
   // Generate PDF
   const fileName = `payslip_${run.id}_${employeeId}_${Date.now()}.pdf`;
@@ -144,7 +155,7 @@ export async function generatePayslip(payrollRunId, employeeId, companyId) {
   doc.text('Deductions:', tableLeft, y, { underline: true });
 
   y += 15;
-  doc.fontSize(10).text('Tax', tableLeft, y);
+  doc.fontSize(10).text(payrollRegionAu ? 'PAYG withholding' : 'Tax', tableLeft, y);
   doc.text(`$${taxDeductions.toFixed(2)}`, tableLeft + colWidth * 3, y);
 
   if (otherDeductions > 0) {
@@ -156,6 +167,30 @@ export async function generatePayslip(payrollRunId, employeeId, companyId) {
   y += 20;
   doc.fontSize(12).text('Net Pay (this period):', tableLeft, y);
   doc.text(`$${netPay.toFixed(2)}`, tableLeft + colWidth * 3, y);
+
+  if (payrollRegionAu && superAmount > 0) {
+    y += 22;
+    doc.fontSize(12).text('Superannuation (employer):', tableLeft, y, { underline: true });
+    y += 16;
+    doc.fontSize(10);
+    const fundLabel = detail.super_fund_name
+      ? `SG — ${detail.super_fund_name}`
+      : 'Super guarantee (SG)';
+    doc.text(fundLabel, tableLeft, y);
+    doc.text(`$${superAmount.toFixed(2)}`, tableLeft + colWidth * 3, y);
+  }
+
+  if (payrollRegionAu && (annualLeaveH > 0 || personalLeaveH > 0)) {
+    y += 22;
+    doc.fontSize(12).text('Leave accrued (this period):', tableLeft, y, { underline: true });
+    y += 16;
+    doc.fontSize(10);
+    doc.text('Annual leave (hours)', tableLeft, y);
+    doc.text(annualLeaveH.toFixed(4), tableLeft + colWidth * 3, y);
+    y += 14;
+    doc.text('Personal / sick & carer’s leave (hours)', tableLeft, y);
+    doc.text(personalLeaveH.toFixed(4), tableLeft + colWidth * 3, y);
+  }
 
   // YTD totals
   y += 30;
@@ -177,6 +212,11 @@ export async function generatePayslip(payrollRunId, employeeId, companyId) {
   y += 14;
   doc.text('Net Pay', tableLeft, y);
   doc.text(`$${ytd.netPay.toFixed(2)}`, tableLeft + colWidth * 3, y);
+  if (payrollRegionAu && ytd.superGuarantee > 0) {
+    y += 14;
+    doc.text('Superannuation (employer)', tableLeft, y);
+    doc.text(`$${ytd.superGuarantee.toFixed(2)}`, tableLeft + colWidth * 3, y);
+  }
 
   // Footer
   doc.moveDown(2);

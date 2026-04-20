@@ -44,16 +44,8 @@ export default function LeadsCalendar({
   // "Today" (Melbourne) as YYYY-MM-DD key
   const todayKey = toKeyInTz(new Date(), TZ) || safeTodayKey();
 
-  // Single focus key (YYYY-MM-DD) for navigation; month view shows month containing it
-  const initialFocusKey = useMemo(() => {
-    const eventKeys = leads
-      .map((l) => normalizeToKeyInTz(getDate(l), TZ))
-      .filter(Boolean)
-      .sort();
-    return eventKeys[0] || todayKey;
-  }, [leads, getDate, todayKey]);
-
-  const [viewFocusKey, setViewFocusKey] = useState(initialFocusKey);
+  // Open on **today’s** month/week (Melbourne), not the earliest scheduled lead — avoids stuck on March in April.
+  const [viewFocusKey, setViewFocusKey] = useState(() => toKeyInTz(new Date(), TZ) || safeTodayKey());
   const viewMonthKey = keyStartOfMonth(viewFocusKey);
 
   const canGoPrev = useMemo(() => {
@@ -436,7 +428,7 @@ export default function LeadsCalendar({
                 role="gridcell"
                 aria-label={d.date.toDateString()}
               >
-                <div className="lc2-dateNum">{d.date.getDate()}</div>
+                <div className="lc2-dateNum">{dayNumInTz(d.key, TZ)}</div>
 
                 <div className="lc2-events">
                   {visible.map((lead, i) => (
@@ -513,6 +505,12 @@ function normalizeToKeyInTz(v, tz) {
 function dateFromKeyAtNoonUTC(key /* YYYY-MM-DD */) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return new Date(NaN);
   return new Date(`${key}T12:00:00Z`);
+}
+
+function dayNumInTz(key, tz) {
+  const d = dateFromKeyAtNoonUTC(key);
+  if (Number.isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('en-AU', { timeZone: tz, day: 'numeric' }).format(d);
 }
 
 /** Start of month key for a given key. */
