@@ -28,17 +28,15 @@ export default function ProjectsCalendar({
   // "today" key in Melbourne
   const todayKey = toKeyInTz(new Date(), TZ) ?? safeTodayKey();
 
-  // Initial month = earliest scheduled day (if any), else today
-  const initialMonthKey = useMemo(() => {
-    const eventKeys = projects
-      .map((p) => normalizeToKeyInTz(getDate(p), TZ))
-      .filter(Boolean)
-      .sort(); // YYYY-MM-DD lexicographically sorted
-    const startKey = eventKeys[0] ?? todayKey;
-    return keyStartOfMonth(startKey);
-  }, [projects, getDate, todayKey]);
+  // Always open on the **current calendar month** (Melbourne). Past schedules are reachable via ‹ ›.
+  // (Opening on earliest event stranded users in March after April rollover.)
+  const initialMonthKey = useMemo(() => keyStartOfMonth(todayKey), [todayKey]);
 
   const [viewMonthKey, setViewMonthKey] = useState(initialMonthKey);
+
+  useEffect(() => {
+    setViewMonthKey(initialMonthKey);
+  }, [initialMonthKey]);
 
   const canGoPrev = useMemo(() => {
     if (!minMonth) return true;
@@ -449,7 +447,7 @@ export default function ProjectsCalendar({
                 role="gridcell"
                 aria-label={d.date.toDateString()}
               >
-                <div className="pc-dateNum">{d.date.getDate()}</div>
+                <div className="pc-dateNum">{dayNumInTz(d.key, TZ)}</div>
 
                 <div className="pc-cellBody">
                   {visible.map((project, i) => (
@@ -578,6 +576,13 @@ function normalizeToKeyInTz(v, tz) {
 function dateFromKeyAtNoonUTC(key /* YYYY-MM-DD */) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return new Date(NaN);
   return new Date(`${key}T12:00:00Z`);
+}
+/** Calendar cell day number aligned with TZ (matches title month), not browser local midnight. */
+function dayNumInTz(key, tz) {
+  const d = dateFromKeyAtNoonUTC(key);
+  if (Number.isNaN(d.getTime())) return '';
+  const n = new Intl.DateTimeFormat('en-AU', { timeZone: tz, day: 'numeric' }).format(d);
+  return n;
 }
 function keyStartOfMonth(key) {
   if (!key || key.length < 10) return safeTodayKey().slice(0, 8) + '01';

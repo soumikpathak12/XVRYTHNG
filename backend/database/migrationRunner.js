@@ -457,6 +457,87 @@ const MIGRATIONS = [
     },
   },
 
+  /* ── V013: Australian payroll (PAYG Scale 2, SG, leave accrual columns) ── */
+  {
+    version: 'V013__australian_payroll',
+    description: 'AU PAYG/SGC settings, employee scale & fund, payroll_detail OTE/super/leave',
+    up: async () => {
+      const schema = process.env.DB_NAME;
+
+      if (!(await columnExists(schema, 'company_payroll_settings', 'payroll_region'))) {
+        await db.execute(`
+          ALTER TABLE company_payroll_settings
+          ADD COLUMN payroll_region VARCHAR(8) NOT NULL DEFAULT 'AU'
+            COMMENT 'AU = Schedule 1 PAYG + SG; OTHER = legacy flat tax only'
+        `);
+      }
+      if (!(await columnExists(schema, 'company_payroll_settings', 'super_guarantee_rate'))) {
+        await db.execute(`
+          ALTER TABLE company_payroll_settings
+          ADD COLUMN super_guarantee_rate DECIMAL(6,5) NOT NULL DEFAULT 0.12000
+            COMMENT 'Employer SG rate on ordinary time earnings'
+        `);
+      }
+      if (!(await columnExists(schema, 'company_payroll_settings', 'au_annual_leave_weeks'))) {
+        await db.execute(`
+          ALTER TABLE company_payroll_settings
+          ADD COLUMN au_annual_leave_weeks DECIMAL(5,2) NOT NULL DEFAULT 4.00
+            COMMENT 'NES annual leave entitlement in weeks/year for accrual display'
+        `);
+      }
+      if (!(await columnExists(schema, 'company_payroll_settings', 'au_personal_leave_weeks'))) {
+        await db.execute(`
+          ALTER TABLE company_payroll_settings
+          ADD COLUMN au_personal_leave_weeks DECIMAL(5,2) NOT NULL DEFAULT 2.00
+            COMMENT 'Personal/sick-carer leave weeks/year for accrual display'
+        `);
+      }
+
+      if (!(await columnExists(schema, 'employees', 'au_payg_scale'))) {
+        await db.execute(`
+          ALTER TABLE employees
+          ADD COLUMN au_payg_scale TINYINT UNSIGNED NOT NULL DEFAULT 2
+            COMMENT 'Schedule 1 PAYG scale (2 = TFN tax-free threshold)'
+        `);
+      }
+      if (!(await columnExists(schema, 'employees', 'super_fund_name'))) {
+        await db.execute(`
+          ALTER TABLE employees
+          ADD COLUMN super_fund_name VARCHAR(160) NULL DEFAULT NULL
+        `);
+      }
+
+      if (!(await columnExists(schema, 'payroll_details', 'ordinary_time_earnings'))) {
+        await db.execute(`
+          ALTER TABLE payroll_details
+          ADD COLUMN ordinary_time_earnings DECIMAL(12,2) NOT NULL DEFAULT 0.00
+            AFTER gross_pay
+        `);
+      }
+      if (!(await columnExists(schema, 'payroll_details', 'super_guarantee_amount'))) {
+        await db.execute(`
+          ALTER TABLE payroll_details
+          ADD COLUMN super_guarantee_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00
+            AFTER tax_deductions
+        `);
+      }
+      if (!(await columnExists(schema, 'payroll_details', 'annual_leave_accrued_hours'))) {
+        await db.execute(`
+          ALTER TABLE payroll_details
+          ADD COLUMN annual_leave_accrued_hours DECIMAL(10,4) NOT NULL DEFAULT 0.0000
+            AFTER super_guarantee_amount
+        `);
+      }
+      if (!(await columnExists(schema, 'payroll_details', 'personal_leave_accrued_hours'))) {
+        await db.execute(`
+          ALTER TABLE payroll_details
+          ADD COLUMN personal_leave_accrued_hours DECIMAL(10,4) NOT NULL DEFAULT 0.0000
+            AFTER annual_leave_accrued_hours
+        `);
+      }
+    },
+  },
+
 
 ];
 

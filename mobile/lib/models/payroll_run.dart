@@ -79,6 +79,8 @@ class PayrollDetail {
   final double otherDeductions;
   final double deductions;
   final double netPay;
+  /// Employer SG contribution (AU); not deducted from net pay.
+  final double superGuaranteeAmount;
 
   const PayrollDetail({
     required this.employeeId,
@@ -92,6 +94,7 @@ class PayrollDetail {
     required this.otherDeductions,
     required this.deductions,
     required this.netPay,
+    this.superGuaranteeAmount = 0,
   });
 
   factory PayrollDetail.fromJson(Map<String, dynamic> json) {
@@ -117,6 +120,8 @@ class PayrollDetail {
       otherDeductions: d(json['other_deductions'] ?? json['otherDeductions']),
       deductions: d(json['deductions']),
       netPay: d(json['net_pay'] ?? json['netPay']),
+      superGuaranteeAmount:
+          d(json['super_guarantee_amount'] ?? json['superGuaranteeAmount']),
     );
   }
 }

@@ -1,4 +1,9 @@
 import db from '../config/db.js';
+import {
+  calculateAustralianPaygPeriodScale2,
+  calculateSuperGuarantee,
+  calculateLeaveAccrualHours,
+} from './australianPayrollService.js';
 
 async function getCompanyPayrollSettings(companyId) {
   const [[row]] = await db.query(
@@ -6,7 +11,11 @@ async function getCompanyPayrollSettings(companyId) {
        flat_tax_rate,
        weekly_threshold,
        fortnight_threshold,
-       overtime_multiplier
+       overtime_multiplier,
+       payroll_region,
+       super_guarantee_rate,
+       au_annual_leave_weeks,
+       au_personal_leave_weeks
      FROM company_payroll_settings
      WHERE company_id = ?
      LIMIT 1`,
@@ -18,6 +27,10 @@ async function getCompanyPayrollSettings(companyId) {
     weeklyThreshold: Number(row?.weekly_threshold ?? 40),
     fortnightThreshold: Number(row?.fortnight_threshold ?? 80),
     overtimeMultiplier: Number(row?.overtime_multiplier ?? 1.5),
+    payrollRegion: String(row?.payroll_region ?? 'AU').toUpperCase() === 'OTHER' ? 'OTHER' : 'AU',
+    superGuaranteeRate: Number(row?.super_guarantee_rate ?? 0.12),
+    auAnnualLeaveWeeks: Number(row?.au_annual_leave_weeks ?? 4),
+    auPersonalLeaveWeeks: Number(row?.au_personal_leave_weeks ?? 2),
   };
 }
 
@@ -26,7 +39,8 @@ export async function calculatePayroll(companyId, periodStart, periodEnd, period
   const settings = await getCompanyPayrollSettings(companyId);
   // Get all active employees for the company
   const [employees] = await db.query(
-    'SELECT id, first_name, last_name, rate_type, rate_amount FROM employees WHERE company_id = ? AND status = "active"',
+    `SELECT id, first_name, last_name, rate_type, rate_amount, au_payg_scale, super_fund_name
+     FROM employees WHERE company_id = ? AND status = "active"`,
     [companyId]
   );
 
@@ -134,10 +148,33 @@ async function calculateEmployeePayroll(employee, companyId, periodStart, period
   const overtimePay = overtimeHours * overtimeRate;
   const grossPay = regularPay + overtimePay;
 
-  // Flat tax (per-company configurable)
-  const taxRate = settings.flatTaxRate;
-  const taxDeductions = grossPay * taxRate;
-  const otherDeductions = 0; // No other deductions for now
+  const ordinaryTimeEarnings = regularPay;
+  const otherDeductions = 0;
+
+  let taxDeductions = 0;
+  let superGuaranteeAmount = 0;
+  let annualLeaveAccruedHours = 0;
+  let personalLeaveAccruedHours = 0;
+
+  if (settings.payrollRegion === 'AU') {
+    const scale = Number(employee.au_payg_scale ?? 2);
+    if (scale === 2) {
+      taxDeductions = calculateAustralianPaygPeriodScale2(grossPay, periodStart, periodEnd);
+    } else {
+      taxDeductions = grossPay * settings.flatTaxRate;
+    }
+    superGuaranteeAmount = calculateSuperGuarantee(ordinaryTimeEarnings, settings.superGuaranteeRate);
+    const leave = calculateLeaveAccrualHours(
+      totalHours,
+      settings.auAnnualLeaveWeeks,
+      settings.auPersonalLeaveWeeks
+    );
+    annualLeaveAccruedHours = leave.annual;
+    personalLeaveAccruedHours = leave.personal;
+  } else {
+    taxDeductions = grossPay * settings.flatTaxRate;
+  }
+
   const netPay = grossPay - taxDeductions - otherDeductions;
 
   return {
@@ -148,10 +185,15 @@ async function calculateEmployeePayroll(employee, companyId, periodStart, period
     hourlyRate,
     overtimeRate,
     grossPay,
+    ordinaryTimeEarnings,
+    superGuaranteeAmount,
+    annualLeaveAccruedHours,
+    personalLeaveAccruedHours,
     deductions: taxDeductions + otherDeductions,
     taxDeductions,
     otherDeductions,
-    netPay
+    netPay,
+    payrollRegion: settings.payrollRegion,
   };
 }
 
@@ -196,8 +238,10 @@ export async function savePayrollRun(companyId, payrollData, createdBy) {
   for (const detail of payrollData.details) {
     await db.query(
       `INSERT INTO payroll_details
-       (payroll_run_id, employee_id, regular_hours, overtime_hours, hourly_rate, overtime_rate, gross_pay, deductions, net_pay, tax_deductions, other_deductions)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (payroll_run_id, employee_id, regular_hours, overtime_hours, hourly_rate, overtime_rate,
+        gross_pay, ordinary_time_earnings, deductions, net_pay, tax_deductions, other_deductions,
+        super_guarantee_amount, annual_leave_accrued_hours, personal_leave_accrued_hours)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         payrollRunId,
         detail.employeeId,
@@ -206,10 +250,14 @@ export async function savePayrollRun(companyId, payrollData, createdBy) {
         detail.hourlyRate,
         detail.overtimeRate,
         detail.grossPay,
+        detail.ordinaryTimeEarnings ?? detail.regularHours * detail.hourlyRate,
         detail.deductions,
         detail.netPay,
         detail.taxDeductions,
-        detail.otherDeductions
+        detail.otherDeductions,
+        detail.superGuaranteeAmount ?? 0,
+        detail.annualLeaveAccruedHours ?? 0,
+        detail.personalLeaveAccruedHours ?? 0,
       ]
     );
   }

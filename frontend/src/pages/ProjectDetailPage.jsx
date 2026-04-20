@@ -329,15 +329,20 @@ export default function ProjectDetailPage() {
         })()
         : { date: '', time: '' };
 
+      const resolvedAssignees = Array.isArray(payload?.assignees)
+        ? payload.assignees.map(Number).filter((id) => Number.isFinite(id) && id > 0)
+        : (Array.isArray(assignees) ? assignees : []);
+
       const finalPayload = {
         status: payload.nextStage || project?.stage,
         date: payload.date || schDate,
         time: payload.time || schTime,
         notes: payload.notes ?? schedule?.notes ?? '',
-        assignees: assignees, // Keep existing assignees
+        assignees: resolvedAssignees,
       };
 
       await saveProjectScheduleAssign(projectId, finalPayload);
+      setAssignees(resolvedAssignees);
       setToast('Schedule updated successfully!');
       setTimeout(() => setToast(''), 3000);
       loadData();
