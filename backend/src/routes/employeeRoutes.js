@@ -34,6 +34,7 @@ router.post('/attendance/check-in', attendanceController.checkIn);
 router.post('/attendance/check-out', attendanceController.checkOut);
 router.get('/attendance/today', attendanceController.todayStatus);
 router.get('/attendance/history', attendanceController.history);
+router.get('/attendance/company-day', attendanceController.companyDayAttendance);
 
 // Attendance edit requests (employee)
 router.post('/attendance/edit-request', attendanceEditController.submitEditRequest);

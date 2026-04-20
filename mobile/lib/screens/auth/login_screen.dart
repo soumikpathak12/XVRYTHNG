@@ -62,9 +62,8 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _submitting = false);
 
     if (auth.isAuthenticated) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Welcome, ${auth.user!.name}!')),
-      );
+      // Route replacement can deactivate LoginScreen context immediately,
+      // so avoid showing a SnackBar from this screen before navigation.
       context.go(auth.getDefaultRoute());
     }
   }

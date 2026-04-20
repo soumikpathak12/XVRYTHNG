@@ -1,11 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../models/attendance.dart';
 import '../../models/dashboard.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/dashboard_provider.dart';
+import '../../services/attendance_service.dart';
+import '../../utils/melbourne_time.dart';
 import '../../widgets/common/shell_scaffold_scope.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -26,10 +34,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _onRefresh() async {
     final provider = context.read<DashboardProvider>();
-    await Future.wait([
-      provider.loadDashboard(),
-      provider.loadActivities(),
-    ]);
+    await Future.wait([provider.loadDashboard(), provider.loadActivities()]);
   }
 
   Future<void> _openRangeSheet(BuildContext context) async {
@@ -64,6 +69,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final shellLeading = ShellScaffoldScope.navigationLeading(context);
+    final isEmployeeHome =
+        GoRouterState.of(context).matchedLocation == '/employee';
     return Scaffold(
       backgroundColor: AppColors.surface,
       appBar: AppBar(
@@ -108,8 +115,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.cloud_off_rounded,
-                      size: 48, color: Colors.grey[400]),
+                  Icon(
+                    Icons.cloud_off_rounded,
+                    size: 48,
+                    color: Colors.grey[400],
+                  ),
                   const SizedBox(height: 12),
                   Text(
                     'Failed to load dashboard',
@@ -131,6 +141,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
               children: [
+                if (isEmployeeHome) ...[
+                  const _EmployeeAttendanceCard(),
+                  const SizedBox(height: 20),
+                ],
                 if (provider.metrics != null)
                   _KpiGrid(metrics: provider.metrics!),
                 const SizedBox(height: 20),
@@ -142,6 +156,463 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _EmployeeAttendanceCard extends StatefulWidget {
+  const _EmployeeAttendanceCard();
+
+  @override
+  State<_EmployeeAttendanceCard> createState() =>
+      _EmployeeAttendanceCardState();
+}
+
+class _EmployeeAttendanceCardState extends State<_EmployeeAttendanceCard> {
+  final AttendanceService _attendanceService = AttendanceService();
+  AttendanceToday? _today;
+  bool _loading = true;
+  bool _actionLoading = false;
+  String? _error;
+  Timer? _timer;
+  Duration _elapsed = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadToday();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadToday() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final companyId = context.read<AuthProvider>().user?.companyId;
+      final today = await _attendanceService.getTodayStatus(
+        companyId: companyId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _today = today;
+      });
+      _startTimer();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
+    if (_today?.isCheckedIn == true && _today?.checkInTime != null) {
+      final checkIn = _parseTime(_today!.checkInTime!);
+      if (checkIn != null) {
+        _elapsed = MelbourneTime.now().difference(checkIn);
+        _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+          if (!mounted) return;
+          final diff = MelbourneTime.now().difference(checkIn);
+          setState(() => _elapsed = diff.isNegative ? Duration.zero : diff);
+        });
+      }
+    } else {
+      _elapsed = Duration.zero;
+    }
+  }
+
+  DateTime? _parseTime(String raw) {
+    final trimmed = raw.trim();
+    final hasDate = trimmed.contains('-') && trimmed.contains(':');
+
+    if (hasDate) {
+      final parsed = MelbourneTime.parseServerTimestamp(trimmed);
+      if (parsed != null) return parsed;
+    }
+
+    try {
+      return DateTime.parse(trimmed);
+    } catch (_) {
+      try {
+        final parts = trimmed.split(':');
+        final now = MelbourneTime.now();
+        return DateTime(
+          now.year,
+          now.month,
+          now.day,
+          int.parse(parts[0]),
+          int.parse(parts[1]),
+          parts.length > 2 ? int.parse(parts[2]) : 0,
+        );
+      } catch (_) {
+        return null;
+      }
+    }
+  }
+
+  Future<Position> _getPosition() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      throw Exception('Location services are disabled. Please enable GPS.');
+    }
+
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        throw Exception('Location permission denied.');
+      }
+    }
+    if (permission == LocationPermission.deniedForever) {
+      throw Exception(
+        'Location permissions are permanently denied. Please enable them in App Settings.',
+      );
+    }
+
+    try {
+      return await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 25),
+        ),
+      );
+    } catch (e) {
+      if (e is TimeoutException) {
+        throw Exception(
+          'Location request timed out. Please ensure you are in an open area with good GPS signal.',
+        );
+      }
+      throw Exception('Could not determine location: $e');
+    }
+  }
+
+  Future<void> _showLocationSettingsPrompt() async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Enable Location Access'),
+        content: const Text(
+          'Location permission has been permanently denied for this app. Please enable it in app settings to continue.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.of(dialogContext).pop();
+              await Geolocator.openAppSettings();
+            },
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleAction(bool isCheckIn) async {
+    setState(() => _actionLoading = true);
+    try {
+      final pos = await _getPosition();
+      final companyId = context.read<AuthProvider>().user?.companyId;
+      final result = isCheckIn
+          ? await _attendanceService.checkIn(
+              pos.latitude,
+              pos.longitude,
+              companyId: companyId,
+            )
+          : await _attendanceService.checkOut(
+              pos.latitude,
+              pos.longitude,
+              companyId: companyId,
+            );
+      if (!mounted) return;
+      setState(() {
+        _today = result;
+      });
+      _startTimer();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isCheckIn
+                  ? 'Checked in successfully'
+                  : 'Checked out successfully',
+            ),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      final message = e.toString().replaceFirst('Exception: ', '');
+      if (message.contains('permanently denied')) {
+        await _showLocationSettingsPrompt();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isCheckIn
+                  ? 'Check-in failed: $message'
+                  : 'Check-out failed: $message',
+            ),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _actionLoading = false);
+    }
+  }
+
+  String _fmtTime(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return '--:--';
+    final parsed = _parseTime(raw);
+    if (parsed == null) return raw;
+    return DateFormat('h:mm a').format(parsed);
+  }
+
+  String _fmtDuration(Duration duration) {
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes.remainder(60);
+    if (hours <= 0) return '${minutes}m';
+    return '${hours}h ${minutes}m';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final today = _today;
+    final isCheckedIn = today?.isCheckedIn ?? false;
+    final isCheckedOut = today?.isCheckedOut ?? false;
+    final statusColor = isCheckedOut
+        ? AppColors.info
+        : isCheckedIn
+        ? AppColors.success
+        : AppColors.warning;
+    final statusIcon = isCheckedOut
+        ? Icons.logout_rounded
+        : isCheckedIn
+        ? Icons.login_rounded
+        : Icons.schedule_rounded;
+    final statusText = isCheckedOut
+        ? 'Checked out'
+        : isCheckedIn
+        ? 'Checked in'
+        : 'Ready to clock in';
+
+    return Card(
+      elevation: 0,
+      color: AppColors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: _loading
+            ? const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                ),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: statusColor.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(statusIcon, color: statusColor, size: 26),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Today Attendance',
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              statusText,
+                              style: TextStyle(
+                                color: statusColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (_error != null)
+                        IconButton(
+                          tooltip: 'Retry',
+                          onPressed: _loadToday,
+                          icon: const Icon(Icons.refresh_rounded),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  if (_error != null) ...[
+                    Text(
+                      'Could not load attendance status.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton.tonal(
+                      onPressed: _loadToday,
+                      child: const Text('Retry'),
+                    ),
+                  ] else ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _MiniStat(
+                            label: 'Check In',
+                            value: _fmtTime(today?.checkInTime),
+                            icon: Icons.arrow_downward_rounded,
+                            color: AppColors.success,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _MiniStat(
+                            label: 'Check Out',
+                            value: _fmtTime(today?.checkOutTime),
+                            icon: Icons.arrow_upward_rounded,
+                            color: AppColors.danger,
+                          ),
+                        ),
+                        if (isCheckedIn) ...[
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _MiniStat(
+                              label: 'Working',
+                              value: _fmtDuration(_elapsed),
+                              icon: Icons.timer_rounded,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    if (!isCheckedOut)
+                      SizedBox(
+                        width: double.infinity,
+                        height: 54,
+                        child: ElevatedButton.icon(
+                          onPressed: _actionLoading
+                              ? null
+                              : () => _handleAction(!isCheckedIn),
+                          icon: Icon(
+                            isCheckedIn
+                                ? Icons.logout_rounded
+                                : Icons.login_rounded,
+                          ),
+                          label: Text(
+                            isCheckedIn ? 'Check Out' : 'Check In',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isCheckedIn
+                                ? const Color(0xFFE67E22)
+                                : AppColors.success,
+                            foregroundColor: AppColors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.info.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Text(
+                          'You are checked out for today.',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                  ],
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+class _MiniStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  const _MiniStat({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -192,8 +663,9 @@ class _DashboardRangeSheetState extends State<_DashboardRangeSheet> {
     _from = widget.initialFrom != null
         ? DateTime.tryParse(widget.initialFrom!)
         : null;
-    _to =
-        widget.initialTo != null ? DateTime.tryParse(widget.initialTo!) : null;
+    _to = widget.initialTo != null
+        ? DateTime.tryParse(widget.initialTo!)
+        : null;
     if (_range == 'custom' && (_from == null || _to == null)) {
       _primeDefaults((a, b) {
         _from = DateTime(a.year, a.month, a.day);
@@ -231,10 +703,7 @@ class _DashboardRangeSheetState extends State<_DashboardRangeSheet> {
     setState(() => _range = range);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      Navigator.pop(
-        context,
-        _DashboardRangeSelection.preset(range),
-      );
+      Navigator.pop(context, _DashboardRangeSelection.preset(range));
     });
   }
 
@@ -343,8 +812,11 @@ class _DashboardRangeSheetState extends State<_DashboardRangeSheet> {
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Icon(Icons.arrow_forward_rounded,
-                        color: Colors.grey[600], size: 20),
+                    child: Icon(
+                      Icons.arrow_forward_rounded,
+                      color: Colors.grey[600],
+                      size: 20,
+                    ),
                   ),
                   Expanded(
                     child: OutlinedButton.icon(
@@ -411,8 +883,7 @@ class _DashboardRangeSelection {
   factory _DashboardRangeSelection.custom({
     required String from,
     required String to,
-  }) =>
-      _DashboardRangeSelection._('custom', from: from, to: to);
+  }) => _DashboardRangeSelection._('custom', from: from, to: to);
 }
 
 // ---------------------------------------------------------------------------
@@ -425,30 +896,50 @@ class _KpiGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFmt =
-        NumberFormat.compactCurrency(symbol: '\$', decimalDigits: 1);
+    final currencyFmt = NumberFormat.compactCurrency(
+      symbol: '\$',
+      decimalDigits: 1,
+    );
     final numFmt = NumberFormat.compact();
     final pctFmt = NumberFormat('0.0');
 
     final cards = <_KpiData>[
-      _KpiData('Total Leads', numFmt.format(metrics.totalLeads.value),
-          metrics.totalLeads.delta, Icons.people_alt_rounded),
-      _KpiData('Leads Contacted', numFmt.format(metrics.leadsContacted.value),
-          metrics.leadsContacted.delta, Icons.phone_callback_rounded),
       _KpiData(
-          'Conversion Rate',
-          '${pctFmt.format(metrics.conversionRate.value)}%',
-          metrics.conversionRate.delta,
-          Icons.trending_up_rounded),
+        'Total Leads',
+        numFmt.format(metrics.totalLeads.value),
+        metrics.totalLeads.delta,
+        Icons.people_alt_rounded,
+      ),
       _KpiData(
-          'Pipeline Value',
-          currencyFmt.format(metrics.pipelineValue.value),
-          metrics.pipelineValue.delta,
-          Icons.attach_money_rounded),
-      _KpiData('Proposals Sent', numFmt.format(metrics.proposalsSent.value),
-          metrics.proposalsSent.delta, Icons.description_rounded),
-      _KpiData('Closed Won', numFmt.format(metrics.closedWon.value),
-          metrics.closedWon.delta, Icons.emoji_events_rounded),
+        'Leads Contacted',
+        numFmt.format(metrics.leadsContacted.value),
+        metrics.leadsContacted.delta,
+        Icons.phone_callback_rounded,
+      ),
+      _KpiData(
+        'Conversion Rate',
+        '${pctFmt.format(metrics.conversionRate.value)}%',
+        metrics.conversionRate.delta,
+        Icons.trending_up_rounded,
+      ),
+      _KpiData(
+        'Pipeline Value',
+        currencyFmt.format(metrics.pipelineValue.value),
+        metrics.pipelineValue.delta,
+        Icons.attach_money_rounded,
+      ),
+      _KpiData(
+        'Proposals Sent',
+        numFmt.format(metrics.proposalsSent.value),
+        metrics.proposalsSent.delta,
+        Icons.description_rounded,
+      ),
+      _KpiData(
+        'Closed Won',
+        numFmt.format(metrics.closedWon.value),
+        metrics.closedWon.delta,
+        Icons.emoji_events_rounded,
+      ),
     ];
 
     return GridView.builder(
@@ -520,8 +1011,11 @@ class _KpiCard extends StatelessWidget {
                           color: AppColors.primary.withOpacity(0.08),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Icon(data.icon,
-                            size: 18, color: AppColors.primary),
+                        child: Icon(
+                          data.icon,
+                          size: 18,
+                          color: AppColors.primary,
+                        ),
                       ),
                       const Spacer(),
                       _DeltaBadge(delta: data.delta),
@@ -600,10 +1094,14 @@ class _PipelineChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final maxVal =
-        stages.fold<double>(0, (m, s) => s.count > m ? s.count.toDouble() : m);
-    final currencyFmt =
-        NumberFormat.compactCurrency(symbol: '\$', decimalDigits: 1);
+    final maxVal = stages.fold<double>(
+      0,
+      (m, s) => s.count > m ? s.count.toDouble() : m,
+    );
+    final currencyFmt = NumberFormat.compactCurrency(
+      symbol: '\$',
+      decimalDigits: 1,
+    );
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -655,9 +1153,11 @@ class _PipelineChart extends StatelessWidget {
                 titlesData: FlTitlesData(
                   show: true,
                   topTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false)),
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                   rightTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false)),
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
@@ -667,7 +1167,9 @@ class _PipelineChart extends StatelessWidget {
                         child: Text(
                           v.toInt().toString(),
                           style: const TextStyle(
-                              fontSize: 10, color: AppColors.textSecondary),
+                            fontSize: 10,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                       ),
                     ),
@@ -688,7 +1190,9 @@ class _PipelineChart extends StatelessWidget {
                                 ? '${stages[idx].label.substring(0, 6)}.'
                                 : stages[idx].label,
                             style: const TextStyle(
-                                fontSize: 10, color: AppColors.textSecondary),
+                              fontSize: 10,
+                              color: AppColors.textSecondary,
+                            ),
                           ),
                         );
                       },
@@ -713,7 +1217,8 @@ class _PipelineChart extends StatelessWidget {
                         width: 22,
                         color: AppColors.primary.withOpacity(0.85),
                         borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(6)),
+                          top: Radius.circular(6),
+                        ),
                         backDrawRodData: BackgroundBarChartRodData(
                           show: true,
                           toY: maxVal * 1.25,
@@ -862,7 +1367,9 @@ class _ActivityTile extends StatelessWidget {
                       Text(
                         activity.userName!,
                         style: const TextStyle(
-                            fontSize: 11, color: AppColors.textSecondary),
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                       const SizedBox(width: 6),
                       Container(
@@ -879,7 +1386,9 @@ class _ActivityTile extends StatelessWidget {
                       Text(
                         timeFmt.format(activity.createdAt!),
                         style: const TextStyle(
-                            fontSize: 11, color: AppColors.textSecondary),
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                   ],
                 ),

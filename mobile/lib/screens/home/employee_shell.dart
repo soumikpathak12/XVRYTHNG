@@ -24,24 +24,58 @@ class EmployeeShell extends StatefulWidget {
 class _EmployeeShellState extends State<EmployeeShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
+  /// True for personal attendance and team roster (not other `/employee/attendance*` paths).
+  static bool _isAttendanceSectionRoute(String route) {
+    if (route.startsWith('/employee/attendance-history')) return true;
+    if (route == '/employee/attendance' || route.startsWith('/employee/attendance/')) {
+      return true;
+    }
+    return false;
+  }
+
   List<DrawerItem> _drawerItems(AuthProvider auth) {
     final modules = RoleSidebarDrawer.modulesFromConfig(auth.sidebarConfig);
     return RoleSidebarDrawer.buildEmployeeDrawerItems(modules);
   }
 
-  int get _currentNavIndex {
+  bool _isOnFieldHome(AuthProvider auth) =>
+      auth.user?.isOnFieldRole == true || auth.user?.isFieldAgent == true;
+
+  int _currentNavIndex(AuthProvider auth) {
     final route = widget.currentRoute;
+    final isOnFieldHome = _isOnFieldHome(auth);
     if (route == '/employee') return 0;
+    if (route == '/employee/on-field' && isOnFieldHome) return 0;
+    if (isOnFieldHome) {
+      if (_isAttendanceSectionRoute(route)) return 1;
+      if (route.startsWith('/employee/messages')) return 2;
+      return 3;
+    }
     if (route.startsWith('/employee/leads')) return 1;
-    if (route.startsWith('/employee/attendance')) return 2;
+    if (_isAttendanceSectionRoute(route)) return 2;
     if (route.startsWith('/employee/messages')) return 3;
     return 4;
   }
 
-  void _onNavTap(int index) {
+  void _onNavTap(AuthProvider auth, int index) {
+    final homeRoute = _isOnFieldHome(auth) ? '/employee/on-field' : '/employee';
+    final isOnFieldHome = _isOnFieldHome(auth);
+    if (isOnFieldHome) {
+      switch (index) {
+        case 0:
+          context.go(homeRoute);
+        case 1:
+          context.go('/employee/attendance');
+        case 2:
+          context.go('/employee/messages');
+        case 3:
+          _scaffoldKey.currentState?.openDrawer();
+      }
+      return;
+    }
     switch (index) {
       case 0:
-        context.go('/employee');
+        context.go(homeRoute);
       case 1:
         context.go('/employee/leads');
       case 2:
@@ -56,6 +90,57 @@ class _EmployeeShellState extends State<EmployeeShell> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    final isOnFieldHome = _isOnFieldHome(auth);
+    final destinations = isOnFieldHome
+        ? const [
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home, color: AppColors.primary),
+              label: 'Home',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.access_time_outlined),
+              selectedIcon: Icon(Icons.access_time_filled, color: AppColors.primary),
+              label: 'Attendance',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.message_outlined),
+              selectedIcon: Icon(Icons.message, color: AppColors.primary),
+              label: 'Messages',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.menu),
+              selectedIcon: Icon(Icons.menu, color: AppColors.primary),
+              label: 'More',
+            ),
+          ]
+        : const [
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home, color: AppColors.primary),
+              label: 'Home',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.people_outline),
+              selectedIcon: Icon(Icons.people, color: AppColors.primary),
+              label: 'Leads',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.access_time_outlined),
+              selectedIcon: Icon(Icons.access_time_filled, color: AppColors.primary),
+              label: 'Attendance',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.message_outlined),
+              selectedIcon: Icon(Icons.message, color: AppColors.primary),
+              label: 'Messages',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.menu),
+              selectedIcon: Icon(Icons.menu, color: AppColors.primary),
+              label: 'More',
+            ),
+          ];
     return ShellScaffoldScope(
       scaffoldKey: _scaffoldKey,
       child: Scaffold(
@@ -67,40 +152,15 @@ class _EmployeeShellState extends State<EmployeeShell> {
         ),
         body: widget.child,
         bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentNavIndex < 5 ? _currentNavIndex : 0,
-        onDestinationSelected: _onNavTap,
-        backgroundColor: AppColors.white,
-        surfaceTintColor: AppColors.white,
-        indicatorColor: AppColors.primary.withOpacity(0.12),
-        height: 64,
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home, color: AppColors.primary),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.people_outline),
-            selectedIcon: Icon(Icons.people, color: AppColors.primary),
-            label: 'Leads',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.access_time_outlined),
-            selectedIcon: Icon(Icons.access_time_filled, color: AppColors.primary),
-            label: 'Attendance',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.message_outlined),
-            selectedIcon: Icon(Icons.message, color: AppColors.primary),
-            label: 'Messages',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.menu),
-            selectedIcon: Icon(Icons.menu, color: AppColors.primary),
-            label: 'More',
-          ),
-        ],
+          selectedIndex:
+              _currentNavIndex(auth) < destinations.length ? _currentNavIndex(auth) : 0,
+          onDestinationSelected: (index) => _onNavTap(auth, index),
+          backgroundColor: AppColors.white,
+          surfaceTintColor: AppColors.white,
+          indicatorColor: AppColors.primary.withOpacity(0.12),
+          height: 64,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          destinations: destinations,
         ),
       ),
     );

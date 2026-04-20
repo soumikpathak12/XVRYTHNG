@@ -39,6 +39,11 @@ class _AdminShellState extends State<AdminShell> {
           route: '/admin/attendance',
         ),
         const DrawerItem(
+          label: 'Team attendance',
+          icon: Icons.calendar_view_day_outlined,
+          route: '/admin/attendance-history',
+        ),
+        const DrawerItem(
           label: 'Partner Companies',
           icon: Icons.business_outlined,
           route: '/admin/companies',

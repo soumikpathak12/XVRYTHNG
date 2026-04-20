@@ -11,15 +11,19 @@ import db from '../config/db.js';
  */
 export async function getProfile(userId) {
   const baseSelect = `SELECT u.id, u.company_id, u.role_id, u.email, u.name, u.status, u.last_login_at,
-       u.created_at, u.updated_at, r.name AS role_name
+    u.created_at, u.updated_at, r.name AS role_name,
+    e.job_role_id AS job_role_id
   FROM users u
   INNER JOIN roles r ON u.role_id = r.id
+  LEFT JOIN employees e ON e.user_id = u.id AND e.company_id <=> u.company_id
   WHERE u.id = ? LIMIT 1`;
   const extendedSelect = `SELECT u.id, u.company_id, u.role_id, u.email, u.name, u.phone, u.department,
-       u.image_url, u.notify_email, u.notify_sms, u.status, u.last_login_at,
-       u.created_at, u.updated_at, r.name AS role_name
+    u.image_url, u.notify_email, u.notify_sms, u.status, u.last_login_at,
+    u.created_at, u.updated_at, r.name AS role_name,
+    e.job_role_id AS job_role_id
   FROM users u
   INNER JOIN roles r ON u.role_id = r.id
+  LEFT JOIN employees e ON e.user_id = u.id AND e.company_id <=> u.company_id
   WHERE u.id = ? LIMIT 1`;
 
   let row;

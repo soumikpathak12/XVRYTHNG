@@ -12,6 +12,7 @@ const FALLBACK_BY_ROLE = {
     'operations:view', 'operations:edit',
     'payroll:view', 'payroll:edit',
     'attendance:view', 'attendance:edit',
+    'attendance_history:view', 'attendance_history:edit',
     'referrals:view', 'referrals:edit',
     'messages:view', 'messages:edit',
     'support:view', 'support:edit',
@@ -26,6 +27,7 @@ const FALLBACK_BY_ROLE = {
     'operations:view',
     'payroll:view', 'payroll:edit',
     'attendance:view', 'attendance:edit',
+    'attendance_history:view', 'attendance_history:edit',
     'referrals:view',
     'messages:view', 'messages:edit',
     'support:view', 'support:edit',
@@ -103,7 +105,30 @@ async function getAllModuleKeys() {
   return _modulesCache;
 }
 
-async function getEnabledModulesForUser(userId) {
+/**
+ * When a job role has personal `attendance` and the company type offers `attendance_history`,
+ * treat team roster as enabled (same product bundle). Keeps sidebar and JWT permissions aligned.
+ */
+export async function applyAttendanceHistoryCoactivation(enabledSet, companyId) {
+  if (companyId == null || !enabledSet?.has('attendance') || enabledSet.has('attendance_history')) {
+    return;
+  }
+  const cid = Number(companyId);
+  if (!Number.isFinite(cid)) return;
+
+  const [offer] = await db.execute(
+    `SELECT 1 FROM companies c
+     INNER JOIN company_type_modules ctm
+       ON ctm.company_type_id = c.company_type_id AND ctm.module_key = 'attendance_history'
+     WHERE c.id = ?
+     LIMIT 1`,
+    [cid],
+  );
+  if (offer.length) enabledSet.add('attendance_history');
+}
+
+/** Module keys enabled for the user (job role ∩ company type). Used by permissions and sidebar. */
+export async function getEnabledModulesForUser(userId) {
   const [uRows] = await db.execute('SELECT id, company_id FROM users WHERE id = ? LIMIT 1', [userId]);
   const u = uRows[0];
   if (!u) return new Set();
@@ -124,7 +149,22 @@ async function getEnabledModulesForUser(userId) {
     WHERE jrm.job_role_id = ?
   `, [u.company_id, e.job_role_id]);
 
-  return new Set(rows.map(r => r.module_key));
+  const set = new Set(rows.map(r => r.module_key));
+  // Backward compatibility: if attendance_history was explicitly assigned on job_role_modules
+  // (e.g. manual SQL) but company_type_modules is missing the key, still honor the explicit assignment.
+  if (!set.has('attendance_history')) {
+    const [explicit] = await db.execute(
+      `SELECT 1
+         FROM job_role_modules
+        WHERE job_role_id = ?
+          AND module_key = 'attendance_history'
+        LIMIT 1`,
+      [e.job_role_id],
+    );
+    if (explicit.length) set.add('attendance_history');
+  }
+  await applyAttendanceHistoryCoactivation(set, u.company_id);
+  return set;
 }
 
 export async function userHasPermission(userId, resource, action) {
@@ -136,7 +176,23 @@ export async function userHasPermission(userId, resource, action) {
     if (perms.includes('*:*') || !moduleKeys.has(resource)) return true;
 
     const enabled = await getEnabledModulesForUser(userId);
-    return enabled.has(resource);
+    if (enabled.has(resource)) return true;
+
+    // Company admins / managers: roster visibility without a job_role_modules row.
+    if (resource === 'attendance_history' && action === 'view') {
+      const [adm] = await db.execute(
+        `SELECT LOWER(r.name) AS role_name
+           FROM users u
+           JOIN roles r ON r.id = u.role_id
+          WHERE u.id = ?
+          LIMIT 1`,
+        [userId],
+      );
+      const rn = String(adm[0]?.role_name || '');
+      if (rn === 'company_admin' || rn === 'manager') return true;
+    }
+
+    return false;
   }
   return false;
 }

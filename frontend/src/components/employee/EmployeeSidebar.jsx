@@ -19,6 +19,7 @@ import {
   TrendingUp,
   Briefcase,
   Building2,
+  CalendarRange,
 } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { getCompanySidebar } from '../../services/api.js';
@@ -26,7 +27,7 @@ import { useSidebar } from '../../context/AuthContext.jsx';
 import { navItemMatchesLocation } from '../../utils/navLinkMatch.js';
 
 const EMP_MODULE_NAV = {
-  // Always show Dashboard
+  // Dashboard appears only when Sales module is enabled.
   dashboard: { to: '/employee', label: 'Dashboard', icon: LayoutDashboard },
 
   // Module-driven items (segment-specific pipelines)
@@ -37,6 +38,7 @@ const EMP_MODULE_NAV = {
   messages: { to: '/employee/messages', label: 'Messages', icon: MessageSquare },
   settings: { to: '/employee/settings', label: 'Settings', icon: Settings },
   attendance: { to: '/employee/attendance', label: 'Attendance', icon: ClipboardList },
+  attendance_history: { to: '/employee/attendance-history', label: 'Team attendance', icon: CalendarRange },
   leave: { to: '/employee/leave', label: 'Leave', icon: PalmtreeIcon },
   expenses: { to: '/employee/expenses', label: 'Expenses', icon: Receipt },
   operations: { to: '/employee/operations', label: 'Operations', icon: Briefcase },
@@ -83,7 +85,8 @@ export default function EmployeeSidebar() {
       sales: pathname === '/employee' || pathname.startsWith('/employee/leads'),
       project_manager: pathname.startsWith('/employee/projects'),
       attendance:
-        pathname.startsWith('/employee/attendance') ||
+        pathname.startsWith('/employee/attendance-history') ||
+        /^\/employee\/attendance(\/|$)/.test(pathname) ||
         pathname.startsWith('/employee/leave'),
       on_field:
         pathname.startsWith('/employee/on-field') ||
@@ -117,8 +120,9 @@ export default function EmployeeSidebar() {
       key: 'sales',
       title: 'Sales Management',
       items: [
-        EMP_MODULE_NAV.dashboard,
-        ...(allowed.has('leads') ? [EMP_MODULE_NAV.leads] : []),
+        ...(allowed.has('leads')
+          ? [EMP_MODULE_NAV.dashboard, EMP_MODULE_NAV.leads]
+          : []),
       ],
     },
     {
@@ -139,6 +143,7 @@ export default function EmployeeSidebar() {
       title: 'Attendance',
       items: [
         ...(allowed.has('attendance') ? [EMP_MODULE_NAV.attendance] : []),
+        ...(allowed.has('attendance_history') ? [EMP_MODULE_NAV.attendance_history] : []),
         ...(hasLeave ? [EMP_MODULE_NAV.leave] : []),
       ],
     },
@@ -227,7 +232,8 @@ export default function EmployeeSidebar() {
     pathname.startsWith('/employee/leads');
   const isProjectManagerPath = pathname.startsWith('/employee/projects');
   const isAttendancePath =
-    pathname.startsWith('/employee/attendance') ||
+    pathname.startsWith('/employee/attendance-history') ||
+    /^\/employee\/attendance(\/|$)/.test(pathname) ||
     pathname.startsWith('/employee/leave');
   const isOnFieldPath =
     pathname.startsWith('/employee/on-field') ||

@@ -268,6 +268,7 @@ const MIGRATIONS = [
           check_out_time datetime DEFAULT NULL,
           check_out_lat decimal(10,8) DEFAULT NULL,
           check_out_lng decimal(11,8) DEFAULT NULL,
+          lunch_break_minutes smallint(5) UNSIGNED NOT NULL DEFAULT 0,
           hours_worked decimal(5,2) DEFAULT NULL,
           date date NOT NULL,
           created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -453,6 +454,38 @@ const MIGRATIONS = [
         if (!(await columnExists(schema, 'leads', col))) {
           await db.execute(`ALTER TABLE leads ADD COLUMN ${col} ${def}`);
         }
+      }
+    },
+  },
+
+  /* ── V013: Attendance lunch break deduction ── */
+  {
+    version: 'V013__attendance_lunch_break',
+    description: 'Store lunch break deduction minutes on attendance records',
+    up: async () => {
+      const schema = process.env.DB_NAME;
+      if (!(await columnExists(schema, 'employee_attendance', 'lunch_break_minutes'))) {
+        await db.execute(`
+          ALTER TABLE employee_attendance
+          ADD COLUMN lunch_break_minutes SMALLINT UNSIGNED NOT NULL DEFAULT 0 AFTER check_out_lng
+        `);
+      }
+    },
+  },
+
+  /* ── V014: Team attendance-by-date module (per job role via job_role_modules) ── */
+  {
+    version: 'V014__attendance_history_module',
+    description: 'Register attendance_history module for solar_retailer and enterprise company types',
+    up: async () => {
+      await db.execute(
+        `INSERT IGNORE INTO modules (key_name, display_name) VALUES ('attendance_history', 'Team attendance roster')`,
+      );
+      for (const companyTypeId of [1, 3]) {
+        await db.execute(
+          `INSERT IGNORE INTO company_type_modules (company_type_id, module_key) VALUES (?, 'attendance_history')`,
+          [companyTypeId],
+        );
       }
     },
   },

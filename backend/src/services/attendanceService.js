@@ -20,6 +20,19 @@ function normalizeCoordinate(value, kind) {
   return n;
 }
 
+function normalizeLunchBreakMinutes(value) {
+  if (value === null || value === undefined || value === '') {
+    return 0;
+  }
+
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) {
+    throw new Error('Invalid lunch break minutes value.');
+  }
+
+  return Math.min(Math.round(n), 480);
+}
+
 export async function getEmployeeIdByUserId(companyId, userId) {
   const [rows] = await db.query(
     'SELECT id FROM employees WHERE company_id = ? AND user_id = ? AND status = "active" LIMIT 1',
@@ -100,7 +113,7 @@ export async function getTodayStatus(companyId, employeeId) {
   return rows.length ? rows[0] : null;
 }
 
-export async function checkIn(companyId, employeeId, lat, lng) {
+export async function checkIn(companyId, employeeId, lat, lng, lunchBreakMinutes = 0) {
   // Check if there's an open check-in today
   const [existing] = await db.query(
     'SELECT * FROM employee_attendance WHERE company_id = ? AND employee_id = ? AND date = CURDATE() AND check_out_time IS NULL LIMIT 1',
@@ -122,17 +135,18 @@ export async function checkIn(companyId, employeeId, lat, lng) {
 
   const checkInLat = normalizeCoordinate(lat, 'lat');
   const checkInLng = normalizeCoordinate(lng, 'lng');
+  const lunchBreakMinutesValue = normalizeLunchBreakMinutes(lunchBreakMinutes);
 
   const [result] = await db.query(
     `INSERT INTO employee_attendance 
-      (company_id, employee_id, check_in_time, check_in_lat, check_in_lng, date) 
-     VALUES (?, ?, NOW(), ?, ?, CURDATE())`,
-    [companyId, employeeId, checkInLat, checkInLng]
+      (company_id, employee_id, check_in_time, check_in_lat, check_in_lng, lunch_break_minutes, date) 
+     VALUES (?, ?, NOW(), ?, ?, ?, CURDATE())`,
+    [companyId, employeeId, checkInLat, checkInLng, lunchBreakMinutesValue]
   );
   return { id: result.insertId };
 }
 
-export async function checkOut(companyId, employeeId, lat, lng) {
+export async function checkOut(companyId, employeeId, lat, lng, lunchBreakMinutes = null) {
   // Find open check-in
   const [existing] = await db.query(
     'SELECT * FROM employee_attendance WHERE company_id = ? AND employee_id = ? AND date = CURDATE() AND check_out_time IS NULL ORDER BY created_at DESC LIMIT 1',
@@ -146,16 +160,25 @@ export async function checkOut(companyId, employeeId, lat, lng) {
   const attendanceId = existing[0].id;
   const checkInTime = new Date(existing[0].check_in_time);
   const now = new Date();
-  const hoursWorked = (now - checkInTime) / (1000 * 60 * 60);
+  const storedLunchBreakMinutes = normalizeLunchBreakMinutes(existing[0].lunch_break_minutes);
+  const requestedLunchBreakMinutes =
+    lunchBreakMinutes === null || lunchBreakMinutes === undefined || lunchBreakMinutes === ''
+      ? null
+      : normalizeLunchBreakMinutes(lunchBreakMinutes);
+  const appliedLunchBreakMinutes = requestedLunchBreakMinutes ?? storedLunchBreakMinutes;
+  const hoursWorked = Math.max(
+    0,
+    (now - checkInTime) / (1000 * 60 * 60) - appliedLunchBreakMinutes / 60,
+  );
 
   const checkOutLat = normalizeCoordinate(lat, 'lat');
   const checkOutLng = normalizeCoordinate(lng, 'lng');
 
   await db.query(
     `UPDATE employee_attendance 
-     SET check_out_time = NOW(), check_out_lat = ?, check_out_lng = ?, hours_worked = ? 
+     SET check_out_time = NOW(), check_out_lat = ?, check_out_lng = ?, lunch_break_minutes = ?, hours_worked = ? 
      WHERE id = ?`,
-    [checkOutLat, checkOutLng, hoursWorked, attendanceId]
+    [checkOutLat, checkOutLng, appliedLunchBreakMinutes, hoursWorked, attendanceId]
   );
 
   return { id: attendanceId, hoursWorked };
@@ -165,6 +188,40 @@ export async function getHistory(companyId, employeeId, limit = 30) {
   const [rows] = await db.query(
     'SELECT * FROM employee_attendance WHERE company_id = ? AND employee_id = ? ORDER BY date DESC, check_in_time DESC LIMIT ?',
     [companyId, employeeId, limit]
+  );
+  return rows;
+}
+
+/** All employees for a company on one calendar day, with latest attendance row if any. */
+export async function listCompanyAttendanceForDate(companyId, dateStr) {
+  const [rows] = await db.query(
+    `SELECT
+       e.id AS employee_id,
+       e.employee_code,
+       e.first_name,
+       e.last_name,
+       e.email,
+       e.status AS employee_status,
+       ea.id AS attendance_id,
+       ea.check_in_time,
+       ea.check_out_time,
+       ea.hours_worked,
+       ea.lunch_break_minutes,
+       ea.date AS attendance_date
+     FROM employees e
+     LEFT JOIN (
+       SELECT a.*
+         FROM employee_attendance a
+         INNER JOIN (
+           SELECT employee_id, MAX(id) AS max_id
+             FROM employee_attendance
+            WHERE company_id = ? AND date = ?
+            GROUP BY employee_id
+         ) pick ON pick.max_id = a.id
+     ) ea ON ea.employee_id = e.id
+    WHERE e.company_id = ?
+    ORDER BY e.last_name ASC, e.first_name ASC`,
+    [companyId, dateStr, companyId]
   );
   return rows;
 }

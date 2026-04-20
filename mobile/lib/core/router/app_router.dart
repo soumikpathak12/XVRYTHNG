@@ -22,6 +22,7 @@ import '../../screens/installation/installation_list_screen.dart';
 import '../../screens/installation/installation_detail_screen.dart';
 import '../../screens/messages/messages_screen.dart';
 import '../../screens/attendance/attendance_screen.dart';
+import '../../screens/attendance/team_attendance_roster_screen.dart';
 import '../../screens/leave/leave_screen.dart';
 import '../../screens/expenses/expenses_screen.dart';
 import '../../screens/approvals/approvals_screen.dart';
@@ -67,6 +68,12 @@ GoRouter createRouter(AuthProvider authProvider) {
       final isSplash = state.matchedLocation == '/splash';
 
       if (!isLoggedIn && !isAuthRoute) return '/login';
+      if (isLoggedIn &&
+          (auth.user?.isOnFieldRole == true ||
+              auth.user?.isFieldAgent == true) &&
+          state.matchedLocation == '/employee') {
+        return '/employee/on-field';
+      }
       if (isLoggedIn && (isAuthRoute || isSplash))
         return auth.getDefaultRoute();
       return null;
@@ -213,6 +220,10 @@ GoRouter createRouter(AuthProvider authProvider) {
           GoRoute(
             path: '/admin/attendance',
             builder: (context, state) => const ApprovalsScreen(),
+          ),
+          GoRoute(
+            path: '/admin/attendance-history',
+            builder: (context, state) => const TeamAttendanceRosterScreen(),
           ),
           GoRoute(
             path: '/admin/payroll',
@@ -365,6 +376,10 @@ GoRouter createRouter(AuthProvider authProvider) {
             builder: (context, state) => const ApprovalsScreen(),
           ),
           GoRoute(
+            path: '/dashboard/attendance-history',
+            builder: (context, state) => const TeamAttendanceRosterScreen(),
+          ),
+          GoRoute(
             path: '/dashboard/payroll',
             builder: (context, state) => const PayrollScreen(),
           ),
@@ -416,7 +431,14 @@ GoRouter createRouter(AuthProvider authProvider) {
         routes: [
           GoRoute(
             path: '/employee',
-            builder: (context, state) => const DashboardScreen(),
+            builder: (context, state) {
+              final auth = context.read<AuthProvider>();
+              if (auth.user?.isOnFieldRole == true ||
+                  auth.user?.isFieldAgent == true) {
+                return const OnFieldScreen();
+              }
+              return const DashboardScreen();
+            },
           ),
           GoRoute(
             path: '/employee/leads',
@@ -445,6 +467,10 @@ GoRouter createRouter(AuthProvider authProvider) {
           GoRoute(
             path: '/employee/attendance',
             builder: (context, state) => const AttendanceScreen(),
+          ),
+          GoRoute(
+            path: '/employee/attendance-history',
+            builder: (context, state) => const TeamAttendanceRosterScreen(),
           ),
           GoRoute(
             path: '/employee/leave',

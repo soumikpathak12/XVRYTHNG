@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS `employee_attendance` (
   `check_out_time` datetime DEFAULT NULL,
   `check_out_lat` decimal(10,8) DEFAULT NULL,
   `check_out_lng` decimal(11,8) DEFAULT NULL,
+  `lunch_break_minutes` smallint(5) UNSIGNED NOT NULL DEFAULT 0,
   `hours_worked` decimal(5,2) DEFAULT NULL,
   `date` date NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,

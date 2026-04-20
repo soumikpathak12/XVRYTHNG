@@ -94,3 +94,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icon/app_icon.jpeg
+    - assets/icon/logo-removebg.png

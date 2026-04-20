@@ -62,12 +62,17 @@ class OnFieldService {
   }
 
   /// Fetch all on-field events (both calendar types merged).
-  Future<List<OnFieldEvent>> getAllEvents({String? from, String? to, int? companyId}) async {
+  Future<List<OnFieldEvent>> getAllEvents({
+    String? from,
+    String? to,
+    int? companyId,
+    bool assignedOnly = false,
+  }) async {
     final results = await Future.wait([
       getCalendarEvents(from: from, to: to, companyId: companyId),
-      getCalendarLeads(from: from, to: to, companyId: companyId),
+      if (!assignedOnly) getCalendarLeads(from: from, to: to, companyId: companyId),
     ]);
-    final merged = [...results[0], ...results[1]];
+    final merged = [...results[0], if (!assignedOnly) ...results[1]];
     merged.sort((a, b) => a.start.compareTo(b.start));
     return merged;
   }

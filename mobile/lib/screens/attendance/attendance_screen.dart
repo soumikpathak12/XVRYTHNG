@@ -9,6 +9,7 @@ import '../../models/attendance.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/attendance_service.dart';
 import '../../utils/melbourne_time.dart';
+import '../../widgets/common/attendance_lunch_break_sheet.dart';
 import '../../widgets/common/empty_state.dart';
 import '../../widgets/common/loading_overlay.dart';
 import '../../widgets/common/shell_scaffold_scope.dart';
@@ -90,6 +91,8 @@ class _AttendanceScreenState extends State<AttendanceScreen>
           setState(() => _elapsed = diff.isNegative ? Duration.zero : diff);
         }
       });
+    } else {
+      _elapsed = Duration.zero;
     }
   }
 
@@ -186,25 +189,41 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     );
   }
 
-  Future<void> _handleCheckIn() async {
+  Future<void> _handleAttendanceAction(
+    bool isCheckIn, {
+    required int lunchBreakMinutes,
+  }) async {
     setState(() => _actionLoading = true);
     try {
       final pos = await _getPosition();
       final companyId = context.read<AuthProvider>().user?.companyId;
-      final result = await _service.checkIn(
-        pos.latitude,
-        pos.longitude,
-        companyId: companyId,
-      );
+      final result = isCheckIn
+          ? await _service.checkIn(
+              pos.latitude,
+              pos.longitude,
+              companyId: companyId,
+              lunchBreakMinutes: lunchBreakMinutes,
+            )
+          : await _service.checkOut(
+              pos.latitude,
+              pos.longitude,
+              companyId: companyId,
+              lunchBreakMinutes: lunchBreakMinutes,
+            );
       setState(() => _today = result);
       _startLiveTimer();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Checked in successfully'),
+          SnackBar(
+            content: Text(
+              isCheckIn ? 'Checked in successfully' : 'Checked out successfully',
+            ),
             backgroundColor: AppColors.success,
           ),
         );
+      }
+      if (!isCheckIn) {
+        await _loadAll();
       }
     } catch (e) {
       final message = e.toString().replaceFirst('Exception: ', '');
@@ -223,45 +242,22 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     }
   }
 
+  Future<void> _handleCheckIn() async {
+    final lunchBreakMinutes = await showAttendanceLunchBreakSheet(
+      context,
+      actionLabel: 'check in',
+    );
+    if (lunchBreakMinutes == null) return;
+    await _handleAttendanceAction(true, lunchBreakMinutes: lunchBreakMinutes);
+  }
+
   Future<void> _handleCheckOut() async {
-    setState(() => _actionLoading = true);
-    try {
-      final pos = await _getPosition();
-      final companyId = context.read<AuthProvider>().user?.companyId;
-      final result = await _service.checkOut(
-        pos.latitude,
-        pos.longitude,
-        companyId: companyId,
-      );
-      _liveTimer?.cancel();
-      setState(() {
-        _today = result;
-        _elapsed = Duration.zero;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Checked out successfully'),
-            backgroundColor: AppColors.success,
-          ),
-        );
-      }
-      _loadAll();
-    } catch (e) {
-      final message = e.toString().replaceFirst('Exception: ', '');
-      if (message.contains('permanently denied')) {
-        await _showLocationSettingsPrompt();
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Check-out failed: $message'),
-            backgroundColor: AppColors.danger,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _actionLoading = false);
-    }
+    final lunchBreakMinutes = await showAttendanceLunchBreakSheet(
+      context,
+      actionLabel: 'check out',
+    );
+    if (lunchBreakMinutes == null) return;
+    await _handleAttendanceAction(false, lunchBreakMinutes: lunchBreakMinutes);
   }
 
   /// Matches web: completed shift with fewer than 8 recorded hours may request a correction.
@@ -271,6 +267,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
           checkInRaw: r.checkInTime,
           checkOutRaw: r.checkOutTime,
           apiHours: r.hoursWorked,
+          lunchBreakMinutes: r.lunchBreakMinutes,
         ) <
         8;
   }
@@ -281,6 +278,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
           checkInRaw: t.checkInTime,
           checkOutRaw: t.checkOutTime,
           apiHours: t.hoursWorked,
+          lunchBreakMinutes: t.lunchBreakMinutes,
         ) <
         8;
   }
@@ -289,6 +287,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     required String? checkInRaw,
     required String? checkOutRaw,
     required double? apiHours,
+    int? lunchBreakMinutes,
   }) {
     if (apiHours != null && apiHours > 0) return apiHours;
     final checkIn = checkInRaw == null ? null : _parseTime(checkInRaw);
@@ -296,7 +295,9 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     if (checkIn == null || checkOut == null) return apiHours ?? 0;
     final duration = checkOut.difference(checkIn);
     if (duration.isNegative) return apiHours ?? 0;
-    return duration.inMinutes / 60.0;
+    final deduction = (lunchBreakMinutes ?? 0) / 60.0;
+    final workedHours = duration.inMinutes / 60.0 - deduction;
+    return workedHours.isNegative ? 0 : workedHours;
   }
 
   AttendanceRecord? _recordFromToday(AttendanceToday t) {
@@ -309,6 +310,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       checkInTime: t.checkInTime,
       checkOutTime: t.checkOutTime,
       hoursWorked: t.hoursWorked,
+      lunchBreakMinutes: t.lunchBreakMinutes,
     );
   }
 
@@ -468,7 +470,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                             const SizedBox(height: 8),
                             Text(
                               'Check in: ${_fmtTime(record.checkInTime)} · Check out: ${_fmtTime(record.checkOutTime)} · '
-                              '${_effectiveWorkedHours(checkInRaw: record.checkInTime, checkOutRaw: record.checkOutTime, apiHours: record.hoursWorked).toStringAsFixed(2)} h',
+                              '${_effectiveWorkedHours(checkInRaw: record.checkInTime, checkOutRaw: record.checkOutTime, apiHours: record.hoursWorked, lunchBreakMinutes: record.lunchBreakMinutes).toStringAsFixed(2)} h',
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: AppColors.textSecondary,
@@ -918,6 +920,15 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                   Icons.arrow_upward_rounded,
                   AppColors.danger,
                 ),
+                if ((_today?.lunchBreakMinutes ?? 0) > 0) ...[
+                  Container(width: 1, height: 40, color: AppColors.divider),
+                  _timeColumn(
+                    'Lunch',
+                    '${_today!.lunchBreakMinutes}m',
+                    Icons.restaurant_outlined,
+                    const Color(0xFFE67E22),
+                  ),
+                ],
                 if (isCheckedIn) ...[
                   Container(width: 1, height: 40, color: AppColors.divider),
                   _timeColumn(
@@ -1001,6 +1012,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       checkInRaw: _today?.checkInTime,
       checkOutRaw: _today?.checkOutTime,
       apiHours: _today?.hoursWorked,
+      lunchBreakMinutes: _today?.lunchBreakMinutes,
     );
     return Card(
       elevation: 1,
@@ -1035,6 +1047,14 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                     color: AppColors.textSecondary,
                   ),
                 ),
+                if ((_today?.lunchBreakMinutes ?? 0) > 0)
+                  Text(
+                    'Includes ${_today!.lunchBreakMinutes} minutes lunch deduction',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
               ],
             ),
           ],
@@ -1128,7 +1148,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    '${_effectiveWorkedHours(checkInRaw: r.checkInTime, checkOutRaw: r.checkOutTime, apiHours: r.hoursWorked).toStringAsFixed(1)}h',
+                    '${_effectiveWorkedHours(checkInRaw: r.checkInTime, checkOutRaw: r.checkOutTime, apiHours: r.hoursWorked, lunchBreakMinutes: r.lunchBreakMinutes).toStringAsFixed(1)}h',
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 14,

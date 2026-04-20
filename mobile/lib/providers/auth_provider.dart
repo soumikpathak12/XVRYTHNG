@@ -28,6 +28,9 @@ class AuthProvider extends ChangeNotifier {
 
   String getDefaultRoute() {
     if (_user == null) return '/login';
+    if (_user!.isOnFieldRole || _user!.isFieldAgent) {
+      return '/employee/on-field';
+    }
     switch (_user!.role) {
       case 'super_admin':
         return '/admin';

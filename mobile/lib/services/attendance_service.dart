@@ -20,15 +20,21 @@ class AttendanceService {
     }
   }
 
-  Future<AttendanceToday> checkIn(double lat, double lng, {int? companyId}) async {
+  Future<AttendanceToday> checkIn(
+    double lat,
+    double lng, {
+    int? companyId,
+    int lunchBreakMinutes = 0,
+  }) async {
     try {
       final response = await _api.dio.post(
         '/api/employees/attendance/check-in',
         queryParameters: companyId != null ? {'companyId': companyId} : null,
         data: {
-        'lat': lat,
-        'lng': lng,
-      },
+          'lat': lat,
+          'lng': lng,
+          'lunchBreakMinutes': lunchBreakMinutes,
+        },
       );
       return AttendanceToday.fromJson(
           response.data['data'] ?? response.data);
@@ -37,15 +43,21 @@ class AttendanceService {
     }
   }
 
-  Future<AttendanceToday> checkOut(double lat, double lng, {int? companyId}) async {
+  Future<AttendanceToday> checkOut(
+    double lat,
+    double lng, {
+    int? companyId,
+    int? lunchBreakMinutes,
+  }) async {
     try {
       final response = await _api.dio.post(
         '/api/employees/attendance/check-out',
         queryParameters: companyId != null ? {'companyId': companyId} : null,
         data: {
-        'lat': lat,
-        'lng': lng,
-      },
+          'lat': lat,
+          'lng': lng,
+          if (lunchBreakMinutes != null) 'lunchBreakMinutes': lunchBreakMinutes,
+        },
       );
       return AttendanceToday.fromJson(
           response.data['data'] ?? response.data);
@@ -107,6 +119,32 @@ class AttendanceService {
       final data = response.data['data'] ?? response.data;
       if (data is List) {
         return data.map((e) => AttendanceEditRequest.fromJson(e)).toList();
+      }
+      return [];
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  /// Team roster for one calendar day (`attendance_history:view`). Super admin must pass [companyId].
+  Future<List<TeamAttendanceRosterRow>> getCompanyDayRoster(
+    String dateYyyyMmDd, {
+    int? companyId,
+  }) async {
+    try {
+      final qp = <String, dynamic>{'date': dateYyyyMmDd};
+      if (companyId != null) qp['companyId'] = companyId;
+      final response = await _api.get(
+        '/api/employees/attendance/company-day',
+        queryParameters: qp,
+      );
+      final data = response.data['data'] ?? response.data;
+      if (data is List) {
+        return data
+            .map((e) => TeamAttendanceRosterRow.fromJson(
+                  Map<String, dynamic>.from(e as Map),
+                ))
+            .toList();
       }
       return [];
     } on DioException catch (e) {

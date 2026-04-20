@@ -7,6 +7,7 @@ import {
   HardHat,
   Factory,
   Clock3,
+  CalendarRange,
   MessageSquare,
   MessageCircle,
   Settings,
@@ -48,6 +49,7 @@ const RAW_NAV = [
   { to: '/admin/invoicing', label: 'Invoicing', icon: Calculator, permission: { resource: 'payroll', action: 'view' } },
   { to: '/admin/profit-loss-analysis', label: 'Profit/Loss Analysis', icon: Calculator, permission: { resource: 'payroll', action: 'view' } },
   { to: '/admin/attendance', label: 'Approval', icon: Clock3, permission: { resource: 'attendance', action: 'view' } },
+  { to: '/admin/attendance-history', label: 'Team attendance', icon: CalendarRange, permission: { resource: 'attendance_history', action: 'view' } },
   // Referrals is now accessible inside Settings → Referral Program tab
   { to: '/admin/messages', label: 'Messages', icon: MessageSquare, permission: { resource: 'messages', action: 'view' } },
   { to: '/admin/support-tickets', label: 'Customer Support Tickets', icon: MessageCircle, permission: { resource: 'support', action: 'view' } },
@@ -138,6 +140,7 @@ export default function SuperAdminSidebar({
       findByTo('/admin/operations'),
       findByTo('/admin/employees'),
       findByTo('/admin/attendance'),
+      findByTo('/admin/attendance-history'),
       findByTo('/admin/companies'),
       findByTo('/admin/trial-users'),
       findByTo('/admin/customers'),
@@ -183,7 +186,8 @@ export default function SuperAdminSidebar({
       operational_management:
         pathname.startsWith('/admin/operations') ||
         pathname.startsWith('/admin/employees') ||
-        pathname.startsWith('/admin/attendance') ||
+        pathname.startsWith('/admin/attendance-history') ||
+        (pathname.startsWith('/admin/attendance') && !pathname.startsWith('/admin/attendance-history')) ||
         pathname.startsWith('/admin/companies') ||
         pathname.startsWith('/admin/trial-users') ||
         pathname.startsWith('/admin/customers') ||
@@ -315,6 +319,9 @@ export default function SuperAdminSidebar({
       if (String(candidate.to).includes('?')) {
         return navItemMatchesLocation(candidate, location.pathname, location.search);
       }
+      if (candidate.to === '/admin/attendance') {
+        return location.pathname === '/admin/attendance';
+      }
       return location.pathname.startsWith(candidate.to);
     };
 
@@ -372,15 +379,18 @@ export default function SuperAdminSidebar({
             >
               {item.children.map((child) => {
                 // Match NavLink's `end` behavior to keep submenu highlight accurate.
-                const isChildActive = child.to === '/admin/projects'
-                  ? location.pathname === child.to
-                  : location.pathname.startsWith(child.to);
+                const isChildActive =
+                  child.to === '/admin/projects'
+                    ? location.pathname === child.to
+                    : child.to === '/admin/attendance'
+                      ? location.pathname === '/admin/attendance'
+                      : location.pathname.startsWith(child.to);
 
                 return (
                   <NavLink
                     key={child.to}
                     to={child.to}
-                    end={child.to === '/admin/projects'}
+                    end={child.to === '/admin/projects' || child.to === '/admin/attendance'}
                     style={{
                       ...childLink,
                       ...(isChildActive ? submenuActiveStyle : {}),
@@ -416,7 +426,8 @@ export default function SuperAdminSidebar({
       item.to === '/admin/settings/checklist-templates' ||
       // Avoid prefix-match highlighting for project subroutes:
       // "/admin/projects" should not appear active on "/admin/projects/retailer".
-      item.to === '/admin/projects';
+      item.to === '/admin/projects' ||
+      item.to === '/admin/attendance';
     const queryAware =
       typeof item.to === 'string' && item.to.includes('?');
     return (
@@ -554,15 +565,22 @@ export default function SuperAdminSidebar({
                 );
               }
               const isPathActive = sec.items.some((item) => {
-                if (item.children?.length) return item.children.some((child) => {
-                  if (String(child.to).includes('?')) {
-                    return navItemMatchesLocation(child, location.pathname, location.search);
-                  }
-                  return location.pathname.startsWith(child.to);
-                });
-                return item.to
-                  ? navItemMatchesLocation(item, location.pathname, location.search)
-                  : false;
+                if (item.children?.length) {
+                  return item.children.some((child) => {
+                    if (String(child.to).includes('?')) {
+                      return navItemMatchesLocation(child, location.pathname, location.search);
+                    }
+                    if (child.to === '/admin/attendance') {
+                      return location.pathname === '/admin/attendance';
+                    }
+                    return location.pathname.startsWith(child.to);
+                  });
+                }
+                if (!item.to) return false;
+                if (item.to === '/admin/attendance') {
+                  return location.pathname === '/admin/attendance';
+                }
+                return navItemMatchesLocation(item, location.pathname, location.search);
               });
               // Use openKeys as the source of truth so a user can collapse even when the current route is inside the module.
               const isOpen = openKeys[sec.key] ?? false;

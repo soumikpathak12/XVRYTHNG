@@ -68,6 +68,7 @@ import InstallationJobList from './pages/InstallationJobList.jsx';
 import OnFieldPage from './pages/employee/OnFieldPage.jsx';
 import SiteInspectionLeadsPage from './pages/employee/SiteInspectionLeadsPage.jsx';
 import PayrollPage from './pages/PayrollPage.jsx';
+import TeamAttendanceHistoryPage from './pages/TeamAttendanceHistoryPage.jsx';
 function PlaceholderPage({ title, message, children }) {
   return (
     <div style={{ padding: '2rem', textAlign: 'center', color: '#1A1A2E' }}>
@@ -119,10 +120,14 @@ function LoginPage() {
  * Redirects to role-specific default route.
  * Super Admin → /admin; Company Admin → /dashboard; Field Agent → /employee; Manager → /dashboard.
  */
-function getDefaultRoute(role) {
+function getDefaultRoute(role, user = null) {
   const r = (role || '').toLowerCase();
+  const jobRoleId = Number(
+    user?.jobRoleId ?? user?.job_role_id ?? user?.employee?.job_role_id ?? 0
+  );
   if (r === 'super_admin') return '/admin';
   if (r === 'company_admin' || r === 'manager') return '/dashboard';
+  if (r === 'field_agent' && jobRoleId === 2) return '/employee/on-field';
   if (r === 'field_agent') return '/employee';
   return '/dashboard';
 }
@@ -131,7 +136,7 @@ function getDefaultRoute(role) {
 function RequireAuth({ children }) {
   const { isAuthenticated, user } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  const defaultRoute = getDefaultRoute(user?.role);
+  const defaultRoute = getDefaultRoute(user?.role, user);
   return <Navigate to={defaultRoute} replace />;
 }
 
@@ -404,6 +409,15 @@ function App() {
           />
 
           <Route
+            path="attendance-history"
+            element={
+              <RequirePermission resource="attendance_history" action="view">
+                <TeamAttendanceHistoryPage />
+              </RequirePermission>
+            }
+          />
+
+          <Route
             path="referrals"
             element={
               <RequirePermission resource="referrals" action="view">
@@ -504,6 +518,14 @@ function App() {
           <Route path="on-field" element={<PlaceholderPage title="On-Field" message="Field schedules & activities." />} />
           <Route path="operations" element={<ApprovalsPage />} />
           <Route path="attendance" element={<ApprovalsPage />} />
+          <Route
+            path="attendance-history"
+            element={
+              <RequirePermission resource="attendance_history" action="view">
+                <TeamAttendanceHistoryPage />
+              </RequirePermission>
+            }
+          />
           <Route path="payroll" element={<RequirePermission resource="payroll" action="view"><PayrollPage /></RequirePermission>} />
           <Route path="referrals" element={<ReferralsPage />} />
           <Route path="messages" element={<MessagesPage />} />
@@ -609,6 +631,15 @@ function App() {
             element={
               <RequirePermission resource="attendance" action="view">
                 <AttendancePage />
+              </RequirePermission>
+            }
+          />
+
+          <Route
+            path="attendance-history"
+            element={
+              <RequirePermission resource="attendance_history" action="view">
+                <TeamAttendanceHistoryPage />
               </RequirePermission>
             }
           />

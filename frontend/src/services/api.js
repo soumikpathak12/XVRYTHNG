@@ -763,6 +763,15 @@ export async function getCompanySidebar() {
   // Response is wrapped: { success: true, data: { role, modules } }
   return response.data ?? { role: null, modules: [] };
 }
+
+/** GET /api/employees/attendance/company-day?date=YYYY-MM-DD&companyId= — team roster (requires attendance_history:view). Super admin must pass companyId. */
+export async function getCompanyAttendanceByDate(dateYYYYMMDD, companyId) {
+  const q = new URLSearchParams({ date: String(dateYYYYMMDD).trim() });
+  if (companyId != null && companyId !== '') {
+    q.set('companyId', String(companyId));
+  }
+  return authFetchJSON(`/api/employees/attendance/company-day?${q.toString()}`, { method: 'GET' });
+}
 export async function getCompanyProfile() {
   return authFetchJSON('/api/company/me', { method: 'GET' });
 }

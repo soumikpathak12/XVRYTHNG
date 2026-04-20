@@ -91,6 +91,12 @@ class RoleSidebarDrawer {
           icon: Icons.access_time_outlined,
           route: '/dashboard/attendance',
         );
+      case 'attendance_history':
+        return const DrawerItem(
+          label: 'Team attendance',
+          icon: Icons.calendar_view_day_outlined,
+          route: '/dashboard/attendance-history',
+        );
       case 'payroll':
         return const DrawerItem(
           label: 'Payroll',
@@ -125,16 +131,17 @@ class RoleSidebarDrawer {
     final allowed = modules.toSet();
     final items = <DrawerItem>[];
 
-    // Sales Management — always show employee home dashboard (web).
-    items.add(const DrawerItem.divider(label: 'Sales Management'));
-    items.add(
-      const DrawerItem(
-        label: 'Dashboard',
-        icon: Icons.home_outlined,
-        route: '/employee',
-      ),
-    );
+    // Sales Management appears only when leads module is enabled.
+    // This hides Sales/Dashboard for on-field focused roles (e.g. job_role_id = 2).
     if (allowed.contains('leads')) {
+      items.add(const DrawerItem.divider(label: 'Sales Management'));
+      items.add(
+        const DrawerItem(
+          label: 'Dashboard',
+          icon: Icons.home_outlined,
+          route: '/employee',
+        ),
+      );
       items.add(
         const DrawerItem(
           label: 'Leads Kanban',
@@ -170,8 +177,9 @@ class RoleSidebarDrawer {
     }
 
     final hasAttendance = allowed.contains('attendance');
+    final hasTeamRoster = allowed.contains('attendance_history');
     const hasLeave = true;
-    if (hasAttendance || hasLeave) {
+    if (hasAttendance || hasTeamRoster || hasLeave) {
       items.add(const DrawerItem.divider(label: 'Attendance'));
       if (hasAttendance) {
         items.add(
@@ -179,6 +187,15 @@ class RoleSidebarDrawer {
             label: 'Attendance',
             icon: Icons.fact_check_outlined,
             route: '/employee/attendance',
+          ),
+        );
+      }
+      if (hasTeamRoster) {
+        items.add(
+          const DrawerItem(
+            label: 'Team attendance',
+            icon: Icons.calendar_view_day_outlined,
+            route: '/employee/attendance-history',
           ),
         );
       }

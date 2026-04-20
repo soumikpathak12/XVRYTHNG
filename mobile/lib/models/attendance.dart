@@ -10,6 +10,17 @@ double? _jsonToDouble(dynamic v) {
   }
   return null;
 }
+int? _jsonToInt(dynamic v) {
+  if (v == null) return null;
+  if (v is int) return v;
+  if (v is double) return v.toInt();
+  if (v is String) {
+    final t = v.trim();
+    if (t.isEmpty) return null;
+    return int.tryParse(t);
+  }
+  return null;
+}
 
 class AttendanceToday {
   final int? id;
@@ -17,6 +28,7 @@ class AttendanceToday {
   final String? checkInTime;
   final String? checkOutTime;
   final double? hoursWorked;
+  final int? lunchBreakMinutes;
   final double? checkInLat;
   final double? checkInLng;
   final double? checkOutLat;
@@ -28,6 +40,7 @@ class AttendanceToday {
     this.checkInTime,
     this.checkOutTime,
     this.hoursWorked,
+    this.lunchBreakMinutes,
     this.checkInLat,
     this.checkInLng,
     this.checkOutLat,
@@ -47,6 +60,7 @@ class AttendanceToday {
         checkInTime: json['check_in_time'],
         checkOutTime: json['check_out_time'],
         hoursWorked: _jsonToDouble(json['hours_worked']),
+        lunchBreakMinutes: _jsonToInt(json['lunch_break_minutes']),
         checkInLat: _jsonToDouble(json['check_in_lat']),
         checkInLng: _jsonToDouble(json['check_in_lng']),
         checkOutLat: _jsonToDouble(json['check_out_lat']),
@@ -60,6 +74,7 @@ class AttendanceRecord {
   final String? checkInTime;
   final String? checkOutTime;
   final double? hoursWorked;
+  final int? lunchBreakMinutes;
 
   AttendanceRecord({
     required this.id,
@@ -67,6 +82,7 @@ class AttendanceRecord {
     this.checkInTime,
     this.checkOutTime,
     this.hoursWorked,
+    this.lunchBreakMinutes,
   });
 
   factory AttendanceRecord.fromJson(Map<String, dynamic> json) =>
@@ -78,6 +94,7 @@ class AttendanceRecord {
         checkInTime: json['check_in_time'],
         checkOutTime: json['check_out_time'],
         hoursWorked: _jsonToDouble(json['hours_worked']),
+        lunchBreakMinutes: _jsonToInt(json['lunch_break_minutes']),
       );
 }
 
@@ -124,5 +141,48 @@ class AttendanceEditRequest {
         reviewerNote: json['reviewer_note'],
         employeeName: json['employee_name'],
         employeeCode: json['employee_code'],
+      );
+}
+
+/// One row from GET /api/employees/attendance/company-day (employee + optional attendance).
+class TeamAttendanceRosterRow {
+  final int employeeId;
+  final String? employeeCode;
+  final String firstName;
+  final String lastName;
+  final String? employeeStatus;
+  final int? attendanceId;
+  final String? checkInTime;
+  final String? checkOutTime;
+  final double? hoursWorked;
+  final int? lunchBreakMinutes;
+
+  TeamAttendanceRosterRow({
+    required this.employeeId,
+    this.employeeCode,
+    required this.firstName,
+    required this.lastName,
+    this.employeeStatus,
+    this.attendanceId,
+    this.checkInTime,
+    this.checkOutTime,
+    this.hoursWorked,
+    this.lunchBreakMinutes,
+  });
+
+  String get displayName => '$firstName $lastName'.trim();
+
+  factory TeamAttendanceRosterRow.fromJson(Map<String, dynamic> json) =>
+      TeamAttendanceRosterRow(
+        employeeId: _jsonToInt(json['employee_id']) ?? 0,
+        employeeCode: json['employee_code']?.toString(),
+        firstName: json['first_name']?.toString() ?? '',
+        lastName: json['last_name']?.toString() ?? '',
+        employeeStatus: json['employee_status']?.toString(),
+        attendanceId: _jsonToInt(json['attendance_id']),
+        checkInTime: json['check_in_time']?.toString(),
+        checkOutTime: json['check_out_time']?.toString(),
+        hoursWorked: _jsonToDouble(json['hours_worked']),
+        lunchBreakMinutes: _jsonToInt(json['lunch_break_minutes']),
       );
 }

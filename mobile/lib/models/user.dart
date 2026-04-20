@@ -5,16 +5,25 @@ class User {
   final String name;
   final String email;
   final String role;
+  final int? jobRoleId;
   final int? companyId;
   final String? companyName;
   final String? avatarUrl;
   final bool needsPasswordChange;
+
+  static int? _parseInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    return int.tryParse(value.toString());
+  }
 
   User({
     required this.id,
     required this.name,
     required this.email,
     required this.role,
+    this.jobRoleId,
     this.companyId,
     this.companyName,
     this.avatarUrl,
@@ -40,6 +49,18 @@ class User {
         name: json['name'] ?? '',
         email: json['email'] ?? '',
         role: json['role'] ?? '',
+        jobRoleId: _parseInt(
+          json['jobRoleId'] ??
+              json['job_role_id'] ??
+              (json['employee'] is Map
+                  ? (json['employee']['jobRoleId'] ??
+                      json['employee']['job_role_id'] ??
+                      (json['employee']['jobRole'] is Map
+                          ? json['employee']['jobRole']['id']
+                          : null))
+                  : null) ??
+              (json['jobRole'] is Map ? json['jobRole']['id'] : null),
+        ),
         companyId: json['companyId'] ?? json['company_id'],
         companyName: json['companyName'] ?? json['company_name'],
         avatarUrl: _normalizeAvatarUrl(
@@ -58,6 +79,7 @@ class User {
         'name': name,
         'email': email,
         'role': role,
+        'jobRoleId': jobRoleId,
         'companyId': companyId,
         'companyName': companyName,
         'avatarUrl': avatarUrl,
@@ -67,4 +89,5 @@ class User {
   bool get isCompanyAdmin => role == 'company_admin';
   bool get isManager => role == 'manager';
   bool get isFieldAgent => role == 'field_agent';
+  bool get isOnFieldRole => jobRoleId == 2;
 }

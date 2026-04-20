@@ -17,6 +17,7 @@ import '../../providers/on_field_provider.dart';
 import '../../services/attendance_service.dart';
 import '../../services/companies_service.dart';
 import '../../utils/melbourne_time.dart';
+import '../../widgets/common/attendance_lunch_break_sheet.dart';
 import '../../widgets/common/shell_scaffold_scope.dart';
 import '../../widgets/common/loading_overlay.dart';
 
@@ -80,6 +81,8 @@ class _OnFieldScreenState extends State<OnFieldScreen> {
     context.read<OnFieldProvider>().loadEventsForMonth(
       _focusedDay,
       companyId: companyId,
+      assignedOnly: context.read<AuthProvider>().user?.isOnFieldRole == true ||
+          context.read<AuthProvider>().user?.isFieldAgent == true,
     );
   }
 
@@ -196,6 +199,11 @@ class _OnFieldScreenState extends State<OnFieldScreen> {
   Future<void> _handleCheckAction(bool isCheckIn) async {
     setState(() => _actionLoading = true);
     try {
+      final lunchBreakMinutes = await showAttendanceLunchBreakSheet(
+        context,
+        actionLabel: isCheckIn ? 'check in' : 'check out',
+      );
+      if (lunchBreakMinutes == null) return;
       final pos = await _getPosition();
       final companyId = _effectiveCompanyId;
       if (companyId == null) {
@@ -206,6 +214,7 @@ class _OnFieldScreenState extends State<OnFieldScreen> {
           pos.latitude,
           pos.longitude,
           companyId: companyId,
+          lunchBreakMinutes: lunchBreakMinutes,
         );
         setState(() => _attStatus = res);
       } else {
@@ -213,6 +222,7 @@ class _OnFieldScreenState extends State<OnFieldScreen> {
           pos.latitude,
           pos.longitude,
           companyId: companyId,
+          lunchBreakMinutes: lunchBreakMinutes,
         );
         setState(() => _attStatus = res);
       }

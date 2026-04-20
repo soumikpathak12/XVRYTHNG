@@ -1,6 +1,10 @@
 // src/services/sidebarService.js
 import db from '../config/db.js';
 import { filterModulesByCompanyPolicy } from './companyModuleService.js';
+import {
+  applyAttendanceHistoryCoactivation,
+  getEnabledModulesForUser,
+} from './permissionService.js';
 
 const ALL_KNOWN_MODULES = [
   'leads',
@@ -11,6 +15,7 @@ const ALL_KNOWN_MODULES = [
   'operations',
   'payroll',
   'attendance',
+  'attendance_history',
   'leave',
   'expenses',
   'referrals',
@@ -45,15 +50,27 @@ export async function getSidebarForUserRoleOnly(userId, companyId = null) {
   const role = (platform_role || '').toLowerCase();
 
   const allowSet = new Set();
-  if (job_role_id) {
-    const [mods] = await db.execute(
-      `SELECT module_key FROM job_role_modules WHERE job_role_id = ? ORDER BY module_key`,
-      [job_role_id]
-    );
-    console.log('[getSidebarForUserRoleOnly] job_role_id:', job_role_id, 'modules from DB:', mods);
-    (mods ?? []).forEach(m => allowSet.add(m.module_key));
+  // Platform owner: full module surface (same idea as company_admin), not limited by job_role_modules.
+  if (role === 'super_admin') {
+    ALL_KNOWN_MODULES.forEach((k) => allowSet.add(k));
+    COMPANY_PSEUDO.forEach((k) => allowSet.add(k));
+    allowSet.add('support');
+  } else if (job_role_id) {
+    // Same source as permissions: job_role_modules ∩ company_type_modules (not raw JRM only).
+    const enabled = await getEnabledModulesForUser(userId);
+    if (enabled.size > 0) {
+      enabled.forEach((k) => allowSet.add(k));
+    } else {
+      const [mods] = await db.execute(
+        `SELECT module_key FROM job_role_modules WHERE job_role_id = ? ORDER BY module_key`,
+        [job_role_id],
+      );
+      console.log('[getSidebarForUserRoleOnly] job_role_id:', job_role_id, 'fallback JRM:', mods);
+      (mods ?? []).forEach((m) => allowSet.add(m.module_key));
+      await applyAttendanceHistoryCoactivation(allowSet, company_id);
+    }
     allowSet.add('messages'); // Add messages for all employees
-    allowSet.add('leave');     // Add leave for all employees
+    allowSet.add('leave'); // Add leave for all employees
   }
 
   if (role === 'company_admin' || role === 'manager') {

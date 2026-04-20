@@ -98,7 +98,12 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
           _parseDateTimeValue(_getValue('inspected_at')) ?? DateTime.now();
       final doc = pw.Document();
       final apiClient = ApiClient();
-      final logoBytes = await rootBundle.load('assets/icon/app_icon.jpeg');
+      ByteData logoBytes;
+      try {
+        logoBytes = await rootBundle.load('assets/icon/logo-removebg.png');
+      } catch (_) {
+        logoBytes = await rootBundle.load('assets/icon/app_icon.jpeg');
+      }
       final logoImage = pw.MemoryImage(logoBytes.buffer.asUint8List());
 
       final brandPrimary = PdfColor.fromInt(0xFF18877E);
@@ -677,10 +682,10 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
       final file = File('${dir.path}/$filename');
       await file.writeAsBytes(bytes, flush: true);
 
-      final box = context.findRenderObject() as RenderBox?;
-      final shareOrigin = box != null
-          ? box.localToGlobal(Offset.zero) & box.size
-          : Rect.fromLTWH(0, 0, 1, 1);
+      // iOS (especially iPad): share sheet requires sharePositionOrigin fully inside
+      // the presenting view. A tall ScrollView's RenderBox can exceed screen bounds
+      // in global coords → PlatformException even though the PDF file was written OK.
+      final shareOrigin = _sharePositionOriginForSheet(context);
 
       await Share.shareXFiles(
         [XFile(file.path, mimeType: 'application/pdf', name: filename)],
@@ -697,6 +702,46 @@ class _SiteInspectionFormScreenState extends State<SiteInspectionFormScreen> {
         );
       }
     }
+  }
+
+  /// Popover anchor for [Share.shareXFiles] on iOS: rect must be non‑zero and fully
+  /// inside the presenting view. Long scrollable content often has a [RenderBox] larger
+  /// than the window in global coordinates, which triggers PlatformException even though
+  /// the PDF file was already written successfully.
+  Rect _sharePositionOriginForSheet(BuildContext ctx) {
+    final mq = MediaQuery.of(ctx);
+    final padding = mq.padding;
+    final screen = Rect.fromLTWH(
+      padding.left,
+      padding.top,
+      mq.size.width - padding.left - padding.right,
+      mq.size.height - padding.top - padding.bottom,
+    );
+
+    final render = ctx.findRenderObject() as RenderBox?;
+    if (render == null || !render.hasSize || !render.attached) {
+      return _fallbackShareAnchor(screen);
+    }
+
+    final global = render.localToGlobal(Offset.zero) & render.size;
+    if (!global.overlaps(screen)) {
+      return _fallbackShareAnchor(screen);
+    }
+    final clipped = global.intersect(screen);
+    if (clipped.width < 8 || clipped.height < 8) {
+      return _fallbackShareAnchor(screen);
+    }
+    return clipped;
+  }
+
+  Rect _fallbackShareAnchor(Rect screen) {
+    final w = (screen.width * 0.35).clamp(72.0, 160.0);
+    const h = 44.0;
+    var left = screen.left + (screen.width - w) / 2;
+    var top = screen.bottom - h - 16;
+    left = left.clamp(screen.left, screen.right - w);
+    top = top.clamp(screen.top, screen.bottom - h);
+    return Rect.fromLTWH(left, top, w, h);
   }
 
   Future<void> _loadData() async {
