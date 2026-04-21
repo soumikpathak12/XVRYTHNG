@@ -14,6 +14,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/dashboard_provider.dart';
 import '../../services/attendance_service.dart';
 import '../../utils/melbourne_time.dart';
+import '../../widgets/common/attendance_lunch_break_sheet.dart';
 import '../../widgets/common/shell_scaffold_scope.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -326,6 +327,14 @@ class _EmployeeAttendanceCardState extends State<_EmployeeAttendanceCard> {
   }
 
   Future<void> _handleAction(bool isCheckIn) async {
+    int? lunchBreakMinutes;
+    if (!isCheckIn) {
+      lunchBreakMinutes = await showAttendanceLunchBreakSheet(
+        context,
+        actionLabel: 'check out',
+      );
+      if (lunchBreakMinutes == null) return;
+    }
     setState(() => _actionLoading = true);
     try {
       final pos = await _getPosition();
@@ -340,6 +349,7 @@ class _EmployeeAttendanceCardState extends State<_EmployeeAttendanceCard> {
               pos.latitude,
               pos.longitude,
               companyId: companyId,
+              lunchBreakMinutes: lunchBreakMinutes,
             );
       if (!mounted) return;
       setState(() {

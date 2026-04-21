@@ -516,10 +516,37 @@ export async function getLatestInspectionForProject(projectId, { leadIdOverride 
 
 
 export async function saveScheduleAndAssignees(companyId, projectId, payload = {}, userId = null) {
-  const { date, time, assignees, notes } = payload;
+  const { date, time, assignees, notes, schedule_days } = payload;
   const status = 'scheduled';
 
   const scheduledAt = date && time ? `${date} ${time}:00` : null;
+  const normalizedScheduleDays = Array.isArray(schedule_days)
+    ? schedule_days
+      .map((d) => ({
+        date: String(d?.date || '').trim(),
+        time: d?.time == null ? null : String(d.time).trim().slice(0, 5),
+        assignees: Array.isArray(d?.assignees)
+          ? d.assignees.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+          : null,
+      }))
+      .filter((d) => !!d.date)
+    : [];
+  const effectiveScheduleDays = normalizedScheduleDays.length > 0
+    ? normalizedScheduleDays
+    : (date
+      ? [{
+          date: String(date).trim(),
+          time: time == null ? null : String(time).trim().slice(0, 5),
+          assignees: Array.isArray(assignees)
+            ? assignees.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+            : [],
+        }]
+      : []);
+  const primaryAssigneeIds = effectiveScheduleDays.length > 0
+    ? Array.from(new Set((effectiveScheduleDays[0]?.assignees || []).filter((id) => Number.isFinite(id) && id > 0)))
+    : (Array.isArray(assignees)
+      ? Array.from(new Set(assignees.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)))
+      : []);
   const conn = await db.getConnection();
 
   try {
@@ -553,8 +580,8 @@ export async function saveScheduleAndAssignees(companyId, projectId, payload = {
       [projectId, companyId]
     );
 
-    if (Array.isArray(assignees) && assignees.length > 0) {
-      const values = assignees.map(eid => [projectId, eid, companyId, userId]);
+    if (primaryAssigneeIds.length > 0) {
+      const values = primaryAssigneeIds.map(eid => [projectId, eid, companyId, userId]);
       const placeholders = values.map(() => '(?,?,?,?)').join(',');
       await conn.query(
         `INSERT INTO project_assignees (project_id, employee_id, company_id, assigned_by)
@@ -580,9 +607,40 @@ export async function saveScheduleAndAssignees(companyId, projectId, payload = {
 
     const targetJobStatus = projectStageToJobStatus[status];
     const shouldCreateOrUpdateInstallationJob =
-      !!targetJobStatus && !!scheduledAt && !!date && !!time;
+      !!targetJobStatus && effectiveScheduleDays.length > 0;
 
     if (shouldCreateOrUpdateInstallationJob) {
+      const scheduledDates = Array.from(new Set(effectiveScheduleDays.map((d) => d.date).filter(Boolean)));
+
+      // Remove stale not-started scheduled jobs for this project that were removed in the new plan.
+      // This keeps calendar/job list in sync when user changes 3 days -> 2 days, etc.
+      if (scheduledDates.length > 0) {
+        const [staleRows] = await conn.execute(
+          `SELECT id
+             FROM installation_jobs
+            WHERE company_id = ?
+              AND project_id = ?
+              AND status = 'scheduled'
+              AND (started_at IS NULL OR started_at = '0000-00-00 00:00:00')
+              AND (completed_at IS NULL OR completed_at = '0000-00-00 00:00:00')
+              AND scheduled_date NOT IN (${scheduledDates.map(() => '?').join(',')})`,
+          [Number(companyId), Number(projectId), ...scheduledDates]
+        );
+        const staleIds = (staleRows || []).map((r) => Number(r.id)).filter((id) => Number.isFinite(id) && id > 0);
+        if (staleIds.length > 0) {
+          await conn.execute(
+            `DELETE FROM installation_job_assignees
+              WHERE company_id = ? AND job_id IN (${staleIds.map(() => '?').join(',')})`,
+            [Number(companyId), ...staleIds]
+          );
+          await conn.execute(
+            `DELETE FROM installation_jobs
+              WHERE company_id = ? AND id IN (${staleIds.map(() => '?').join(',')})`,
+            [Number(companyId), ...staleIds]
+          );
+        }
+      }
+
       // 1) Load minimal lead/project info for the job card list
       const [[projRow]] = await conn.execute(
         `SELECT
@@ -612,105 +670,109 @@ export async function saveScheduleAndAssignees(companyId, projectId, payload = {
       const systemSizeKw = projRow?.project_system_size_kw ?? projRow?.lead_system_size_kw ?? null;
       const systemType = projRow?.lead_system_type ?? null;
 
-      // 2) Upsert installation_jobs by latest job for this project/company
-      const [[existingJobRow]] = await conn.execute(
-        `SELECT id
-           FROM installation_jobs
-          WHERE company_id = ? AND project_id = ?
-          ORDER BY id DESC
-          LIMIT 1`,
-        [Number(companyId), Number(projectId)]
-      );
+      // 2) Upsert one installation job per scheduled day (supports consecutive multi-day bookings).
+      for (const day of effectiveScheduleDays) {
+        const jobDate = day.date;
+        const jobTime = day.time ? String(day.time).slice(0, 5) : null;
+        const jobNotes = notes ?? null;
+        const dayAssignees = Array.isArray(day.assignees)
+          ? day.assignees
+          : (effectiveScheduleDays.length > 1 ? [] : primaryAssigneeIds);
 
-      const jobDate = date;
-      const jobTime = String(time).slice(0, 5); // expect HH:mm
-      const jobNotes = notes ?? null;
+        const [[existingJobRow]] = await conn.execute(
+          `SELECT id
+             FROM installation_jobs
+            WHERE company_id = ? AND project_id = ? AND scheduled_date = ?
+            ORDER BY id DESC
+            LIMIT 1`,
+          [Number(companyId), Number(projectId), jobDate]
+        );
 
-      let jobId = null;
-      if (existingJobRow?.id) {
-        jobId = existingJobRow.id;
+        let jobId = null;
+        if (existingJobRow?.id) {
+          jobId = existingJobRow.id;
+          await conn.execute(
+            `UPDATE installation_jobs
+                SET status = ?,
+                    customer_name = ?,
+                    customer_phone = ?,
+                    customer_email = ?,
+                    address = ?,
+                    suburb = ?,
+                    system_size_kw = ?,
+                    system_type = ?,
+                    scheduled_date = ?,
+                    scheduled_time = ?,
+                    notes = ?,
+                    updated_by = ?,
+                    updated_at = NOW()
+              WHERE id = ? AND company_id = ?`,
+            [
+              targetJobStatus,
+              customerName,
+              customerPhone,
+              customerEmail,
+              address,
+              suburb,
+              systemSizeKw,
+              systemType,
+              jobDate,
+              jobTime,
+              jobNotes,
+              userId,
+              Number(jobId),
+              Number(companyId),
+            ]
+          );
+        } else {
+          const [result] = await conn.execute(
+            `INSERT INTO installation_jobs
+              (company_id, project_id, retailer_project_id,
+               customer_name, customer_phone, customer_email, address, suburb,
+               system_size_kw, system_type, panel_count, inverter_model, battery_included,
+               scheduled_date, scheduled_time, estimated_hours, notes,
+               created_by, updated_by)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [
+              Number(companyId),
+              Number(projectId),
+              null,
+              customerName,
+              customerPhone,
+              customerEmail,
+              address,
+              suburb,
+              systemSizeKw,
+              systemType,
+              null,
+              null,
+              0,
+              jobDate,
+              jobTime,
+              null,
+              jobNotes,
+              userId,
+              userId,
+            ]
+          );
+          jobId = result.insertId;
+        }
+
         await conn.execute(
-          `UPDATE installation_jobs
-              SET status = ?,
-                  customer_name = ?,
-                  customer_phone = ?,
-                  customer_email = ?,
-                  address = ?,
-                  suburb = ?,
-                  system_size_kw = ?,
-                  system_type = ?,
-                  scheduled_date = ?,
-                  scheduled_time = ?,
-                  notes = ?,
-                  updated_by = ?,
-                  updated_at = NOW()
-            WHERE id = ? AND company_id = ?`,
-          [
-            targetJobStatus,
-            customerName,
-            customerPhone,
-            customerEmail,
-            address,
-            suburb,
-            systemSizeKw,
-            systemType,
-            jobDate,
-            jobTime,
-            jobNotes,
-            userId,
-            Number(jobId),
-            Number(companyId),
-          ]
+          `DELETE FROM installation_job_assignees
+            WHERE job_id = ? AND company_id = ?`,
+          [Number(jobId), Number(companyId)]
         );
-      } else {
-        const [result] = await conn.execute(
-          `INSERT INTO installation_jobs
-            (company_id, project_id, retailer_project_id,
-             customer_name, customer_phone, customer_email, address, suburb,
-             system_size_kw, system_type, panel_count, inverter_model, battery_included,
-             scheduled_date, scheduled_time, estimated_hours, notes,
-             created_by, updated_by)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          [
-            Number(companyId),
-            Number(projectId),
-            null,
-            customerName,
-            customerPhone,
-            customerEmail,
-            address,
-            suburb,
-            systemSizeKw,
-            systemType,
-            null, // panel_count
-            null, // inverter_model
-            0, // battery_included
-            jobDate,
-            jobTime,
-            null, // estimated_hours
-            jobNotes,
-            userId,
-            userId,
-          ]
-        );
-        jobId = result.insertId;
-      }
 
-      // 3) Sync installation_job_assignees from project_assignees
-      await conn.execute(
-        `DELETE FROM installation_job_assignees
-          WHERE job_id = ? AND company_id = ?`,
-        [Number(jobId), Number(companyId)]
-      );
-
-      if (Array.isArray(assignees) && assignees.length > 0) {
-        const values = assignees.map((empId) => [Number(jobId), Number(empId), Number(companyId), userId]);
-        const placeholders = values.map(() => '(?,?,?,?)').join(',');
-        await conn.query(
-          `INSERT IGNORE INTO installation_job_assignees (job_id, employee_id, company_id, assigned_by)
-           VALUES ${placeholders}`,
-          values.flat()
-        );
+        if (dayAssignees.length > 0) {
+          const values = dayAssignees.map((empId) => [Number(jobId), Number(empId), Number(companyId), userId]);
+          const placeholders = values.map(() => '(?,?,?,?)').join(',');
+          await conn.query(
+            `INSERT IGNORE INTO installation_job_assignees (job_id, employee_id, company_id, assigned_by)
+             VALUES ${placeholders}`,
+            values.flat()
+          );
+        }
       }
     }
 

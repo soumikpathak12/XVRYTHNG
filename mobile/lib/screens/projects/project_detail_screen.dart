@@ -12,6 +12,7 @@ import '../../services/expense_service.dart';
 import '../../models/project.dart';
 import '../../models/expense.dart';
 import '../../models/employee.dart';
+import '../../models/installation_job.dart';
 import 'project_edit_screen.dart';
 import '../../widgets/common/status_badge.dart';
 import '../../widgets/common/empty_state.dart';
@@ -36,6 +37,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
   Map<String, dynamic>? _schedule;
   List<int> _assigneeIds = const [];
   Map<int, String> _assigneeNames = const {};
+  List<InstallationJob> _installationJobs = const [];
   bool _updatingScheduleAssign = false;
   List<Map<String, dynamic>> _notes = const [];
   List<Map<String, dynamic>> _documents = const [];
@@ -187,6 +189,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
                 schedule: _schedule,
                 assigneeIds: _assigneeIds,
                 assigneeNames: _assigneeNames,
+                installationJobs: _installationJobs,
                 onEdit: _updatingScheduleAssign
                     ? null
                     : () => _openScheduleAssignEditor(data),
@@ -220,12 +223,14 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
         _service.getProjectNotes(widget.projectId),
         _service.getProjectDocuments(widget.projectId),
         _employeesService.listEmployees(),
+        InstallationService().listJobsByProject(widget.projectId),
       ]);
       if (!mounted) return;
       final sched = out[0] as Map<String, dynamic>;
       final notes = out[1] as List<Map<String, dynamic>>;
       final docs = out[2] as List<Map<String, dynamic>>;
       final employees = out[3] as List<Employee>;
+      final jobs = out[4] as List<InstallationJob>;
       final idsRaw = sched['assignees'];
       final nameMap = <int, String>{
         for (final e in employees) e.id: e.fullName.trim(),
@@ -243,6 +248,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
         _assigneeNames = nameMap;
         _notes = notes;
         _documents = docs;
+        _installationJobs = jobs;
       });
     } catch (_) {}
   }
@@ -251,14 +257,104 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
     final scheduledRaw = _schedule?['scheduled_at'] ?? data['scheduled_at'];
     final parsed = _tryParseDateTime(scheduledRaw);
 
-    DateTime? selectedDate = parsed;
-    TimeOfDay? selectedTime = parsed == null
-        ? null
-        : TimeOfDay(hour: parsed.hour, minute: parsed.minute);
+    final jobs = _installationJobs
+        .where((j) => j.projectId == widget.projectId && j.scheduledDate != null)
+        .toList()
+      ..sort((a, b) {
+        final da = DateTime(
+          a.scheduledDate!.year,
+          a.scheduledDate!.month,
+          a.scheduledDate!.day,
+        );
+        final db = DateTime(
+          b.scheduledDate!.year,
+          b.scheduledDate!.month,
+          b.scheduledDate!.day,
+        );
+        return da.compareTo(db);
+      });
+
+    DateTime? selectedDate =
+        jobs.isNotEmpty ? jobs.first.scheduledDate : parsed;
+    TimeOfDay? selectedTime;
+    if (jobs.isNotEmpty && (jobs.first.scheduledTime ?? '').isNotEmpty) {
+      final t = jobs.first.scheduledTime!.split(':');
+      selectedTime = TimeOfDay(
+        hour: int.tryParse(t.first) ?? 0,
+        minute: t.length > 1 ? (int.tryParse(t[1]) ?? 0) : 0,
+      );
+    } else if (parsed != null) {
+      selectedTime = TimeOfDay(hour: parsed.hour, minute: parsed.minute);
+    }
+
     final notesCtrl = TextEditingController(
       text: _schedule?['notes']?.toString() ?? '',
     );
-    final selectedAssignees = _assigneeIds.toSet();
+    Set<int> parseTeamMemberIds(InstallationJob job) {
+      final rawIds = job.raw?['team_member_ids'];
+      if (rawIds == null) return <int>{};
+      return rawIds
+          .toString()
+          .split(',')
+          .map((e) => int.tryParse(e.trim()) ?? 0)
+          .where((e) => e > 0)
+          .toSet();
+    }
+
+    final selectedAssignees = jobs.isNotEmpty
+        ? parseTeamMemberIds(jobs.first)
+        : _assigneeIds.toSet();
+    final bool initialMultiDay = jobs.length > 1;
+    bool bookConsecutiveDays = initialMultiDay;
+    int consecutiveDays = initialMultiDay
+        ? jobs.length.clamp(2, 5)
+        : 2;
+    bool copyAssigneesFromDay1 = true;
+    bool copyTimeFromDay1 = true;
+    final Map<int, Set<int>> followingDayAssignees = {};
+    final Map<int, TimeOfDay?> followingDayTimes = {};
+
+    for (var i = 1; i < jobs.length && i < 5; i++) {
+      followingDayAssignees[i] = parseTeamMemberIds(jobs[i]);
+      final ts = jobs[i].scheduledTime;
+      if (ts != null && ts.isNotEmpty) {
+        final parts = ts.split(':');
+        followingDayTimes[i] = TimeOfDay(
+          hour: int.tryParse(parts.first) ?? 0,
+          minute: parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0,
+        );
+      }
+    }
+    if (jobs.length > 1) {
+      final sortedDay1 = [...selectedAssignees]..sort();
+      copyAssigneesFromDay1 = true;
+      for (var i = 1; i < consecutiveDays; i++) {
+        final s = <int>{...?followingDayAssignees[i]};
+        final sorted = [...s]..sort();
+        if (sorted.length != sortedDay1.length) {
+          copyAssigneesFromDay1 = false;
+          break;
+        }
+        for (var k = 0; k < sorted.length; k++) {
+          if (sorted[k] != sortedDay1[k]) {
+            copyAssigneesFromDay1 = false;
+            break;
+          }
+        }
+        if (!copyAssigneesFromDay1) break;
+      }
+      copyTimeFromDay1 = true;
+      for (var i = 1; i < consecutiveDays; i++) {
+        final t = followingDayTimes[i];
+        if (t == null ||
+            selectedTime == null ||
+            t.hour != selectedTime.hour ||
+            t.minute != selectedTime.minute) {
+          copyTimeFromDay1 = false;
+          break;
+        }
+      }
+    }
 
     Future<void> pickDate(StateSetter setSheetState) async {
       final now = DateTime.now();
@@ -296,7 +392,6 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
             final timeLabel = selectedTime == null
                 ? 'Choose time'
                 : selectedTime!.format(sheetCtx);
-
             return Padding(
               padding: EdgeInsets.fromLTRB(
                 16,
@@ -320,6 +415,58 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
                         ),
                       ),
                       const SizedBox(height: 12),
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: bookConsecutiveDays,
+                        title: const Text('Book consecutive days'),
+                        dense: true,
+                        onChanged: (v) {
+                          setSheetState(() {
+                            bookConsecutiveDays = v == true;
+                            if (bookConsecutiveDays && consecutiveDays < 2) {
+                              consecutiveDays = 2;
+                            }
+                          });
+                        },
+                      ),
+                      if (bookConsecutiveDays) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Text(
+                              'Days',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            DropdownButton<int>(
+                              value: consecutiveDays.clamp(2, 5),
+                              items: const [
+                                DropdownMenuItem(value: 2, child: Text('2')),
+                                DropdownMenuItem(value: 3, child: Text('3')),
+                                DropdownMenuItem(value: 4, child: Text('4')),
+                                DropdownMenuItem(value: 5, child: Text('5')),
+                              ],
+                              onChanged: (v) {
+                                if (v == null) return;
+                                setSheetState(() => consecutiveDays = v);
+                              },
+                            ),
+                          ],
+                        ),
+                        CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          value: copyTimeFromDay1,
+                          title: const Text('Copy time from Day 1'),
+                          dense: true,
+                          onChanged: (v) {
+                            setSheetState(() => copyTimeFromDay1 = v == true);
+                          },
+                        ),
+                      ],
+                      const SizedBox(height: 8),
                       Row(
                         children: [
                           Expanded(
@@ -339,6 +486,46 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
                           ),
                         ],
                       ),
+                      if (bookConsecutiveDays && !copyTimeFromDay1) ...[
+                        const SizedBox(height: 10),
+                        const Text(
+                          'Scheduled Time (Following days)',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        ...List.generate(consecutiveDays - 1, (i) {
+                          final offset = i + 1;
+                          final dayDate = selectedDate == null
+                              ? null
+                              : selectedDate!.add(Duration(days: offset));
+                          final dayLabel = dayDate == null
+                              ? 'Day ${offset + 1}'
+                              : 'Day ${offset + 1} — ${DateFormat('yyyy-MM-dd').format(dayDate)}';
+                          final t = followingDayTimes[offset];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: OutlinedButton.icon(
+                              onPressed: () async {
+                                final picked = await showTimePicker(
+                                  context: context,
+                                  initialTime: t ?? selectedTime ?? TimeOfDay.now(),
+                                );
+                                if (picked != null) {
+                                  setSheetState(() => followingDayTimes[offset] = picked);
+                                }
+                              },
+                              icon: const Icon(Icons.access_time_outlined),
+                              label: Text(
+                                '$dayLabel  •  ${t == null ? '--:--' : t.format(sheetCtx)}',
+                              ),
+                            ),
+                          );
+                        }),
+                      ],
                       const SizedBox(height: 12),
                       TextField(
                         controller: notesCtrl,
@@ -350,8 +537,22 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
                         ),
                       ),
                       const SizedBox(height: 14),
+                      if (bookConsecutiveDays) ...[
+                        CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          value: copyAssigneesFromDay1,
+                          title: const Text('Copy assignees from Day 1'),
+                          dense: true,
+                          onChanged: (v) {
+                            setSheetState(
+                              () => copyAssigneesFromDay1 = v == true,
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                      ],
                       const Text(
-                        'Assignees',
+                        'Assignees (Day 1)',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -364,32 +565,197 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
                           'No employees found',
                           style: TextStyle(color: AppColors.textSecondary),
                         )
-                      else
-                        ..._assigneeNames.entries.map((entry) {
-                          final checked = selectedAssignees.contains(entry.key);
-                          return CheckboxListTile(
-                            value: checked,
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(
-                              entry.value.isEmpty
-                                  ? '#${entry.key}'
-                                  : entry.value,
+                      else ...[
+                        DropdownButtonFormField<int>(
+                          value: null,
+                          decoration: const InputDecoration(
+                            labelText: 'Add assignee',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: _assigneeNames.entries
+                              .map(
+                                (entry) => DropdownMenuItem<int>(
+                                  value: entry.key,
+                                  child: Text(
+                                    entry.value.isEmpty
+                                        ? '#${entry.key}'
+                                        : '${entry.value} (#${entry.key})',
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (pickedId) {
+                            if (pickedId == null) return;
+                            setSheetState(() => selectedAssignees.add(pickedId));
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        if (selectedAssignees.isEmpty)
+                          const Text(
+                            'No assignee selected',
+                            style: TextStyle(color: AppColors.textSecondary),
+                          )
+                        else
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: selectedAssignees.map((id) {
+                              final label = _assigneeNames[id];
+                              return Chip(
+                                label: Text(
+                                  (label == null || label.isEmpty)
+                                      ? '#$id'
+                                      : '$label (#$id)',
+                                ),
+                                onDeleted: () =>
+                                    setSheetState(() => selectedAssignees.remove(id)),
+                              );
+                            }).toList(),
+                          ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            OutlinedButton(
+                              onPressed: () => setSheetState(
+                                () => selectedAssignees
+                                  ..clear()
+                                  ..addAll(_assigneeNames.keys),
+                              ),
+                              child: const Text('Select all'),
                             ),
-                            subtitle: entry.value.isEmpty
-                                ? null
-                                : Text('#${entry.key}'),
-                            onChanged: (v) {
-                              setSheetState(() {
-                                if (v == true) {
-                                  selectedAssignees.add(entry.key);
-                                } else {
-                                  selectedAssignees.remove(entry.key);
-                                }
-                              });
-                            },
+                            const SizedBox(width: 8),
+                            OutlinedButton(
+                              onPressed: () =>
+                                  setSheetState(() => selectedAssignees.clear()),
+                              child: const Text('Clear'),
+                            ),
+                          ],
+                        ),
+                      ],
+                      if (bookConsecutiveDays && !copyAssigneesFromDay1) ...[
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Assignees (Following days)',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        ...List.generate(consecutiveDays - 1, (i) {
+                          final offset = i + 1;
+                          final dayDate = selectedDate == null
+                              ? null
+                              : selectedDate!.add(Duration(days: offset));
+                          final dayLabel = dayDate == null
+                              ? 'Day ${offset + 1}'
+                              : 'Day ${offset + 1} — ${DateFormat('yyyy-MM-dd').format(dayDate)}';
+                          final daySet = followingDayAssignees[offset] ?? <int>{};
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                dayLabel,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              if (_assigneeNames.isEmpty)
+                                const Text(
+                                  'No employees found',
+                                  style: TextStyle(color: AppColors.textSecondary),
+                                )
+                              else ...[
+                                DropdownButtonFormField<int>(
+                                  value: null,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Add assignee',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  items: _assigneeNames.entries
+                                      .map(
+                                        (entry) => DropdownMenuItem<int>(
+                                          value: entry.key,
+                                          child: Text(
+                                            entry.value.isEmpty
+                                                ? '#${entry.key}'
+                                                : '${entry.value} (#${entry.key})',
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: (pickedId) {
+                                    if (pickedId == null) return;
+                                    setSheetState(() {
+                                      final target =
+                                          followingDayAssignees[offset] ?? <int>{};
+                                      target.add(pickedId);
+                                      followingDayAssignees[offset] = target;
+                                    });
+                                  },
+                                ),
+                                const SizedBox(height: 8),
+                                if (daySet.isEmpty)
+                                  const Text(
+                                    'No assignee selected',
+                                    style: TextStyle(color: AppColors.textSecondary),
+                                  )
+                                else
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: daySet.map((id) {
+                                      final label = _assigneeNames[id];
+                                      return Chip(
+                                        label: Text(
+                                          (label == null || label.isEmpty)
+                                              ? '#$id'
+                                              : '$label (#$id)',
+                                        ),
+                                        onDeleted: () {
+                                          setSheetState(() {
+                                            final target = followingDayAssignees[offset] ?? <int>{};
+                                            target.remove(id);
+                                            followingDayAssignees[offset] = target;
+                                          });
+                                        },
+                                      );
+                                    }).toList(),
+                                  ),
+                                const SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    OutlinedButton(
+                                      onPressed: () {
+                                        setSheetState(() {
+                                          followingDayAssignees[offset] = {
+                                            ..._assigneeNames.keys,
+                                          };
+                                        });
+                                      },
+                                      child: const Text('Select all'),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    OutlinedButton(
+                                      onPressed: () {
+                                        setSheetState(() {
+                                          followingDayAssignees[offset] = <int>{};
+                                        });
+                                      },
+                                      child: const Text('Clear'),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                              const SizedBox(height: 6),
+                            ],
                           );
                         }),
+                      ],
                       const SizedBox(height: 8),
                       Row(
                         children: [
@@ -414,6 +780,21 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
                                     ),
                                   );
                                   return;
+                                }
+                                if (bookConsecutiveDays && !copyTimeFromDay1) {
+                                  for (var i = 1; i < consecutiveDays; i++) {
+                                    if (followingDayTimes[i] == null) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Please choose time for Day ${i + 1}',
+                                          ),
+                                          backgroundColor: AppColors.danger,
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                  }
                                 }
                                 Navigator.pop(sheetCtx, true);
                               },
@@ -446,11 +827,35 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
 
     try {
       setState(() => _updatingScheduleAssign = true);
+      final scheduleDays = <Map<String, dynamic>>[];
+      final totalDays = bookConsecutiveDays ? consecutiveDays : 1;
+      for (var i = 0; i < totalDays; i++) {
+        final dayDate = selectedDate!.add(Duration(days: i));
+        final dayTime = i == 0
+            ? selectedTime
+            : (copyTimeFromDay1
+                ? selectedTime
+                : followingDayTimes[i]);
+        final dayTimeFormatted =
+            '${dayTime!.hour.toString().padLeft(2, '0')}:${dayTime.minute.toString().padLeft(2, '0')}';
+        final dayAssignees = i == 0
+            ? selectedAssignees
+            : (copyAssigneesFromDay1
+                ? selectedAssignees
+                : (followingDayAssignees[i] ?? <int>{}));
+        scheduleDays.add({
+          'date': DateFormat('yyyy-MM-dd').format(dayDate),
+          'time': dayTimeFormatted,
+          'assignees': dayAssignees.toList(),
+        });
+      }
+
       await _service.updateScheduleAssign(widget.projectId, {
         'date': DateFormat('yyyy-MM-dd').format(selectedDate!),
         'time': timeFormatted,
         'notes': notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
         'assignees': selectedAssignees.toList(),
+        if (bookConsecutiveDays) 'schedule_days': scheduleDays,
       });
       if (!mounted) return;
       await context.read<ProjectsProvider>().loadProjectDetail(
@@ -1269,17 +1674,50 @@ class _ScheduleAssignTab extends StatelessWidget {
   final Map<String, dynamic>? schedule;
   final List<int> assigneeIds;
   final Map<int, String> assigneeNames;
+  final List<InstallationJob> installationJobs;
   final VoidCallback? onEdit;
   const _ScheduleAssignTab({
     required this.data,
     required this.schedule,
     required this.assigneeIds,
     required this.assigneeNames,
+    required this.installationJobs,
     this.onEdit,
   });
 
   @override
   Widget build(BuildContext context) {
+    final projectId = int.tryParse('${data['id'] ?? ''}');
+    final dayJobs = installationJobs
+        .where((j) => projectId != null && j.projectId == projectId && j.scheduledDate != null)
+        .toList()
+      ..sort((a, b) {
+        final ad = a.scheduledDate!;
+        final bd = b.scheduledDate!;
+        return DateTime(ad.year, ad.month, ad.day).compareTo(
+          DateTime(bd.year, bd.month, bd.day),
+        );
+      });
+
+    String formatAssigneesForJob(InstallationJob j) {
+      final idsRaw = j.raw?['team_member_ids'];
+      final ids = idsRaw == null
+          ? <int>[]
+          : idsRaw
+                .toString()
+                .split(',')
+                .map((e) => int.tryParse(e.trim()) ?? 0)
+                .where((e) => e > 0)
+                .toList();
+      if (ids.isEmpty) return '-';
+      return ids
+          .map((id) {
+            final name = assigneeNames[id]?.trim() ?? '';
+            return name.isEmpty ? '#$id' : '$name (#$id)';
+          })
+          .join(', ');
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -1320,17 +1758,25 @@ class _ScheduleAssignTab extends StatelessWidget {
             title: 'Assign',
             icon: Icons.group_outlined,
             children: [
-              _DetailRow(
-                'Assignees',
-                assigneeIds.isEmpty
-                    ? '-'
-                    : assigneeIds
-                          .map((id) {
-                            final name = assigneeNames[id]?.trim() ?? '';
-                            return name.isEmpty ? '#$id' : '$name (#$id)';
-                          })
-                          .join(', '),
-              ),
+              if (dayJobs.isEmpty)
+                _DetailRow(
+                  'Assignees',
+                  assigneeIds.isEmpty
+                      ? '-'
+                      : assigneeIds
+                            .map((id) {
+                              final name = assigneeNames[id]?.trim() ?? '';
+                              return name.isEmpty ? '#$id' : '$name (#$id)';
+                            })
+                            .join(', '),
+                )
+              else
+                ...dayJobs.map((j) {
+                  final d = j.scheduledDate!;
+                  final dayLabel =
+                      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+                  return _DetailRow('Day $dayLabel', formatAssigneesForJob(j));
+                }),
             ],
           ),
         ],
