@@ -134,6 +134,18 @@ function inferJobTypeFromStage(stage) {
   }
 }
 
+function plusOneDay(ymd) {
+  return addDays(ymd, 1);
+}
+
+function addDays(ymd, offsetDays) {
+  if (!ymd) return '';
+  const dt = new Date(`${ymd}T00:00:00`);
+  if (Number.isNaN(dt.getTime())) return '';
+  dt.setDate(dt.getDate() + Number(offsetDays || 0));
+  return toDateStrYYYYMMDD(dt);
+}
+
 /* ---------- Assignee Picker (chips + checkbox list) ---------- */
 function AssigneePicker({ users = [], value = [], onChange }) {
   const [open, setOpen] = useState(false);
@@ -267,6 +279,7 @@ export default function RetailerProjectDetailDetails({
   project,
   schedule,
   assignees,
+  installationJobs = [],
   users,
   activeTab,
   onSaveSchedule,
@@ -309,6 +322,14 @@ export default function RetailerProjectDetailDetails({
   const [time, setTime] = useState('');
   const [notes, setNotes] = useState('');
   const [assigneeIds, setAssigneeIds] = useState([]);
+  const [bookTwoDays, setBookTwoDays] = useState(false);
+  const [consecutiveDays, setConsecutiveDays] = useState(2);
+  const [copyDayOneAssignees, setCopyDayOneAssignees] = useState(true);
+  const [dayTwoAssigneeIds, setDayTwoAssigneeIds] = useState([]);
+  const [extraDayAssigneeMap, setExtraDayAssigneeMap] = useState({});
+  const [copyDayOneTime, setCopyDayOneTime] = useState(true);
+  const [dayTwoTime, setDayTwoTime] = useState('');
+  const [extraDayTimeMap, setExtraDayTimeMap] = useState({});
 
   const showToast = useCallback((message, { isError = false } = {}) => {
     setSaveToast(message);
@@ -332,6 +353,25 @@ export default function RetailerProjectDetailDetails({
       nextTime = nextTime || split.time;
     }
 
+    const jobs = Array.isArray(installationJobs)
+      ? installationJobs
+          .filter((j) => Number(j?.project_id) === Number(project?.id) && !!j?.scheduled_date)
+          .sort((a, b) => String(a.scheduled_date).localeCompare(String(b.scheduled_date)))
+      : [];
+
+    const daysFromJobs = jobs.map((j) => ({
+      date: String(j.scheduled_date),
+      assignees: String(j.team_member_ids || '')
+        .split(',')
+        .map((x) => Number(x))
+        .filter((id) => Number.isFinite(id) && id > 0),
+      time: String(j.scheduled_time || '').slice(0, 5),
+    }));
+
+    const firstDay = daysFromJobs[0] || null;
+    if (firstDay?.date) nextDate = firstDay.date;
+    if (firstDay?.time) nextTime = firstDay.time;
+
     setStatus(project?.stage ?? '');
     setDate(nextDate);
     setTime(nextTime);
@@ -339,8 +379,46 @@ export default function RetailerProjectDetailDetails({
     // so the user can schedule immediately without hitting a 422.
     setJobType(s.job_type || inferJobTypeFromStage(project?.stage) || 'full_system');
     setNotes(s.notes || '');
-    setAssigneeIds(Array.isArray(assignees) ? [...assignees] : []);
-  }, [project, schedule, assignees]);
+    const day1Ids = firstDay?.assignees?.length
+      ? firstDay.assignees
+      : (Array.isArray(assignees) ? [...assignees] : []);
+    setAssigneeIds(day1Ids);
+
+    if (daysFromJobs.length > 1) {
+      const capped = Math.min(5, Math.max(2, daysFromJobs.length));
+      setBookTwoDays(true);
+      setConsecutiveDays(capped);
+      const day2Ids = daysFromJobs[1]?.assignees || [];
+      setDayTwoAssigneeIds(day2Ids);
+      setDayTwoTime(daysFromJobs[1]?.time || nextTime || '');
+      const extra = {};
+      const extraTimes = {};
+      for (let i = 2; i < capped; i += 1) {
+        extra[i] = daysFromJobs[i]?.assignees || [];
+        extraTimes[i] = daysFromJobs[i]?.time || nextTime || '';
+      }
+      setExtraDayAssigneeMap(extra);
+      setExtraDayTimeMap(extraTimes);
+      const allSameAsDay1 = daysFromJobs.slice(1, capped).every((d) =>
+        JSON.stringify([...(d.assignees || [])].sort((a, b) => a - b)) ===
+        JSON.stringify([...(day1Ids || [])].sort((a, b) => a - b))
+      );
+      setCopyDayOneAssignees(allSameAsDay1);
+      const allTimesSameAsDay1 = daysFromJobs.slice(1, capped).every((d) =>
+        String(d?.time || '') === String(nextTime || '')
+      );
+      setCopyDayOneTime(allTimesSameAsDay1);
+    } else {
+      setBookTwoDays(false);
+      setConsecutiveDays(2);
+      setCopyDayOneAssignees(true);
+      setDayTwoAssigneeIds(Array.isArray(assignees) ? [...assignees] : []);
+      setExtraDayAssigneeMap({});
+      setCopyDayOneTime(true);
+      setDayTwoTime('');
+      setExtraDayTimeMap({});
+    }
+  }, [project, schedule, assignees, installationJobs]);
 
   // If user sets a scheduled date and expected completion isn't set yet, default to +1 month.
   useEffect(() => {
@@ -392,6 +470,59 @@ export default function RetailerProjectDetailDetails({
         <h3 style={{ margin: '0 0 16px 0', color: '#0d9488', fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' }}>
           Manage Schedule
         </h3>
+
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 16, fontWeight: 600, color: '#0F172A' }}>
+          <input
+            type="checkbox"
+            checked={bookTwoDays}
+            onChange={(e) => {
+              const checked = e.target.checked;
+              setBookTwoDays(checked);
+              if (checked && dayTwoAssigneeIds.length === 0 && assigneeIds.length > 0) {
+                setDayTwoAssigneeIds([...assigneeIds]);
+              }
+              if (checked) {
+                setCopyDayOneAssignees(true);
+                setConsecutiveDays((prev) => Math.min(Math.max(Number(prev) || 2, 2), 5));
+              }
+            }}
+          />
+          Book this job across consecutive days
+        </label>
+
+        {bookTwoDays ? (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontWeight: 600, color: '#0F172A' }}>
+              Days
+              <select
+                value={consecutiveDays}
+                onChange={(e) => setConsecutiveDays(Math.min(5, Math.max(2, Number(e.target.value) || 2)))}
+                style={{ border: '1px solid #CBD5E1', borderRadius: 8, padding: '6px 10px', background: '#fff' }}
+              >
+                <option value={2}>2 days</option>
+                <option value={3}>3 days</option>
+                <option value={4}>4 days</option>
+                <option value={5}>5 days</option>
+              </select>
+            </label>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: '#0F172A' }}>
+              <input
+                type="checkbox"
+                checked={copyDayOneAssignees}
+                onChange={(e) => setCopyDayOneAssignees(e.target.checked)}
+              />
+              Copy assignees from Day 1 to all following days
+            </label>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: '#0F172A' }}>
+              <input
+                type="checkbox"
+                checked={copyDayOneTime}
+                onChange={(e) => setCopyDayOneTime(e.target.checked)}
+              />
+              Copy time from Day 1 to all following days
+            </label>
+          </div>
+        ) : null}
         
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '20px' }}>
           <div>
@@ -433,8 +564,91 @@ export default function RetailerProjectDetailDetails({
           />
         </div>
 
+        {bookTwoDays ? (
+          <>
+            {!copyDayOneTime ? (
+              <>
+                <h3 style={{ margin: '20px 0 8px 0', color: '#0d9488', fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' }}>
+                  Scheduled Time (Following days)
+                </h3>
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 13, color: '#64748B', marginBottom: 6 }}>
+                    Day 2 — <strong>{plusOneDay(date) || 'next day'}</strong>
+                  </div>
+                  <input
+                    style={{ ...inputStyle, maxWidth: 220 }}
+                    type="time"
+                    value={dayTwoTime}
+                    onChange={(e) => setDayTwoTime(e.target.value)}
+                    disabled={!hideJobType && jobType !== 'site_inspection'}
+                  />
+                </div>
+                {Array.from({ length: Math.max(0, consecutiveDays - 2) }).map((_, idx) => {
+                  const offset = idx + 2;
+                  const value = String(extraDayTimeMap[offset] || '');
+                  return (
+                    <div key={`time-${offset}`} style={{ marginBottom: 10 }}>
+                      <div style={{ fontSize: 13, color: '#64748B', marginBottom: 6 }}>
+                        Day {offset + 1} — <strong>{addDays(date, offset) || 'upcoming day'}</strong>
+                      </div>
+                      <input
+                        style={{ ...inputStyle, maxWidth: 220 }}
+                        type="time"
+                        value={value}
+                        onChange={(e) =>
+                          setExtraDayTimeMap((prev) => ({ ...prev, [offset]: e.target.value }))
+                        }
+                        disabled={!hideJobType && jobType !== 'site_inspection'}
+                      />
+                    </div>
+                  );
+                })}
+              </>
+            ) : null}
+
+            <h3 style={{ margin: '20px 0 8px 0', color: '#0d9488', fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' }}>
+              Assigned Personnel (Following days)
+            </h3>
+            <div style={{ fontSize: 13, color: '#64748B', marginBottom: 10 }}>
+              Booking {consecutiveDays} consecutive days from <strong>{date || 'the selected date'}</strong>.
+            </div>
+            {copyDayOneAssignees ? (
+              <div style={{ fontSize: 13, color: '#64748B', marginBottom: 12 }}>
+                Day 2 to Day {consecutiveDays} will use the same assignees as Day 1.
+              </div>
+            ) : (
+              <>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 13, color: '#64748B', marginBottom: 6 }}>
+                    Day 2 — <strong>{plusOneDay(date) || 'next day'}</strong>
+                  </div>
+                  <AssigneePicker users={users} value={dayTwoAssigneeIds} onChange={setDayTwoAssigneeIds} />
+                </div>
+                {Array.from({ length: Math.max(0, consecutiveDays - 2) }).map((_, idx) => {
+                  const offset = idx + 2;
+                  const value = Array.isArray(extraDayAssigneeMap[offset]) ? extraDayAssigneeMap[offset] : [];
+                  return (
+                    <div key={offset} style={{ marginBottom: 12 }}>
+                      <div style={{ fontSize: 13, color: '#64748B', marginBottom: 6 }}>
+                        Day {offset + 1} — <strong>{addDays(date, offset) || 'upcoming day'}</strong>
+                      </div>
+                      <AssigneePicker
+                        users={users}
+                        value={value}
+                        onChange={(nextIds) =>
+                          setExtraDayAssigneeMap((prev) => ({ ...prev, [offset]: nextIds }))
+                        }
+                      />
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </>
+        ) : null}
+
         <h3 style={{ margin: '0 0 16px 0', color: '#0d9488', fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' }}>
-          Assigned Personnel
+          Assigned Personnel (Day 1)
         </h3>
         <AssigneePicker users={users} value={assigneeIds} onChange={setAssigneeIds} />
 
@@ -450,6 +664,23 @@ export default function RetailerProjectDetailDetails({
                   time: hideJobType || jobType === 'site_inspection' ? time : null,
                   notes,
                   assignees: assigneeIds,
+                  schedule_days: bookTwoDays && date
+                    ? Array.from({ length: consecutiveDays }).map((_, idx) => ({
+                        date: addDays(date, idx),
+                        time: hideJobType || jobType === 'site_inspection'
+                          ? (idx === 0
+                            ? time
+                            : (copyDayOneTime
+                              ? time
+                              : (idx === 1 ? dayTwoTime : (extraDayTimeMap[idx] || ''))))
+                          : null,
+                        assignees: idx === 0
+                          ? assigneeIds
+                          : (copyDayOneAssignees
+                            ? assigneeIds
+                            : (idx === 1 ? dayTwoAssigneeIds : (extraDayAssigneeMap[idx] || []))),
+                      }))
+                    : undefined,
                   nextStage: status,
                 });
                 showToast('Saved successfully.');

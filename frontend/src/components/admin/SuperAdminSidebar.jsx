@@ -18,6 +18,7 @@ import {
   Wrench,
   Calculator,
   TrendingUp,
+  BookOpen,
 } from 'lucide-react';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -53,6 +54,7 @@ const RAW_NAV = [
   // Referrals is now accessible inside Settings → Referral Program tab
   { to: '/admin/messages', label: 'Messages', icon: MessageSquare, permission: { resource: 'messages', action: 'view' } },
   { to: '/admin/support-tickets', label: 'Customer Support Tickets', icon: MessageCircle, permission: { resource: 'support', action: 'view' } },
+  { to: '/admin/resources', label: 'Resource Library', icon: BookOpen, permission: { resource: 'projects', action: 'view' } },
   { to: '/admin/trial-users', label: 'Guest Users', icon: UsersRound, permission: { resource: 'users', action: 'view' } },
   
   // --- SETTINGS (single entry; tabs live inside Settings page) ---
@@ -134,6 +136,7 @@ export default function SuperAdminSidebar({
     const communicationsItems = pick([
       findByTo('/admin/messages'),
       findByTo('/admin/support-tickets'),
+      findByTo('/admin/resources'),
     ]);
 
     const operationalManagementItems = pick([
@@ -182,7 +185,10 @@ export default function SuperAdminSidebar({
         pathname.startsWith('/admin/on-field-dashboard') ||
         pathname.startsWith('/admin/on-field') ||
         pathname.startsWith('/admin/installation'),
-      communications: pathname.startsWith('/admin/messages') || pathname.startsWith('/admin/support-tickets'),
+      communications:
+        pathname.startsWith('/admin/messages') ||
+        pathname.startsWith('/admin/support-tickets') ||
+        pathname.startsWith('/admin/resources'),
       operational_management:
         pathname.startsWith('/admin/operations') ||
         pathname.startsWith('/admin/employees') ||

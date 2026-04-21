@@ -44,6 +44,7 @@ import '../../screens/leads/import_leads_screen.dart';
 import '../../screens/on_field/site_inspection_form_screen.dart';
 import '../../screens/on_field/site_inspection_leads_screen.dart';
 import '../../screens/notifications/notifications_screen.dart';
+import '../../screens/resources/resource_library_screen.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -264,6 +265,10 @@ GoRouter createRouter(AuthProvider authProvider) {
             builder: (context, state) => const SettingsScreen(),
           ),
           GoRoute(
+            path: '/admin/resources',
+            builder: (context, state) => const ResourceLibraryScreen(),
+          ),
+          GoRoute(
             path: '/admin/profile',
             builder: (context, state) => const ProfileScreen(),
           ),
@@ -408,6 +413,10 @@ GoRouter createRouter(AuthProvider authProvider) {
           GoRoute(
             path: '/dashboard/settings',
             builder: (context, state) => const SettingsScreen(),
+          ),
+          GoRoute(
+            path: '/dashboard/resources',
+            builder: (context, state) => const ResourceLibraryScreen(),
           ),
           GoRoute(
             path: '/dashboard/profile',
@@ -560,6 +569,10 @@ GoRouter createRouter(AuthProvider authProvider) {
           GoRoute(
             path: '/employee/settings',
             builder: (context, state) => const ProfileScreen(),
+          ),
+          GoRoute(
+            path: '/employee/resources',
+            builder: (context, state) => const ResourceLibraryScreen(),
           ),
         ],
       ),

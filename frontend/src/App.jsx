@@ -69,6 +69,7 @@ import OnFieldPage from './pages/employee/OnFieldPage.jsx';
 import SiteInspectionLeadsPage from './pages/employee/SiteInspectionLeadsPage.jsx';
 import PayrollPage from './pages/PayrollPage.jsx';
 import TeamAttendanceHistoryPage from './pages/TeamAttendanceHistoryPage.jsx';
+import ResourceLibraryPage from './pages/ResourceLibraryPage.jsx';
 function PlaceholderPage({ title, message, children }) {
   return (
     <div style={{ padding: '2rem', textAlign: 'center', color: '#1A1A2E' }}>
@@ -436,6 +437,15 @@ function App() {
           />
 
           <Route
+            path="resources"
+            element={
+              <RequirePermission resource="projects" action="view">
+                <ResourceLibraryPage />
+              </RequirePermission>
+            }
+          />
+
+          <Route
             path="support-tickets"
             element={
               <RequirePermission resource="support" action="view">
@@ -534,6 +544,7 @@ function App() {
           <Route path="support-tickets" element={<RequirePermission resource="support" action="view"><AdminSupportTicketsPage /></RequirePermission>} />
           <Route path="support-tickets/:ticketId" element={<RequirePermission resource="support" action="view"><AdminSupportTicketsPage /></RequirePermission>} />
           <Route path="settings" element={<CompanySettingsPage />} />
+          <Route path="resources" element={<RequirePermission resource="projects" action="view"><ResourceLibraryPage /></RequirePermission>} />
         </Route>
 
         {/* Employee portal */}
@@ -621,6 +632,15 @@ function App() {
             element={
               <RequirePermission resource="messages" action="view">
                 <MessagesPage />
+              </RequirePermission>
+            }
+          />
+
+          <Route
+            path="resources"
+            element={
+              <RequirePermission resource="projects" action="view">
+                <ResourceLibraryPage />
               </RequirePermission>
             }
           />

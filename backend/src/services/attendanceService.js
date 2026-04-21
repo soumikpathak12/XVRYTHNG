@@ -1,5 +1,31 @@
 import db from '../config/db.js';
 
+const ATTENDANCE_BUSINESS_TZ = (
+  String(process.env.ATTENDANCE_BUSINESS_TIMEZONE || 'Australia/Melbourne').trim() ||
+  'Australia/Melbourne'
+);
+
+/**
+ * Calendar date (YYYY-MM-DD) for attendance "today" / row `date` column.
+ * Uses IANA timezone so it matches staff wall clocks (not MySQL CURDATE() in UTC).
+ */
+function attendanceBusinessDateYmd(refDate = new Date()) {
+  const dtf = new Intl.DateTimeFormat('en-CA', {
+    timeZone: ATTENDANCE_BUSINESS_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const parts = dtf.formatToParts(refDate);
+  const y = parts.find((p) => p.type === 'year')?.value;
+  const m = parts.find((p) => p.type === 'month')?.value;
+  const d = parts.find((p) => p.type === 'day')?.value;
+  if (!y || !m || !d) {
+    throw new Error('Unable to resolve attendance business date.');
+  }
+  return `${y}-${m}-${d}`;
+}
+
 function normalizeCoordinate(value, kind) {
   if (value === null || value === undefined || value === '') {
     throw new Error(`${kind} is required for attendance location capture.`);
@@ -106,17 +132,28 @@ export async function getEmployeeIdByUserId(companyId, userId) {
 }
 
 export async function getTodayStatus(companyId, employeeId) {
-  const [rows] = await db.query(
-    'SELECT * FROM employee_attendance WHERE company_id = ? AND employee_id = ? AND date = CURDATE() ORDER BY created_at DESC LIMIT 1',
+  const todayYmd = attendanceBusinessDateYmd();
+  const [openRows] = await db.query(
+    `SELECT * FROM employee_attendance
+     WHERE company_id = ? AND employee_id = ? AND check_out_time IS NULL
+     ORDER BY created_at DESC
+     LIMIT 1`,
     [companyId, employeeId]
+  );
+  if (openRows.length) return openRows[0];
+
+  const [rows] = await db.query(
+    'SELECT * FROM employee_attendance WHERE company_id = ? AND employee_id = ? AND date = ? ORDER BY created_at DESC LIMIT 1',
+    [companyId, employeeId, todayYmd]
   );
   return rows.length ? rows[0] : null;
 }
 
 export async function checkIn(companyId, employeeId, lat, lng, lunchBreakMinutes = 0) {
-  // Check if there's an open check-in today
+  const todayYmd = attendanceBusinessDateYmd();
+  // Any open shift blocks a new check-in (covers legacy rows with wrong `date` vs business TZ).
   const [existing] = await db.query(
-    'SELECT * FROM employee_attendance WHERE company_id = ? AND employee_id = ? AND date = CURDATE() AND check_out_time IS NULL LIMIT 1',
+    'SELECT id FROM employee_attendance WHERE company_id = ? AND employee_id = ? AND check_out_time IS NULL LIMIT 1',
     [companyId, employeeId]
   );
   if (existing.length > 0) {
@@ -126,8 +163,8 @@ export async function checkIn(companyId, employeeId, lat, lng, lunchBreakMinutes
   // Keep behavior consistent across Attendance and On Field:
   // once a day is checked out, do not allow another check-in for the same date.
   const [completedToday] = await db.query(
-    'SELECT id FROM employee_attendance WHERE company_id = ? AND employee_id = ? AND date = CURDATE() AND check_out_time IS NOT NULL LIMIT 1',
-    [companyId, employeeId]
+    'SELECT id FROM employee_attendance WHERE company_id = ? AND employee_id = ? AND date = ? AND check_out_time IS NOT NULL LIMIT 1',
+    [companyId, employeeId, todayYmd]
   );
   if (completedToday.length > 0) {
     throw new Error('You already checked out today. Check-in is locked for this day.');
@@ -140,19 +177,21 @@ export async function checkIn(companyId, employeeId, lat, lng, lunchBreakMinutes
   const [result] = await db.query(
     `INSERT INTO employee_attendance 
       (company_id, employee_id, check_in_time, check_in_lat, check_in_lng, lunch_break_minutes, date) 
-     VALUES (?, ?, NOW(), ?, ?, ?, CURDATE())`,
-    [companyId, employeeId, checkInLat, checkInLng, lunchBreakMinutesValue]
+     VALUES (?, ?, NOW(), ?, ?, ?, ?)`,
+    [companyId, employeeId, checkInLat, checkInLng, lunchBreakMinutesValue, todayYmd]
   );
   return { id: result.insertId };
 }
 
 export async function checkOut(companyId, employeeId, lat, lng, lunchBreakMinutes = null) {
-  // Find open check-in
   const [existing] = await db.query(
-    'SELECT * FROM employee_attendance WHERE company_id = ? AND employee_id = ? AND date = CURDATE() AND check_out_time IS NULL ORDER BY created_at DESC LIMIT 1',
+    `SELECT * FROM employee_attendance
+     WHERE company_id = ? AND employee_id = ? AND check_out_time IS NULL
+     ORDER BY created_at DESC
+     LIMIT 1`,
     [companyId, employeeId]
   );
-  
+
   if (!existing.length) {
     throw new Error('No open check-in found for today.');
   }

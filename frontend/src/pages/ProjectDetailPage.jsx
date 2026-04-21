@@ -339,6 +339,7 @@ export default function ProjectDetailPage() {
         time: payload.time || schTime,
         notes: payload.notes ?? schedule?.notes ?? '',
         assignees: resolvedAssignees,
+        schedule_days: Array.isArray(payload?.schedule_days) ? payload.schedule_days : undefined,
       };
 
       await saveProjectScheduleAssign(projectId, finalPayload);
@@ -601,6 +602,7 @@ export default function ProjectDetailPage() {
                 project={project}
                 schedule={schedule}
                 assignees={assignees}
+                installationJobs={installationJobs}
                 users={users}
                 activeTab="details"
                 onSaveSchedule={handleSaveSchedule}
@@ -619,6 +621,7 @@ export default function ProjectDetailPage() {
               project={project}
               schedule={schedule}
               assignees={assignees}
+              installationJobs={installationJobs}
               users={users}
               activeTab={activeTab}
               onSaveSchedule={handleSaveSchedule}

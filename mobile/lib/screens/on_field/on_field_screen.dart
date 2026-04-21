@@ -197,13 +197,17 @@ class _OnFieldScreenState extends State<OnFieldScreen> {
   }
 
   Future<void> _handleCheckAction(bool isCheckIn) async {
+    int lunchBreakMinutes = 0;
+    if (!isCheckIn) {
+      final picked = await showAttendanceLunchBreakSheet(
+        context,
+        actionLabel: 'check out',
+      );
+      if (picked == null) return;
+      lunchBreakMinutes = picked;
+    }
     setState(() => _actionLoading = true);
     try {
-      final lunchBreakMinutes = await showAttendanceLunchBreakSheet(
-        context,
-        actionLabel: isCheckIn ? 'check in' : 'check out',
-      );
-      if (lunchBreakMinutes == null) return;
       final pos = await _getPosition();
       final companyId = _effectiveCompanyId;
       if (companyId == null) {
