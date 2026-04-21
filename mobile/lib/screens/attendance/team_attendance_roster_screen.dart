@@ -129,12 +129,21 @@ class _TeamAttendanceRosterScreenState extends State<TeamAttendanceRosterScreen>
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    final canGoBack = Navigator.of(context).canPop();
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Team attendance'),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
+        automaticallyImplyLeading: false,
+        leading: canGoBack
+            ? IconButton(
+                tooltip: 'Back',
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => Navigator.of(context).maybePop(),
+              )
+            : null,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

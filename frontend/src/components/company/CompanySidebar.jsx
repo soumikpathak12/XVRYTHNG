@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, UsersRound, Boxes, HardHat, Factory,
-  Clock3, MessageSquare, MessageCircle, Settings, ChevronLeft, ChevronRight, Wrench, CalendarRange,
+  Clock3, MessageSquare, MessageCircle, Settings, ChevronLeft, ChevronRight, Wrench, CalendarRange, BookOpen,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
@@ -26,6 +26,7 @@ function getRoleFixedItems(role) {
   const items = [{ to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard }];
   const r = (role || '').toLowerCase();
   if (r === 'company_admin' || r === 'manager') {
+    items.push({ to: '/dashboard/resources', label: 'Resource Library', icon: BookOpen });
     items.push({ to: '/dashboard/settings', label: 'Settings', icon: Settings });
   }
   return items;
