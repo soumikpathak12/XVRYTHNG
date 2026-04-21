@@ -45,7 +45,8 @@ Future<int?> showAttendanceLunchBreakSheet(
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Choose whether to deduct a 30-minute lunch break for this $actionLabel.',
+                    'Choose whether to deduct a 30-minute lunch break when you $actionLabel. '
+                    'Worked hours update automatically with your choice.',
                     style: TextStyle(
                       fontSize: 13,
                       color: Colors.grey[700],

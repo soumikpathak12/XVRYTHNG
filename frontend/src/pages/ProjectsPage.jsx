@@ -14,6 +14,7 @@ import {
   getProjectScheduleAssign,
   getCompanyWorkflow,
   getProjectDocuments,
+  listInstallationJobs,
 } from '../services/api.js';
 import '../styles/LeadsKanban.css';
 
@@ -100,6 +101,7 @@ export default function ProjectsPage() {
   // NEW: Calendar state for schedules
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [scheduleMap, setScheduleMap] = useState(new Map()); // Map<projectId, { scheduled_at, status?, notes? }>
+  const [calendarJobs, setCalendarJobs] = useState([]);
   const searchInputRef = useRef(null);
   const toastTimerRef = useRef(null);
   const [wfProjectStages, setWfProjectStages] = useState(null);
@@ -299,34 +301,21 @@ export default function ProjectsPage() {
     URL.revokeObjectURL(url);
   }, [filteredProjects]);
 
-  /** CALENDAR: load schedules when switching to calendar (and when projects change) */
+  /** CALENDAR: load installation jobs so multi-day bookings render on each day */
   useEffect(() => {
     if (view !== 'calendar') return;
     let alive = true;
     (async () => {
       try {
         setCalendarLoading(true);
-        const results = await Promise.allSettled(
-          projects.map((p) => getProjectScheduleAssign(p.id))
-        );
-        const next = new Map();
-        results.forEach((res, idx) => {
-          if (res.status === 'fulfilled') {
-            const p = projects[idx];
-            const payload = res.value?.data ?? res.value ?? {};
-            const schedule = payload.schedule ?? null;
-            if (schedule?.scheduled_at) {
-              next.set(p.id, {
-                scheduled_at: schedule.scheduled_at,
-                status: schedule.status ?? null,
-                notes: schedule.notes ?? null,
-              });
-            }
-          }
-        });
-        if (alive) setScheduleMap(next);
+        const projectIds = new Set(projects.map((p) => Number(p.id)).filter(Number.isFinite));
+        const resp = await listInstallationJobs({ limit: 2000, offset: 0 });
+        const rows = Array.isArray(resp?.data) ? resp.data : [];
+        const nextJobs = rows.filter((j) => projectIds.has(Number(j?.project_id)));
+        if (!alive) return;
+        setCalendarJobs(nextJobs);
       } catch (err) {
-        if (alive) setScheduleMap(new Map());
+        if (alive) setCalendarJobs([]);
       } finally {
         if (alive) setCalendarLoading(false);
       }
@@ -335,9 +324,18 @@ export default function ProjectsPage() {
   }, [projects, view]);
 
   const calendarProjects = useMemo(() => {
-    if (!scheduleMap || scheduleMap.size === 0) return [];
-    return projects.filter((p) => !!scheduleMap.get(p.id)?.scheduled_at);
-  }, [projects, scheduleMap]);
+    if (!Array.isArray(calendarJobs) || calendarJobs.length === 0) return [];
+    return calendarJobs
+      .filter((j) => !!j?.scheduled_date)
+      .map((j) => ({
+        id: `job-${j.id}`,
+        projectId: Number(j.project_id),
+        scheduled_at: `${j.scheduled_date} ${String(j.scheduled_time || '00:00').slice(0, 5)}:00`,
+        customerName: j.customer_name || `Project #${j.project_id}`,
+        stage: j.status || 'scheduled',
+        teamNames: j.team_names || '',
+      }));
+  }, [calendarJobs]);
 
   return (
     <div className="leads-kanban-page">
@@ -473,14 +471,13 @@ export default function ProjectsPage() {
             ) : (
               <ProjectsCalendar
                 projects={calendarProjects}
-                // Only show those with assigned date & time:
-                getDate={(p) => scheduleMap.get(p.id)?.scheduled_at ?? null}
-                titleForProject={(p) => p.customerName ?? `Project #${p.id}`}
+                getDate={(p) => p.scheduled_at ?? null}
+                titleForProject={(p) => p.customerName ?? `Project #${p.projectId ?? p.id}`}
                 subtitleForProject={(p) => {
-                  const t = formatLocalTimeLabel(scheduleMap.get(p.id)?.scheduled_at);
-                  return [t, p.stage].filter(Boolean).join(' • ');
+                  const t = formatLocalTimeLabel(p.scheduled_at);
+                  return [t, p.teamNames || p.stage].filter(Boolean).join(' • ');
                 }}
-                onProjectClick={(p) => openDetails(p.id)}
+                onProjectClick={(p) => openDetails(p.projectId ?? p.id)}
                 weekStartsOn={1} // Monday
               />
             )}

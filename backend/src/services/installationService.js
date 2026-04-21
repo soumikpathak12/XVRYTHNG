@@ -60,11 +60,9 @@ export async function listJobs(companyId, { status, date, search, project_id, em
     params.push(q, q, q);
   }
 
-  // Employee portal: only show jobs assigned to this employee.
-  // Assignment can come from:
-  // - installation_job_assignees (direct)
-  // - project_assignees (via ij.project_id)
-  // - retailer_project_assignees (via ij.retailer_project_id)
+  // Employee portal: prefer job-level assignees.
+  // Fallback to project-level assignees ONLY when the job has no explicit job assignees
+  // (legacy jobs created before installation_job_assignees sync was added).
   if (employee_id) {
     const employeeId = Number(employee_id);
     if (Number.isFinite(employeeId) && employeeId > 0) {
@@ -75,13 +73,23 @@ export async function listJobs(companyId, { status, date, search, project_id, em
             WHERE ija2.job_id = ij.id AND ija2.company_id = ij.company_id AND ija2.employee_id = ?
           )
           OR (
-            ij.project_id IS NOT NULL AND EXISTS (
+            ij.project_id IS NOT NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM installation_job_assignees ija_any
+              WHERE ija_any.job_id = ij.id AND ija_any.company_id = ij.company_id
+            )
+            AND EXISTS (
               SELECT 1 FROM project_assignees pa
               WHERE pa.project_id = ij.project_id AND pa.company_id = ij.company_id AND pa.employee_id = ?
             )
           )
           OR (
-            ij.retailer_project_id IS NOT NULL AND EXISTS (
+            ij.retailer_project_id IS NOT NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM installation_job_assignees ija_any
+              WHERE ija_any.job_id = ij.id AND ija_any.company_id = ij.company_id
+            )
+            AND EXISTS (
               SELECT 1 FROM retailer_project_assignees rpa
               WHERE rpa.project_id = ij.retailer_project_id AND rpa.company_id = ij.company_id AND rpa.employee_id = ?
             )
@@ -103,6 +111,7 @@ export async function listJobs(companyId, { status, date, search, project_id, em
        ij.scheduled_date, ij.scheduled_time, ij.estimated_hours,
        ij.started_at, ij.paused_at, ij.completed_at, ij.total_elapsed_seconds,
        ij.notes, ij.created_at, ij.updated_at,
+       GROUP_CONCAT(DISTINCT ija.employee_id ORDER BY ija.employee_id SEPARATOR ',') AS team_member_ids,
        COUNT(DISTINCT ija.employee_id) AS team_count,
        GROUP_CONCAT(DISTINCT e.first_name ORDER BY e.first_name SEPARATOR ', ') AS team_names
      FROM installation_jobs ij

@@ -243,12 +243,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   }
 
   Future<void> _handleCheckIn() async {
-    final lunchBreakMinutes = await showAttendanceLunchBreakSheet(
-      context,
-      actionLabel: 'check in',
-    );
-    if (lunchBreakMinutes == null) return;
-    await _handleAttendanceAction(true, lunchBreakMinutes: lunchBreakMinutes);
+    await _handleAttendanceAction(true, lunchBreakMinutes: 0);
   }
 
   Future<void> _handleCheckOut() async {
@@ -841,6 +836,10 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   Widget _buildStatusCard() {
     final isCheckedIn = _today?.isCheckedIn ?? false;
     final isCheckedOut = _today?.isCheckedOut ?? false;
+    final rawDate = _today?.date?.trim();
+    final statusHeadingDay = (rawDate != null && rawDate.isNotEmpty)
+        ? _recordDayFromString(rawDate)
+        : MelbourneTime.now();
 
     String statusText;
     Color statusColor;
@@ -884,7 +883,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        DateFormat('EEEE, dd MMM yyyy').format(DateTime.now()),
+                        DateFormat('EEEE, dd MMM yyyy').format(statusHeadingDay),
                         style: const TextStyle(
                           fontSize: 13,
                           color: AppColors.textSecondary,
