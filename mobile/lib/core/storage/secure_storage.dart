@@ -8,6 +8,10 @@ class SecureStore {
   static const _kRemember = 'remember_me';
   static const _kLastEmail = 'last_email';
   static const _kSelectedCompanyId = 'selected_company_id';
+  static const _kPinConfiguredPrefix = 'pin_configured_user_';
+  static const _kPinValuePrefix = 'pin_value_user_';
+  static const _kPinQuestionPrefix = 'pin_question_user_';
+  static const _kPinAnswerPrefix = 'pin_answer_user_';
 
   static Future<void> saveTokens({
     required String accessToken,
@@ -49,4 +53,36 @@ class SecureStore {
     if (raw == null || raw.trim().isEmpty) return null;
     return int.tryParse(raw);
   }
+
+  static String _kPinConfigured(int userId) => '$_kPinConfiguredPrefix$userId';
+  static String _kPinValue(int userId) => '$_kPinValuePrefix$userId';
+  static String _kPinQuestion(int userId) => '$_kPinQuestionPrefix$userId';
+  static String _kPinAnswer(int userId) => '$_kPinAnswerPrefix$userId';
+
+  static Future<void> savePinSetup({
+    required int userId,
+    required String pin,
+    required String securityQuestion,
+    required String securityAnswer,
+  }) async {
+    await _storage.write(key: _kPinValue(userId), value: pin);
+    await _storage.write(key: _kPinQuestion(userId), value: securityQuestion);
+    await _storage.write(
+      key: _kPinAnswer(userId),
+      value: securityAnswer.trim().toLowerCase(),
+    );
+    await _storage.write(key: _kPinConfigured(userId), value: '1');
+  }
+
+  static Future<bool> isPinConfigured(int userId) async {
+    return (await _storage.read(key: _kPinConfigured(userId))) == '1';
+  }
+
+  static Future<String?> readPin(int userId) => _storage.read(key: _kPinValue(userId));
+
+  static Future<String?> readSecurityQuestion(int userId) =>
+      _storage.read(key: _kPinQuestion(userId));
+
+  static Future<String?> readSecurityAnswer(int userId) =>
+      _storage.read(key: _kPinAnswer(userId));
 }

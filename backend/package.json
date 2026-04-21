@@ -9,6 +9,7 @@
     "dev": "node --watch server.js",
     "seed": "node database/seed.js",
     "migrate": "node database/run-migrations.js",
+    "migrate:mobile-pin": "node database/migrate-mobile-pin-security.js",
     "migrate:tenants": "node database/migrate-multi-tenant.js",
     "migrate:profile": "node database/migrate-user-profile.js",
     "migrate:rbac": "node database/migrate-rbac.js",

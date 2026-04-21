@@ -143,3 +143,175 @@ export async function changePassword(req, res) {
     return res.status(500).json({ success: false, message: 'Failed to change password.' });
   }
 }
+
+export async function getMobilePinStatus(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    const data = await authService.getMobilePinStatus(userId);
+    return res.status(200).json({ success: true, data });
+  } catch (err) {
+    console.error('Get mobile pin status error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to load PIN status.' });
+  }
+}
+
+export async function setupMobilePin(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    const { pin, securityQuestion, securityAnswer } = req.body ?? {};
+    await authService.setupMobilePin(userId, pin, securityQuestion, securityAnswer);
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    const msg = String(err?.message || '');
+    if (msg.toLowerCase().includes('required') || msg.toLowerCase().includes('6 digits')) {
+      return res.status(400).json({ success: false, message: msg });
+    }
+    console.error('Setup mobile pin error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to setup PIN.' });
+  }
+}
+
+export async function verifyMobilePin(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    const { pin } = req.body ?? {};
+    const data = await authService.verifyMobilePin(userId, pin);
+    return res.status(200).json({ success: true, data });
+  } catch (err) {
+    const msg = String(err?.message || '');
+    if (msg.toLowerCase().includes('6 digits')) {
+      return res.status(400).json({ success: false, message: msg });
+    }
+    console.error('Verify mobile pin error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to verify PIN.' });
+  }
+}
+
+export async function verifyMobilePinSecurityAnswer(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    const { securityAnswer } = req.body ?? {};
+    const data = await authService.verifyMobilePinSecurityAnswer(
+      userId,
+      securityAnswer,
+    );
+    return res.status(200).json({ success: true, data });
+  } catch (err) {
+    const msg = String(err?.message || '');
+    if (msg.toLowerCase().includes('required')) {
+      return res.status(400).json({ success: false, message: msg });
+    }
+    console.error('Verify mobile pin security answer error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to verify answer.' });
+  }
+}
+
+export async function resetMobilePin(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    const { securityAnswer, newPin } = req.body ?? {};
+    const data = await authService.resetMobilePinWithSecurityAnswer(
+      userId,
+      securityAnswer,
+      newPin,
+    );
+    if (!data.success) {
+      return res.status(400).json({ success: false, message: 'Security answer is incorrect.' });
+    }
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    const msg = String(err?.message || '');
+    if (msg.toLowerCase().includes('required') || msg.toLowerCase().includes('6 digits')) {
+      return res.status(400).json({ success: false, message: msg });
+    }
+    console.error('Reset mobile pin error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to reset PIN.' });
+  }
+}
+
+export async function requestMobilePinRecoveryEmail(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    await authService.requestMobilePinRecoveryEmail(userId);
+    return res.status(200).json({
+      success: true,
+      message: 'A security code has been sent to your email.',
+    });
+  } catch (err) {
+    const msg = String(err?.message || '');
+    if (msg.toLowerCase().includes('wait')) {
+      return res.status(429).json({ success: false, message: msg });
+    }
+    if (
+      msg.toLowerCase().includes('not configured') ||
+      msg.toLowerCase().includes('no email')
+    ) {
+      return res.status(400).json({ success: false, message: msg });
+    }
+    console.error('Request mobile pin recovery email error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to send recovery email.' });
+  }
+}
+
+export async function verifyMobilePinEmailRecoveryCode(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    const { recoveryCode } = req.body ?? {};
+    const data = await authService.verifyMobilePinEmailRecoveryCode(userId, recoveryCode);
+    return res.status(200).json({ success: true, data });
+  } catch (err) {
+    const msg = String(err?.message || '');
+    if (msg.toLowerCase().includes('6 digits')) {
+      return res.status(400).json({ success: false, message: msg });
+    }
+    console.error('Verify mobile pin email recovery error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to verify code.' });
+  }
+}
+
+export async function resetMobilePinWithEmailRecovery(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    const { recoveryCode, newPin } = req.body ?? {};
+    const data = await authService.resetMobilePinWithEmailRecovery(userId, recoveryCode, newPin);
+    if (!data.success) {
+      const reason = data.reason || 'wrong';
+      let message = 'Invalid or expired code.';
+      if (reason === 'locked') message = 'Too many attempts. Request a new code.';
+      if (reason === 'expired') message = 'Code has expired. Request a new code.';
+      return res.status(400).json({ success: false, message, reason });
+    }
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    const msg = String(err?.message || '');
+    if (msg.toLowerCase().includes('6 digits')) {
+      return res.status(400).json({ success: false, message: msg });
+    }
+    console.error('Reset mobile pin with email recovery error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to reset PIN.' });
+  }
+}

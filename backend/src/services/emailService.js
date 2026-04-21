@@ -627,3 +627,64 @@ export async function sendPayslipEmail({
   if (error) throw new Error(error?.message ?? 'Resend send failed');
   return data?.id ?? null;
 }
+
+/**
+ * Mobile app: 6-digit PIN recovery code (forgot security answer).
+ */
+export async function sendMobilePinRecoveryEmail({ to, name, code }) {
+  if (!isValidEmail(to)) throw new Error(`Invalid recipient email: ${to}`);
+  const safeName = escapeHtml((name || '').trim() || 'there');
+  const subject = 'XVRYTHNG — Mobile app security code';
+  const html = `
+  <!doctype html>
+  <html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <title>${subject}</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f6f9fc;font-family:Arial,sans-serif;color:#0f172a;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f6f9fc;">
+      <tr><td align="center" style="padding:24px">
+        <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb">
+          <tr>
+            <td style="background:#1A7B7B;color:#fff;padding:16px 20px;font-weight:700;font-size:16px;">
+              XVRYTHNG — Security code
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:20px;">
+              <p style="margin:0 0 12px;">Hi ${safeName},</p>
+              <p style="margin:0 0 12px;">Use this code in the mobile app to reset your PIN. It expires in <strong>15 minutes</strong>.</p>
+              <p style="margin:16px 0;font-size:28px;font-weight:700;letter-spacing:8px;color:#1A7B7B;">${escapeHtml(code)}</p>
+              <p style="margin:0 0 12px;font-size:13px;color:#6b7280;">If you did not request this, you can ignore this email.</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 20px;background:#f9fafb;border-top:1px solid #e5e7eb;color:#6b7280;font-size:12px;">
+              © ${new Date().getFullYear()} XVRYTHNG
+            </td>
+          </tr>
+        </table>
+      </td></tr>
+    </table>
+  </body></html>`;
+  const text = `Hi,\n\nYour XVRYTHNG mobile app security code is: ${code}\n\nIt expires in 15 minutes.\n\nIf you did not request this, ignore this email.`;
+
+  if (!resend) {
+    console.warn('[PIN recovery] Resend not configured — code for', to, ':', code);
+    return { id: null, devLogged: true };
+  }
+
+  const { data, error } = await resend.emails.send({
+    from: FROM,
+    to: [to],
+    subject,
+    html,
+    text,
+    headers: { 'X-Email-Type': 'mobile-pin-recovery' },
+  });
+
+  if (error) {
+    console.error('[PIN recovery] Resend failed:', error);
+    throw new Error(error?.message || 'Email send failed');
+  }
+  return { id: data?.id ?? null };
+}

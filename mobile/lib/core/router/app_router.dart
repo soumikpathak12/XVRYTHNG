@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/pin_security_provider.dart';
 import '../../screens/auth/login_screen.dart';
 import '../../screens/auth/forgot_password_screen.dart';
 import '../../screens/auth/reset_password_screen.dart';
+import '../../screens/auth/pin_setup_screen.dart';
+import '../../screens/auth/pin_lock_screen.dart';
 import '../../screens/home/admin_shell.dart';
 import '../../screens/home/employee_shell.dart';
 import '../../screens/home/company_shell.dart';
@@ -47,20 +50,38 @@ import '../../screens/notifications/notifications_screen.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
-GoRouter createRouter(AuthProvider authProvider) {
+class _RouterRefreshListenable extends ChangeNotifier {
+  _RouterRefreshListenable(List<ChangeNotifier> listenables) {
+    for (final item in listenables) {
+      item.addListener(notifyListeners);
+    }
+  }
+}
+
+GoRouter createRouter(
+  AuthProvider authProvider,
+  PinSecurityProvider pinSecurityProvider,
+) {
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/',
-    refreshListenable: authProvider,
+    refreshListenable: _RouterRefreshListenable([
+      authProvider,
+      pinSecurityProvider,
+    ]),
     redirect: (context, state) {
       final auth = authProvider;
+      final pin = pinSecurityProvider;
       final isLoggedIn = auth.isAuthenticated;
       final isAuthRoute =
           state.matchedLocation == '/login' ||
           state.matchedLocation == '/forgot-password' ||
           state.matchedLocation.startsWith('/reset-password');
+      final isPinRoute =
+          state.matchedLocation == '/pin-setup' ||
+          state.matchedLocation == '/pin-lock';
 
-      if (auth.loading) {
+      if (auth.loading || (isLoggedIn && pin.loading)) {
         if (state.matchedLocation == '/') return '/splash';
         return null;
       }
@@ -68,6 +89,15 @@ GoRouter createRouter(AuthProvider authProvider) {
       final isSplash = state.matchedLocation == '/splash';
 
       if (!isLoggedIn && !isAuthRoute) return '/login';
+      if (isLoggedIn && !pin.configured && state.matchedLocation != '/pin-setup') {
+        return '/pin-setup';
+      }
+      if (isLoggedIn && pin.configured && !pin.unlocked && state.matchedLocation != '/pin-lock') {
+        return '/pin-lock';
+      }
+      if (isLoggedIn && isPinRoute && pin.configured && pin.unlocked) {
+        return auth.getDefaultRoute();
+      }
       if (isLoggedIn &&
           (auth.user?.isOnFieldRole == true ||
               auth.user?.isFieldAgent == true) &&
@@ -94,6 +124,14 @@ GoRouter createRouter(AuthProvider authProvider) {
             const Scaffold(body: Center(child: CircularProgressIndicator())),
       ),
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(
+        path: '/pin-setup',
+        builder: (context, state) => const PinSetupScreen(),
+      ),
+      GoRoute(
+        path: '/pin-lock',
+        builder: (context, state) => const PinLockScreen(),
+      ),
       GoRoute(
         path: '/forgot-password',
         builder: (context, state) => const ForgotPasswordScreen(),

@@ -17,6 +17,30 @@ router.post('/refresh', authController.refresh);
 router.post('/request-reset', postRequestReset);
 router.get('/validate-reset-token', getValidateToken);
 router.post('/reset-password', postResetPassword);
+router.get('/pin/status', requireAuth, authController.getMobilePinStatus);
+router.post('/pin/setup', requireAuth, authController.setupMobilePin);
+router.post('/pin/verify', requireAuth, authController.verifyMobilePin);
+router.post(
+  '/pin/verify-security-answer',
+  requireAuth,
+  authController.verifyMobilePinSecurityAnswer,
+);
+router.post(
+  '/pin/request-email-recovery',
+  requireAuth,
+  authController.requestMobilePinRecoveryEmail,
+);
+router.post(
+  '/pin/verify-email-recovery-code',
+  requireAuth,
+  authController.verifyMobilePinEmailRecoveryCode,
+);
+router.post(
+  '/pin/reset-with-email-recovery',
+  requireAuth,
+  authController.resetMobilePinWithEmailRecovery,
+);
+router.post('/pin/reset', requireAuth, authController.resetMobilePin);
 
 
 router.post('/change-password-emp', requireAuth, async (req, res) => {
