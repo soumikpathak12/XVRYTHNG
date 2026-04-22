@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import db from '../config/db.js';
 import * as permissionService from './permissionService.js';
+import { sendMobilePinRecoveryEmail } from './emailService.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
@@ -334,5 +335,274 @@ export async function changePassword(userId, currentPassword, newPassword) {
   // Invalidate all existing refresh tokens so old sessions are logged out.
   await db.execute(`DELETE FROM refresh_tokens WHERE user_id = ?`, [Number(userId)]);
 
+  return { success: true };
+}
+
+export async function getMobilePinStatus(userId) {
+  const [rows] = await db.execute(
+    `SELECT mobile_pin_hash, mobile_pin_question
+       FROM users
+      WHERE id = ?
+      LIMIT 1`,
+    [Number(userId)],
+  );
+  const user = rows?.[0];
+  if (!user) throw new Error('User not found');
+  return {
+    configured: !!(user.mobile_pin_hash && String(user.mobile_pin_hash).trim()),
+    securityQuestion: user.mobile_pin_question || null,
+  };
+}
+
+export async function setupMobilePin(userId, pin, securityQuestion, securityAnswer) {
+  const normalizedPin = String(pin ?? '').trim();
+  if (!/^\d{6}$/.test(normalizedPin)) {
+    throw new Error('PIN must be exactly 6 digits');
+  }
+  const question = String(securityQuestion ?? '').trim();
+  const answer = String(securityAnswer ?? '').trim();
+  if (!question) throw new Error('Security question is required');
+  if (['other', 'others'].includes(question.toLowerCase())) {
+    throw new Error('Please provide a custom security question');
+  }
+  if (answer.length < 2) throw new Error('Security answer is required');
+
+  const pinHash = await bcrypt.hash(normalizedPin, 10);
+  const answerHash = await bcrypt.hash(answer.toLowerCase(), 10);
+
+  const [res] = await db.execute(
+    `UPDATE users
+        SET mobile_pin_hash = ?,
+            mobile_pin_question = ?,
+            mobile_pin_answer_hash = ?,
+            mobile_pin_set_at = NOW(),
+            updated_at = NOW()
+      WHERE id = ?`,
+    [pinHash, question, answerHash, Number(userId)],
+  );
+  if (!res?.affectedRows) throw new Error('User not found');
+  return { success: true };
+}
+
+export async function verifyMobilePin(userId, pin) {
+  const normalizedPin = String(pin ?? '').trim();
+  if (!/^\d{6}$/.test(normalizedPin)) {
+    throw new Error('PIN must be exactly 6 digits');
+  }
+  const [rows] = await db.execute(
+    `SELECT mobile_pin_hash
+       FROM users
+      WHERE id = ?
+      LIMIT 1`,
+    [Number(userId)],
+  );
+  const user = rows?.[0];
+  if (!user || !user.mobile_pin_hash) {
+    return { configured: false, valid: false };
+  }
+  const valid = await bcrypt.compare(normalizedPin, user.mobile_pin_hash);
+  return { configured: true, valid };
+}
+
+export async function verifyMobilePinSecurityAnswer(userId, securityAnswer) {
+  const answer = String(securityAnswer ?? '').trim().toLowerCase();
+  if (!answer) {
+    throw new Error('Security answer is required');
+  }
+  const [rows] = await db.execute(
+    `SELECT mobile_pin_answer_hash
+       FROM users
+      WHERE id = ?
+      LIMIT 1`,
+    [Number(userId)],
+  );
+  const user = rows?.[0];
+  if (!user || !user.mobile_pin_answer_hash) {
+    return { valid: false };
+  }
+  const valid = await bcrypt.compare(answer, user.mobile_pin_answer_hash);
+  return { valid };
+}
+
+export async function resetMobilePinWithSecurityAnswer(userId, securityAnswer, newPin) {
+  const answer = String(securityAnswer ?? '').trim().toLowerCase();
+  const pin = String(newPin ?? '').trim();
+  if (!/^\d{6}$/.test(pin)) {
+    throw new Error('PIN must be exactly 6 digits');
+  }
+  if (!answer) throw new Error('Security answer is required');
+
+  const [rows] = await db.execute(
+    `SELECT mobile_pin_answer_hash, mobile_pin_question
+       FROM users
+      WHERE id = ?
+      LIMIT 1`,
+    [Number(userId)],
+  );
+  const user = rows?.[0];
+  if (!user || !user.mobile_pin_answer_hash) {
+    throw new Error('PIN is not configured');
+  }
+  const answerValid = await bcrypt.compare(answer, user.mobile_pin_answer_hash);
+  if (!answerValid) return { success: false };
+
+  const pinHash = await bcrypt.hash(pin, 10);
+  await db.execute(
+    `UPDATE users
+        SET mobile_pin_hash = ?,
+            mobile_pin_set_at = NOW(),
+            updated_at = NOW()
+      WHERE id = ?`,
+    [pinHash, Number(userId)],
+  );
+  return { success: true, securityQuestion: user.mobile_pin_question || null };
+}
+
+const PIN_RECOVERY_COOLDOWN_SEC = Number(process.env.MOBILE_PIN_RECOVERY_COOLDOWN_SEC || 60);
+const PIN_RECOVERY_TTL_MIN = Number(process.env.MOBILE_PIN_RECOVERY_TTL_MIN || 15);
+const PIN_RECOVERY_MAX_ATTEMPTS = Number(process.env.MOBILE_PIN_RECOVERY_MAX_ATTEMPTS || 5);
+
+export async function requestMobilePinRecoveryEmail(userId) {
+  const [rows] = await db.execute(
+    `SELECT id, email, name, mobile_pin_hash, mobile_pin_recovery_sent_at
+       FROM users
+      WHERE id = ?
+      LIMIT 1`,
+    [Number(userId)],
+  );
+  const user = rows?.[0];
+  if (!user) throw new Error('User not found');
+  if (!user.mobile_pin_hash || !String(user.mobile_pin_hash).trim()) {
+    throw new Error('PIN is not configured');
+  }
+  const email = String(user.email || '').trim().toLowerCase();
+  if (!email) throw new Error('No email on file for this account');
+
+  if (user.mobile_pin_recovery_sent_at) {
+    const sentMs = new Date(user.mobile_pin_recovery_sent_at).getTime();
+    if (Number.isFinite(sentMs) && Date.now() - sentMs < PIN_RECOVERY_COOLDOWN_SEC * 1000) {
+      throw new Error(`Please wait ${PIN_RECOVERY_COOLDOWN_SEC} seconds before requesting another code.`);
+    }
+  }
+
+  const code = String(crypto.randomInt(100000, 1000000));
+  const codeHash = await bcrypt.hash(code, 10);
+
+  await db.execute(
+    `UPDATE users
+        SET mobile_pin_recovery_code_hash = ?,
+            mobile_pin_recovery_expires_at = DATE_ADD(NOW(), INTERVAL ? MINUTE),
+            mobile_pin_recovery_sent_at = NOW(),
+            mobile_pin_recovery_attempts = 0,
+            updated_at = NOW()
+      WHERE id = ?`,
+    [codeHash, PIN_RECOVERY_TTL_MIN, Number(userId)],
+  );
+
+  await sendMobilePinRecoveryEmail({
+    to: email,
+    name: user.name,
+    code,
+  });
+
+  return { success: true };
+}
+
+async function loadPinRecoveryState(userId) {
+  const [rows] = await db.execute(
+    `SELECT mobile_pin_recovery_code_hash,
+            mobile_pin_recovery_expires_at,
+            mobile_pin_recovery_attempts
+       FROM users
+      WHERE id = ?
+      LIMIT 1`,
+    [Number(userId)],
+  );
+  return rows?.[0] || null;
+}
+
+export async function verifyMobilePinEmailRecoveryCode(userId, rawCode) {
+  const code = String(rawCode ?? '').trim();
+  if (!/^\d{6}$/.test(code)) {
+    throw new Error('Code must be exactly 6 digits');
+  }
+  const row = await loadPinRecoveryState(userId);
+  if (!row?.mobile_pin_recovery_code_hash) {
+    return { valid: false, reason: 'none' };
+  }
+  const expiresAt = row.mobile_pin_recovery_expires_at
+    ? new Date(row.mobile_pin_recovery_expires_at)
+    : null;
+  if (!expiresAt || expiresAt <= new Date()) {
+    return { valid: false, reason: 'expired' };
+  }
+  const attempts = Number(row.mobile_pin_recovery_attempts || 0);
+  if (attempts >= PIN_RECOVERY_MAX_ATTEMPTS) {
+    return { valid: false, reason: 'locked' };
+  }
+  const ok = await bcrypt.compare(code, row.mobile_pin_recovery_code_hash);
+  if (!ok) {
+    await db.execute(
+      `UPDATE users
+          SET mobile_pin_recovery_attempts = IFNULL(mobile_pin_recovery_attempts, 0) + 1,
+              updated_at = NOW()
+        WHERE id = ?`,
+      [Number(userId)],
+    );
+    return { valid: false, reason: 'wrong' };
+  }
+  return { valid: true };
+}
+
+export async function resetMobilePinWithEmailRecovery(userId, rawCode, newPin) {
+  const code = String(rawCode ?? '').trim();
+  const pin = String(newPin ?? '').trim();
+  if (!/^\d{6}$/.test(code)) {
+    throw new Error('Code must be exactly 6 digits');
+  }
+  if (!/^\d{6}$/.test(pin)) {
+    throw new Error('PIN must be exactly 6 digits');
+  }
+
+  const row = await loadPinRecoveryState(userId);
+  if (!row?.mobile_pin_recovery_code_hash) {
+    return { success: false, reason: 'none' };
+  }
+  const expiresAt = row.mobile_pin_recovery_expires_at
+    ? new Date(row.mobile_pin_recovery_expires_at)
+    : null;
+  if (!expiresAt || expiresAt <= new Date()) {
+    return { success: false, reason: 'expired' };
+  }
+  const attempts = Number(row.mobile_pin_recovery_attempts || 0);
+  if (attempts >= PIN_RECOVERY_MAX_ATTEMPTS) {
+    return { success: false, reason: 'locked' };
+  }
+
+  const ok = await bcrypt.compare(code, row.mobile_pin_recovery_code_hash);
+  if (!ok) {
+    await db.execute(
+      `UPDATE users
+          SET mobile_pin_recovery_attempts = IFNULL(mobile_pin_recovery_attempts, 0) + 1,
+              updated_at = NOW()
+        WHERE id = ?`,
+      [Number(userId)],
+    );
+    return { success: false, reason: 'wrong' };
+  }
+
+  const pinHash = await bcrypt.hash(pin, 10);
+  await db.execute(
+    `UPDATE users
+        SET mobile_pin_hash = ?,
+            mobile_pin_set_at = NOW(),
+            mobile_pin_recovery_code_hash = NULL,
+            mobile_pin_recovery_expires_at = NULL,
+            mobile_pin_recovery_sent_at = NULL,
+            mobile_pin_recovery_attempts = 0,
+            updated_at = NOW()
+      WHERE id = ?`,
+    [pinHash, Number(userId)],
+  );
   return { success: true };
 }
