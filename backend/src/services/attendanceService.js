@@ -59,6 +59,111 @@ function normalizeLunchBreakMinutes(value) {
   return Math.min(Math.round(n), 480);
 }
 
+function parseEnvNumber(name, fallback) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === null || String(raw).trim() === '') return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function parseEnvInt(name, fallback) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === null || String(raw).trim() === '') return fallback;
+  const n = parseInt(String(raw), 10);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+/** Set ATTENDANCE_AUTO_CHECKOUT_ENABLED=false to disable the hourly cron job. */
+const ATTENDANCE_AUTO_CHECKOUT_ENABLED =
+  String(process.env.ATTENDANCE_AUTO_CHECKOUT_ENABLED ?? 'true').trim().toLowerCase() !== 'false';
+
+/**
+ * One standard shift: paid work hours (default 8) + lunch minutes (default 30).
+ * Auto checkout runs when wall time since check-in >= (work + lunch/60), e.g. 8h + 30m = 8.5h open.
+ */
+const ATTENDANCE_AUTO_WORK_HOURS = Math.max(
+  0.5,
+  parseEnvNumber('ATTENDANCE_AUTO_CHECKOUT_WORK_HOURS', 8),
+);
+
+/** Lunch minutes deducted from the span for hours_worked (default 30). */
+const ATTENDANCE_AUTO_LUNCH_MINUTES = Math.min(
+  480,
+  Math.max(0, parseEnvInt('ATTENDANCE_AUTO_CHECKOUT_LUNCH_MINUTES', 30)),
+);
+
+/** Wall-clock hours from check-in before auto-close (= work + lunch as hours). */
+const ATTENDANCE_AUTO_SHIFT_OPEN_HOURS =
+  ATTENDANCE_AUTO_WORK_HOURS + ATTENDANCE_AUTO_LUNCH_MINUTES / 60;
+
+const ATTENDANCE_AUTO_SHIFT_SPAN_MINUTES = Math.round(
+  ATTENDANCE_AUTO_WORK_HOURS * 60 + ATTENDANCE_AUTO_LUNCH_MINUTES,
+);
+
+function isOpenShiftReadyForAutoCheckout(row, now = new Date()) {
+  const checkIn = new Date(row.check_in_time);
+  if (Number.isNaN(checkIn.getTime())) return false;
+
+  const hoursOpen = (now.getTime() - checkIn.getTime()) / (1000 * 60 * 60);
+  return hoursOpen >= ATTENDANCE_AUTO_SHIFT_OPEN_HOURS;
+}
+
+/**
+ * Auto-close open shifts after a full standard shift on the clock (default 8h work + 30m lunch = 8h30).
+ * check_out_time = check_in + that span; hours_worked = work hours; lunch_break_minutes as configured.
+ */
+export async function autoCheckoutStaleOpenShifts() {
+  if (!ATTENDANCE_AUTO_CHECKOUT_ENABLED) {
+    return { processed: 0, disabled: true };
+  }
+
+  const lunchM = ATTENDANCE_AUTO_LUNCH_MINUTES;
+  const workH = ATTENDANCE_AUTO_WORK_HOURS;
+  const spanMinutes = ATTENDANCE_AUTO_SHIFT_SPAN_MINUTES;
+  const hoursWorkedRounded = Math.round(workH * 100) / 100;
+
+  const [openRows] = await db.query(
+    'SELECT * FROM employee_attendance WHERE check_out_time IS NULL ORDER BY id ASC'
+  );
+
+  const now = new Date();
+  let processed = 0;
+  const ids = [];
+
+  for (const row of openRows) {
+    if (!isOpenShiftReadyForAutoCheckout(row, now)) continue;
+
+    const [result] = await db.query(
+      `UPDATE employee_attendance
+       SET check_out_time = DATE_ADD(check_in_time, INTERVAL ? MINUTE),
+           check_out_lat = check_in_lat,
+           check_out_lng = check_in_lng,
+           lunch_break_minutes = ?,
+           hours_worked = ?
+       WHERE id = ? AND check_out_time IS NULL`,
+      [spanMinutes, lunchM, hoursWorkedRounded, row.id]
+    );
+
+    if (result.affectedRows === 1) {
+      processed += 1;
+      ids.push(row.id);
+    }
+  }
+
+  if (processed > 0) {
+    console.log(
+      '[Attendance] auto-checkout:',
+      processed,
+      'shift(s) past',
+      ATTENDANCE_AUTO_SHIFT_OPEN_HOURS,
+      'h open; ids=',
+      ids.length > 30 ? `${ids.slice(0, 30).join(',')}…` : ids.join(','),
+    );
+  }
+
+  return { processed, ids };
+}
+
 export async function getEmployeeIdByUserId(companyId, userId) {
   const [rows] = await db.query(
     'SELECT id FROM employees WHERE company_id = ? AND user_id = ? AND status = "active" LIMIT 1',
@@ -184,43 +289,69 @@ export async function checkIn(companyId, employeeId, lat, lng, lunchBreakMinutes
 }
 
 export async function checkOut(companyId, employeeId, lat, lng, lunchBreakMinutes = null) {
-  const [existing] = await db.query(
-    `SELECT * FROM employee_attendance
-     WHERE company_id = ? AND employee_id = ? AND check_out_time IS NULL
-     ORDER BY created_at DESC
-     LIMIT 1`,
-    [companyId, employeeId]
-  );
-
-  if (!existing.length) {
-    throw new Error('No open check-in found for today.');
-  }
-  
-  const attendanceId = existing[0].id;
-  const checkInTime = new Date(existing[0].check_in_time);
-  const now = new Date();
-  const storedLunchBreakMinutes = normalizeLunchBreakMinutes(existing[0].lunch_break_minutes);
-  const requestedLunchBreakMinutes =
-    lunchBreakMinutes === null || lunchBreakMinutes === undefined || lunchBreakMinutes === ''
-      ? null
-      : normalizeLunchBreakMinutes(lunchBreakMinutes);
-  const appliedLunchBreakMinutes = requestedLunchBreakMinutes ?? storedLunchBreakMinutes;
-  const hoursWorked = Math.max(
-    0,
-    (now - checkInTime) / (1000 * 60 * 60) - appliedLunchBreakMinutes / 60,
-  );
-
   const checkOutLat = normalizeCoordinate(lat, 'lat');
   const checkOutLng = normalizeCoordinate(lng, 'lng');
 
-  await db.query(
-    `UPDATE employee_attendance 
-     SET check_out_time = NOW(), check_out_lat = ?, check_out_lng = ?, lunch_break_minutes = ?, hours_worked = ? 
-     WHERE id = ?`,
-    [checkOutLat, checkOutLng, appliedLunchBreakMinutes, hoursWorked, attendanceId]
-  );
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
 
-  return { id: attendanceId, hoursWorked };
+    const [openRows] = await conn.query(
+      `SELECT * FROM employee_attendance
+       WHERE company_id = ? AND employee_id = ? AND check_out_time IS NULL
+       ORDER BY created_at ASC`,
+      [companyId, employeeId]
+    );
+
+    if (!openRows.length) {
+      throw new Error('No open check-in found for today.');
+    }
+
+    // More than one open row (stale/duplicate state) used to require multiple Check Out taps.
+    // Close older rows as zero-hour corrections; the newest open row is the active shift.
+    const primary = openRows[openRows.length - 1];
+    const orphans = openRows.slice(0, -1);
+
+    for (const row of orphans) {
+      await conn.query(
+        `UPDATE employee_attendance
+         SET check_out_time = DATE_ADD(check_in_time, INTERVAL 1 SECOND),
+             check_out_lat = ?, check_out_lng = ?,
+             lunch_break_minutes = 0, hours_worked = 0
+         WHERE id = ?`,
+        [checkOutLat, checkOutLng, row.id]
+      );
+    }
+
+    const attendanceId = primary.id;
+    const checkInTime = new Date(primary.check_in_time);
+    const now = new Date();
+    const storedLunchBreakMinutes = normalizeLunchBreakMinutes(primary.lunch_break_minutes);
+    const requestedLunchBreakMinutes =
+      lunchBreakMinutes === null || lunchBreakMinutes === undefined || lunchBreakMinutes === ''
+        ? null
+        : normalizeLunchBreakMinutes(lunchBreakMinutes);
+    const appliedLunchBreakMinutes = requestedLunchBreakMinutes ?? storedLunchBreakMinutes;
+    const hoursWorked = Math.max(
+      0,
+      (now - checkInTime) / (1000 * 60 * 60) - appliedLunchBreakMinutes / 60,
+    );
+
+    await conn.query(
+      `UPDATE employee_attendance 
+       SET check_out_time = NOW(), check_out_lat = ?, check_out_lng = ?, lunch_break_minutes = ?, hours_worked = ? 
+       WHERE id = ?`,
+      [checkOutLat, checkOutLng, appliedLunchBreakMinutes, hoursWorked, attendanceId]
+    );
+
+    await conn.commit();
+    return { id: attendanceId, hoursWorked };
+  } catch (err) {
+    await conn.rollback().catch(() => {});
+    throw err;
+  } finally {
+    conn.release();
+  }
 }
 
 export async function getHistory(companyId, employeeId, limit = 30) {
