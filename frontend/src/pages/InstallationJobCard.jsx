@@ -1216,6 +1216,7 @@ export default function InstallationJobCard() {
   const [photoRequirements, setPhotoRequirements] = useState(null);
   // Local photo list (kept in sync with job.photos but also updated on upload/delete without full reload)
   const [localPhotos,       setLocalPhotos]       = useState([]);
+  const syncingRef = useRef(false);
 
   // Load job + photo requirements in parallel
   useEffect(() => {
@@ -1235,6 +1236,30 @@ export default function InstallationJobCard() {
       .finally(() => alive && setLoading(false));
     return () => { alive = false; };
   }, [id]);
+
+  // Keep multi-device timer/status in sync without requiring manual refresh.
+  useEffect(() => {
+    if (!job || !['in_progress', 'paused'].includes(job.status)) return undefined;
+    let alive = true;
+    const intervalId = setInterval(async () => {
+      if (!alive || syncingRef.current) return;
+      syncingRef.current = true;
+      try {
+        const res = await getInstallationJob(id);
+        if (!alive || !res?.data) return;
+        setJob(res.data);
+        setLocalPhotos(res.data?.photos ?? []);
+      } catch (_) {
+        // Silent background sync; user actions already surface explicit errors.
+      } finally {
+        syncingRef.current = false;
+      }
+    }, 2000);
+    return () => {
+      alive = false;
+      clearInterval(intervalId);
+    };
+  }, [id, job?.status]);
 
   // Status action → T-230/231
   const handleAction = useCallback(async (toStatus) => {

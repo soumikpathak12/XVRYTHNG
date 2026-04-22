@@ -33,6 +33,8 @@ class InstallationDetailScreen extends StatefulWidget {
 class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
   final InstallationService _service = InstallationService();
   final ExpenseService _expenseService = ExpenseService();
+  Timer? _realtimeSyncTimer;
+  bool _syncInFlight = false;
   bool _actionLoading = false;
   bool _loadingExpenses = false;
   bool _isSigning = false;
@@ -68,14 +70,36 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
         companyId: _companyId,
       );
       _refreshJobExpenses();
+      _startRealtimeSync();
     });
   }
 
   @override
   void dispose() {
+    _realtimeSyncTimer?.cancel();
     _signoffCustomerCtrl.dispose();
     _signoffNotesCtrl.dispose();
     super.dispose();
+  }
+
+  void _startRealtimeSync() {
+    _realtimeSyncTimer?.cancel();
+    _realtimeSyncTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+      if (!mounted || _actionLoading || _syncInFlight) return;
+      final provider = context.read<InstallationProvider>();
+      final detail = provider.jobDetail;
+      final status = (detail?['status'] as String?) ?? 'scheduled';
+      if (status != 'in_progress' && status != 'paused') return;
+
+      _syncInFlight = true;
+      try {
+        await provider.loadJobDetail(widget.jobId, companyId: _companyId);
+      } catch (_) {
+        // Silent background sync to keep timer/state aligned across devices.
+      } finally {
+        _syncInFlight = false;
+      }
+    });
   }
 
   Future<void> _updateStatus(String newStatus) async {
