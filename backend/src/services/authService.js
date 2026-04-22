@@ -362,6 +362,9 @@ export async function setupMobilePin(userId, pin, securityQuestion, securityAnsw
   const question = String(securityQuestion ?? '').trim();
   const answer = String(securityAnswer ?? '').trim();
   if (!question) throw new Error('Security question is required');
+  if (['other', 'others'].includes(question.toLowerCase())) {
+    throw new Error('Please provide a custom security question');
+  }
   if (answer.length < 2) throw new Error('Security answer is required');
 
   const pinHash = await bcrypt.hash(normalizedPin, 10);
