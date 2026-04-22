@@ -51,6 +51,14 @@ class RoleSidebarDrawer {
 
     items.add(
       const DrawerItem(
+        label: 'Resource Library',
+        icon: Icons.menu_book_outlined,
+        route: '/dashboard/resources',
+      ),
+    );
+
+    items.add(
+      const DrawerItem(
         label: 'Profile',
         icon: Icons.person_outline,
         route: '/dashboard/profile',
@@ -276,6 +284,13 @@ class RoleSidebarDrawer {
       items.add(const DrawerItem.divider(label: 'Communications'));
       items.addAll(comms);
     }
+    items.add(
+      const DrawerItem(
+        label: 'Resource Library',
+        icon: Icons.menu_book_outlined,
+        route: '/employee/resources',
+      ),
+    );
 
     final hasOps = allowed.contains('operations');
     final hasPayroll = allowed.contains('payroll');

@@ -2331,6 +2331,44 @@ export async function tickInstallationChecklist(jobId, itemId, { checked, note }
   });
 }
 
+// ---------------------------------------------------------------------------
+// Resource Library (shared references: sticker/installation/etc)
+// ---------------------------------------------------------------------------
+export async function listResourceLibrary() {
+  return authFetchJSON('/api/resources', { method: 'GET' });
+}
+
+export async function createResourceLibraryItem(payload) {
+  return authFetchJSON('/api/resources', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function uploadResourceLibraryPhoto(file) {
+  const form = new FormData();
+  form.append('photo', file);
+  const res = await authFetch('/api/resources/upload-photo', {
+    method: 'POST',
+    body: form,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to upload photo');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data;
+}
+
+export async function deleteResourceLibraryItem(id) {
+  return authFetchJSON(`/api/resources/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function submitInstallationSignoff(jobId, { customer_name, signature_url, notes }) {
   return authFetchJSON(`/api/installation-jobs/${jobId}/signoff`, {
     method: 'POST',

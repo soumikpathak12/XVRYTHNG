@@ -606,6 +606,43 @@ const MIGRATIONS = [
       }
     },
   },
+  {
+    version: 'V018__resource_library',
+    description: 'Shared resource library items for admin and employees',
+    up: async () => {
+      await db.execute(`
+        CREATE TABLE IF NOT EXISTS resource_library_items (
+          id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+          company_id INT UNSIGNED NULL,
+          created_by INT UNSIGNED NOT NULL,
+          title VARCHAR(255) NOT NULL,
+          category VARCHAR(50) NOT NULL DEFAULT 'sticker',
+          resource_type VARCHAR(20) NOT NULL DEFAULT 'photo',
+          image_url VARCHAR(1000) NULL,
+          link_url VARCHAR(1000) NULL,
+          notes TEXT NULL,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_resource_company (company_id),
+          INDEX idx_resource_category (category),
+          INDEX idx_resource_created_by (created_by)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+    },
+  },
+  {
+    version: 'V019__resource_library_sections',
+    description: 'Add section_name for resource library grouping and filtering',
+    up: async () => {
+      const schema = process.env.DB_NAME;
+      if (!(await columnExists(schema, 'resource_library_items', 'section_name'))) {
+        await db.execute(`
+          ALTER TABLE resource_library_items
+          ADD COLUMN section_name VARCHAR(120) NOT NULL DEFAULT 'General' AFTER category
+        `);
+      }
+    },
+  },
 
 
 ];

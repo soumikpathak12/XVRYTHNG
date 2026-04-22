@@ -100,6 +100,11 @@ class _AdminShellState extends State<AdminShell> {
           route: '/admin/support-tickets',
         ),
         const DrawerItem(
+          label: 'Resource Library',
+          icon: Icons.menu_book_outlined,
+          route: '/admin/resources',
+        ),
+        const DrawerItem(
           label: 'Settings',
           icon: Icons.settings_outlined,
           route: '/admin/settings',

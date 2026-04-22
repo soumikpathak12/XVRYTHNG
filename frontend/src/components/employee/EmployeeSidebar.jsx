@@ -20,6 +20,7 @@ import {
   Briefcase,
   Building2,
   CalendarRange,
+  BookOpen,
 } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { getCompanySidebar } from '../../services/api.js';
@@ -45,6 +46,7 @@ const EMP_MODULE_NAV = {
   projects: { to: '/employee/projects', label: 'Projects', icon: Building2 },
   referrals: { to: '/employee/referrals', label: 'Referrals', icon: Gift },
   support: { to: '/employee/support-tickets', label: 'Support Tickets', icon: MessageCircle },
+  resources: { to: '/employee/resources', label: 'Resource Library', icon: BookOpen },
 
   // Approvals and Payroll
   approvals: { to: '/employee/approvals', label: 'Approvals', icon: CheckCircle2 },
@@ -163,6 +165,7 @@ export default function EmployeeSidebar() {
         ...(allowed.has('messages') ? [EMP_MODULE_NAV.messages] : []),
         ...(allowed.has('referrals') ? [EMP_MODULE_NAV.referrals] : []),
         ...(allowed.has('support') ? [EMP_MODULE_NAV.support] : []),
+        ...(allowed.has('projects') ? [EMP_MODULE_NAV.resources] : []),
       ],
     },
     {
