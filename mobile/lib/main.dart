@@ -35,11 +35,13 @@ class XvrythngApp extends StatefulWidget {
 }
 
 class _XvrythngAppState extends State<XvrythngApp> with WidgetsBindingObserver {
+  static const Duration _pinLockGracePeriod = Duration(minutes: 30);
   late final AuthProvider _authProvider;
   late final PinSecurityProvider _pinSecurityProvider;
   late final MessagesProvider _messagesProvider;
   late final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey;
   StreamSubscription<IncomingMessageNotification>? _incomingSub;
+  DateTime? _wentToBackgroundAt;
 
   @override
   void initState() {
@@ -72,10 +74,24 @@ class _XvrythngAppState extends State<XvrythngApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if ((state == AppLifecycleState.paused ||
-            state == AppLifecycleState.inactive) &&
-        _authProvider.isAuthenticated) {
-      _pinSecurityProvider.lock();
+    if (!_authProvider.isAuthenticated) {
+      super.didChangeAppLifecycleState(state);
+      return;
+    }
+
+    if (state == AppLifecycleState.paused) {
+      _wentToBackgroundAt = DateTime.now();
+    } else if (state == AppLifecycleState.resumed) {
+      final backgroundAt = _wentToBackgroundAt;
+      _wentToBackgroundAt = null;
+      if (backgroundAt == null) {
+        super.didChangeAppLifecycleState(state);
+        return;
+      }
+      final elapsed = DateTime.now().difference(backgroundAt);
+      if (elapsed >= _pinLockGracePeriod) {
+        _pinSecurityProvider.lock();
+      }
     }
     super.didChangeAppLifecycleState(state);
   }
