@@ -127,7 +127,8 @@ class AttendanceService {
   }
 
   /// Team roster for one calendar day (`attendance_history:view`). Super admin must pass [companyId].
-  Future<List<TeamAttendanceRosterRow>> getCompanyDayRoster(
+  Future<({List<TeamAttendanceRosterRow> rows, String? attendanceTimeZone})>
+      getCompanyDayRoster(
     String dateYyyyMmDd, {
     int? companyId,
   }) async {
@@ -138,15 +139,20 @@ class AttendanceService {
         '/api/employees/attendance/company-day',
         queryParameters: qp,
       );
-      final data = response.data['data'] ?? response.data;
+      final body = response.data;
+      final tz = body is Map
+          ? body['attendanceTimeZone']?.toString()
+          : null;
+      final data = body is Map ? body['data'] : null;
       if (data is List) {
-        return data
+        final rows = data
             .map((e) => TeamAttendanceRosterRow.fromJson(
                   Map<String, dynamic>.from(e as Map),
                 ))
             .toList();
+        return (rows: rows, attendanceTimeZone: tz);
       }
-      return [];
+      return (rows: <TeamAttendanceRosterRow>[], attendanceTimeZone: tz);
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }

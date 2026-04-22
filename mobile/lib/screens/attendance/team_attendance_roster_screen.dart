@@ -8,6 +8,7 @@ import '../../models/company.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/attendance_service.dart';
 import '../../services/companies_service.dart';
+import '../../utils/melbourne_time.dart';
 
 String _todayYyyyMmDd() {
   final n = DateTime.now();
@@ -30,6 +31,7 @@ class _TeamAttendanceRosterScreenState extends State<TeamAttendanceRosterScreen>
 
   String _date = _todayYyyyMmDd();
   List<TeamAttendanceRosterRow> _rows = [];
+  String? _attendanceTimeZone;
   List<Company> _companies = [];
   int? _selectedCompanyId;
   bool _loading = true;
@@ -97,13 +99,14 @@ class _TeamAttendanceRosterScreenState extends State<TeamAttendanceRosterScreen>
       _error = null;
     });
     try {
-      final rows = await _attendance.getCompanyDayRoster(
+      final result = await _attendance.getCompanyDayRoster(
         _date,
         companyId: cid,
       );
       if (!mounted) return;
       setState(() {
-        _rows = rows;
+        _rows = result.rows;
+        _attendanceTimeZone = result.attendanceTimeZone;
         _loading = false;
       });
     } catch (e) {
@@ -116,14 +119,22 @@ class _TeamAttendanceRosterScreenState extends State<TeamAttendanceRosterScreen>
     }
   }
 
-  String _fmtTime(String? raw) {
-    if (raw == null || raw.isEmpty) return '—';
-    try {
-      final dt = DateTime.parse(raw.replaceAll(' ', 'T'));
-      return DateFormat.yMMMd().add_jm().format(dt.toLocal());
-    } catch (_) {
-      return raw;
+  /// Match [AttendanceScreen]: server sends naïve UTC wall times; use Melbourne wall clock, not [DateTime.toLocal]().
+  String _fmtTime(
+    String? raw, {
+    String? preformatted,
+  }) {
+    if (raw != null && raw.isNotEmpty) {
+      final dt = MelbourneTime.parseServerTimestamp(raw);
+      if (dt != null) {
+        return DateFormat.yMMMd().add_jm().format(dt);
+      }
     }
+    if (preformatted != null && preformatted.isNotEmpty) {
+      return preformatted;
+    }
+    if (raw == null || raw.isEmpty) return '—';
+    return raw;
   }
 
   @override
@@ -224,6 +235,17 @@ class _TeamAttendanceRosterScreenState extends State<TeamAttendanceRosterScreen>
                   icon: const Icon(Icons.calendar_today, size: 18),
                   label: Text(_date),
                 ),
+                if (_attendanceTimeZone != null &&
+                    _attendanceTimeZone!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Times shown in $_attendanceTimeZone',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -271,8 +293,8 @@ class _TeamAttendanceRosterScreenState extends State<TeamAttendanceRosterScreen>
                                   'Code: ${r.employeeCode}',
                                 if (r.employeeStatus != null)
                                   'Status: ${r.employeeStatus}',
-                                'In: ${_fmtTime(r.checkInTime)}',
-                                'Out: ${_fmtTime(r.checkOutTime)}',
+                                'In: ${_fmtTime(r.checkInTime, preformatted: r.checkInTimeDisplay)}',
+                                'Out: ${_fmtTime(r.checkOutTime, preformatted: r.checkOutTimeDisplay)}',
                                 'Hours: $hours · Lunch (min): $lunch',
                               ].join('\n'),
                               style: const TextStyle(

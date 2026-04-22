@@ -99,7 +99,12 @@ export async function companyDayAttendance(req, res) {
     }
 
     const rows = await attendanceService.listCompanyAttendanceForDate(companyId, dateStr);
-    return res.status(200).json({ success: true, data: rows });
+    return res.status(200).json({
+      success: true,
+      /** IANA zone for roster labels (matches ATTENDANCE_BUSINESS_TIMEZONE). */
+      attendanceTimeZone: attendanceService.getAttendanceBusinessTimeZone(),
+      data: rows,
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }

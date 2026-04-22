@@ -1,9 +1,64 @@
 import db from '../config/db.js';
+import { DateTime } from 'luxon';
 
 const ATTENDANCE_BUSINESS_TZ = (
   String(process.env.ATTENDANCE_BUSINESS_TIMEZONE || 'Australia/Melbourne').trim() ||
   'Australia/Melbourne'
 );
+
+/**
+ * How MySQL DATETIME strings from `dateStrings: true` should be interpreted.
+ * Typical cloud DBs store session time as UTC — use `UTC` (default).
+ * If your server writes local wall time in the business zone, set e.g. `Australia/Melbourne`.
+ */
+const ATTENDANCE_MYSQL_TZ_RAW = (
+  String(process.env.ATTENDANCE_MYSQL_TIMEZONE || 'UTC').trim() || 'UTC'
+);
+
+function luxonZoneForMysql(raw) {
+  const l = String(raw).trim().toLowerCase();
+  if (l === 'utc' || l === 'gmt' || l === 'z') return 'utc';
+  return String(raw).trim();
+}
+
+const ATTENDANCE_MYSQL_ZONE = luxonZoneForMysql(ATTENDANCE_MYSQL_TZ_RAW);
+
+/**
+ * Public: wall-clock zone used for attendance "today" and roster display.
+ */
+export function getAttendanceBusinessTimeZone() {
+  return ATTENDANCE_BUSINESS_TZ;
+}
+
+/**
+ * Roster/API: convert naïve MySQL datetime to UTC ISO + business-zone label for clients.
+ */
+function formatAttendanceInstantFields(naiveStr) {
+  if (naiveStr == null) {
+    return {
+      isoUtc: null,
+      display: null,
+    };
+  }
+  const trimmed = String(naiveStr).trim();
+  if (trimmed === '') {
+    return { isoUtc: null, display: null };
+  }
+
+  let dt = DateTime.fromSQL(trimmed, { zone: ATTENDANCE_MYSQL_ZONE });
+  if (!dt.isValid) {
+    dt = DateTime.fromISO(trimmed.replace(' ', 'T'), { zone: ATTENDANCE_MYSQL_ZONE });
+  }
+  if (!dt.isValid) {
+    return { isoUtc: null, display: null };
+  }
+
+  const business = dt.setZone(ATTENDANCE_BUSINESS_TZ);
+  return {
+    isoUtc: dt.toUTC().toISO(),
+    display: business.toLocaleString(DateTime.DATETIME_SHORT, { locale: 'en-AU' }),
+  };
+}
 
 /**
  * Calendar date (YYYY-MM-DD) for attendance "today" / row `date` column.
@@ -393,5 +448,15 @@ export async function listCompanyAttendanceForDate(companyId, dateStr) {
     ORDER BY e.last_name ASC, e.first_name ASC`,
     [companyId, dateStr, companyId]
   );
-  return rows;
+  return rows.map((r) => {
+    const inF = formatAttendanceInstantFields(r.check_in_time);
+    const outF = formatAttendanceInstantFields(r.check_out_time);
+    return {
+      ...r,
+      check_in_time: inF.isoUtc ?? r.check_in_time,
+      check_out_time: outF.isoUtc ?? r.check_out_time,
+      check_in_time_display: inF.display,
+      check_out_time_display: outF.display,
+    };
+  });
 }

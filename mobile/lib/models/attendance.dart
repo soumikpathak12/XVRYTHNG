@@ -154,6 +154,9 @@ class TeamAttendanceRosterRow {
   final int? attendanceId;
   final String? checkInTime;
   final String? checkOutTime;
+  /// Pre-formatted in company business zone (from API). Prefer over [checkInTime].
+  final String? checkInTimeDisplay;
+  final String? checkOutTimeDisplay;
   final double? hoursWorked;
   final int? lunchBreakMinutes;
 
@@ -166,6 +169,8 @@ class TeamAttendanceRosterRow {
     this.attendanceId,
     this.checkInTime,
     this.checkOutTime,
+    this.checkInTimeDisplay,
+    this.checkOutTimeDisplay,
     this.hoursWorked,
     this.lunchBreakMinutes,
   });
@@ -182,6 +187,8 @@ class TeamAttendanceRosterRow {
         attendanceId: _jsonToInt(json['attendance_id']),
         checkInTime: json['check_in_time']?.toString(),
         checkOutTime: json['check_out_time']?.toString(),
+        checkInTimeDisplay: json['check_in_time_display']?.toString(),
+        checkOutTimeDisplay: json['check_out_time_display']?.toString(),
         hoursWorked: _jsonToDouble(json['hours_worked']),
         lunchBreakMinutes: _jsonToInt(json['lunch_break_minutes']),
       );

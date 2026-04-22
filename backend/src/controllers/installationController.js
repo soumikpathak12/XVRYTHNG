@@ -60,9 +60,18 @@ export async function listJobs(req, res) {
     const companyId = companyOrFail(req, res);
     if (!companyId) return;
     const role = String(req.user?.role || '').toLowerCase();
-    const employeeId = role === 'field_agent'
-      ? await getEmployeeIdByUserId(companyId, req.user.id).catch(() => null)
-      : null;
+    const companyCalendar =
+      String(req.query.companyCalendar || req.query.forCalendar || '')
+        .trim() === '1' ||
+      String(req.query.companyCalendar || '')
+        .trim()
+        .toLowerCase() === 'true';
+    // Field agents normally only see their assigned jobs. In-house Projects calendar
+    // needs every company job; callers pass companyCalendar=1 (user already has projects:view).
+    let employeeId = null;
+    if (role === 'field_agent' && !companyCalendar) {
+      employeeId = await getEmployeeIdByUserId(companyId, req.user.id).catch(() => null);
+    }
     const rows = await svc.listJobs(companyId, {
       status:     req.query.status,
       date:       req.query.date,

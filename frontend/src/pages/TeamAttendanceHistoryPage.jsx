@@ -10,11 +10,15 @@ function localDateInputValue(d = new Date()) {
   return `${y}-${m}-${day}`;
 }
 
-function fmtTime(v) {
+function fmtTime(v, timeZone) {
   if (v == null || v === '') return '—';
   const t = new Date(v);
   if (Number.isNaN(t.getTime())) return String(v);
-  return t.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+  return t.toLocaleString('en-AU', {
+    timeZone: timeZone || undefined,
+    dateStyle: 'short',
+    timeStyle: 'short',
+  });
 }
 
 export default function TeamAttendanceHistoryPage() {
@@ -35,6 +39,8 @@ export default function TeamAttendanceHistoryPage() {
 
   const [date, setDate] = useState(() => localDateInputValue());
   const [rows, setRows] = useState([]);
+  /** IANA zone from API (company attendance business clock). */
+  const [attendanceTimeZone, setAttendanceTimeZone] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [companies, setCompanies] = useState([]);
@@ -77,6 +83,11 @@ export default function TeamAttendanceHistoryPage() {
         return;
       }
       const res = await getCompanyAttendanceByDate(date, effectiveCompanyId ?? undefined);
+      setAttendanceTimeZone(
+        typeof res?.attendanceTimeZone === 'string' && res.attendanceTimeZone.trim() !== ''
+          ? res.attendanceTimeZone.trim()
+          : null,
+      );
       setRows(Array.isArray(res?.data) ? res.data : []);
     } catch (e) {
       setError(e?.message || 'Failed to load attendance');
@@ -95,7 +106,8 @@ export default function TeamAttendanceHistoryPage() {
       <header style={{ marginBottom: 20 }}>
         <h1 style={{ margin: 0, fontSize: 22, color: BRAND.text, fontWeight: 800 }}>Team attendance</h1>
         <p style={{ margin: '8px 0 0', color: BRAND.sub, fontSize: 14 }}>
-          Check-in and check-out for every employee on the selected date.
+          Check-in and check-out for every employee on the selected date
+          {attendanceTimeZone ? ` (times in ${attendanceTimeZone})` : ''}.
         </p>
       </header>
 
@@ -208,8 +220,20 @@ export default function TeamAttendanceHistoryPage() {
                   </td>
                   <td style={{ padding: '10px 12px', color: BRAND.sub }}>{r.employee_code || '—'}</td>
                   <td style={{ padding: '10px 12px', color: BRAND.sub }}>{r.employee_status || '—'}</td>
-                  <td style={{ padding: '10px 12px' }}>{r.check_in_time ? fmtTime(r.check_in_time) : '—'}</td>
-                  <td style={{ padding: '10px 12px' }}>{r.check_out_time ? fmtTime(r.check_out_time) : '—'}</td>
+                  <td style={{ padding: '10px 12px' }}>
+                    {r.check_in_time_display
+                      ? r.check_in_time_display
+                      : r.check_in_time
+                        ? fmtTime(r.check_in_time, attendanceTimeZone)
+                        : '—'}
+                  </td>
+                  <td style={{ padding: '10px 12px' }}>
+                    {r.check_out_time_display
+                      ? r.check_out_time_display
+                      : r.check_out_time
+                        ? fmtTime(r.check_out_time, attendanceTimeZone)
+                        : '—'}
+                  </td>
                   <td style={{ padding: '10px 12px' }}>
                     {r.hours_worked != null && r.hours_worked !== '' ? Number(r.hours_worked).toFixed(2) : '—'}
                   </td>

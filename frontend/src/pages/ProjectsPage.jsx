@@ -308,10 +308,17 @@ export default function ProjectsPage() {
     (async () => {
       try {
         setCalendarLoading(true);
-        const projectIds = new Set(projects.map((p) => Number(p.id)).filter(Number.isFinite));
-        const resp = await listInstallationJobs({ limit: 2000, offset: 0 });
+        const resp = await listInstallationJobs({
+          limit: 2000,
+          offset: 0,
+          // Show all in-house install jobs in calendar (not only current user’s assignments)
+          companyCalendar: '1',
+        });
         const rows = Array.isArray(resp?.data) ? resp.data : [];
-        const nextJobs = rows.filter((j) => projectIds.has(Number(j?.project_id)));
+        // In-house (classic) projects only; not limited to current list/search
+        const nextJobs = rows.filter(
+          (j) => j?.project_id != null && Number.isFinite(Number(j.project_id)),
+        );
         if (!alive) return;
         setCalendarJobs(nextJobs);
       } catch (err) {
@@ -321,7 +328,7 @@ export default function ProjectsPage() {
       }
     })();
     return () => { alive = false; };
-  }, [projects, view]);
+  }, [view]);
 
   const calendarProjects = useMemo(() => {
     if (!Array.isArray(calendarJobs) || calendarJobs.length === 0) return [];
