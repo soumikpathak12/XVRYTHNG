@@ -170,6 +170,19 @@ cron.schedule('15 3 * * *', async () => {
     console.error('[Cron] CEC sync failed:', err);
   }
 });
+
+// After one full shift length on the clock (default 8h + 30m lunch), auto check-out open rows (attendanceService).
+cron.schedule('10 * * * *', async () => {
+  try {
+    const { autoCheckoutStaleOpenShifts } = await import('./services/attendanceService.js');
+    const r = await autoCheckoutStaleOpenShifts();
+    if (r.processed > 0) {
+      console.log(`[Cron] Attendance auto-checkout closed ${r.processed} open row(s).`);
+    }
+  } catch (err) {
+    console.error('[Cron] Attendance auto-checkout failed:', err);
+  }
+});
 // 404
 app.use((_, res) => res.status(404).json({ success: false, message: 'Not found' }));
 
