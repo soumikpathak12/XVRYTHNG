@@ -20,6 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _rememberMe = true;
   bool _obscure = true;
   bool _submitting = false;
+
   /// After sign out, last user on this device: show PIN-only until "another account".
   bool _quickPinMode = false;
   DeviceLastAccount? _device;
@@ -119,7 +120,9 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Use your email and password, then set up a PIN in the app.'),
+            content: Text(
+              'Use your email and password, then set up a PIN in the app.',
+            ),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -140,8 +143,7 @@ class _LoginScreenState extends State<LoginScreen> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
             child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
               child: Form(
                 key: _formKey,
                 child: ListView(
@@ -202,8 +204,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.error_outline,
-                                color: Colors.red.shade700),
+                            Icon(
+                              Icons.error_outline,
+                              color: Colors.red.shade700,
+                            ),
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
@@ -249,6 +253,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           counterText: '',
                         ),
                         keyboardType: TextInputType.number,
+                        textInputAction: TextInputAction.done,
                         maxLength: 6,
                         obscureText: true,
                         autofillHints: const [AutofillHints.newPassword],
@@ -268,6 +273,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                 offset: d.length.clamp(0, 6),
                               ),
                             );
+                            return;
+                          }
+                          if (d.length == 6 && !_submitting) {
+                            _submitQuickPin();
+                          }
+                        },
+                        onFieldSubmitted: (_) {
+                          if (!_submitting) {
+                            _submitQuickPin();
                           }
                         },
                       ),
@@ -278,13 +292,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             value: _rememberMe,
                             onChanged: _submitting
                                 ? null
-                                : (v) => setState(
-                                    () => _rememberMe = v ?? true,
-                                  ),
+                                : (v) =>
+                                      setState(() => _rememberMe = v ?? true),
                           ),
-                          const Expanded(
-                            child: Text('Keep me signed in'),
-                          ),
+                          const Expanded(child: Text('Keep me signed in')),
                         ],
                       ),
                       const SizedBox(height: 4),
@@ -308,8 +319,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         validator: (v) {
                           v = v?.trim() ?? '';
                           if (v.isEmpty) return 'Please enter your email';
-                          if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
-                              .hasMatch(v)) {
+                          if (!RegExp(
+                            r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                          ).hasMatch(v)) {
                             return 'Please enter a valid email';
                           }
                           return null;
@@ -359,9 +371,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             value: _rememberMe,
                             onChanged: _submitting
                                 ? null
-                                : (v) => setState(
-                                    () => _rememberMe = v ?? false,
-                                  ),
+                                : (v) =>
+                                      setState(() => _rememberMe = v ?? false),
                           ),
                           const Text('Remember me'),
                           const Spacer(),
@@ -387,8 +398,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         onPressed: _submitting
                             ? null
                             : (_quickPinMode && device != null)
-                                ? _submitQuickPin
-                                : _submitPassword,
+                            ? _submitQuickPin
+                            : _submitPassword,
                         child: _submitting
                             ? const SizedBox(
                                 height: 22,
