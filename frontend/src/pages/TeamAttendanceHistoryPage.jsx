@@ -15,10 +15,20 @@ function fmtTime(v, timeZone) {
   const t = new Date(v);
   if (Number.isNaN(t.getTime())) return String(v);
   return t.toLocaleString('en-AU', {
-    timeZone: timeZone || undefined,
+    timeZone: timeZone || 'Australia/Melbourne',
     dateStyle: 'short',
     timeStyle: 'short',
   });
+}
+
+function resolveAttendanceTime(raw, preformatted, timeZone) {
+  if (raw != null && raw !== '') {
+    return fmtTime(raw, timeZone);
+  }
+  if (preformatted != null && preformatted !== '') {
+    return String(preformatted);
+  }
+  return '—';
 }
 
 export default function TeamAttendanceHistoryPage() {
@@ -221,18 +231,10 @@ export default function TeamAttendanceHistoryPage() {
                   <td style={{ padding: '10px 12px', color: BRAND.sub }}>{r.employee_code || '—'}</td>
                   <td style={{ padding: '10px 12px', color: BRAND.sub }}>{r.employee_status || '—'}</td>
                   <td style={{ padding: '10px 12px' }}>
-                    {r.check_in_time_display
-                      ? r.check_in_time_display
-                      : r.check_in_time
-                        ? fmtTime(r.check_in_time, attendanceTimeZone)
-                        : '—'}
+                    {resolveAttendanceTime(r.check_in_time, r.check_in_time_display, attendanceTimeZone)}
                   </td>
                   <td style={{ padding: '10px 12px' }}>
-                    {r.check_out_time_display
-                      ? r.check_out_time_display
-                      : r.check_out_time
-                        ? fmtTime(r.check_out_time, attendanceTimeZone)
-                        : '—'}
+                    {resolveAttendanceTime(r.check_out_time, r.check_out_time_display, attendanceTimeZone)}
                   </td>
                   <td style={{ padding: '10px 12px' }}>
                     {r.hours_worked != null && r.hours_worked !== '' ? Number(r.hours_worked).toFixed(2) : '—'}
