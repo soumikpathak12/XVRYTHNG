@@ -84,6 +84,69 @@ export async function login(req, res) {
 }
 
 /**
+ * POST /api/auth/pin/login
+ * Body: { email, pin, companyId? }
+ */
+export async function loginWithPin(req, res) {
+  try {
+    const { email, pin, companyId } = req.body || {};
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email is required.' });
+    }
+    if (pin == null || String(pin).trim() === '') {
+      return res.status(400).json({ success: false, message: 'PIN is required.' });
+    }
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const normalizedCompanyId =
+      companyId !== undefined && companyId !== null
+        ? Number.parseInt(companyId, 10)
+        : null;
+    const result = await authService.loginWithPin(
+      normalizedEmail,
+      String(pin).trim(),
+      Number.isNaN(normalizedCompanyId) ? null : normalizedCompanyId,
+    );
+    return res.status(200).json({
+      success: true,
+      token: result.accessToken,
+      ...result,
+    });
+  } catch (err) {
+    const msg = String(err?.message || '');
+    const lower = msg.toLowerCase();
+    if (lower.includes('6 digits') || lower.includes('email is required')) {
+      return res.status(400).json({ success: false, message: err.message });
+    }
+    if (lower.includes('multiple accounts')) {
+      return res.status(400).json({ success: false, message: err.message });
+    }
+    if (lower.includes('not set up')) {
+      return res.status(400).json({ success: false, message: err.message });
+    }
+    if (lower.includes('temporarily locked') || lower.includes('locked')) {
+      return res.status(401).json({
+        success: false,
+        message: 'Account is temporarily locked. Please try again later.',
+      });
+    }
+    if (lower.includes('inactive')) {
+      return res.status(403).json({
+        success: false,
+        message: 'Account is inactive. Please contact support.',
+      });
+    }
+    if (lower.includes('invalid email or pin')) {
+      return res.status(401).json({ success: false, message: 'Invalid email or PIN.' });
+    }
+    console.error('Login with PIN error:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'An error occurred during sign in.',
+    });
+  }
+}
+
+/**
  * POST /api/auth/refresh
  * Body: { refreshToken }
  * Returns: { success, token, accessToken, refreshToken, expiresIn, refreshExpiresIn, user }

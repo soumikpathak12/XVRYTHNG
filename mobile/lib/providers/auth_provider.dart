@@ -13,8 +13,11 @@ class AuthProvider extends ChangeNotifier {
   Map<String, dynamic> _sidebarConfig = {};
   bool _loading = true;
   String? _error;
+  /// Last sign-in used [loginWithPin] (skip in-app PIN lock until sync).
+  bool _lastLoginUsedPin = false;
 
   User? get user => _user;
+  bool get lastLoginUsedPin => _lastLoginUsedPin;
   List<String> get permissions => _permissions;
   Map<String, dynamic> get sidebarConfig => _sidebarConfig;
   bool get loading => _loading;
@@ -59,11 +62,15 @@ class AuthProvider extends ChangeNotifier {
     } catch (e) {
       _user = null;
       _permissions = [];
-      await SecureStore.clear();
+      await SecureStore.clearSessionOnly();
     } finally {
       _loading = false;
       notifyListeners();
     }
+  }
+
+  void clearLastLoginUsedPin() {
+    _lastLoginUsedPin = false;
   }
 
   Future<void> login(
@@ -71,6 +78,7 @@ class AuthProvider extends ChangeNotifier {
     String password, {
     bool rememberMe = false,
   }) async {
+    _lastLoginUsedPin = false;
     _loading = true;
     _error = null;
     notifyListeners();
@@ -106,6 +114,14 @@ class AuthProvider extends ChangeNotifier {
             })
             .catchError((_) {}),
       );
+      if (_user != null) {
+        await SecureStore.saveDeviceLastAccount(
+          userId: _user!.id,
+          email: _user!.email,
+          name: _user!.name,
+          companyId: _user!.companyId,
+        );
+      }
       _error = null;
     } catch (e) {
       _error = e
@@ -120,7 +136,87 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> loginWithPin(
+    String email,
+    String pin, {
+    int? companyId,
+    bool rememberMe = true,
+  }) async {
+    _lastLoginUsedPin = true;
+    _loading = true;
+    _error = null;
+    notifyListeners();
+    try {
+      final result = await _authService.loginWithPin(
+        email,
+        pin,
+        companyId: companyId,
+        rememberMe: rememberMe,
+      );
+      try {
+        _user = await _authService.getCurrentUser();
+      } catch (_) {
+        _user = result.user;
+      }
+      _permissions = result.permissions;
+      if (_permissions.isEmpty) {
+        unawaited(
+          _authService
+              .getPermissions()
+              .then((perms) {
+                _permissions = perms;
+                notifyListeners();
+              })
+              .catchError((_) {}),
+        );
+      }
+      unawaited(
+        _authService
+            .getSidebarConfig()
+            .then((sidebar) {
+              _sidebarConfig = sidebar;
+              notifyListeners();
+            })
+            .catchError((_) {}),
+      );
+      if (_user != null) {
+        await SecureStore.saveDeviceLastAccount(
+          userId: _user!.id,
+          email: _user!.email,
+          name: _user!.name,
+          companyId: _user!.companyId,
+        );
+        await SecureStore.saveLastEmail(_user!.email);
+        if (_user!.companyId != null) {
+          await SecureStore.saveSelectedCompanyId(_user!.companyId);
+        }
+      }
+      _error = null;
+    } catch (e) {
+      _lastLoginUsedPin = false;
+      _error = e
+          .toString()
+          .replaceAll('ApiException', '')
+          .replaceAll(RegExp(r'\(\d+\):?\s*'), '')
+          .trim();
+      _user = null;
+    } finally {
+      _loading = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> logout() async {
+    if (_user != null) {
+      await SecureStore.saveDeviceLastAccount(
+        userId: _user!.id,
+        email: _user!.email,
+        name: _user!.name,
+        companyId: _user!.companyId,
+      );
+      await SecureStore.saveLastEmail(_user!.email);
+    }
+    _lastLoginUsedPin = false;
     await _authService.logout();
     _user = null;
     _permissions = [];
@@ -145,6 +241,8 @@ class AuthProvider extends ChangeNotifier {
       _user = null;
       _permissions = [];
       _sidebarConfig = {};
+      _lastLoginUsedPin = false;
+      unawaited(SecureStore.clearSessionOnly());
       notifyListeners();
     });
   }

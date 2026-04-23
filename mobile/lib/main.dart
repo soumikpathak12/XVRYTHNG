@@ -109,7 +109,16 @@ class _XvrythngAppState extends State<XvrythngApp> with WidgetsBindingObserver {
   }
 
   void _syncPinWithAuth() {
-    _pinSecurityProvider.syncForUser(_authProvider.user);
+    if (!_authProvider.isAuthenticated) return;
+    if (_authProvider.lastLoginUsedPin) {
+      unawaited(
+        _pinSecurityProvider.syncForUserAfterPinLogin(_authProvider.user).then((_) {
+          _authProvider.clearLastLoginUsedPin();
+        }),
+      );
+    } else {
+      _pinSecurityProvider.syncForUser(_authProvider.user);
+    }
   }
 
   @override

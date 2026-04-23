@@ -12,6 +12,7 @@ import { postRequestReset,getValidateToken,postResetPassword,
 const router = express.Router();
 
 router.post('/login', authController.login);
+router.post('/pin/login', authController.loginWithPin);
 router.post('/refresh', authController.refresh);
 
 router.post('/request-reset', postRequestReset);

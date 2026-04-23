@@ -29,8 +29,40 @@ class AuthService {
     }
   }
 
+  /// Email + 6-digit app PIN (after PIN is configured on the server).
+  Future<AuthResult> loginWithPin(
+    String email,
+    String pin, {
+    int? companyId,
+    bool rememberMe = true,
+  }) async {
+    try {
+      final response = await _api.post(
+        '/api/auth/pin/login',
+        data: {
+          'email': email.trim(),
+          'pin': pin.trim(),
+          if (companyId != null) 'companyId': companyId,
+        },
+      );
+      final data = Map<String, dynamic>.from(
+        response.data is Map ? response.data as Map : {},
+      );
+      final result = AuthResult.fromJson(data);
+      await SecureStore.saveTokens(
+        accessToken: result.token,
+        refreshToken: result.refreshToken,
+        rememberMe: rememberMe,
+      );
+      return result;
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  /// Clears session tokens only; keeps [DeviceLastAccount] and other device hints.
   Future<void> logout() async {
-    await SecureStore.clear();
+    await SecureStore.clearSessionOnly();
   }
 
   Future<void> requestPasswordReset(String email) async {
