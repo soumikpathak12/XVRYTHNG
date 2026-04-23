@@ -46,6 +46,36 @@ class PinSecurityProvider extends ChangeNotifier {
     }
   }
 
+  /// After [POST /api/auth/pin/login] the user already entered their PIN on the server.
+  Future<void> syncForUserAfterPinLogin(User? user) async {
+    final userId = user?.id;
+    if (userId == null) {
+      _activeUserId = null;
+      _configured = false;
+      _unlocked = true;
+      _securityQuestion = null;
+      _loading = false;
+      notifyListeners();
+      return;
+    }
+    _activeUserId = userId;
+    _loading = true;
+    notifyListeners();
+    try {
+      final status = await _service.getStatus();
+      _configured = status.configured;
+      _unlocked = true;
+      _securityQuestion = status.securityQuestion;
+    } catch (_) {
+      _configured = false;
+      _unlocked = true;
+      _securityQuestion = null;
+    } finally {
+      _loading = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> setupPin({
     required String pin,
     required String securityQuestion,

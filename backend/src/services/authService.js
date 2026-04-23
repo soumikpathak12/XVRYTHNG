@@ -80,6 +80,97 @@ export async function findUserById(userId) {
 }
 
 /**
+ * Sign in with email + 6-digit app PIN (no password). Mobile-only convenience after PIN is configured.
+ */
+export async function loginWithPin(email, rawPin, companyId = null) {
+  const normalizedEmail = String(email ?? '')
+    .trim()
+    .toLowerCase();
+  const normalizedPin = String(rawPin ?? '').trim();
+  if (!normalizedEmail) {
+    throw new Error('Email is required');
+  }
+  if (!/^\d{6}$/.test(normalizedPin)) {
+    throw new Error('PIN must be exactly 6 digits');
+  }
+
+  let user = await findUserByEmail(normalizedEmail, companyId);
+
+  if (!user && companyId === null) {
+    const byEmail = await findUsersByEmailOnly(normalizedEmail);
+    if (byEmail.length === 1) {
+      [user] = byEmail;
+    } else if (byEmail.length > 1) {
+      await bcrypt.compare(normalizedPin, DUMMY_BCRYPT_HASH);
+      throw new Error(
+        'Multiple accounts found for this email. Add your company id or use email and password.',
+      );
+    }
+  }
+
+  if (!user) {
+    await bcrypt.compare(normalizedPin, DUMMY_BCRYPT_HASH);
+    throw new Error('Invalid email or PIN');
+  }
+
+  if (user.status !== 'active') {
+    throw new Error('Account is inactive');
+  }
+
+  if (user.lock_until && new Date(user.lock_until) > new Date()) {
+    throw new Error('Account is temporarily locked. Please try again later.');
+  }
+
+  const [pinRows] = await db.execute(
+    'SELECT mobile_pin_hash FROM users WHERE id = ? LIMIT 1',
+    [user.id],
+  );
+  const mobilePinHash = pinRows[0]?.mobile_pin_hash;
+  if (!mobilePinHash || !String(mobilePinHash).trim()) {
+    throw new Error('PIN is not set up. Sign in with email and password first, then set up a PIN in the app.');
+  }
+
+  const valid = await bcrypt.compare(normalizedPin, String(mobilePinHash));
+  if (!valid) {
+    const { locked } = await recordFailedAttempt(user);
+    if (locked) {
+      throw new Error('Account is temporarily locked. Please try again later.');
+    }
+    throw new Error('Invalid email or PIN');
+  }
+
+  await resetAttempts(user.id);
+
+  const full = await findUserById(user.id);
+  if (!full || full.status !== 'active') {
+    throw new Error('Account is inactive');
+  }
+
+  const { accessToken, expiresIn } = createAccessToken(full);
+  const { refreshToken, refreshExpiresIn } = await createRefreshToken(full.id);
+  const permissions = await permissionService.getPermissionsForUser(full.id);
+
+  return {
+    accessToken,
+    refreshToken,
+    expiresIn,
+    refreshExpiresIn,
+    user: {
+      id: full.id,
+      name: full.name,
+      email: full.email,
+      role: full.role_name,
+      roleId: full.role_id,
+      companyId: full.company_id,
+      jobRoleId: null,
+      image_url: full.image_url ?? null,
+    },
+    permissions,
+    needsPasswordChange: !!full.must_change_password,
+  };
+}
+
+/**
  * Internal: mark a failed attempt and set lock if threshold reached.
  */
 async function recordFailedAttempt(user) {
