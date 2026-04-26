@@ -1,7 +1,7 @@
 // lib/core/config/api_config.dart
 
 class ApiConfig {
-  static const String _defaultBaseUrl = 'http://18.233.59.172';
+  static const String _defaultBaseUrl = 'https://xvrything.com.au';
 
   static String get baseUrl {
     // Allow override with --dart-define
