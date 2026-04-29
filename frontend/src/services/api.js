@@ -106,6 +106,31 @@ export async function customerLoginApi(email, otp) {
 }
 
 /**
+ * POST /api/customer/site-inspection/book
+ * Public endpoint, expects booking token from email link.
+ */
+export async function customerBookSiteInspection({ token, date, time, paymentCompleted = false }) {
+  const res = await fetch(`${BASE}/api/customer/site-inspection/book`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      token: String(token || '').trim(),
+      date: String(date || '').trim(),
+      time: String(time || '').trim(),
+      paymentCompleted: !!paymentCompleted,
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.message || 'Failed to book site inspection');
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data;
+}
+
+/**
  * POST /api/customer/submit-referral – submit a referral (creates lead in CRM, NEW stage, source=referral).
  * Requires customer token. Body: { friendName, friendEmail, friendPhone }.
  */

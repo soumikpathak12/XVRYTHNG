@@ -58,6 +58,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadsDir = path.join(__dirname, '..', 'uploads');
 const legacyUploadsDir = path.join(__dirname, 'uploads');
+const brandingDir = path.join(__dirname, '..', '..', 'frontend', 'public');
 
 const app = express();
 app.use((req, _res, next) => { req.db = db; next(); });
@@ -69,6 +70,7 @@ app.use(express.json({ limit: '25mb' }));
 
 app.use('/uploads', express.static(uploadsDir));
 app.use('/uploads', express.static(legacyUploadsDir));
+app.use('/branding', express.static(brandingDir));
 
 // Some deployments / reverse proxies may not forward `/uploads` to the node
 // process, causing 404s for chat previews. Expose the same static files under

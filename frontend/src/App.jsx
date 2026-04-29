@@ -30,6 +30,7 @@ import CustomerPortalLayout from './pages/customer/CustomerPortalLayout.jsx';
 import MyProjectPage from './pages/customer/MyProjectPage.jsx';
 import CustomerReferralsPage from './pages/customer/ReferralsPage.jsx';
 import SupportTicketsPage from './pages/customer/SupportTicketsPage.jsx';
+import SiteInspectionBookingPage from './pages/customer/SiteInspectionBookingPage.jsx';
 
 import ReferralsPage from './pages/ReferralsPage.jsx';
 import AdminTemplatesPage from './pages/admin/AdminTemplatePage.jsx';
@@ -809,6 +810,7 @@ function App() {
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
 
         {/* Customer portal */}
+        <Route path="/schedule-site-inspection" element={<SiteInspectionBookingPage />} />
         <Route path="/portal/login" element={<CustomerLoginPage />} />
         <Route
           path="/portal"

@@ -688,3 +688,267 @@ export async function sendMobilePinRecoveryEmail({ to, name, code }) {
   }
   return { id: data?.id ?? null };
 }
+
+export function renderLeadThankYouEmail({ customerName, companyName = 'XVRYTHNG', scheduleUrlOverride = null }) {
+  const safeName = escapeHtml((customerName || '').trim() || 'there');
+  const safeCompany = escapeHtml((companyName || 'xtechs').trim() || 'xtechs');
+  const subject = 'XTECH Renewables - Thank you !';
+  const appUrl = String(process.env.APP_BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
+  const assetBaseUrl = String(
+    process.env.EMAIL_ASSET_BASE_URL ||
+      process.env.API_BASE_URL ||
+      process.env.BACKEND_BASE_URL ||
+      appUrl
+  ).replace(/\/+$/, '');
+  const logoUrl = process.env.XTECH_LOGO_URL || `${assetBaseUrl}/branding/logo-removebg.png`;
+  const heroImageUrl =
+    process.env.XTECH_EMAIL_HERO_URL ||
+    'https://images.unsplash.com/photo-1509391366360-2e959784a276?auto=format&fit=crop&w=1800&q=80';
+  const scheduleUrl = scheduleUrlOverride || process.env.SITE_INSPECTION_SCHEDULE_URL || `${appUrl}/schedule-site-inspection`;
+  const supportEmail = process.env.SUPPORT_EMAIL || 'support@xtechsrenewables.com.au';
+  return `
+  <!doctype html>
+  <html>
+    <head>
+      <meta charset="utf-8"/>
+      <meta name="viewport" content="width=device-width,initial-scale=1"/>
+      <title>${subject}</title>
+    </head>
+    <body style="margin:0;padding:0;background:#eaf0f2;font-family:Arial,sans-serif;color:#0b1a24;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#eaf0f2;">
+        <tr>
+          <td align="center" style="padding:28px 14px">
+            <table width="660" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #d4e2e6;box-shadow:0 16px 40px rgba(6,48,63,0.18);">
+              <tr>
+                <td style="padding:16px 20px;background:#06303f;border-bottom:1px solid #0b3d4f;">
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="font-size:0;line-height:0;">
+                        <img src="${escapeHtml(logoUrl)}" alt="XTECH Renewables logo" width="56" height="56" style="display:block;width:56px;height:56px;border:0;border-radius:50%;background:#ffffff;padding:4px;"/>
+                      </td>
+                      <td align="right" style="font-size:11px;color:#b7dfe2;letter-spacing:0.8px;">XTECH RENEWABLES</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:0;background:#06303f;">
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="padding:30px 24px;background:linear-gradient(135deg,#34a0a4 0%,#18877e 55%,#06303f 100%);">
+                        <div style="font-size:31px;line-height:1.2;font-weight:800;color:#ffffff;max-width:560px;">Thank you for choosing XTECH.</div>
+                        <div style="font-size:14px;line-height:1.8;color:#dff5f2;margin-top:8px;max-width:540px;">Your enquiry is in and our team is preparing your site inspection and technical recommendations.</div>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:0 24px;background:#ffffff;">
+                  <img src="${escapeHtml(heroImageUrl)}" alt="XTECH solar installation" width="612" style="display:block;width:100%;max-width:612px;height:auto;border:0;border-radius:0 0 12px 12px;"/>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:20px 24px 6px 24px;">
+                  <div style="font-size:24px;line-height:1.25;font-weight:800;color:#06303f;">Hi ${safeName},</div>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:0 24px 18px 24px;">
+                  <div style="font-size:14px;line-height:1.75;color:#1f3b46;">
+                    Thank you for choosing ${safeCompany}.
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:0 24px 20px 24px;">
+                  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7fcfc;border:1px solid #b6dedd;border-radius:14px;">
+                    <tr>
+                      <td style="padding:16px 18px;font-size:13px;line-height:1.74;color:#23424c;">
+                        <div style="font-weight:800;color:#06303f;margin-bottom:8px;">What happens next?</div>
+                        <div>We will start site inspection, then guide you through quotation, system planning, and timeline confirmation.</div>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:0 24px 18px 24px;">
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td width="33.33%" style="padding-right:8px;vertical-align:top;">
+                        <div style="background:#f5fbfb;border:1px solid #c6e4e2;border-radius:12px;padding:12px 10px;min-height:88px;">
+                          <div style="font-size:12px;font-weight:800;color:#18877e;">STEP 1</div>
+                          <div style="margin-top:6px;font-size:12px;line-height:1.6;color:#254651;">Book inspection slot</div>
+                        </div>
+                      </td>
+                      <td width="33.33%" style="padding:0 4px;vertical-align:top;">
+                        <div style="background:#f5fbfb;border:1px solid #c6e4e2;border-radius:12px;padding:12px 10px;min-height:88px;">
+                          <div style="font-size:12px;font-weight:800;color:#18877e;">STEP 2</div>
+                          <div style="margin-top:6px;font-size:12px;line-height:1.6;color:#254651;">Receive tailored proposal</div>
+                        </div>
+                      </td>
+                      <td width="33.33%" style="padding-left:8px;vertical-align:top;">
+                        <div style="background:#f5fbfb;border:1px solid #c6e4e2;border-radius:12px;padding:12px 10px;min-height:88px;">
+                          <div style="font-size:12px;font-weight:800;color:#18877e;">STEP 3</div>
+                          <div style="margin-top:6px;font-size:12px;line-height:1.6;color:#254651;">Confirm project timeline</div>
+                        </div>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:0 24px 26px 24px;">
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td bgcolor="#52b69a" style="border-radius:999px;">
+                        <a href="${escapeHtml(scheduleUrl)}" target="_blank" style="display:inline-block;padding:13px 28px;font-size:14px;font-weight:700;text-decoration:none;color:#06303f;">Schedule Site Inspection</a>
+                      </td>
+                    </tr>
+                  </table>
+                  <div style="font-size:12px;color:#56727b;margin-top:10px;">Prefer another time? Reply to this email or contact ${escapeHtml(supportEmail)}.</div>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:16px 20px;background:#06303f;border-top:1px solid #0b3d4f;color:#b7dfe2;font-size:12px;">
+                  © ${new Date().getFullYear()} XTECH Renewables
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+  </html>`;
+}
+
+export async function sendLeadThankYouEmail({
+  to,
+  customerName,
+  companyName = 'xtechs',
+  scheduleUrl = null,
+  headers = {},
+}) {
+  if (!isValidEmail(to)) throw new Error(`Invalid recipient email: ${to}`);
+  const subject = 'XTECH Renewables - Thank you !';
+  const replyTo = process.env.RESEND_REPLY_TO || process.env.SUPPORT_EMAIL || process.env.RESEND_FROM;
+  const html = renderLeadThankYouEmail({
+    customerName,
+    companyName,
+    scheduleUrlOverride: scheduleUrl,
+  });
+
+  if (!resend) {
+    console.warn('[LEAD THANK YOU] Resend email service not configured (RESEND_API_KEY missing). Email NOT sent.');
+    return 'fake-' + Date.now();
+  }
+
+  const { data, error } = await resend.emails.send({
+    from: FROM,
+    replyTo,
+    to: Array.isArray(to) ? to : [to],
+    subject,
+    html,
+    text: `Hi ${customerName || 'there'}, thank you for your enquiry. Our team will contact you shortly.`,
+    headers: { 'X-Email-Type': 'lead-thank-you', ...headers },
+  });
+
+  if (error) throw new Error(error?.message ?? 'Resend send failed');
+  return data?.id ?? null;
+}
+
+export function renderSiteInspectionBookedEmail({ customerName }) {
+  const safeName = escapeHtml((customerName || '').trim() || 'there');
+  return `
+  <!doctype html>
+  <html>
+    <head>
+      <meta charset="utf-8"/>
+      <meta name="viewport" content="width=device-width,initial-scale=1"/>
+      <title>XTECH Renewables - Booking received</title>
+    </head>
+    <body style="margin:0;padding:0;background:#eef2f5;font-family:Arial,sans-serif;color:#0b1a24;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#eef2f5;">
+        <tr>
+          <td align="center" style="padding:28px 12px">
+            <table width="660" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #d4e2e6;box-shadow:0 14px 36px rgba(6,48,63,0.14);">
+              <tr>
+                <td style="padding:18px 24px;background:#06303f;color:#b7dfe2;font-size:12px;letter-spacing:0.8px;">
+                  XTECH RENEWABLES
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:0;background:linear-gradient(135deg,#34a0a4 0%,#18877e 60%,#06303f 100%);">
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td align="center" style="padding:28px 24px 24px;">
+                        <div style="width:64px;height:64px;line-height:64px;border-radius:50%;background:#ffffff;color:#18877e;font-size:30px;font-weight:700;">✓</div>
+                        <div style="margin-top:14px;color:#ffffff;font-size:28px;font-weight:800;line-height:1.2;">Booking Received</div>
+                        <div style="margin-top:8px;color:#dff5f2;font-size:14px;line-height:1.7;max-width:460px;">
+                          Your site inspection request has been received successfully.
+                        </div>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:28px 28px 20px;background:#ffffff;">
+                  <h2 style="margin:0 0 12px;color:#06303f;font-size:30px;line-height:1.2;">Hi ${safeName},</h2>
+                  <p style="margin:0 0 10px;font-size:16px;line-height:1.8;color:#1f3b46;">
+                    Thank you for booking with us.
+                  </p>
+                  <p style="margin:0;font-size:16px;line-height:1.8;color:#1f3b46;">
+                    We will contact you in <strong>48 hours</strong> to confirm your booking.
+                  </p>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:0 28px 24px;background:#ffffff;">
+                  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f6fbfb;border:1px solid #c4e5e0;border-radius:12px;">
+                    <tr>
+                      <td style="padding:14px 16px;font-size:13px;line-height:1.7;color:#27515b;">
+                        If you need to update your preferred time, simply reply to this email and our team will assist.
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:14px 20px;background:#06303f;color:#b7dfe2;font-size:12px;">
+                  © ${new Date().getFullYear()} XTECH Renewables
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+  </html>`;
+}
+
+export async function sendSiteInspectionBookedEmail({ to, customerName, headers = {} }) {
+  if (!isValidEmail(to)) throw new Error(`Invalid recipient email: ${to}`);
+  const subject = 'XTECH Renewables - Booking received';
+  const replyTo = process.env.RESEND_REPLY_TO || process.env.SUPPORT_EMAIL || process.env.RESEND_FROM;
+  const html = renderSiteInspectionBookedEmail({ customerName });
+
+  if (!resend) {
+    console.warn('[SITE INSPECTION BOOKED] Resend not configured; email NOT sent.');
+    return 'fake-' + Date.now();
+  }
+
+  const { data, error } = await resend.emails.send({
+    from: FROM,
+    replyTo,
+    to: Array.isArray(to) ? to : [to],
+    subject,
+    html,
+    text: `Hi ${customerName || 'there'}, thank you for booking with us. We will contact you in 48 hours to confirm your booking.`,
+    headers: { 'X-Email-Type': 'site-inspection-booked', ...headers },
+  });
+
+  if (error) throw new Error(error?.message ?? 'Resend send failed');
+  return data?.id ?? null;
+}

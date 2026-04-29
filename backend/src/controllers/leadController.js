@@ -3,6 +3,7 @@ import * as customerCredentialsService from '../services/customerCredentialsServ
 import * as db from '../config/db.js';
 import * as activityService from '../services/activityService.js';
 import * as companyWorkflowService from '../services/companyWorkflowService.js';
+import { sendLeadThankYouEmail } from '../services/emailService.js';
 import {
   getPanelBrandOptions,
   getPanelModelOptionsByBrand,
@@ -185,6 +186,34 @@ export async function createLead(req, res) {
     };
 
     const lead = await leadService.createLead(payload, { allowedStageKeys: enabledKeys });
+
+    // Best-effort: send thank-you email for every new lead.
+    try {
+      if (lead?.email) {
+        const appBaseUrl = String(process.env.APP_BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
+        const bookingToken = customerCredentialsService.createLinkToken(lead.email, {
+          leadId: lead.id,
+          customerName: lead.customer_name,
+        });
+        const scheduleUrl = `${appBaseUrl}/schedule-site-inspection?token=${encodeURIComponent(bookingToken)}`;
+        const providerId = await sendLeadThankYouEmail({
+          to: lead.email,
+          customerName: lead.customer_name,
+          scheduleUrl,
+        });
+        await leadService.addLeadCommunication(lead.id, {
+          direction: 'outbound',
+          channel: 'email',
+          subject: 'XTECH Renewables - Thank you !',
+          body: 'Automatic thank-you email sent after lead creation.',
+          automated: true,
+          provider_message_id: providerId ?? null,
+          sent_at: new Date(),
+        });
+      }
+    } catch (emailErr) {
+      console.warn('sendLeadThankYouEmail failed:', emailErr?.message || emailErr);
+    }
 
     // Log activity: lead created
     try {

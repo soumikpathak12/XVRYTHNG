@@ -1,5 +1,11 @@
 import { Router } from 'express';
-import { verifyLink, requestOtp, customerLogin, submitReferral } from '../controllers/customerController.js';
+import {
+  verifyLink,
+  requestOtp,
+  customerLogin,
+  submitReferral,
+  bookSiteInspection,
+} from '../controllers/customerController.js';
 import {
   createTicket,
   listTickets,
@@ -14,6 +20,7 @@ const router = Router();
 router.get('/verify-link', verifyLink);
 router.post('/request-otp', requestOtp);
 router.post('/login', customerLogin);
+router.post('/site-inspection/book', bookSiteInspection);
 router.post('/submit-referral', requireCustomerAuth, submitReferral);
 
 // Support tickets (T-337)
