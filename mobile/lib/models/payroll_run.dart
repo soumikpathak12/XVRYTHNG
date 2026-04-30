@@ -46,8 +46,8 @@ class PayrollRun {
       status: json['status'],
       totalPayrollAmount: _toDouble(
           json['total_payroll_amount'] ?? json['totalPayrollAmount']),
-      totalEmployees:
-          (json['total_employees'] ?? json['totalEmployees'] ?? 0) as int,
+      totalEmployees: _toInt(
+          json['total_employees'] ?? json['totalEmployees']),
       totalHours:
           _toDouble(json['total_hours'] ?? json['totalHours']),
       overtimeHours:
@@ -64,6 +64,13 @@ class PayrollRun {
     if (v is double) return v;
     if (v is int) return v.toDouble();
     return double.tryParse(v.toString()) ?? 0;
+  }
+
+  static int _toInt(dynamic v) {
+    if (v == null) return 0;
+    if (v is int) return v;
+    if (v is double) return v.round();
+    return int.tryParse(v.toString()) ?? 0;
   }
 }
 

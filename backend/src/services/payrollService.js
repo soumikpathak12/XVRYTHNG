@@ -288,18 +288,48 @@ export async function getPayrollRunDetails(payrollRunId, companyId) {
 
   const run = runRows[0];
 
-  // Get details
+  // Include payroll lines even if the employee row was later deleted — INNER JOIN
+  // hid those rows while payroll_runs.total_* stayed stale (e.g. Employees=1, empty table).
   const [detailRows] = await db.query(
     `SELECT pd.*, e.first_name, e.last_name
      FROM payroll_details pd
-     JOIN employees e ON pd.employee_id = e.id
+     LEFT JOIN employees e ON e.id = pd.employee_id AND e.company_id = ?
      WHERE pd.payroll_run_id = ?
-     ORDER BY e.last_name, e.first_name`,
-    [payrollRunId]
+     ORDER BY COALESCE(e.last_name, ''), COALESCE(e.first_name, '')`,
+    [companyId, payrollRunId]
+  );
+
+  const details = detailRows.map((row) => {
+    const employeeName =
+      row.first_name || row.last_name
+        ? `${row.first_name || ''} ${row.last_name || ''}`.trim()
+        : `Employee #${row.employee_id}`;
+    return {
+      ...row,
+      employee_name: employeeName,
+    };
+  });
+
+  const totalEmployees = details.length;
+  const totalPayrollAmount = details.reduce(
+    (sum, d) => sum + Number(d.net_pay ?? 0),
+    0
+  );
+  const totalHours = details.reduce(
+    (sum, d) => sum + Number(d.regular_hours ?? 0),
+    0
+  );
+  const overtimeHours = details.reduce(
+    (sum, d) => sum + Number(d.overtime_hours ?? 0),
+    0
   );
 
   return {
     ...run,
-    details: detailRows
+    total_employees: totalEmployees,
+    total_payroll_amount: totalPayrollAmount,
+    total_hours: totalHours,
+    overtime_hours: overtimeHours,
+    details,
   };
 }
